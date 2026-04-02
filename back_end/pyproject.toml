@@ -1,0 +1,9 @@
+[project]
+name = "town-backend"
+version = "0.0.1"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.23.0",
+    "pydantic>=2.0.0",
+]
