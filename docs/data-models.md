@@ -45,19 +45,26 @@ getTileArea(tile) → { worldId, sectionId, arenaId }
 
 ## 3. Object（场景对象）
 
+采用**类型 + 实例分离**架构：
+- 类型定义在 `back_end/game/object_types.py`（名称、尺寸、贴图、描述）
+- 实例只存 `id`、`type`、`position`，其余字段自动补全
+
 ```typescript
 type GameObject = {
   id: string
+  type: string                          // 对应 OBJECT_TYPES 中的类型键
   name: string
-  position: { x: number; y: number }   // tile 坐标
+  position: { x: number; y: number }   // 锚点坐标（左上角）
+  tiles: { x: number; y: number }[]    // 占据的所有格子（自动生成）
+  sprite?: string                       // 贴图文件名（不含 .png）
   interactable: boolean
   description: string                   // 交互返回文本
 }
 ```
 
 **行为规则：**
-- 玩家与 object 相邻（上下左右任意一格，曼哈顿距离 = 1）时可交互
-- 按 `I` 键触发交互，返回 `description` 文本
+- 按 `I` 键，后端根据玩家 `position + facing` 计算正前方一格，命中 object 任意占据格则触发交互
+- 返回 `description` 文本
 
 ---
 
@@ -137,8 +144,11 @@ class Tile(BaseModel):
 
 class GameObject(BaseModel):
     id: str
+    type: str
     name: str
     position: Position
+    tiles: Optional[List[Position]] = None
+    sprite: Optional[str] = None
     interactable: bool
     description: str
 

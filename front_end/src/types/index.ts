@@ -13,6 +13,7 @@ export interface Tile {
 
 export interface GameObject {
   id: string
+  type: string
   name: string
   position: Position
   tiles?: Position[]

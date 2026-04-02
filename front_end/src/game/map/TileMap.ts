@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { Tile, Position } from '../../types'
 
-export const TILE_SIZE = 32
+export const TILE_SIZE = 90
 
 // ── TileType 定义表（前端）────────────────────────────────────────────────────
 // sprite: Phaser 预加载的 key，null 表示用纯色兜底

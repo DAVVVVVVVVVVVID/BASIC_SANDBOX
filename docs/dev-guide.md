@@ -185,54 +185,64 @@ set_tile_type(x=3, y=2, new_type="wall")
 
 ## 7. Object 类型的增删改
 
-Object 没有独立的"类型表"，每个对象是独立的数据条目。贴图通过 `sprite` 字段关联，贴图文件放在 `front_end/public/assets/sprites/` 下。
+Object 采用**类型 + 实例分离**架构。类型定义在 `back_end/game/object_types.py`，实例只存坐标，`tiles`、`name`、`sprite`、`description` 全部从类型定义自动生成。
 
-**贴图尺寸规则**：`像素尺寸 / TILE_SIZE = 占用格数`。当前 `TILE_SIZE = 32`。例如 64×32 的图片占 2×1 格。
+**贴图尺寸规则**：`像素尺寸 / TILE_SIZE = 占用格数`。当前 `TILE_SIZE = 32`。例如 64×32 的图片对应 `size: (2, 1)`。
+
+### 新增 Object 类型
+
+在 `back_end/game/object_types.py` 的 `OBJECT_TYPES` 里加一条：
+
+```python
+OBJECT_TYPES: dict[str, dict] = {
+    "chair": {
+        "name": "椅子",
+        "interactable": True,
+        "description": "一把普通的木椅。",
+        "size": (1, 1),       # (width, height)，单位 tile
+        "sprite": "chair",    # 对应 assets/sprites/chair.png，None 表示无贴图
+        "tags": ["furniture", "sit"],
+    },
+    # ...
+}
+```
+
+将贴图放入 `front_end/public/assets/sprites/`。
+
+### 删除 Object 类型
+
+从 `OBJECT_TYPES` 删除对应条目，确认 `_OBJECTS_RAW` 中没有实例引用该类型。
+
+### 修改 Object 类型
+
+直接修改 `OBJECT_TYPES` 中的字段，重启后端生效。
 
 ---
 
 ## 8. Object 的增删改
 
-所有对象在 `back_end/game/world_state.py` 的 `_OBJECTS` 列表中定义。
+Object 实例在 `back_end/game/world_state.py` 的 `_OBJECTS_RAW` 列表中定义，**只需提供 id、type、position**，其余字段自动补全。
 
-### 新增单格 Object
-
-```python
-{
-    "id": "chair_01",          # 唯一 ID
-    "name": "椅子",
-    "position": {"x": 5, "y": 3},   # 坐标
-    "sprite": "chair",               # 对应 assets/sprites/chair.png（可选）
-    "interactable": True,
-    "description": "一把普通的木椅。",
-}
-```
-
-### 新增多格 Object
+### 新增 Object 实例
 
 ```python
-{
-    "id": "table_01",
-    "name": "餐桌",
-    "position": {"x": 3, "y": 5},         # 锚点（左上角）
-    "tiles": [                              # 所有占据格
-        {"x": 3, "y": 5}, {"x": 4, "y": 5}, {"x": 5, "y": 5},
-    ],
-    "sprite": "table",                     # 图片覆盖整个 footprint
-    "interactable": True,
-    "description": "一张宽大的餐桌。",
-}
+_OBJECTS_RAW = [
+    {"id": "chair_01", "type": "chair", "position": {"x": 5, "y": 3}},
+]
 ```
 
-> 注意：`tiles` 字段缺省时等同于只占 `position` 那一格（单格兼容）。
+- `id`：唯一字符串
+- `type`：必须是 `OBJECT_TYPES` 中已定义的类型
+- `position`：锚点坐标（左上角），`tiles` 根据类型 `size` 自动展开
 
-### 删除 Object
+### 删除 Object 实例
 
-从 `_OBJECTS` 列表中移除对应条目，同时将地图上该位置的字符由 `F` 改回 `f` 或其他合适类型。
+从 `_OBJECTS_RAW` 删除对应条目，同时将地图上该位置的字符由 `F` 改回 `f` 或其他合适类型。
 
-### 修改 Object
+### 修改 Object 实例
 
-直接修改 `_OBJECTS` 中的字段，重启后端生效。
+- 改位置：修改 `position`，同步更新 `map_data.py` 中的字符
+- 改属性（名字/描述/贴图）：修改 `object_types.py` 中的类型定义
 
 ---
 
@@ -241,6 +251,37 @@ Object 没有独立的"类型表"，每个对象是独立的数据条目。贴�
 编辑 `back_end/game/map_data.py` 中的 `MAP` 字符串，保存后**重启后端**生效（后端启动时一次性解析地图）。
 
 **有 Object 的格子**建议使用 `F`（floor_occupied），无 Object 的可行走地面使用 `f`（floor）或 `.`（grass），墙使用 `#`（wall）。
+
+### 调整世界尺寸
+
+世界尺寸由三个参数共同决定，修改时需保持一致：
+
+| 参数 | 位置 | 说明 |
+|------|------|------|
+| 地图行列数 | `back_end/game/map_data.py` | 字符串行数 = 高度，每行字符数 = 宽度，自动推导 |
+| Tile 像素大小 | `front_end/src/game/map/TileMap.ts` → `TILE_SIZE` | 每个 tile 渲染多少像素，当前 `32` |
+| 画布尺寸 | `front_end/src/game/PhaserGame.ts` → `width` / `height` | 应等于 `地图宽度 × TILE_SIZE` 和 `地图高度 × TILE_SIZE` |
+
+**示例：50 宽 × 25 高，tile 大小 32px**
+
+```python
+# map_data.py：每行 50 个字符，共 25 行
+MAP = [
+    "##################################################",  # × 25 行
+    ...
+]
+```
+
+```typescript
+// TileMap.ts
+export const TILE_SIZE = 32
+
+// PhaserGame.ts
+width: 50 * 32,   // 1600
+height: 25 * 32,  // 800
+```
+
+> 画布尺寸不匹配时，地图右侧或底部会出现黑边，或 tile 被截断。
 
 ---
 

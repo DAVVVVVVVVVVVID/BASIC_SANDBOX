@@ -17,6 +17,7 @@ class Tile(BaseModel):
 
 class GameObject(BaseModel):
     id: str
+    type: str
     name: str
     position: Position
     tiles: Optional[List[Position]] = None
