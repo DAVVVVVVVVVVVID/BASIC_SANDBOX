@@ -11,6 +11,8 @@ export interface MoveResult {
 
 type OnMoveResultCallback = (result: MoveResult) => void
 type OnInteractCallback   = () => void
+type OnUseCallback        = () => void
+type OnLeaveCallback      = () => void
 
 type Direction = 'up' | 'down' | 'left' | 'right'
 
@@ -57,6 +59,8 @@ const MOVE_INTERVAL = 300  // ms，键盘连续移动 & 鼠标路径步进统一
 export default class InputSystem {
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys
   private interactKey: Phaser.Input.Keyboard.Key
+  private useKey: Phaser.Input.Keyboard.Key
+  private leaveKey: Phaser.Input.Keyboard.Key
   private ctrlKey: Phaser.Input.Keyboard.Key
   private isMoving = false
   private pathQueue: Direction[] = []
@@ -73,10 +77,14 @@ export default class InputSystem {
     initialPos: Position,
     private onMoveResult: OnMoveResultCallback,
     private onInteract?: OnInteractCallback,
+    private onUse?: OnUseCallback,
+    private onLeave?: OnLeaveCallback,
   ) {
     this.currentPos  = { ...initialPos }
     this.cursors     = scene.input.keyboard!.createCursorKeys()
     this.interactKey = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.I)
+    this.useKey      = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E)
+    this.leaveKey    = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.Q)
     this.ctrlKey     = scene.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.CTRL)
     this.setupMouseInput()
   }
@@ -189,6 +197,14 @@ export default class InputSystem {
 
     if (Phaser.Input.Keyboard.JustDown(this.interactKey)) {
       this.onInteract?.()
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.useKey)) {
+      this.onUse?.()
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.leaveKey)) {
+      this.onLeave?.()
     }
   }
 }

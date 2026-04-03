@@ -58,13 +58,27 @@ type GameObject = {
   tiles: { x: number; y: number }[]    // 占据的所有格子（自动生成）
   sprite?: string                       // 贴图文件名（不含 .png）
   interactable: boolean
-  description: string                   // 交互返回文本
+  description: string                   // I 键阅读的描述文本
+  maxUsers: number                      // 最多同时使用人数
+  currentUsers: number                  // 当前使用人数（运行时）
+  userList: string[]                    // 当前使用者 ID 列表（运行时）
+  useStateLabel: string                 // 使用中状态文字模板，"{entity}" 替换为实体名
+  effects: { type: string; key: string; value?: number }[]  // buff/tag，当前仅展示
 }
 ```
 
+**派生字段（不存储，实时计算）：**
+- `available = currentUsers < maxUsers`
+
 **行为规则：**
-- 按 `I` 键，后端根据玩家 `position + facing` 计算正前方一格，命中 object 任意占据格则触发交互
-- 返回 `description` 文本
+
+| 键 | Action | 说明 |
+|----|--------|------|
+| `I` | `interact` | 读取描述信息，不改变任何状态 |
+| `E` | `use` | 进入使用，校验 available，加入 userList，玩家 state 改为 useStateLabel 渲染文字 |
+| `Q` | `leave` | 退出使用，从 userList 移除，玩家 state 恢复 idle |
+
+`use` 失败时 reason 为 `object_full`，响应含 `currentUsers` / `maxUsers` 供前端展示。
 
 ---
 
@@ -151,12 +165,17 @@ class GameObject(BaseModel):
     sprite: Optional[str] = None
     interactable: bool
     description: str
+    max_users: int
+    current_users: int
+    user_list: List[str]
+    use_state_label: str
+    effects: List[dict]
 
 class Player(BaseModel):
     id: str
     position: Position
     facing: Literal["up", "down", "left", "right"]
-    state: Literal["idle", "moving", "interacting"]
+    state: str   # "idle" | "moving" | 自定义文字（如 "player_01 正在游玩游戏机"）
     hp: int
     energy: int
 

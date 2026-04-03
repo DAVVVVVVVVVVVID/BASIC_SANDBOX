@@ -185,9 +185,24 @@ set_tile_type(x=3, y=2, new_type="wall")
 
 ## 7. Object 类型的增删改
 
-Object 采用**类型 + 实例分离**架构。类型定义在 `back_end/game/object_types.py`，实例只存坐标，`tiles`、`name`、`sprite`、`description` 全部从类型定义自动生成。
+Object 采用**类型 + 实例分离**架构。类型定义在 `back_end/game/object_types.py`，实例只存坐标，运行时状态（`currentUsers`、`userList`）在 `_build_objects()` 中自动补充。
 
 **贴图尺寸规则**：`像素尺寸 / TILE_SIZE = 占用格数`。当前 `TILE_SIZE = 32`。例如 64×32 的图片对应 `size: (2, 1)`。
+
+### 字段说明
+
+| 字段 | 层级 | 说明 |
+|------|------|------|
+| `name` | 类型 | 显示名称 |
+| `interactable` | 类型 | 是否可交互（I 键阅读描述） |
+| `description` | 类型 | I 键返回的描述文本 |
+| `size` | 类型 | `(width, height)`，单位 tile |
+| `sprite` | 类型 | 贴图文件名（不含 .png），None 表示无贴图 |
+| `max_users` | 类型 | 最多同时使用人数 |
+| `use_state_label` | 类型 | E 键使用后玩家状态文字，`{entity}` 替换为实体名 |
+| `effects` | 类型 | buff/tag 列表，当前仅展示，不实际运算 |
+| `current_users` | 实例运行时 | 当前使用人数，自动初始化为 0 |
+| `user_list` | 实例运行时 | 当前使用者 ID 列表，自动初始化为 [] |
 
 ### 新增 Object 类型
 
@@ -195,13 +210,18 @@ Object 采用**类型 + 实例分离**架构。类型定义在 `back_end/game/ob
 
 ```python
 OBJECT_TYPES: dict[str, dict] = {
-    "chair": {
-        "name": "椅子",
-        "interactable": True,
-        "description": "一把普通的木椅。",
-        "size": (1, 1),       # (width, height)，单位 tile
-        "sprite": "chair",    # 对应 assets/sprites/chair.png，None 表示无贴图
-        "tags": ["furniture", "sit"],
+    "arcade": {
+        "name":            "游戏机",
+        "interactable":    True,
+        "description":     "一台经典街机，投币即可游玩。",
+        "size":            (1, 1),
+        "sprite":          "arcade",
+        "max_users":       1,
+        "use_state_label": "{entity} 正在游玩游戏机",
+        "effects": [
+            {"type": "buff", "key": "energy_drain", "value": 1},
+            {"type": "tag",  "key": "focused"},
+        ],
     },
     # ...
 }

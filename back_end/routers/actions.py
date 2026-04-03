@@ -3,7 +3,7 @@ from models.action import ActionRequest, ActionResponse
 from models.world import Position
 from game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
-    get_object_at,
+    get_object_at, enter_object, leave_object,
 )
 from game.action_log import append_log
 
@@ -86,10 +86,63 @@ def handle_interact(entity_id: str, payload: dict) -> ActionResponse:
     )
 
 
+def handle_use(entity_id: str, payload: dict) -> ActionResponse:
+    player = get_player()
+    pos    = player["position"]
+    dx, dy = _DIRECTION_DELTA[player["facing"]]
+
+    obj = get_object_at(pos["x"] + dx, pos["y"] + dy)
+    if obj is None:
+        return ActionResponse(success=False, type="use", reason="no_object_in_front")
+
+    if not obj.get("interactable", False):
+        return ActionResponse(success=False, type="use", reason="not_interactable")
+
+    if obj["currentUsers"] >= obj["maxUsers"]:
+        return ActionResponse(
+            success=False,
+            type="use",
+            reason="object_full",
+            result={"currentUsers": obj["currentUsers"], "maxUsers": obj["maxUsers"]},
+        )
+
+    enter_object(obj["id"], entity_id)
+    updated = get_player()
+    return ActionResponse(
+        success=True,
+        type="use",
+        result={
+            "playerState":  updated["state"],
+            "objectId":     obj["id"],
+            "currentUsers": obj["currentUsers"],
+            "maxUsers":     obj["maxUsers"],
+        },
+    )
+
+
+def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
+    obj = leave_object(entity_id)
+    if obj is None:
+        return ActionResponse(success=False, type="leave", reason="not_using_any_object")
+
+    return ActionResponse(
+        success=True,
+        type="leave",
+        result={
+            "playerState":  "idle",
+            "objectId":     obj["id"],
+            "currentUsers": obj["currentUsers"],
+            "maxUsers":     obj["maxUsers"],
+        },
+    )
+
+
 _HANDLERS = {
     "move":     handle_move,
     "turn":     handle_turn,
     "interact": handle_interact,
+    "use":      handle_use,
+    "leave":    handle_leave,
 }
 
 

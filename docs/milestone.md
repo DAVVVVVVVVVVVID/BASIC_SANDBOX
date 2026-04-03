@@ -123,11 +123,41 @@ MVP 通过标准（必须全部满足）：
 
 ---
 
+---
+
+### 阶段 6：Object 使用系统
+
+**目标：** Object 支持进入/退出使用，追踪使用者，前端展示使用状态
+
+**步骤 1 — 后端：扩展 Object 类型定义**
+
+- [ ] `object_types.py`：所有类型加 `max_users`、`use_state_label`、`effects`
+- [ ] `world_state.py`：`_build_objects()` 补充运行时字段 `current_users=0`、`user_list=[]`；新增 `enter_object(obj_id, entity_id)` / `leave_object(entity_id)` 函数
+
+**步骤 2 — 后端：新增 use / leave handler**
+
+- [ ] `models/world.py`：`GameObject` 加 `maxUsers`、`currentUsers`、`userList`、`useStateLabel`、`effects` 字段
+- [ ] `models/player.py`：`state` 改为 `str`（支持自定义文字，如"player_01 正在游玩游戏机"）
+- [ ] `routers/actions.py`：注册 `use` handler（校验 available，调用 `enter_object`，更新玩家 state）；注册 `leave` handler（调用 `leave_object`，玩家 state 恢复 idle）
+
+**步骤 3 — 前端：更新类型与 UI**
+
+- [ ] `types/index.ts`：`GameObject` 接口加新字段；`Player.state` 改为 `string`
+- [ ] `InputSystem.ts`：新增 `E` 键触发 `use`，`Q` 键触发 `leave`
+- [ ] `GameObjectSprite.ts`：tooltip 改为 `名称 (currentUsers/maxUsers)`，已满时追加"— 使用中"
+
+**验收：**
+- I 键阅读描述，E 键进入使用，Q 键退出，功能互不干扰
+- 使用中玩家 state 显示自定义文字（如"player_01 正在游玩游戏机"）
+- 对象已满时 E 键返回失败，tooltip 显示 `1/1 — 使用中`
+- effects 字段在对象数据中存在并可正确返回（展示用，不运算）
+
+---
+
 ## 未来阶段
 
 | 阶段 | 内容 |
 |------|------|
-| 阶段 6 | WebSocket 替换轮询，实时状态同步 |
-| 阶段 7 | 多 NPC / Agent 系统接入 |
-| 阶段 8 | 聊天系统 |
-| 阶段 9 | 复杂 Object 行为（buff、状态变化） |
+| 阶段 7 | WebSocket 替换轮询，实时状态同步 |
+| 阶段 8 | 多 NPC / Agent 系统接入 |
+| 阶段 9 | 聊天系统 |

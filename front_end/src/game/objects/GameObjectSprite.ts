@@ -4,6 +4,12 @@ import { tileToPixel, TILE_SIZE } from '../map/TileMap'
 
 const COLOR_OBJECT = 0xf6ad55
 
+function tooltipLabel(obj: GameObject): string {
+  const usage = `${obj.currentUsers}/${obj.maxUsers}`
+  const full = obj.currentUsers >= obj.maxUsers ? ' — 使用中' : ''
+  return `${obj.name} (${usage})${full}`
+}
+
 export default class GameObjectSprite {
   constructor(scene: Phaser.Scene, obj: GameObject) {
     const footprint = obj.tiles ?? [obj.position]
@@ -33,7 +39,7 @@ export default class GameObjectSprite {
         .setInteractive()
 
       const tooltip = scene.add
-        .text(px + imgW / 2, py - 2, obj.name, {
+        .text(px + imgW / 2, py - 2, tooltipLabel(obj), {
           fontSize: '10px',
           color: '#ffffff',
           backgroundColor: '#1a1a2e',
@@ -58,7 +64,7 @@ export default class GameObjectSprite {
 
         if (index === 0) {
           const tooltip = scene.add
-            .text(cx, y - 2, obj.name, {
+            .text(cx, y - 2, tooltipLabel(obj), {
               fontSize: '10px',
               color: '#ffffff',
               backgroundColor: '#1a1a2e',

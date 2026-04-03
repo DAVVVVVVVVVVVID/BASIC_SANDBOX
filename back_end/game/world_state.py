@@ -42,7 +42,7 @@ _OBJECTS_RAW = [
 
 
 def _build_objects(raw: list[dict]) -> list[dict]:
-    """将实例列表与类型定义合并，自动生成 tiles footprint。"""
+    """将实例列表与类型定义合并，自动生成 tiles footprint 及运行时状态。"""
     result = []
     for inst in raw:
         t = OBJECT_TYPES[inst["type"]]
@@ -50,14 +50,20 @@ def _build_objects(raw: list[dict]) -> list[dict]:
         x, y = inst["position"]["x"], inst["position"]["y"]
         tiles = [{"x": x + dx, "y": y + dy} for dy in range(h) for dx in range(w)]
         result.append({
-            "id":          inst["id"],
-            "type":        inst["type"],
-            "name":        t["name"],
-            "position":    inst["position"],
-            "tiles":       tiles,
-            "sprite":      t["sprite"],
-            "interactable": t["interactable"],
-            "description": t["description"],
+            "id":              inst["id"],
+            "type":            inst["type"],
+            "name":            t["name"],
+            "position":        inst["position"],
+            "tiles":           tiles,
+            "sprite":          t["sprite"],
+            "interactable":    t["interactable"],
+            "description":     t["description"],
+            "maxUsers":        t["max_users"],
+            "useStateLabel":   t["use_state_label"],
+            "effects":         t["effects"],
+            # 运行时状态
+            "currentUsers":    0,
+            "userList":        [],
         })
     return result
 
@@ -114,12 +120,13 @@ _TILE_LOOKUP: dict[tuple[int, int], dict] = {
 # ── 可变玩家状态 ──────────────────────────────────────────────────────────────
 
 _player = {
-    "id": "player_01",
-    "position": {"x": 2, "y": 2},
-    "facing": "down",
-    "state": "idle",
-    "hp": 100,
-    "energy": 80,
+    "id":            "player_01",
+    "position":      {"x": 2, "y": 2},
+    "facing":        "down",
+    "state":         "idle",
+    "hp":            100,
+    "energy":        80,
+    "usingObjectId": None,   # 当前正在使用的 object id，None 表示未使用
 }
 
 # ── 公开访问函数 ──────────────────────────────────────────────────────────────
@@ -165,3 +172,28 @@ def get_object_at(x: int, y: int) -> dict | None:
         if any(p["x"] == x and p["y"] == y for p in o["tiles"]):
             return o
     return None
+
+def enter_object(obj_id: str, entity_id: str) -> None:
+    """将实体加入对象的使用者列表，更新玩家状态。"""
+    obj = get_object_by_id(obj_id)
+    if obj is None:
+        return
+    if entity_id not in obj["userList"]:
+        obj["userList"].append(entity_id)
+        obj["currentUsers"] += 1
+    label = obj["useStateLabel"].replace("{entity}", entity_id)
+    _player["state"] = label
+    _player["usingObjectId"] = obj_id
+
+def leave_object(entity_id: str) -> dict | None:
+    """将实体从当前使用的对象中移除，恢复玩家状态。返回离开的对象。"""
+    obj_id = _player.get("usingObjectId")
+    if obj_id is None:
+        return None
+    obj = get_object_by_id(obj_id)
+    if obj and entity_id in obj["userList"]:
+        obj["userList"].remove(entity_id)
+        obj["currentUsers"] -= 1
+    _player["state"] = "idle"
+    _player["usingObjectId"] = None
+    return obj

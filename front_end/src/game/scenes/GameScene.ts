@@ -63,6 +63,8 @@ export default class GameScene extends Phaser.Scene {
         }
       },
       () => this.handleInteract(),
+      () => this.handleUse(),
+      () => this.handleLeave(),
     )
   }
 
@@ -85,6 +87,37 @@ export default class GameScene extends Phaser.Scene {
       }
     } catch (err) {
       console.error('[Interact Error]', err)
+    }
+  }
+
+  private async handleUse() {
+    try {
+      const res = await sendAction(this.player.id, 'use')
+      if (res.success) {
+        EventBus.emit('show-interaction', { message: res.result?.playerState })
+      } else if (res.reason === 'no_object_in_front') {
+        EventBus.emit('show-interaction', { message: '面前没有可使用的对象' })
+      } else if (res.reason === 'object_full') {
+        const { currentUsers, maxUsers } = res.result ?? {}
+        EventBus.emit('show-interaction', { message: `正在使用中（${currentUsers}/${maxUsers}）` })
+      } else if (res.reason === 'not_interactable') {
+        EventBus.emit('show-interaction', { message: '这个对象无法使用' })
+      }
+    } catch (err) {
+      console.error('[Use Error]', err)
+    }
+  }
+
+  private async handleLeave() {
+    try {
+      const res = await sendAction(this.player.id, 'leave')
+      if (res.success) {
+        EventBus.emit('show-interaction', { message: '已离开' })
+      } else if (res.reason === 'not_using_any_object') {
+        EventBus.emit('show-interaction', { message: '当前没有正在使用的对象' })
+      }
+    } catch (err) {
+      console.error('[Leave Error]', err)
     }
   }
 

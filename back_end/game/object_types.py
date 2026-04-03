@@ -1,7 +1,9 @@
 # Object 类型定义表
 # size: (width, height) 单位为 tile，从 position 锚点向右、向下展开
 # sprite: 对应 assets/sprites/<sprite>.png，None 表示无贴图（用纯色块代替）
-# tags: 用于未来扩展（筛选、行为分类等），目前仅作标注
+# max_users: 最多同时使用人数
+# use_state_label: E 键使用后玩家 state 文字，{entity} 替换为实体名
+# effects: buff/tag 列表，当前仅展示，不实际运算
 
 OBJECT_TYPES: dict[str, dict] = {
     "tree": {
@@ -10,7 +12,9 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "一棵粗壮的老橡树，树皮上刻着一些符文。",
         "size": (1, 1),
         "sprite": None,
-        "tags": ["nature"],
+        "max_users": 1,
+        "use_state_label": "{entity} 正在抚摸老橡树",
+        "effects": [{"type": "tag", "key": "nature"}],
     },
     "well": {
         "name": "古老的水井",
@@ -18,7 +22,9 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "井水清澈，似乎深不见底。",
         "size": (1, 1),
         "sprite": None,
-        "tags": ["nature", "water"],
+        "max_users": 1,
+        "use_state_label": "{entity} 正在打水",
+        "effects": [{"type": "buff", "key": "hydrated", "value": 1}],
     },
     "sofa": {
         "name": "沙发",
@@ -26,7 +32,12 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "一张舒适的沙发，坐上去软绵绵的。",
         "size": (2, 1),
         "sprite": "sofa",
-        "tags": ["furniture", "sit"],
+        "max_users": 2,
+        "use_state_label": "{entity} 正在沙发上休息",
+        "effects": [
+            {"type": "buff", "key": "energy_regen", "value": 1},
+            {"type": "tag",  "key": "resting"},
+        ],
     },
     "bed": {
         "name": "床",
@@ -34,7 +45,12 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "一张整洁的单人床。",
         "size": (2, 3),
         "sprite": "bed",
-        "tags": ["furniture", "sleep"],
+        "max_users": 1,
+        "use_state_label": "{entity} 正在睡觉",
+        "effects": [
+            {"type": "buff", "key": "energy_regen", "value": 3},
+            {"type": "tag",  "key": "sleeping"},
+        ],
     },
     "book": {
         "name": "书",
@@ -42,7 +58,9 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "一本厚厚的书，封面上写着看不懂的文字。",
         "size": (3, 1),
         "sprite": "book",
-        "tags": ["item", "read"],
+        "max_users": 1,
+        "use_state_label": "{entity} 正在阅读",
+        "effects": [{"type": "tag", "key": "reading"}],
     },
     "cook": {
         "name": "炉灶",
@@ -50,7 +68,9 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "炉火正旺，锅里咕嘟咕嘟地冒着热气。",
         "size": (2, 1),
         "sprite": "cook",
-        "tags": ["furniture", "cook"],
+        "max_users": 1,
+        "use_state_label": "{entity} 正在烹饪",
+        "effects": [{"type": "tag", "key": "cooking"}],
     },
     "desk": {
         "name": "书桌",
@@ -58,7 +78,9 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "一张木制书桌，桌面上摆着一些文件。",
         "size": (2, 1),
         "sprite": "desk",
-        "tags": ["furniture", "surface"],
+        "max_users": 1,
+        "use_state_label": "{entity} 正在工作",
+        "effects": [{"type": "tag", "key": "working"}],
     },
     "bath": {
         "name": "浴缸",
@@ -66,7 +88,12 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "一个白色的浴缸，里面的水还是温热的。",
         "size": (1, 2),
         "sprite": "bath",
-        "tags": ["furniture", "wash"],
+        "max_users": 1,
+        "use_state_label": "{entity} 正在泡澡",
+        "effects": [
+            {"type": "buff", "key": "energy_regen", "value": 2},
+            {"type": "tag",  "key": "bathing"},
+        ],
     },
     "toilet": {
         "name": "马桶",
@@ -74,7 +101,9 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "一个干净的马桶。",
         "size": (1, 1),
         "sprite": "toilet",
-        "tags": ["furniture"],
+        "max_users": 1,
+        "use_state_label": "{entity} 正在使用马桶",
+        "effects": [],
     },
     "sink": {
         "name": "洗手台",
@@ -82,6 +111,8 @@ OBJECT_TYPES: dict[str, dict] = {
         "description": "一个白色的洗手台，水龙头锃光瓦亮。",
         "size": (1, 1),
         "sprite": "sink",
-        "tags": ["furniture", "wash"],
+        "max_users": 1,
+        "use_state_label": "{entity} 正在洗手",
+        "effects": [{"type": "tag", "key": "clean"}],
     },
 }

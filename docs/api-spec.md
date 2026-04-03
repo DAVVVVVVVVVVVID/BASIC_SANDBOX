@@ -173,11 +173,13 @@
 
 ### 行为类型一览
 
-| type | 说明 | payload |
-|------|------|---------|
-| `move` | 移动一格或前往目标 tile | `{ direction }` 或 `{ targetTile }` |
-| `turn` | 仅改变朝向，不移动 | `{ direction }` |
-| `interact` | 与正前方对象交互 | `{}` |
+| type | 说明 | payload | 触发键 |
+|------|------|---------|--------|
+| `move` | 移动一格或前往目标 tile | `{ direction }` 或 `{ targetTile }` | 方向键 / 鼠标 |
+| `turn` | 仅改变朝向，不移动 | `{ direction }` | Ctrl + 方向键 |
+| `interact` | 阅读正前方对象描述，不改变状态 | `{}` | `I` |
+| `use` | 进入使用正前方对象，加入 userList | `{}` | `E` |
+| `leave` | 退出当前正在使用的对象 | `{}` | `Q` |
 
 ---
 
@@ -258,13 +260,11 @@
 
 ### interact
 
-**payload：**
+阅读正前方对象的描述，**不改变任何状态**。
 
-```json
-{}
-```
+**payload：** `{}`
 
-后端根据实体当前 `position + facing` 自动计算正前方格子，无需客户端指定目标。
+后端根据实体当前 `position + facing` 自动计算正前方格子。
 
 **响应（成功）：**
 
@@ -273,8 +273,7 @@
   "success": true,
   "type": "interact",
   "result": {
-    "message": "一棵粗壮的老橡树，树皮上刻着一些符文。",
-    "playerState": "interacting"
+    "message": "一棵粗壮的老橡树，树皮上刻着一些符文。"
   }
 }
 ```
@@ -286,6 +285,83 @@
   "success": false,
   "type": "interact",
   "reason": "no_object_in_front"
+}
+```
+
+---
+
+### use
+
+进入使用正前方对象。校验顺序：`interactable` → `available`（`currentUsers < maxUsers`）。
+
+**payload：** `{}`
+
+**响应（成功）：**
+
+```json
+{
+  "success": true,
+  "type": "use",
+  "result": {
+    "playerState": "player_01 正在游玩游戏机",
+    "objectId": "arcade_01",
+    "currentUsers": 1,
+    "maxUsers": 1
+  }
+}
+```
+
+**响应（失败，已满）：**
+
+```json
+{
+  "success": false,
+  "type": "use",
+  "reason": "object_full",
+  "result": { "currentUsers": 1, "maxUsers": 1 }
+}
+```
+
+**响应（失败，前方无对象）：**
+
+```json
+{
+  "success": false,
+  "type": "use",
+  "reason": "no_object_in_front"
+}
+```
+
+---
+
+### leave
+
+退出当前正在使用的对象，从 `userList` 移除，玩家状态恢复 `idle`。
+
+**payload：** `{}`
+
+**响应（成功）：**
+
+```json
+{
+  "success": true,
+  "type": "leave",
+  "result": {
+    "playerState": "idle",
+    "objectId": "arcade_01",
+    "currentUsers": 0,
+    "maxUsers": 1
+  }
+}
+```
+
+**响应（失败，当前未在使用任何对象）：**
+
+```json
+{
+  "success": false,
+  "type": "leave",
+  "reason": "not_using_any_object"
 }
 ```
 
@@ -325,6 +401,7 @@
 | `pick` | 拾取物品 | `{ itemId }` |
 | `cook` | 使用灶台烹饪 | `{ recipeId }` |
 | `talk` | 与 NPC 对话 | `{ npcId }` |
+| `sleep` | 使用床休息 | `{}` |
 
 ---
 

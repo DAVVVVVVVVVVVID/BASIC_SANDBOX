@@ -15,6 +15,12 @@ class Tile(BaseModel):
     objectId: Optional[str] = None
 
 
+class Effect(BaseModel):
+    type: str
+    key: str
+    value: Optional[float] = None
+
+
 class GameObject(BaseModel):
     id: str
     type: str
@@ -24,6 +30,11 @@ class GameObject(BaseModel):
     sprite: Optional[str] = None
     interactable: bool
     description: str
+    maxUsers: int
+    currentUsers: int
+    userList: List[str]
+    useStateLabel: str
+    effects: List[Effect]
 
 
 class WorldState(BaseModel):

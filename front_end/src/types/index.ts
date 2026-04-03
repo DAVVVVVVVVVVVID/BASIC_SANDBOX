@@ -11,6 +11,12 @@ export interface Tile {
   objectId: string | null
 }
 
+export interface Effect {
+  type: string
+  key: string
+  value?: number
+}
+
 export interface GameObject {
   id: string
   type: string
@@ -20,6 +26,11 @@ export interface GameObject {
   sprite?: string
   interactable: boolean
   description: string
+  maxUsers: number
+  currentUsers: number
+  userList: string[]
+  useStateLabel: string
+  effects: Effect[]
 }
 
 export interface WorldState {
@@ -47,9 +58,10 @@ export interface Player {
   id: string
   position: Position
   facing: Facing
-  state: 'idle' | 'moving' | 'interacting'
+  state: string
   hp: number
   energy: number
+  usingObjectId: string | null
 }
 
 export interface ActionLogEntry {
