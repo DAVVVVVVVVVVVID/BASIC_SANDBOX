@@ -26,7 +26,10 @@ def _compute_facing(current: dict, target_x: int, target_y: int) -> str:
 
 
 def handle_move(entity_id: str, payload: dict) -> ActionResponse:
-    current = get_player()["position"]
+    player = get_player()
+    if not player.get("canMove", True):
+        return ActionResponse(success=False, type="move", reason="move_disabled")
+    current = player["position"]
     direction = payload.get("direction")
     target_tile = payload.get("targetTile")
 
@@ -72,6 +75,8 @@ def handle_turn(entity_id: str, payload: dict) -> ActionResponse:
 
 def handle_interact(entity_id: str, payload: dict) -> ActionResponse:
     player = get_player()
+    if not player.get("canInteract", True):
+        return ActionResponse(success=False, type="interact", reason="interact_disabled")
     pos    = player["position"]
     dx, dy = _DIRECTION_DELTA[player["facing"]]
 
@@ -88,6 +93,8 @@ def handle_interact(entity_id: str, payload: dict) -> ActionResponse:
 
 def handle_use(entity_id: str, payload: dict) -> ActionResponse:
     player = get_player()
+    if not player.get("canUse", True):
+        return ActionResponse(success=False, type="use", reason="use_disabled")
     pos    = player["position"]
     dx, dy = _DIRECTION_DELTA[player["facing"]]
 
@@ -113,6 +120,7 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
         type="use",
         result={
             "playerState":  updated["state"],
+            "stateLabel":   updated["stateLabel"],
             "objectId":     obj["id"],
             "currentUsers": obj["currentUsers"],
             "maxUsers":     obj["maxUsers"],
@@ -130,6 +138,7 @@ def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
         type="leave",
         result={
             "playerState":  "idle",
+            "stateLabel":   None,
             "objectId":     obj["id"],
             "currentUsers": obj["currentUsers"],
             "maxUsers":     obj["maxUsers"],

@@ -84,16 +84,64 @@ type GameObject = {
 
 ## 4. 玩家（Player）
 
+玩家数据分为两层：**静态档案**（不随运行时变化）和**运行时状态**（动态变化）。
+
+### 静态档案（PlayerProfile）
+
+```typescript
+type PlayerProfile = {
+  id: string
+  name: string    // 角色名称，用于 useStateLabel 中 {entity} 替换
+  age: number     // 角色年龄
+}
+```
+
+### 运行时状态（Player）
+
 ```typescript
 type Player = {
   id: string
-  position: { x: number; y: number }            // tile 坐标
-  facing: "up" | "down" | "left" | "right"      // 当前朝向
-  state: "idle" | "moving" | "interacting"
-  hp: number                                     // 生命值，范围 0-100
-  energy: number                                 // 体力值，范围 0-100
+  position: { x: number; y: number }        // tile 坐标
+  facing: "up" | "down" | "left" | "right"  // 当前朝向
+  state: PlayerState                         // 系统枚举状态
+  stateLabel: string | null                  // 展示文字，仅 state == "using" 时有值
+  hp: number                                 // 生命值，范围 0-100
+  energy: number                             // 体力值，范围 0-100
+  usingObjectId: string | null               // 当前使用的 object id
+  buffs: Buff[]                              // 当前 buff 实例列表
+  tags: string[]                             // 当前 tag 列表
+  // 状态控制字段（每 tick 重置为 true，buff handler 可设为 false）
+  canMove: boolean
+  canInteract: boolean
+  canUse: boolean
+  moveSpeed: number                          // 移速倍率，默认 1.0
+}
+
+type PlayerState = "idle" | "walking" | "requesting_talk" | "talking" | "using"
+
+type Buff = {
+  key: string
+  value: number
+  mode: "while_active" | "instant"
+  remaining: number | null    // null = 永久（while_active），毫秒 = 剩余时间（instant）
+  source: string              // 来源 object id
 }
 ```
+
+**状态说明：**
+
+| state | 说明 |
+|-------|------|
+| `idle` | 静止 |
+| `walking` | 移动中 |
+| `requesting_talk` | 发起对话请求 |
+| `talking` | 对话中 |
+| `using` | 正在使用 object，stateLabel 有值 |
+
+**stateLabel 规则：**
+- `state != "using"` 时：`stateLabel = null`
+- `state == "using"` 时：`stateLabel = useStateLabel.replace("{entity}", profile.name)`
+- 前端展示：优先显示 `stateLabel`，否则显示 `state`
 
 **朝向规则：**
 - 由最后一次移动操作决定（无论目标格是否可行走）
@@ -101,13 +149,41 @@ type Player = {
 - 鼠标点击：朝向 = 当前位置到目标格的主轴方向（取 |dx| 与 |dy| 较大者）
 - 初始朝向：`"down"`
 
-**状态说明：**
+**Buff 系统说明：**
 
-| 状态 | 触发条件 |
-|------|----------|
-| idle | 静止不动 |
-| moving | 正在移动中 |
-| interacting | 正在与 object 交互 |
+Buff 分三类，处理位置和机制不同：
+
+| 类型 | 代表 key | 处理位置 | 机制 |
+|------|---------|---------|------|
+| 属性修改型 | `energy_regen`、`hp_regen` | 后端 tick | 每 tick 直接修改 player.energy / hp |
+| 状态控制型 | `no_move`、`no_interact`、`no_use` | 后端 action 校验 | tick 重置为 true，handler 设为 false，action 执行前校验 |
+| 行为参数型 | `move_speed` | 前后端协作 | tick 计算倍率写入 `moveSpeed`，前端据此调整 MOVE_INTERVAL |
+
+**当前支持的 buff key：**
+
+| key | 类型 | value 含义 |
+|-----|------|-----------|
+| `energy_regen` | 属性修改型 | 每 tick 恢复体力值 |
+| `hp_regen` | 属性修改型 | 每 tick 恢复生命值 |
+| `no_move` | 状态控制型 | 无（value 忽略），禁止移动 |
+| `no_interact` | 状态控制型 | 无，禁止 I 键物品描述交互 |
+| `no_use` | 状态控制型 | 无，禁止 E 键使用物品 |
+| `move_speed` | 行为参数型 | 倍率（0.5 = 减速，2.0 = 加速） |
+
+**Buff 生命周期：**
+- `while_active`：进入 object 时创建，`remaining = null`；离开时（同 source）清除
+- `instant`：进入 object 时创建，`remaining = duration`；tick 递减，归零自动移除；离开 object 不清除；同 source + 同 key 再次进入时覆盖（重置 remaining）
+
+**Tick 执行顺序（每 200ms）：**
+1. 递减 `instant` buff 的 `remaining`，移除归零项
+2. 重置：`canMove = true`、`canInteract = true`、`canUse = true`、`moveSpeed = 1.0`
+3. 遍历所有 buff，调用对应 Effect Handler
+4. handler 修改 player 属性（energy、hp、canMove 等）
+
+**tag 说明：**
+- 纯标记字符串，如 `"sleeping"`、`"cooking"`
+- 来源：进入 object 时从 effects 复制，离开时清除
+- 当前仅展示，不参与运算
 
 ---
 
@@ -171,13 +247,33 @@ class GameObject(BaseModel):
     use_state_label: str
     effects: List[dict]
 
+class PlayerProfile(BaseModel):
+    id: str
+    name: str
+    age: int
+
+class Buff(BaseModel):
+    key: str
+    value: float
+    mode: Literal["while_active", "instant"]
+    remaining: Optional[float] = None  # None = 永久；毫秒 = 剩余时间
+    source: str                        # 来源 object id
+
 class Player(BaseModel):
     id: str
     position: Position
     facing: Literal["up", "down", "left", "right"]
-    state: str   # "idle" | "moving" | 自定义文字（如 "player_01 正在游玩游戏机"）
+    state: Literal["idle", "walking", "requesting_talk", "talking", "using"]
+    stateLabel: Optional[str] = None
     hp: int
     energy: int
+    usingObjectId: Optional[str] = None
+    buffs: List[Buff] = []
+    tags: List[str] = []
+    canMove: bool = True
+    canInteract: bool = True
+    canUse: bool = True
+    moveSpeed: float = 1.0
 
 class WorldState(BaseModel):
     date: str

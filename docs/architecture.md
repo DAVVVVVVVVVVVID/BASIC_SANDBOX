@@ -81,6 +81,7 @@ back_end/
 └── game/                  # 游戏逻辑
     ├── world_state.py     # 世界状态管理（唯一可信数据源）
     ├── action_log.py      # 行为日志（内存，最多 20 条，重启清空）
+    ├── buff_tick.py       # Buff Tick 引擎（生命周期 + Effect Handler 注册表）
     ├── map_data.py        # 地图字符串定义
     └── object_types.py    # Object 类型定义表
 ```
@@ -191,7 +192,42 @@ def dispatch(action_request):
 
 ---
 
-## 6. 扩展预留
+## 6. Buff Tick 引擎
+
+每次 `GET /player` 触发前，后端执行一次 buff tick，固定步骤：
+
+```
+① 递减 instant buff 的 remaining（单位：ms，delta = 200）
+   → remaining <= 0 的 buff 自动移除
+
+② 重置状态控制字段
+   canMove = True, canInteract = True, canUse = True, moveSpeed = 1.0
+
+③ 遍历 player.buffs，查 EFFECT_HANDLERS 注册表，逐一执行
+   energy_regen → player.energy += value * delta
+   no_move      → player.canMove = False
+   move_speed   → player.moveSpeed *= value
+   ...
+```
+
+Effect Handler 注册表（`buff_tick.py`）：
+
+```python
+EFFECT_HANDLERS = {
+    "energy_regen": lambda player, buff, delta: ...,
+    "hp_regen":     lambda player, buff, delta: ...,
+    "no_move":      lambda player, buff, delta: ...,
+    "no_interact":  lambda player, buff, delta: ...,
+    "no_use":       lambda player, buff, delta: ...,
+    "move_speed":   lambda player, buff, delta: ...,
+}
+```
+
+新增 buff 效果只需在注册表加一条，不修改 tick 主循环。
+
+---
+
+## 7. 扩展预留
 
 - **Agent 接入**：agent 复用 `POST /action`，`entityId` 改为 agent ID，其余完全一致
 - **多人支持**：所有状态集中在后端 WorldState，天然支持多实体并发

@@ -54,14 +54,38 @@ export interface WorldEvent {
   description: string
 }
 
+export type PlayerState = 'idle' | 'walking' | 'requesting_talk' | 'talking' | 'using'
+
+export interface PlayerProfile {
+  id: string
+  name: string
+  age: number
+}
+
+export interface Buff {
+  key: string
+  value: number
+  mode: 'while_active' | 'instant'
+  remaining: number | null  // null = 永久（while_active）；毫秒 = 剩余时间（instant）
+  source: string
+}
+
 export interface Player {
   id: string
+  profile: PlayerProfile
   position: Position
   facing: Facing
-  state: string
+  state: PlayerState
+  stateLabel: string | null
   hp: number
   energy: number
   usingObjectId: string | null
+  buffs: Buff[]
+  tags: string[]
+  canMove: boolean
+  canInteract: boolean
+  canUse: boolean
+  moveSpeed: number
 }
 
 export interface ActionLogEntry {

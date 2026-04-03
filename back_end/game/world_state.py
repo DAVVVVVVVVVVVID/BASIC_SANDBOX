@@ -117,16 +117,32 @@ _TILE_LOOKUP: dict[tuple[int, int], dict] = {
     (t["x"], t["y"]): t for t in _TILES
 }
 
+# ── 静态角色档案 ──────────────────────────────────────────────────────────────
+
+_player_profile = {
+    "id":   "player_01",
+    "name": "玩家",
+    "age":  25,
+}
+
 # ── 可变玩家状态 ──────────────────────────────────────────────────────────────
 
 _player = {
     "id":            "player_01",
     "position":      {"x": 2, "y": 2},
     "facing":        "down",
-    "state":         "idle",
-    "hp":            100,
-    "energy":        80,
-    "usingObjectId": None,   # 当前正在使用的 object id，None 表示未使用
+    "state":         "idle",       # 枚举：idle / walking / requesting_talk / talking / using
+    "stateLabel":    None,         # 展示文字，仅 state == "using" 时有值
+    "hp":            100.0,
+    "energy":        80.0,
+    "usingObjectId": None,
+    "buffs":         [],           # Buff 实例列表，含 key/value/mode/remaining/source
+    "tags":          [],           # tag 字符串列表
+    # 状态控制字段（每 tick 重置，buff handler 可覆盖）
+    "canMove":       True,
+    "canInteract":   True,
+    "canUse":        True,
+    "moveSpeed":     1.0,
 }
 
 # ── 公开访问函数 ──────────────────────────────────────────────────────────────
@@ -141,6 +157,9 @@ def get_world() -> dict:
 def get_player() -> dict:
     return copy.deepcopy(_player)
 
+def get_player_profile() -> dict:
+    return copy.deepcopy(_player_profile)
+
 def is_tile_walkable(x: int, y: int) -> bool:
     tile = _TILE_LOOKUP.get((x, y))
     return tile is not None and tile["walkable"]
@@ -152,7 +171,8 @@ def update_player_position(x: int, y: int, facing: str) -> None:
     _player["position"]["x"] = x
     _player["position"]["y"] = y
     _player["facing"] = facing
-    _player["state"] = "idle"
+    if _player["state"] != "using":
+        _player["state"] = "idle"
 
 def set_tile_type(x: int, y: int, new_type: str) -> None:
     """运行时修改某个 tile 的类型与可行走状态。"""
@@ -174,19 +194,40 @@ def get_object_at(x: int, y: int) -> dict | None:
     return None
 
 def enter_object(obj_id: str, entity_id: str) -> None:
-    """将实体加入对象的使用者列表，更新玩家状态。"""
+    """将实体加入对象的使用者列表，更新玩家状态、stateLabel，创建 buff 实例和 tag。"""
     obj = get_object_by_id(obj_id)
     if obj is None:
         return
     if entity_id not in obj["userList"]:
         obj["userList"].append(entity_id)
         obj["currentUsers"] += 1
-    label = obj["useStateLabel"].replace("{entity}", entity_id)
-    _player["state"] = label
+    name = _player_profile["name"]
+    _player["state"]         = "using"
+    _player["stateLabel"]    = obj["useStateLabel"].replace("{entity}", name)
     _player["usingObjectId"] = obj_id
 
+    for e in obj["effects"]:
+        if e["type"] == "buff":
+            new_buff = {
+                "key":       e["key"],
+                "value":     e.get("value", 0.0),
+                "mode":      e["mode"],
+                "remaining": None if e["mode"] == "while_active" else e.get("duration", 0.0),
+                "source":    obj_id,
+            }
+            # 同 source + 同 key 时覆盖（重置 remaining）
+            _player["buffs"] = [
+                b for b in _player["buffs"]
+                if not (b["source"] == obj_id and b["key"] == e["key"])
+            ]
+            _player["buffs"].append(new_buff)
+        elif e["type"] == "tag":
+            if e["key"] not in _player["tags"]:
+                _player["tags"].append(e["key"])
+
+
 def leave_object(entity_id: str) -> dict | None:
-    """将实体从当前使用的对象中移除，恢复玩家状态。返回离开的对象。"""
+    """将实体从当前使用的对象中移除，清除 while_active buff，恢复玩家状态。返回离开的对象。"""
     obj_id = _player.get("usingObjectId")
     if obj_id is None:
         return None
@@ -194,6 +235,24 @@ def leave_object(entity_id: str) -> dict | None:
     if obj and entity_id in obj["userList"]:
         obj["userList"].remove(entity_id)
         obj["currentUsers"] -= 1
-    _player["state"] = "idle"
+
+    # 只移除 while_active 且来源匹配的 buff；instant buff 继续计时
+    _player["buffs"] = [
+        b for b in _player["buffs"]
+        if not (b["mode"] == "while_active" and b["source"] == obj_id)
+    ]
+    # 移除来源 object 对应的 tag
+    if obj:
+        obj_tags = {e["key"] for e in obj["effects"] if e["type"] == "tag"}
+        _player["tags"] = [t for t in _player["tags"] if t not in obj_tags]
+
+    _player["state"]         = "idle"
+    _player["stateLabel"]    = None
     _player["usingObjectId"] = None
     return obj
+
+
+def run_buff_tick(delta: float) -> None:
+    """在 _player 上执行一次 buff tick（由 routers/player.py 在返回前调用）。"""
+    from game.buff_tick import run_tick
+    run_tick(_player, delta)

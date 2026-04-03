@@ -328,28 +328,56 @@ _EVENTS = [
 
 ## 11. 角色参数
 
-玩家状态在 `back_end/game/world_state.py` 的 `_player` 字典中定义：
+玩家数据分为两部分，均在 `back_end/game/world_state.py` 中定义。
+
+### 静态档案（不随运行时变化）
+
+```python
+_player_profile = {
+    "id":   "player_01",
+    "name": "玩家",        # 角色名称，用于 useStateLabel 中 {entity} 替换
+    "age":  25,
+}
+```
+
+### 运行时状态（动态变化）
 
 ```python
 _player = {
-    "id":       "player_01",
-    "position": {"x": 2, "y": 2},           # 初始位置
-    "facing":   "down",                      # 初始朝向：up/down/left/right
-    "state":    "idle",                      # idle / moving / interacting
-    "hp":       100,                         # 生命值（0-100）
-    "energy":   80,                          # 体力值（0-100）
+    "id":            "player_01",
+    "position":      {"x": 2, "y": 2},   # 初始位置
+    "facing":        "down",              # 初始朝向：up/down/left/right
+    "state":         "idle",              # 系统枚举状态（见下表）
+    "stateLabel":    None,                # 展示文字，仅 state == "using" 时有值
+    "hp":            100,                 # 生命值（0-100）
+    "energy":        80,                  # 体力值（0-100）
+    "usingObjectId": None,                # 当前使用的 object id
+    "buffs":         [],                  # 当前 buff 列表（展示用）
+    "tags":          [],                  # 当前 tag 列表（展示用）
 }
 ```
 
 **朝向规则**：由最后一次移动操作决定，无论目标格是否可行走。
 
-**状态说明**：
+**state 枚举说明**：
 
-| 状态 | 说明 |
-|------|------|
-| idle | 静止 |
-| moving | 移动中 |
-| interacting | 与对象交互中 |
+| state | 说明 |
+|-------|------|
+| `idle` | 静止 |
+| `walking` | 移动中 |
+| `requesting_talk` | 发起对话请求 |
+| `talking` | 对话中 |
+| `using` | 正在使用 object |
+
+**stateLabel 规则**：
+- `state != "using"` 时为 `None`
+- `state == "using"` 时由 object 的 `useStateLabel` 生成，`{entity}` 替换为角色名称
+- 例：`"玩家 正在游玩游戏机"`
+
+**buff / tag 说明**：
+- 进入 object 使用时，从 `object.effects` 自动复制到角色
+- 离开时自动清除
+- 当前阶段仅展示，不参与运算
 
 ---
 

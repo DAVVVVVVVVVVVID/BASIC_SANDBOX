@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { Position, Facing, Tile } from '../../types'
 import { pixelToTile } from '../map/TileMap'
 import { sendAction } from '../../api/world'
+import { useGameStore } from '../../store/gameStore'
 
 export interface MoveResult {
   success: boolean
@@ -54,7 +55,12 @@ function bfs(tiles: Tile[], start: Position, end: Position): Direction[] {
   return []
 }
 
-const MOVE_INTERVAL = 300  // ms，键盘连续移动 & 鼠标路径步进统一速率
+const BASE_MOVE_INTERVAL = 300  // ms，基准移动间隔
+
+function getMoveInterval(): number {
+  const speed = useGameStore.getState().player?.moveSpeed ?? 1.0
+  return BASE_MOVE_INTERVAL / Math.max(0.1, speed)
+}
 
 export default class InputSystem {
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys
@@ -134,7 +140,7 @@ export default class InputSystem {
 
     await this.sendMove({ direction }, logOptions)
     if (this.pathQueue.length > 0) {
-      this.scene.time.delayedCall(MOVE_INTERVAL, () => this.executePathStep())
+      this.scene.time.delayedCall(getMoveInterval(), () => this.executePathStep())
     }
   }
 
@@ -151,7 +157,7 @@ export default class InputSystem {
       this.isFirstPathStep = true
 
       const elapsed = Date.now() - this.lastMoveTime
-      const delay = Math.max(0, MOVE_INTERVAL - elapsed)
+      const delay = Math.max(0, getMoveInterval() - elapsed)
       if (delay > 0) {
         this.scene.time.delayedCall(delay, () => this.executePathStep())
       } else {
@@ -186,7 +192,7 @@ export default class InputSystem {
         }
       } else {
         const elapsed = Date.now() - this.lastMoveTime
-        if (!this.isMoving && elapsed >= MOVE_INTERVAL) {
+        if (!this.isMoving && elapsed >= getMoveInterval()) {
           this.sendMove(
             { direction: heldDir },
             { logLabel: `向${DIR_LABEL[heldDir]}移动` },
