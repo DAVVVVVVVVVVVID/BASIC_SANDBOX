@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { Position, Facing, Tile } from '../../types'
 import { pixelToTile } from '../map/TileMap'
-import { movePlayer, turnPlayer } from '../../api/world'
+import { sendAction } from '../../api/world'
 
 export interface MoveResult {
   success: boolean
@@ -14,6 +14,13 @@ type OnInteractCallback   = () => void
 
 type Direction = 'up' | 'down' | 'left' | 'right'
 
+const DIR_LABEL: Record<Direction, string> = {
+  up:    '上',
+  down:  '下',
+  left:  '左',
+  right: '右',
+}
+
 const DELTAS: Record<Direction, Position> = {
   up:    { x:  0, y: -1 },
   down:  { x:  0, y:  1 },
@@ -23,7 +30,6 @@ const DELTAS: Record<Direction, Position> = {
 
 function bfs(tiles: Tile[], start: Position, end: Position): Direction[] {
   const walkable = new Set(tiles.filter(t => t.walkable).map(t => `${t.x},${t.y}`))
-  // 终点必须可行走
   if (!walkable.has(`${end.x},${end.y}`)) return []
 
   const queue: { pos: Position; path: Direction[] }[] = [{ pos: start, path: [] }]
@@ -55,8 +61,10 @@ export default class InputSystem {
   private isMoving = false
   private pathQueue: Direction[] = []
   private currentPos: Position
-  // 速率限制：上次移动完成的时间戳
   private lastMoveTime = 0
+  // 鼠标路径：目的地和首步标记
+  private pathDestination: Position | null = null
+  private isFirstPathStep = false
 
   constructor(
     private scene: Phaser.Scene,
@@ -73,18 +81,26 @@ export default class InputSystem {
     this.setupMouseInput()
   }
 
-  private async sendMove(params: { direction?: string; targetTile?: Position }) {
+  private async sendMove(
+    params: { direction?: string; targetTile?: Position },
+    logOptions: { skipLog?: boolean; logLabel?: string } = {},
+  ) {
     if (this.isMoving) return
     this.isMoving = true
     try {
-      const res = await movePlayer(this.playerId, params)
+      const res = await sendAction(
+        this.playerId,
+        'move',
+        params as Record<string, unknown>,
+        logOptions,
+      )
       const result: MoveResult = {
         success:  res.success,
-        facing:   res.facing,
-        position: res.success ? res.position : undefined,
+        facing:   res.result?.facing,
+        position: res.success ? res.result?.position : undefined,
       }
-      if (res.success && res.position) {
-        this.currentPos = res.position
+      if (res.success && res.result?.position) {
+        this.currentPos = res.result.position
       }
       this.onMoveResult(result)
     } catch (err) {
@@ -99,7 +115,16 @@ export default class InputSystem {
   private async executePathStep() {
     if (this.pathQueue.length === 0 || this.isMoving) return
     const direction = this.pathQueue.shift()!
-    await this.sendMove({ direction })
+
+    let logOptions: { skipLog?: boolean; logLabel?: string }
+    if (this.isFirstPathStep && this.pathDestination) {
+      logOptions = { logLabel: `点击前往 (${this.pathDestination.x}, ${this.pathDestination.y})` }
+      this.isFirstPathStep = false
+    } else {
+      logOptions = { skipLog: true }
+    }
+
+    await this.sendMove({ direction }, logOptions)
     if (this.pathQueue.length > 0) {
       this.scene.time.delayedCall(MOVE_INTERVAL, () => this.executePathStep())
     }
@@ -113,6 +138,9 @@ export default class InputSystem {
 
       this.pathQueue = bfs(this.tiles, this.currentPos, tile)
       if (this.pathQueue.length === 0) return
+
+      this.pathDestination = tile
+      this.isFirstPathStep = true
 
       const elapsed = Date.now() - this.lastMoveTime
       const delay = Math.max(0, MOVE_INTERVAL - elapsed)
@@ -138,16 +166,23 @@ export default class InputSystem {
       const ctrlDown = this.ctrlKey.isDown
       const dirKey = this.cursors[heldDir]
       if (ctrlDown) {
-        // Ctrl + 方向键：只转向不移动
         if (Phaser.Input.Keyboard.JustDown(dirKey)) {
-          turnPlayer(this.playerId, heldDir).then(res => {
-            this.onMoveResult({ success: false, facing: res.facing })
+          sendAction(
+            this.playerId,
+            'turn',
+            { direction: heldDir },
+            { logLabel: `转向${DIR_LABEL[heldDir]}` },
+          ).then(res => {
+            this.onMoveResult({ success: false, facing: res.result?.facing })
           }).catch(err => console.error('[Turn Error]', err))
         }
       } else {
         const elapsed = Date.now() - this.lastMoveTime
         if (!this.isMoving && elapsed >= MOVE_INTERVAL) {
-          this.sendMove({ direction: heldDir })
+          this.sendMove(
+            { direction: heldDir },
+            { logLabel: `向${DIR_LABEL[heldDir]}移动` },
+          )
         }
       }
     }

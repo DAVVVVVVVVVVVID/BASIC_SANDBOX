@@ -1,9 +1,11 @@
 from fastapi import APIRouter, HTTPException
-from models.action import MoveRequest, MoveResponse, TurnRequest, TurnResponse, InteractRequest, InteractResponse
+from models.action import ActionRequest, ActionResponse
+from models.world import Position
 from game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
     get_object_at,
 )
+from game.action_log import append_log
 
 router = APIRouter()
 
@@ -16,7 +18,6 @@ _DIRECTION_DELTA = {
 
 
 def _compute_facing(current: dict, target_x: int, target_y: int) -> str:
-    """根据当前位置到目标位置的偏移计算朝向（取主轴方向）。"""
     dx = target_x - current["x"]
     dy = target_y - current["y"]
     if abs(dy) >= abs(dx):
@@ -24,66 +25,87 @@ def _compute_facing(current: dict, target_x: int, target_y: int) -> str:
     return "left" if dx < 0 else "right"
 
 
-@router.post("/action/move", response_model=MoveResponse)
-def move(body: MoveRequest):
+def handle_move(entity_id: str, payload: dict) -> ActionResponse:
     current = get_player()["position"]
+    direction = payload.get("direction")
+    target_tile = payload.get("targetTile")
 
-    if body.direction is not None:
-        dx, dy = _DIRECTION_DELTA[body.direction]
+    if direction is not None:
+        if direction not in _DIRECTION_DELTA:
+            return ActionResponse(success=False, type="move", reason="invalid_direction")
+        dx, dy = _DIRECTION_DELTA[direction]
         new_x = current["x"] + dx
         new_y = current["y"] + dy
-        facing = body.direction
-    elif body.targetTile is not None:
-        new_x = body.targetTile.x
-        new_y = body.targetTile.y
+        facing = direction
+    elif target_tile is not None:
+        new_x = target_tile["x"]
+        new_y = target_tile["y"]
         facing = _compute_facing(current, new_x, new_y)
     else:
-        raise HTTPException(status_code=400, detail="direction 或 targetTile 必须提供其中一个")
+        return ActionResponse(success=False, type="move", reason="missing_direction_or_target")
 
-    # 无论是否可行走，先更新朝向
     update_player_facing(facing)
 
     if not is_tile_walkable(new_x, new_y):
-        return MoveResponse(success=False, facing=facing, reason="tile_not_walkable")
+        return ActionResponse(
+            success=False,
+            type="move",
+            reason="tile_not_walkable",
+            result={"facing": facing},
+        )
 
     update_player_position(new_x, new_y, facing)
-    return MoveResponse(
+    return ActionResponse(
         success=True,
-        facing=facing,
-        position={"x": new_x, "y": new_y},
-        state="idle",
+        type="move",
+        result={"facing": facing, "position": {"x": new_x, "y": new_y}, "state": "idle"},
     )
 
 
-@router.post("/action/turn", response_model=TurnResponse)
-def turn(body: TurnRequest):
-    update_player_facing(body.direction)
-    return TurnResponse(facing=body.direction)
+def handle_turn(entity_id: str, payload: dict) -> ActionResponse:
+    direction = payload.get("direction")
+    if direction not in _DIRECTION_DELTA:
+        return ActionResponse(success=False, type="turn", reason="invalid_direction")
+    update_player_facing(direction)
+    return ActionResponse(success=True, type="turn", result={"facing": direction})
 
 
-_FACING_DELTA = {
-    "up":    (0, -1),
-    "down":  (0,  1),
-    "left":  (-1, 0),
-    "right": (1,  0),
+def handle_interact(entity_id: str, payload: dict) -> ActionResponse:
+    player = get_player()
+    pos    = player["position"]
+    dx, dy = _DIRECTION_DELTA[player["facing"]]
+
+    obj = get_object_at(pos["x"] + dx, pos["y"] + dy)
+    if obj is None:
+        return ActionResponse(success=False, type="interact", reason="no_object_in_front")
+
+    return ActionResponse(
+        success=True,
+        type="interact",
+        result={"message": obj["description"], "playerState": "interacting"},
+    )
+
+
+_HANDLERS = {
+    "move":     handle_move,
+    "turn":     handle_turn,
+    "interact": handle_interact,
 }
 
 
-@router.post("/action/interact", response_model=InteractResponse)
-def interact(body: InteractRequest):
-    player = get_player()
-    pos    = player["position"]
-    dx, dy = _FACING_DELTA[player["facing"]]
-
-    front_x = pos["x"] + dx
-    front_y = pos["y"] + dy
-
-    obj = get_object_at(front_x, front_y)
-    if obj is None:
-        return InteractResponse(success=False, reason="no_object_in_front")
-
-    return InteractResponse(
-        success=True,
-        message=obj["description"],
-        playerState="interacting",
-    )
+@router.post("/action", response_model=ActionResponse)
+def dispatch(body: ActionRequest):
+    handler = _HANDLERS.get(body.action.type)
+    if handler is None:
+        raise HTTPException(status_code=400, detail=f"unknown action type: {body.action.type}")
+    result = handler(body.entityId, body.action.payload)
+    if not body.skipLog:
+        append_log(
+            entity_id=body.entityId,
+            action_type=body.action.type,
+            payload=body.action.payload,
+            success=result.success,
+            reason=result.reason,
+            label=body.logLabel,
+        )
+    return result

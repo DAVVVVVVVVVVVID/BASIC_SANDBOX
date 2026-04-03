@@ -18,35 +18,28 @@ export async function fetchPlayer() {
   return res.json()
 }
 
-export async function interactWith(playerId: string) {
-  const res = await fetch(`${API_BASE}/action/interact`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ playerId }),
-  })
-  if (!res.ok) throw new Error(`POST /action/interact failed: ${res.status}`)
+export async function fetchHistory() {
+  const res = await fetch(`${API_BASE}/history`)
+  if (!res.ok) throw new Error(`GET /history failed: ${res.status}`)
   return res.json()
 }
 
-export async function turnPlayer(playerId: string, direction: string) {
-  const res = await fetch(`${API_BASE}/action/turn`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ playerId, direction }),
-  })
-  if (!res.ok) throw new Error(`POST /action/turn failed: ${res.status}`)
-  return res.json()
-}
-
-export async function movePlayer(
-  playerId: string,
-  params: { direction?: string; targetTile?: { x: number; y: number } },
+export async function sendAction(
+  entityId: string,
+  type: string,
+  payload: Record<string, unknown> = {},
+  options: { skipLog?: boolean; logLabel?: string } = {},
 ) {
-  const res = await fetch(`${API_BASE}/action/move`, {
+  const res = await fetch(`${API_BASE}/action`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ playerId, ...params }),
+    body: JSON.stringify({
+      entityId,
+      action: { type, payload },
+      skipLog:  options.skipLog  ?? false,
+      logLabel: options.logLabel ?? null,
+    }),
   })
-  if (!res.ok) throw new Error(`POST /action/move failed: ${res.status}`)
+  if (!res.ok) throw new Error(`POST /action failed: ${res.status}`)
   return res.json()
 }

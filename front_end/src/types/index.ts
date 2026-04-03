@@ -51,3 +51,13 @@ export interface Player {
   hp: number
   energy: number
 }
+
+export interface ActionLogEntry {
+  timestamp: string
+  entityId: string
+  type: string
+  payload: Record<string, unknown>
+  success: boolean
+  reason: string | null
+  label: string | null
+}

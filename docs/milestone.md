@@ -4,10 +4,10 @@
 
 MVP 通过标准（必须全部满足）：
 
-- [ ] 页面打开 → 显示地图
-- [ ] 玩家可以通过键盘或鼠标移动
-- [ ] 能点击 object 并触发文本反馈
-- [ ] UI 能显示玩家状态和世界信息
+- [x] 页面打开 → 显示地图
+- [x] 玩家可以通过键盘或鼠标移动
+- [x] 能点击 object 并触发文本反馈
+- [x] UI 能显示玩家状态和世界信息
 
 ---
 
@@ -43,8 +43,8 @@ MVP 通过标准（必须全部满足）：
 **目标：** 玩家可以在地图上移动
 
 - [x] 键盘方向键控制移动（每次一格）
-- [x] 后端 `POST /action/move` 接口实现（含 walkable 校验）
-- [x] 鼠标点击 tile 移动（直线移动）
+- [x] 后端移动接口实现（含 walkable 校验）
+- [x] 鼠标点击 tile 移动（BFS 寻路）
 - [x] 玩家不能移动到 `walkable: false` 的 tile
 
 **验收：** 玩家可以用键盘和鼠标在地图上移动，墙壁无法穿越
@@ -57,7 +57,7 @@ MVP 通过标准（必须全部满足）：
 
 - [x] 后端返回 object 数据，前端渲染 object 精灵
 - [x] 鼠标悬停 object 显示名称（tooltip）
-- [x] 按 `I` 键触发 `POST /action/interact`（后端根据玩家位置+朝向判断正前方对象）
+- [x] 按 `I` 键触发交互（后端根据玩家位置+朝向判断正前方对象）
 - [x] 前端弹出面板显示返回文本
 - [x] 正前方无对象时提示"面前没有可交互的对象"
 
@@ -65,7 +65,7 @@ MVP 通过标准（必须全部满足）：
 
 ---
 
-### 阶段 4：UI 面板
+### 阶段 4：UI 面板 ✅
 
 **目标：** HUD 信息完整显示
 
@@ -78,11 +78,56 @@ MVP 通过标准（必须全部满足）：
 
 ---
 
-## 未来阶段（MVP 后）
+### 阶段 5：Action-Driven 后端重构 ✅
+
+**目标：** 将后端从多个分散接口重构为统一的 `POST /action` 行为执行器，为 agent 接入做好基础
+
+**步骤 1 — 后端：定义统一 Action 模型**
+
+- [x] 在 `back_end/models/action.py` 中定义 `ActionRequest`（含 `entityId`、`action.type`、`action.payload`、`skipLog`、`logLabel`）和 `ActionResponse`（含 `success`、`type`、`result` / `reason`）
+
+**步骤 2 — 后端：实现 Action Dispatcher**
+
+- [x] 在 `back_end/routers/actions.py` 中实现单一路由 `POST /action`
+- [x] 实现 Dispatcher：`handlers` 字典映射 `type` → handler 函数
+- [x] 将现有 `move`、`turn`、`interact` 逻辑迁移为独立 handler，注册到 Dispatcher
+- [x] 删除旧路由 `/action/move`、`/action/turn`、`/action/interact`
+
+**步骤 3 — 前端：更新 API 调用层**
+
+- [x] 在 `front_end/src/api/world.ts` 中将旧的独立函数替换为统一的 `sendAction(entityId, type, payload, options)`
+
+**步骤 4 — 前端：更新调用方**
+
+- [x] 更新 `InputSystem.ts` 和 `GameScene.ts`：所有行为调用改用 `sendAction`
+
+**步骤 5 — 后端：行为日志**
+
+- [x] 新建 `back_end/game/action_log.py`：内存列表，`append_log()` 超出 20 条自动丢弃最旧记录，`get_log()` 返回完整列表
+- [x] 在 `actions.py` 的 Dispatcher 中，支持 `skipLog` 跳过记录，`logLabel` 自定义显示文字
+- [x] 新建 `back_end/routers/history.py`：`GET /history` 返回日志列表
+- [x] 在 `main.py` 中注册 history 路由
+
+**步骤 6 — 前端：行为日志面板**
+
+- [x] 在 `front_end/src/api/world.ts` 中新增 `fetchHistory()`
+- [x] 在 Zustand store 中新增 `actionLog` 字段
+- [x] 新建 `front_end/src/ui/ActionLog.tsx`：左下角滚动面板，优先显示 `label`，绿色=成功，红色=失败
+- [x] 在 `TickSystem.ts` 的轮询里顺带拉取 `GET /history` 更新 store
+
+**验收：**
+- 键盘移动、鼠标点击移动、Ctrl+方向键转向、I 键交互，功能全部正常
+- 后端只有 `/action`，不存在旧的分散路径
+- 新增一个 `type` 只需改后端 Dispatcher，前端无需改动
+- 日志面板显示：鼠标点击→"点击前往 (x,y)"，键盘→"向X移动"，转向→"转向X"，最多 20 条
+
+---
+
+## 未来阶段
 
 | 阶段 | 内容 |
 |------|------|
-| 阶段 5 | WebSocket 替换轮询，实时状态同步 |
-| 阶段 6 | 多 NPC / Agent 系统接入 |
-| 阶段 7 | 聊天系统 |
-| 阶段 8 | 复杂 Object 行为（buff、状态变化） |
+| 阶段 6 | WebSocket 替换轮询，实时状态同步 |
+| 阶段 7 | 多 NPC / Agent 系统接入 |
+| 阶段 8 | 聊天系统 |
+| 阶段 9 | 复杂 Object 行为（buff、状态变化） |

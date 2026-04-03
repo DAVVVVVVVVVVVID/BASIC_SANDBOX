@@ -5,7 +5,7 @@ import PlayerSprite from '../objects/Player'
 import GameObjectSprite from '../objects/GameObjectSprite'
 import InputSystem, { MoveResult } from '../systems/InputSystem'
 import { EventBus } from '../EventBus'
-import { interactWith } from '../../api/world'
+import { sendAction } from '../../api/world'
 
 interface SceneInitData {
   worldData: WorldData
@@ -77,9 +77,9 @@ export default class GameScene extends Phaser.Scene {
 
   private async handleInteract() {
     try {
-      const res = await interactWith(this.player.id)
+      const res = await sendAction(this.player.id, 'interact')
       if (res.success) {
-        EventBus.emit('show-interaction', { message: res.message })
+        EventBus.emit('show-interaction', { message: res.result?.message })
       } else if (res.reason === 'no_object_in_front') {
         EventBus.emit('show-interaction', { message: '面前没有可交互的对象' })
       }

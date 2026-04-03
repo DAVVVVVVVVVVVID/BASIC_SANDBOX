@@ -263,38 +263,47 @@ Phaser（游戏）
 
 ---
 
-# 九、后端 API（为未来扩展预留）
+# 九、后端 API（Action-Driven 架构）
 
-## 9.1 世界数据
-
-```
-GET /world
-```
-
-返回：
-
-- 地图
-- object
-- world state
-
----
-
-## 9.2 玩家行为
+## 9.1 查询接口（只读）
 
 ```
-POST /action/move
-POST /action/interact
+GET /world     # 地图、对象、世界状态
+GET /player    # 当前玩家状态
+GET /events    # 世界事件列表
 ```
 
 ---
 
-## 9.3 查询接口
+## 9.2 统一行为接口
 
 ```
-GET /player
-GET /objects
-GET /events
+POST /action
 ```
+
+**所有实体（玩家、未来 agent）的行为均通过此接口执行。**
+
+请求结构：
+
+```json
+{
+  "entityId": "player_01",
+  "action": {
+    "type": "move",
+    "payload": { "direction": "up" }
+  }
+}
+```
+
+当前支持的 `type`：
+
+| type | 说明 |
+|------|------|
+| `move` | 移动一格或前往目标 tile |
+| `turn` | 仅改变朝向，不移动 |
+| `interact` | 与正前方对象交互 |
+
+新增行为只需在后端 Dispatcher 注册新 handler，**不修改接口路径**。
 
 ---
 
@@ -304,7 +313,7 @@ GET /events
 
 👉 **所有操作仍走后端接口**
 
-这是为了未来接 agent / 多人
+这是为了未来接 agent / 多人，且 agent 将直接复用 `POST /action`，无需额外接口。
 
 ---
 

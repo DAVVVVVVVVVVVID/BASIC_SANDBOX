@@ -6,6 +6,7 @@ import { useGameStore } from './store/gameStore'
 import InteractionPanel from './ui/InteractionPanel'
 import HUD from './ui/HUD'
 import WorldInfoPanel from './ui/WorldInfoPanel'
+import ActionLog from './ui/ActionLog'
 
 function App() {
   const initialized = useRef(false)
@@ -39,6 +40,7 @@ function App() {
       </div>
       <HUD />
       <WorldInfoPanel />
+      <ActionLog />
     </div>
   )
 }

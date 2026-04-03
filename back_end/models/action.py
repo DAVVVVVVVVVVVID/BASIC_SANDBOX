@@ -1,37 +1,21 @@
 from pydantic import BaseModel
-from typing import Optional, Literal
-from models.world import Position
+from typing import Any, Optional
 
 
-class MoveRequest(BaseModel):
-    playerId: str
-    direction: Optional[Literal["up", "down", "left", "right"]] = None
-    targetTile: Optional[Position] = None
+class Action(BaseModel):
+    type: str
+    payload: dict[str, Any] = {}
 
 
-class MoveResponse(BaseModel):
+class ActionRequest(BaseModel):
+    entityId: str
+    action: Action
+    skipLog: bool = False           # True 时不写日志（用于 BFS 中间步）
+    logLabel: Optional[str] = None  # 自定义日志显示文字，None 时不写 label
+
+
+class ActionResponse(BaseModel):
     success: bool
-    facing: str                   # 无论成败都返回新朝向
-    position: Optional[Position] = None
-    state: Optional[str] = None
-    reason: Optional[str] = None
-
-
-class TurnRequest(BaseModel):
-    playerId: str
-    direction: Literal["up", "down", "left", "right"]
-
-
-class TurnResponse(BaseModel):
-    facing: str
-
-
-class InteractRequest(BaseModel):
-    playerId: str
-
-
-class InteractResponse(BaseModel):
-    success: bool
-    message: Optional[str] = None
-    playerState: Optional[str] = None
+    type: str
+    result: Optional[dict[str, Any]] = None
     reason: Optional[str] = None
