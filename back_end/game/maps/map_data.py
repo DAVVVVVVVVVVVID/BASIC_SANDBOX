@@ -1,10 +1,8 @@
-# 地图字符串，每行长度必须相同（= MAP_W），行数 = MAP_H
-# 字符说明：
+# 地图字符说明：
 #   # = wall（不可行走）
 #   . = grass（可行走）
 #   f = floor（可行走）
 #   F = floor_occupied（不可行走，有家具）
-# 新增类型：在 world_state.py 的 CHAR_TO_TYPE 和 TILE_TYPES 各加一条
 
 MAP: list[str] = [
     "############",

@@ -1,5 +1,8 @@
 import copy
-from game.map_data import MAP
+from game.maps.map_data   import MAP
+from game.maps.world_map  import WORLD_MAP,  WORLD_CHARS
+from game.maps.sector_map import SECTOR_MAP, SECTOR_CHARS
+from game.maps.arena_map  import ARENA_MAP,  ARENA_CHARS
 from game.object_types import OBJECT_TYPES
 
 # ── 地图尺寸（从地图字符串自动推导）─────────────────────────────────────────
@@ -72,17 +75,46 @@ _OBJECTS = _build_objects(_OBJECTS_RAW)
 
 # ── 从字符串地图生成 tile 列表 ────────────────────────────────────────────────
 
+def _build_zone_lookup() -> dict[tuple[int, int], dict]:
+    """从三张区域图派生 (x, y) → {world, sector, arena} 查找表，并做一致性校验。"""
+    lookup: dict[tuple[int, int], dict] = {}
+
+    for y, row in enumerate(WORLD_MAP):
+        for x, ch in enumerate(row):
+            world  = WORLD_CHARS.get(ch)
+            sector = SECTOR_CHARS.get(SECTOR_MAP[y][x])
+            arena  = ARENA_CHARS.get(ARENA_MAP[y][x])
+
+            # 一致性校验：有 arena 必须有 sector，有 sector 必须有 world
+            if arena and not sector:
+                raise ValueError(f"Zone map inconsistency at ({x},{y}): arena='{arena}' but sector is None")
+            if sector and not world:
+                raise ValueError(f"Zone map inconsistency at ({x},{y}): sector='{sector}' but world is None")
+
+            if world or sector or arena:
+                lookup[(x, y)] = {"world": world, "sector": sector, "arena": arena}
+
+    return lookup
+
+
+_ZONE_LOOKUP = _build_zone_lookup()
+
+
 def _generate_tiles() -> list[dict]:
     tiles = []
     for y, row in enumerate(MAP):
         for x, ch in enumerate(row):
             tile_type = CHAR_TO_TYPE.get(ch, "grass")
+            zone = _ZONE_LOOKUP.get((x, y), {})
             tiles.append({
                 "x": x,
                 "y": y,
                 "type": tile_type,
                 "walkable": TILE_TYPES[tile_type]["walkable_default"],
                 "objectId": None,
+                "world":  zone.get("world"),
+                "sector": zone.get("sector"),
+                "arena":  zone.get("arena"),
             })
 
     local_lookup = {(t["x"], t["y"]): t for t in tiles}

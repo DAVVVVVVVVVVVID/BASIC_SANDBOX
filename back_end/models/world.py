@@ -13,6 +13,9 @@ class Tile(BaseModel):
     type: str
     walkable: bool
     objectId: Optional[str] = None
+    world:    Optional[str] = None
+    sector:   Optional[str] = None
+    arena:    Optional[str] = None
 
 
 class Effect(BaseModel):

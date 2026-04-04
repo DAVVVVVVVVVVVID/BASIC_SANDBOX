@@ -9,10 +9,11 @@ export function startTickSystem(): () => void {
         fetchPlayer(),
         fetchHistory(),
       ])
-      const { setWorldState, setPlayer, setActionLog } = useGameStore.getState()
+      const { setWorldState, setPlayer, setActionLog, setTiles } = useGameStore.getState()
       setWorldState(worldData.worldState)
       setPlayer(player)
       setActionLog(log)
+      setTiles(worldData.tiles)
     } catch (err) {
       console.error('[Tick Error]', err)
     }

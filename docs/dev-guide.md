@@ -79,7 +79,12 @@ back_end/
     ├── object_types.py    # Object 类型定义表（name、size、effects …）
     ├── action_log.py      # 行为日志（内存，最多 20 条）
     ├── buff_tick.py       # Buff Tick 引擎（EFFECT_HANDLERS 注册表）
-    └── map_data.py        # 地图字符串定义
+    └── maps/              # 所有地图数据（地形 + 区域 + 认知地图）
+        ├── map_data.py        # 地形字符图
+        ├── world_map.py       # World 层区域字符图 + WORLD_CHARS
+        ├── sector_map.py      # Sector 层区域字符图 + SECTOR_CHARS
+        ├── arena_map.py       # Arena 层区域字符图 + ARENA_CHARS
+        └── cognitive_map.py   # 认知地图语义树（worlds → sectors → arenas，零坐标）
 ```
 
 ---
@@ -300,7 +305,46 @@ _OBJECTS_RAW = [
 
 ---
 
-## 9. 地图的更新方法
+## 9. 空间层级（World / Sector / Arena）
+
+地图支持三级区域划分，每个 tile 可归属于 world（世界）、sector（区域）、arena（场馆）。层级稀疏，tile 可以只有 world 而没有 sector/arena，未归属字段为 `None`。
+
+所有地图数据文件统一放在 `back_end/game/maps/` 子包。
+
+### 数据来源分工
+
+| 文件 | 职责 |
+|------|------|
+| `maps/cognitive_map.py` | 语义树：`worlds[] → sectors[] → arenas[]`，只存 id/name，零坐标 |
+| `maps/world_map.py` | 字符网格：标记每个 tile 属于哪个 world；`WORLD_CHARS` 做字符映射 |
+| `maps/sector_map.py` | 字符网格：标记每个 tile 属于哪个 sector；`SECTOR_CHARS` 做字符映射 |
+| `maps/arena_map.py` | 字符网格：标记每个 tile 属于哪个 arena；`ARENA_CHARS` 做字符映射 |
+
+三张区域图尺寸必须与 `maps/map_data.py` 完全一致，`.` 代表该层级未归属。
+
+### 修改区域边界
+
+直接修改对应字符图中的字符，不影响认知地图。
+
+### 修改区域名称 / 增删区域
+
+只修改 `maps/cognitive_map.py` 中的语义树，不影响字符图。字符图里的字符只是 ID，改名不需要动字符图。
+
+### 一致性约束
+
+有 arena 必须有 sector，有 sector 必须有 world。后端启动时 `_build_zone_lookup()` 自动校验，违反则抛出 `ValueError`。
+
+### Object 的区域归属
+
+Object 本身不存三级参数，运行时按其 `position` 对应的 tile 查询 `world / sector / arena` 即可。
+
+### HUD 显示
+
+前端 HUD 的"位置"行实时显示玩家当前 tile 的层级信息，格式为 `world / sector / arena`，未归属显示 `—`。
+
+---
+
+## 10. 地图的更新方法（map_data.py）
 
 编辑 `back_end/game/map_data.py` 中的 `MAP` 字符串，保存后**重启后端**生效（后端启动时一次性解析地图）。
 

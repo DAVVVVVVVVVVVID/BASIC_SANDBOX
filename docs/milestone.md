@@ -262,9 +262,50 @@ MVP 通过标准（必须全部满足）：
 
 ---
 
-### 阶段 9：空间层级（Section / Arena）
+### 阶段 9：空间层级（World / Sector / Arena）✅
 
-**目标：** 地图支持区域划分，tile 可归属于 section（如"镇中心"）和 arena（如"房间A"）
+**目标：** 地图支持三级区域划分，每个 tile 可归属于 world、sector、arena，形成语义树（认知地图），为后续 Agent 空间认知提供基础数据结构
+
+**核心设计原则**
+
+- **认知地图**（`maps/cognitive_map.py`）：纯语义树，只存 id/name/嵌套关系，零坐标；结构为 `worlds[] → sectors[] → arenas[]`
+- **区域地图**（三张字符网格，均在 `maps/` 子包）：每张负责一个层级的 tile 归属，`.` 代表未归属
+- 两者完全解耦：改边界只改字符图，改名字只改认知地图
+- 层级稀疏：tile 可以只有 world，没有 sector/arena；未归属字段为 `None`
+- 所有地图数据文件统一放在 `back_end/game/maps/` 子包，`game/` 根目录只留逻辑文件
+
+**步骤 1 — 后端：新建 maps/ 子包**
+
+- [x] 新建 `back_end/game/maps/` 子包（含 `__init__.py`）
+- [x] 新建 `maps/cognitive_map.py`：纯语义树，`worlds[] → sectors[] → arenas[]`
+- [x] 新建 `maps/world_map.py`：world 层字符图 + `WORLD_CHARS` 映射
+- [x] 新建 `maps/sector_map.py`：sector 层字符图 + `SECTOR_CHARS` 映射
+- [x] 新建 `maps/arena_map.py`：arena 层字符图 + `ARENA_CHARS` 映射
+- [x] 将原 `game/map_data.py` 迁移至 `maps/map_data.py`
+
+**步骤 2 — 后端：初始化时派生 tile 三元组**
+
+- [x] `back_end/game/world_state.py`：新增 `_build_zone_lookup()`，叠加三张区域图生成 `(x,y) → {world, sector, arena}` 查找表
+- [x] `_generate_tiles()` 从查找表写入每个 tile 的 `world / sector / arena`
+- [x] 启动时做一致性校验：有 arena 必有 sector，有 sector 必有 world，违反则 `raise ValueError`
+
+**步骤 3 — 后端：更新数据模型**
+
+- [x] `back_end/models/world.py`：`Tile` 新增三个可选字段 `world / sector / arena: Optional[str] = None`
+
+**步骤 4 — 前端：类型 + 状态 + HUD 显示**
+
+- [x] `types/index.ts`：`Tile` 接口新增 `world / sector / arena: string | null`
+- [x] `store/gameStore.ts`：新增 `tiles: Tile[]` 字段及 `setTiles()`
+- [x] `TickSystem.ts`：每次轮询后调用 `setTiles(worldData.tiles)`
+- [x] `HUD.tsx`：坐标行上方新增"位置"行，显示玩家当前 tile 的层级信息（`world / sector / arena`，未归属显示 `—`）
+
+**验收：**
+- `GET /world` 返回的每个 tile 含 `world/sector/arena` 字段（可为 null） ✅
+- HUD 位置行随玩家移动实时更新，进入有层级的区域显示对应 id，走廊/墙体显示 `—` ✅
+- 修改区域边界只改字符图，不影响认知地图 ✅
+- 一致性校验在启动时捕获非法配置 ✅
+- Object 本身不存三级参数，运行时按 `position` 对应 tile 查询即可 ✅
 
 ---
 

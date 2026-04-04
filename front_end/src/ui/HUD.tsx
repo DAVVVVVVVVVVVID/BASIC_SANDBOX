@@ -30,9 +30,10 @@ function Divider() {
 function buffKey(b: Buff) { return `${b.source}:${b.key}` }
 
 export default function HUD() {
-  const player = useGameStore((s) => s.player)
-  const speed  = useGameStore((s) => s.worldState?.speed ?? 1)
+  const player  = useGameStore((s) => s.player)
+  const speed   = useGameStore((s) => s.worldState?.speed ?? 1)
   const running = useGameStore((s) => s.worldState?.running ?? false)
+  const tiles   = useGameStore((s) => s.tiles)
 
   // 本地维护 instant buff 的 remaining（游戏毫秒），用于平滑倒计时显示
   const [localRemaining, setLocalRemaining] = useState<Record<string, number>>({})
@@ -80,6 +81,10 @@ export default function HUD() {
 
   const { profile, position, facing, state, stateLabel, hp, energy, usingObjectId, buffs, tags } = player
 
+  const currentTile = tiles.find(t => t.x === position.x && t.y === position.y)
+  const zoneParts = [currentTile?.world, currentTile?.sector, currentTile?.arena].filter(Boolean)
+  const zoneLabel = zoneParts.length > 0 ? zoneParts.join(' / ') : '—'
+
   const stateDisplay = stateLabel ?? state
 
   return (
@@ -106,6 +111,7 @@ export default function HUD() {
       <Divider />
 
       {/* 位置与朝向 */}
+      <Row label="位置"   value={<span style={{ color: '#a0aec0', fontSize: 11 }}>{zoneLabel}</span>} />
       <Row label="坐标"   value={`(${position.x}, ${position.y})`} />
       <Row label="朝向"   value={{ up: '↑ 上', down: '↓ 下', left: '← 左', right: '→ 右' }[facing]} />
 

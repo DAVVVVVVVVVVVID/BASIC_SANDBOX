@@ -9,6 +9,9 @@ export interface Tile {
   type: string
   walkable: boolean
   objectId: string | null
+  world:    string | null
+  sector:   string | null
+  arena:    string | null
 }
 
 export interface Effect {
