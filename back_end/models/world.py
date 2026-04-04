@@ -40,7 +40,9 @@ class GameObject(BaseModel):
 class WorldState(BaseModel):
     date: str
     time: str
-    isDay: bool
+    period: Literal["morning", "day", "dusk", "night"]
+    running: bool
+    speed: float
     weather: Literal["sunny", "cloudy", "rain"]
 
 

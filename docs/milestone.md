@@ -194,10 +194,140 @@ MVP 通过标准（必须全部满足）：
 
 ---
 
-## 未来阶段
+---
 
-| 阶段 | 内容 |
-|------|------|
-| 阶段 8 | WebSocket 替换轮询，实时状态同步 |
-| 阶段 9 | 多 NPC / Agent 系统接入 |
-| 阶段 10 | 聊天系统 |
+### 阶段 8：游戏时间系统 ✅
+
+**目标：** 游戏内时间真正流动，支持四时段昼夜切换、可配置时间倍率、开关/加减速/重置控制，以及网页背景随时间变色
+
+**时段定义**
+
+| 时段 | 游戏时间范围 | 页面背景色 |
+|------|-------------|-----------|
+| 早晨（morning） | 06:00 – 08:00 | 黄色 `#F5C518` |
+| 白天（day）     | 08:00 – 20:00 | 蓝色 `#87CEEB` |
+| 黄昏（dusk）    | 20:00 – 22:00 | 橘红色 `#FF6B35` |
+| 夜晚（night）   | 22:00 – 06:00 | 深蓝色 `#1A1A3E` |
+
+**时间参数**
+
+- 起始时间（含重置）：**2026-12-30 00:00:00**
+- 默认速度：`DEFAULT_SPEED = 1`（1x = 游戏时间与现实同步）
+- 加速步进：每次 ×2；减速步进：每次 ÷2，最低 1x
+
+**步骤 1 — 后端：新建时间状态模块**
+
+- [x] 新建 `back_end/game/time_state.py`
+  - 维护内部状态：`date`（YYYY-MM-DD）、`_seconds`（当日游戏秒数）、`period`、`running`、`speed`
+  - `advance_time(real_delta_ms) -> float`：推进时间，返回 `game_delta_ms = real_delta_ms × speed`（running=False 时返回 0）；同时将结果缓存至 `_last_game_delta`
+  - `get_last_game_delta()`：返回上次 advance_time 的 game_delta，供 player.py 使用，避免重复推进
+  - `reset_time()`、`set_speed()`、`set_running()`、`get_time_state()`
+
+**步骤 2 — 后端：接入世界状态**
+
+- [x] `back_end/models/world.py`：`isDay` 替换为 `period`；新增 `running`、`speed`
+- [x] `back_end/game/world_state.py`：删除静态 `_WORLD_STATE`，改为 `get_time_state()` 动态读取；保留 `_WEATHER` 静态字段
+- [x] `back_end/routers/world.py`：每次请求前调用 `advance_time(real_delta_ms)` 推进时间（模块级 `_last_tick` 记录时间戳）
+- [x] `back_end/routers/player.py`：调用 `get_last_game_delta()` 获取 game_delta 传给 buff_tick，不重复推进时间
+
+> **时间统一原则**：所有时间计量（buff 倒计时、效果量）均以游戏时间为单位，随 speed 自动缩放。
+> buff `value` 单位为**每游戏秒**；`duration` 单位为**游戏毫秒**。
+
+**步骤 3 — 后端：时间控制接口**
+
+- [x] 新建 `back_end/routers/time_control.py`：`POST /time/toggle`、`POST /time/speed`、`POST /time/reset`
+- [x] `main.py` 注册路由
+
+**步骤 4 — 前端：更新类型**
+
+- [x] `types/index.ts`：新增 `TimePeriod` 类型；`WorldState` 的 `isDay` 替换为 `period: TimePeriod`，新增 `running`、`speed`
+
+**步骤 5 — 前端：页面背景色**
+
+- [x] `App.tsx`：读取 `worldState.period`，动态设置页面 `backgroundColor`，CSS `transition: background-color 2s ease`
+
+**步骤 6 — 前端：时间控制面板**
+
+- [x] 新建 `front_end/src/ui/TimeControlPanel.tsx`：右下角面板，显示日期/时间/时段/倍率；▶⏸ 开关、＋－加减速、🔄 重置
+- [x] `api/world.ts` 新增 `timeToggle()`、`timeSpeed()`、`timeReset()`
+- [x] `WorldInfoPanel.tsx`：`isDay` 改为按 `period` 映射中文时段名
+
+**验收：**
+- 启动后游戏时间停止，点击 ▶ 后开始推进，时间面板数字持续变化 ✅
+- 加速/减速按钮正确改变倍率，面板显示更新 ✅
+- 重置后时间回到 2026-12-30 00:00:00，running=false ✅
+- 时段切换时页面背景色平滑过渡 ✅
+- 跨日后 date 正确 +1 ✅
+- 时间暂停时 buff 不计时，加速时 buff 随之加速耗尽 ✅
+
+---
+
+### 阶段 9：空间层级（Section / Arena）
+
+**目标：** 地图支持区域划分，tile 可归属于 section（如"镇中心"）和 arena（如"房间A"）
+
+---
+
+### 阶段 10：世界事件 S-P-O 升级 + 感知范围 API
+
+**目标：** 世界事件改为结构化 S-P-O 格式，后端提供"感知范围内事件"查询接口
+
+---
+
+### 阶段 11：聊天系统
+
+**目标：** 玩家/Agent 可发起对话，支持请求/接受/拒绝，回合制发言，超时自动退出
+
+---
+
+### 阶段 12：Agent 基础框架
+
+**目标：** 注册 Agent 实体，复用 `POST /action`，支持外部程序驱动 Agent 行为
+
+---
+
+### 阶段 13：Spatial Memory + Perceive 模块
+
+**目标：** Agent 维护空间认知地图，感知模块输出触发原因 + 当前可见事件列表
+
+---
+
+### 阶段 14：Associative Memory（关联记忆）
+
+**目标：** 实现 ConceptNode 四类记忆（Event/Thought/Chat/Plan）+ 关键词索引 + 向量嵌入存储
+
+---
+
+### 阶段 15：Retrieve + Plan + Execute 循环
+
+**目标：** Agent 基础认知循环可运行：检索记忆 → 生成计划 → 执行行为
+
+---
+
+### 阶段 16：Reflect 模块
+
+**目标：** poignancy 累积超阈值时触发反思，生成高层 Thought 节点
+
+---
+
+### 阶段 17：Converse 模块
+
+**目标：** Agent 接入聊天系统，生成回复，对话结束后生成 Chat 记忆与 extra_plan
+
+---
+
+### 阶段 18：LLM 集成 + 异步调度
+
+**目标：** Cognitive 模块异步运行，LLM 调用不阻塞世界 tick
+
+---
+
+### 阶段 19：WebSocket 替换轮询
+
+**目标：** 前端改用 WebSocket 实时接收状态推送，替代 200ms 轮询
+
+---
+
+### 阶段 20：多人支持
+
+**目标：** 状态层支持多个玩家实体，会话与权限隔离

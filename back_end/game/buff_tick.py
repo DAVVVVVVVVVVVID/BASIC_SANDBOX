@@ -3,10 +3,10 @@
 # delta 单位：毫秒（通常为 200）
 
 def _handler_energy_regen(player: dict, buff: dict, delta: float) -> None:
-    player["energy"] = min(100.0, player["energy"] + buff["value"])
+    player["energy"] = min(100.0, max(0.0, player["energy"] + buff["value"] * delta / 1000.0))
 
 def _handler_hp_regen(player: dict, buff: dict, delta: float) -> None:
-    player["hp"] = min(100.0, player["hp"] + buff["value"])
+    player["hp"] = min(100.0, max(0.0, player["hp"] + buff["value"] * delta / 1000.0))
 
 def _handler_no_move(player: dict, buff: dict, delta: float) -> None:
     player["canMove"] = False

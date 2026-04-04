@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../store/gameStore'
 import type { Buff } from '../types'
 
@@ -25,8 +26,56 @@ function Divider() {
   return <div style={{ borderTop: '1px solid #2d3748', margin: '6px 0' }} />
 }
 
+// 本地倒计时 key：source:key，唯一标识一个 instant buff 实例
+function buffKey(b: Buff) { return `${b.source}:${b.key}` }
+
 export default function HUD() {
   const player = useGameStore((s) => s.player)
+  const speed  = useGameStore((s) => s.worldState?.speed ?? 1)
+  const running = useGameStore((s) => s.worldState?.running ?? false)
+
+  // 本地维护 instant buff 的 remaining（游戏毫秒），用于平滑倒计时显示
+  const [localRemaining, setLocalRemaining] = useState<Record<string, number>>({})
+  const speedRef = useRef(speed)
+  const runningRef = useRef(running)
+  speedRef.current = speed
+  runningRef.current = running
+
+  // 服务端更新时，用服务端值覆盖本地值
+  useEffect(() => {
+    if (!player) return
+    setLocalRemaining(prev => {
+      const next = { ...prev }
+      for (const b of player.buffs) {
+        if (b.mode === 'instant' && b.remaining !== null) {
+          next[buffKey(b)] = b.remaining
+        }
+      }
+      // 清除已消失的 buff
+      for (const k of Object.keys(next)) {
+        if (!player.buffs.some(b => buffKey(b) === k)) delete next[k]
+      }
+      return next
+    })
+  }, [player?.buffs])
+
+  // 本地每 100ms 按游戏速度递减
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (!runningRef.current) return
+      const gameDelta = 100 * speedRef.current
+      setLocalRemaining(prev => {
+        const next: Record<string, number> = {}
+        for (const [k, v] of Object.entries(prev)) {
+          const updated = v - gameDelta
+          if (updated > 0) next[k] = updated
+        }
+        return next
+      })
+    }, 100)
+    return () => window.clearInterval(id)
+  }, [])
+
   if (!player) return null
 
   const { profile, position, facing, state, stateLabel, hp, energy, usingObjectId, buffs, tags } = player
@@ -81,7 +130,7 @@ export default function HUD() {
       <div style={{ marginBottom: 6 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
           <span style={{ color: '#a0aec0' }}>HP</span>
-          <span>{hp} / 100</span>
+          <span>{Math.floor(hp)} / 100</span>
         </div>
         <Bar value={hp} max={100} color="#e53e3e" />
       </div>
@@ -90,7 +139,7 @@ export default function HUD() {
       <div style={{ marginBottom: 4 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
           <span style={{ color: '#a0aec0' }}>Energy</span>
-          <span>{energy} / 100</span>
+          <span>{Math.floor(energy)} / 100</span>
         </div>
         <Bar value={energy} max={100} color="#3182ce" />
       </div>
@@ -108,9 +157,9 @@ export default function HUD() {
                     background: '#2d5016', color: '#68d391',
                     borderRadius: 3, padding: '1px 6px', fontSize: 11,
                   }}>
-                    {b.key}{b.value ? ` +${b.value}` : ''}
-                    {b.mode === 'instant' && b.remaining !== null
-                      ? ` (${(b.remaining / 1000).toFixed(1)}s)`
+                    {b.key}{b.value ? ` ${b.value > 0 ? '+' : ''}${b.value}` : ''}
+                    {b.mode === 'instant'
+                      ? ` (${((localRemaining[buffKey(b)] ?? b.remaining ?? 0) / 1000).toFixed(1)}s)`
                       : ''}
                   </span>
                 ))}

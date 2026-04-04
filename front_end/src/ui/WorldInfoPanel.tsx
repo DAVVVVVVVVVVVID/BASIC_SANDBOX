@@ -25,7 +25,7 @@ export default function WorldInfoPanel() {
       textAlign: 'right',
       lineHeight: 1.8,
     }}>
-      <div>{worldState.isDay ? '白天' : '夜晚'}</div>
+      <div>{{ morning: '早晨', day: '白天', dusk: '黄昏', night: '夜晚' }[worldState.period] ?? worldState.period}</div>
       <div>{worldState.date} {worldState.time}</div>
       <div>{WEATHER_LABEL[worldState.weather] ?? worldState.weather}</div>
     </div>

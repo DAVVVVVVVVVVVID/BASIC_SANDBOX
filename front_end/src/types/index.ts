@@ -33,10 +33,14 @@ export interface GameObject {
   effects: Effect[]
 }
 
+export type TimePeriod = 'morning' | 'day' | 'dusk' | 'night'
+
 export interface WorldState {
   date: string
   time: string
-  isDay: boolean
+  period: TimePeriod
+  running: boolean
+  speed: number
   weather: 'sunny' | 'cloudy' | 'rain'
 }
 

@@ -22,8 +22,8 @@
 ```
 front_end/src/
 ├── App.tsx                        # 根组件，初始化游戏，挂载 UI
-├── api/world.ts                   # 所有后端接口调用
-├── store/gameStore.ts             # Zustand 全局状态（player、worldState）
+├── api/world.ts                   # 所有后端接口调用（sendAction、fetchHistory …）
+├── store/gameStore.ts             # Zustand 全局状态（player、worldState、actionLog）
 ├── types/index.ts                 # TypeScript 类型定义
 ├── game/
 │   ├── PhaserGame.ts              # Phaser 实例初始化
@@ -32,13 +32,15 @@ front_end/src/
 │   ├── map/TileMap.ts             # Tile 渲染 + 坐标转换 + TileType 定义表
 │   ├── objects/
 │   │   ├── Player.ts              # 玩家精灵
-│   │   └── GameObjectSprite.ts    # 场景对象精灵
+│   │   └── GameObjectSprite.ts    # 场景对象精灵（tooltip 含使用人数）
 │   └── systems/
-│       ├── InputSystem.ts         # 键盘/鼠标输入处理
-│       └── TickSystem.ts          # 200ms 轮询同步
+│       ├── InputSystem.ts         # 键盘/鼠标输入处理（含 BFS 寻路）
+│       └── TickSystem.ts          # 200ms 轮询同步（world、player、history）
 └── ui/
-    ├── HUD.tsx                    # HP / Energy 面板
-    ├── WorldInfoPanel.tsx         # 时间 / 天气面板
+    ├── HUD.tsx                    # 玩家完整状态面板（档案、HP/Energy、buffs/tags，instant buff 本地倒计时）
+    ├── ActionLog.tsx              # 左下角行为日志面板（最多 20 条）
+    ├── WorldInfoPanel.tsx         # 时间 / 天气 / 时段面板
+    ├── TimeControlPanel.tsx       # 右下角时间控制面板（▶⏸ 开关、加减速、重置、倍率显示）
     └── InteractionPanel.tsx       # 交互文本弹窗
 ```
 
@@ -61,16 +63,22 @@ back_end/
 ├── main.py                # FastAPI 入口，注册路由，配置 CORS
 ├── pyproject.toml         # uv 项目依赖
 ├── routers/
-│   ├── world.py           # GET /world
-│   ├── player.py          # GET /player
-│   ├── actions.py         # POST /action/move、/action/turn、/action/interact
+│   ├── world.py           # GET /world（返回前推进游戏时间）
+│   ├── player.py          # GET /player（调用 buff tick 后返回）
+│   ├── actions.py         # POST /action（统一入口 + Dispatcher）
+│   ├── history.py         # GET /history（行为日志）
+│   ├── time_control.py    # POST /time/toggle|speed|reset（时间控制）
 │   └── events.py          # GET /events
 ├── models/
 │   ├── world.py           # Pydantic 数据模型（Tile、GameObject、WorldState …）
-│   ├── player.py          # Player 模型
-│   └── action.py          # 请求/响应模型
+│   ├── player.py          # Player / PlayerProfile / Buff 模型
+│   └── action.py          # ActionRequest / ActionResponse
 └── game/
     ├── world_state.py     # 游戏状态管理（唯一可信数据源）
+    ├── time_state.py      # 游戏时间状态（advance_time、TIME_SPEED、昼夜计算）
+    ├── object_types.py    # Object 类型定义表（name、size、effects …）
+    ├── action_log.py      # 行为日志（内存，最多 20 条）
+    ├── buff_tick.py       # Buff Tick 引擎（EFFECT_HANDLERS 注册表）
     └── map_data.py        # 地图字符串定义
 ```
 
@@ -200,34 +208,60 @@ Object 采用**类型 + 实例分离**架构。类型定义在 `back_end/game/ob
 | `sprite` | 类型 | 贴图文件名（不含 .png），None 表示无贴图 |
 | `max_users` | 类型 | 最多同时使用人数 |
 | `use_state_label` | 类型 | E 键使用后玩家状态文字，`{entity}` 替换为实体名 |
-| `effects` | 类型 | buff/tag 列表，当前仅展示，不实际运算 |
-| `current_users` | 实例运行时 | 当前使用人数，自动初始化为 0 |
-| `user_list` | 实例运行时 | 当前使用者 ID 列表，自动初始化为 [] |
+| `effects` | 类型 | buff/tag 列表，进入时生效，离开时（while_active）清除 |
+| `currentUsers` | 实例运行时 | 当前使用人数，自动初始化为 0 |
+| `userList` | 实例运行时 | 当前使用者 ID 列表，自动初始化为 [] |
+
+### effects 字段格式
+
+```python
+"effects": [
+    # buff：进入时创建 buff 实例，驱动玩家属性
+    {"type": "buff", "key": "energy_regen", "value": 1, "mode": "while_active"},
+    {"type": "buff", "key": "no_move",                  "mode": "while_active"},
+    # instant buff：进入时触发，duration 毫秒后自动消失（离开 object 不清除）
+    {"type": "buff", "key": "hp_regen", "value": 2, "mode": "instant", "duration": 5000},
+    # tag：纯标记，仅展示，不参与运算
+    {"type": "tag",  "key": "sleeping",                 "mode": "while_active"},
+]
+```
+
+**支持的 buff key：**
+
+| key | 效果 | value 含义 |
+|-----|------|-----------|
+| `energy_regen` | 每 tick 恢复体力 | 恢复量（每 200ms） |
+| `hp_regen` | 每 tick 恢复生命 | 恢复量 |
+| `no_move` | 禁止移动 | 忽略 |
+| `no_interact` | 禁止 I 键交互 | 忽略 |
+| `no_use` | 禁止 E 键使用 | 忽略 |
+| `move_speed` | 改变移速 | 倍率（0.5 = 减速，2.0 = 加速） |
+
+新增 buff 效果只需在 `back_end/game/buff_tick.py` 的 `EFFECT_HANDLERS` 注册表里加一条 lambda，不修改 tick 主循环。
 
 ### 新增 Object 类型
 
 在 `back_end/game/object_types.py` 的 `OBJECT_TYPES` 里加一条：
 
 ```python
-OBJECT_TYPES: dict[str, dict] = {
-    "arcade": {
-        "name":            "游戏机",
-        "interactable":    True,
-        "description":     "一台经典街机，投币即可游玩。",
-        "size":            (1, 1),
-        "sprite":          "arcade",
-        "max_users":       1,
-        "use_state_label": "{entity} 正在游玩游戏机",
-        "effects": [
-            {"type": "buff", "key": "energy_drain", "value": 1},
-            {"type": "tag",  "key": "focused"},
-        ],
-    },
-    # ...
-}
+"arcade": {
+    "name":            "游戏机",
+    "interactable":    True,
+    "description":     "一台经典街机，投币即可游玩。",
+    "size":            (1, 1),
+    "sprite":          "arcade",
+    "max_users":       1,
+    "use_state_label": "{entity} 正在游玩游戏机",
+    "effects": [
+        {"type": "buff", "key": "no_move",     "mode": "while_active"},
+        {"type": "buff", "key": "no_interact", "mode": "while_active"},
+        {"type": "buff", "key": "no_use",      "mode": "while_active"},
+        {"type": "tag",  "key": "gaming",      "mode": "while_active"},
+    ],
+},
 ```
 
-将贴图放入 `front_end/public/assets/sprites/`。
+将贴图放入 `front_end/public/assets/sprites/`，重启后端生效。
 
 ### 删除 Object 类型
 
@@ -349,11 +383,16 @@ _player = {
     "facing":        "down",              # 初始朝向：up/down/left/right
     "state":         "idle",              # 系统枚举状态（见下表）
     "stateLabel":    None,                # 展示文字，仅 state == "using" 时有值
-    "hp":            100,                 # 生命值（0-100）
-    "energy":        80,                  # 体力值（0-100）
+    "hp":            100.0,               # 生命值（0-100，float，buff tick 实时修改）
+    "energy":        80.0,                # 体力值（0-100，float，buff tick 实时修改）
     "usingObjectId": None,                # 当前使用的 object id
-    "buffs":         [],                  # 当前 buff 列表（展示用）
-    "tags":          [],                  # 当前 tag 列表（展示用）
+    "buffs":         [],                  # 当前 buff 实例列表（含 mode/remaining/source）
+    "tags":          [],                  # 当前 tag 列表
+    # 状态控制字段：每次 GET /player 前 tick 重置为 True，buff handler 可覆盖
+    "canMove":       True,
+    "canInteract":   True,
+    "canUse":        True,
+    "moveSpeed":     1.0,                 # 移速倍率，前端据此调整移动间隔
 }
 ```
 
@@ -372,29 +411,188 @@ _player = {
 **stateLabel 规则**：
 - `state != "using"` 时为 `None`
 - `state == "using"` 时由 object 的 `useStateLabel` 生成，`{entity}` 替换为角色名称
-- 例：`"玩家 正在游玩游戏机"`
+- 例：`"玩家 正在沙发上休息"`
 
-**buff / tag 说明**：
-- 进入 object 使用时，从 `object.effects` 自动复制到角色
-- 离开时自动清除
-- 当前阶段仅展示，不参与运算
+**Buff 生命周期**：
+- `while_active`：E 键进入时创建，Q 键离开后立即清除
+- `instant`：进入时创建，`remaining = duration`；每 tick 递减，归零自动移除；离开 object 不清除
 
 ---
 
-## 12. 玩家基本交互
+## 12. Buff 系统
+
+### 整体结构
+
+Buff 系统由三层组成：
+
+```
+object_types.py          →   world_state.py           →   buff_tick.py
+effects（配置）              enter/leave_object（触发）     run_tick（运算）
+```
+
+- **effects**：配置在 `object_types.py` 每个 object 类型里，描述"这个 object 会施加什么效果"
+- **enter/leave_object**：玩家 E/Q 键时，`world_state.py` 根据 effects 创建或清除玩家身上的 buff 实例
+- **run_tick**：每次 `GET /player` 前执行，遍历玩家当前 buff 实例，调用 `EFFECT_HANDLERS` 修改玩家属性
+
+### Buff 实例结构
+
+玩家身上的每条 buff（`player["buffs"]` 列表）格式如下：
+
+```python
+{
+    "key":       "energy_regen",   # 效果标识，对应 EFFECT_HANDLERS 注册表
+    "value":     1.0,              # 数值（状态控制型忽略此字段）
+    "mode":      "while_active",   # "while_active" | "instant"
+    "remaining": None,             # while_active = None；instant = 剩余毫秒
+    "source":    "sofa_01",        # 来源 object id，用于 leave 时精准清除
+}
+```
+
+### Buff 分三类
+
+| 类型 | 代表 key | 机制 |
+|------|---------|------|
+| 属性修改型 | `energy_regen`、`hp_regen` | tick 时直接修改 `player.energy` / `player.hp` |
+| 状态控制型 | `no_move`、`no_interact`、`no_use` | tick 先重置为 True，handler 设为 False，action 执行前校验 |
+| 行为参数型 | `move_speed` | tick 计算倍率写入 `moveSpeed`，前端据此调整移动间隔 |
+
+### Tick 执行顺序（每 200ms，`GET /player` 触发）
+
+```
+① 递减 instant buff 的 remaining（-200ms），remaining ≤ 0 自动移除
+② 重置：canMove=True、canInteract=True、canUse=True、moveSpeed=1.0
+③ 遍历 player.buffs → 查 EFFECT_HANDLERS → 逐一执行 handler
+```
+
+**注意**：步骤 ② 在 ③ 之前，所以 `no_move` 等控制型 buff 每 tick 都会重新设值，不会因为重置而失效。
+
+### Buff 生命周期
+
+| mode | 创建时机 | 清除时机 |
+|------|---------|---------|
+| `while_active` | E 键进入 object | Q 键离开时，按 source + mode 匹配清除 |
+| `instant` | E 键进入 object | tick 递减至 0 自动移除；离开 object **不**清除；再次进入同 source+key 时覆盖（重置 remaining） |
+
+---
+
+### 如何新增 Buff 类型
+
+只需在 `back_end/game/buff_tick.py` 的 `EFFECT_HANDLERS` 里加一条：
+
+```python
+def _handler_hunger(player: dict, buff: dict, delta: float) -> None:
+    player["energy"] = max(0.0, player["energy"] - buff["value"])
+
+EFFECT_HANDLERS: dict = {
+    # ... 现有条目 ...
+    "hunger": _handler_hunger,   # 新增
+}
+```
+
+之后在任意 object 的 `effects` 里使用 `"key": "hunger"` 即可生效。**不需要修改 tick 主循环**。
+
+### 如何删除 Buff 类型
+
+1. 从 `EFFECT_HANDLERS` 删除对应条目
+2. 检查 `object_types.py` 中所有 object 的 `effects`，移除含该 key 的条目
+
+> 如果 object 的 effects 里引用了不在 `EFFECT_HANDLERS` 里的 key，buff 实例仍会创建（HUD 展示），但不执行任何逻辑，不会报错。
+
+### 如何修改 Buff 类型
+
+直接修改 `EFFECT_HANDLERS` 中对应的 handler 函数体，重启后端生效。
+
+---
+
+### 如何给 Object 增删改 Buff
+
+所有 object 的 buff 配置都在 `back_end/game/object_types.py` 的 `effects` 字段里，修改后**重启后端**生效。
+
+**新增一条 buff：**
+```python
+# 在 effects 列表里追加
+{"type": "buff", "key": "hp_regen", "value": 2, "mode": "while_active"},
+```
+
+**新增一条 instant buff（有时限）：**
+```python
+{"type": "buff", "key": "energy_regen", "value": 5, "mode": "instant", "duration": 3000},
+# 进入后恢复 3 秒，离开后继续计时直到归零
+```
+
+**新增一条 tag（纯标记，不运算）：**
+```python
+{"type": "tag", "key": "cooking", "mode": "while_active"},
+```
+
+**删除一条 buff：** 直接从 `effects` 列表里删除对应的字典条目。
+
+**修改 buff 数值：** 修改 `value` 或 `duration` 字段。
+
+---
+
+### Object 触发 Buff 的完整逻辑
+
+**E 键（进入）— `enter_object(obj_id, entity_id)`：**
+
+```
+① 将 entity_id 加入 obj["userList"]，currentUsers +1
+② 设置 player.state = "using"，stateLabel 由 useStateLabel 模板生成
+③ 遍历 obj["effects"]：
+    - type == "buff"：
+        · 从 player.buffs 移除同 source + 同 key 的旧条目（覆盖逻辑）
+        · 创建新 buff 实例，mode="while_active" → remaining=None；
+          mode="instant" → remaining=duration
+        · 追加到 player.buffs
+    - type == "tag"：
+        · 若 tag 不存在，追加到 player.tags
+```
+
+**Q 键（离开）— `leave_object(entity_id)`：**
+
+```
+① 从 obj["userList"] 移除 entity_id，currentUsers -1
+② 从 player.buffs 移除所有 mode=="while_active" 且 source==obj_id 的条目
+   （instant buff 保留，继续倒计时）
+③ 从 player.tags 移除来源于该 object 的所有 tag
+④ 重置 player.state = "idle"，stateLabel = None，usingObjectId = None
+```
+
+**Tick（每 200ms）— `run_tick(player, delta)`：**
+
+```
+① instant buff：remaining -= 200，≤0 移除
+② 重置控制字段：canMove/canInteract/canUse = True，moveSpeed = 1.0
+③ 遍历 player.buffs → EFFECT_HANDLERS[buff.key](player, buff, delta)
+```
+
+**Action 校验（在 Tick 之后的下一个 action）：**
+
+```
+handle_move    → 检查 player.canMove，False → 返回 reason: "move_disabled"
+handle_interact → 检查 player.canInteract，False → 返回 reason: "interact_disabled"
+handle_use     → 检查 player.canUse，False → 返回 reason: "use_disabled"
+```
+
+---
+
+## 13. 玩家基本交互
 
 | 操作 | 效果 |
 |------|------|
-| 方向键（单次） | 向对应方向移动一格 |
-| 方向键（按住） | 持续移动，每 300ms 一格 |
+| 方向键（单次/按住） | 移动，每 `300ms / moveSpeed` 一格 |
 | Ctrl + 方向键 | 只改变朝向，不移动 |
-| 鼠标左键点击 Tile | BFS 寻路后逐格移动，每 300ms 一格 |
-| `I` 键 | 与正前方一格的 Object 交互，显示 description |
-| 鼠标悬停 Object | 显示 Object 名称 tooltip |
+| 鼠标左键点击 Tile | BFS 寻路后逐格移动 |
+| `I` 键 | 读取正前方 Object 的 description（不改变状态） |
+| `E` 键 | 进入正前方 Object 使用（校验 available + canUse） |
+| `Q` 键 | 退出当前使用的 Object |
+| 鼠标悬停 Object | 显示 `名称 (currentUsers/maxUsers)` tooltip |
 | 移入世界事件区域 | 自动弹出事件提示文本 |
 | 点击 / Esc | 关闭交互/事件弹窗 |
 
-**交互条件**：玩家必须**面朝**目标 Object 所在格（正前方一格），按 `I` 触发。后端根据玩家当前 `position` + `facing` 计算目标格，与 Object 的 `tiles`（或 `position`）比对。
+**交互条件**：I / E 键均要求玩家**面朝**目标 Object（正前方一格）。后端根据 `position + facing` 计算目标格，与 Object 的 `tiles` 比对。
+
+**行为限制**：使用中角色默认携带 `no_move` / `no_interact` / `no_use` buff，方向键、I 键、E 键均返回失败，直到 Q 键离开后恢复。
 
 ---
 
@@ -407,41 +605,61 @@ Base URL：`http://localhost:8000`
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/world` | 返回地图 tiles、objects、worldState |
-| GET | `/player` | 返回当前玩家状态 |
+| GET | `/player` | 执行 buff tick 后返回玩家完整状态（含 profile） |
 | GET | `/events` | 返回世界事件列表 |
+| GET | `/history` | 返回行为日志（最多 20 条） |
 
 ### 行为接口
 
-| 方法 | 路径 | 请求体 | 说明 |
-|------|------|--------|------|
-| POST | `/action/move` | `{playerId, direction?}` 或 `{playerId, targetTile?}` | 移动玩家 |
-| POST | `/action/turn` | `{playerId, direction}` | 只改变朝向 |
-| POST | `/action/interact` | `{playerId}` | 与正前方 Object 交互 |
+所有行为统一走 `POST /action`，由后端 Dispatcher 根据 `type` 路由到对应 handler。
 
-### POST /action/move 响应
+```json
+// 请求体
+{
+    "entityId": "player_01",
+    "action": { "type": "<type>", "payload": { ... } },
+    "skipLog": false,
+    "logLabel": "自定义日志文字"
+}
+```
+
+**行为类型一览：**
+
+| type | payload | 说明 |
+|------|---------|------|
+| `move` | `{direction?}` 或 `{targetTile?}` | 移动，校验 canMove |
+| `turn` | `{direction}` | 只改变朝向 |
+| `interact` | `{}` | I 键，读取正前方 Object 描述，校验 canInteract |
+| `use` | `{}` | E 键，进入正前方 Object 使用，校验 canUse + available |
+| `leave` | `{}` | Q 键，退出当前 Object |
+
+### 响应格式
 
 ```json
 // 成功
-{ "success": true, "facing": "up", "position": {"x": 3, "y": 2}, "state": "idle" }
+{ "success": true, "type": "move", "result": { "facing": "up", "position": {"x": 3, "y": 2} } }
 
-// 失败（不可行走）
-{ "success": false, "facing": "up", "reason": "tile_not_walkable" }
+// 失败
+{ "success": false, "type": "move", "reason": "move_disabled" }
 ```
 
-### POST /action/interact 响应
+**常见 reason 值：**
 
-```json
-// 成功
-{ "success": true, "message": "一张舒适的沙发。", "playerState": "interacting" }
+| reason | 触发条件 |
+|--------|---------|
+| `tile_not_walkable` | 目标格不可行走 |
+| `move_disabled` | 玩家携带 no_move buff |
+| `no_object_in_front` | 正前方无 Object |
+| `interact_disabled` | 玩家携带 no_interact buff |
+| `object_full` | Object 已达 maxUsers |
+| `use_disabled` | 玩家携带 no_use buff |
+| `not_using_any_object` | Q 键时玩家未在使用任何 Object |
 
-// 失败（前方无对象）
-{ "success": false, "reason": "no_object_in_front" }
-```
+### 新增行为的步骤
 
-### 未来预留接口（MVP 后）
+1. 在 `models/action.py` 定义新 payload（如需要）
+2. 在 `routers/actions.py` 实现 handler 函数
+3. 在 `_HANDLERS` 字典中注册 `"type": handler`
+4. 更新本文档行为类型一览表
 
-```
-POST /agent/register
-POST /agent/action
-GET  /agent/{id}/status
-```
+**不需要**新增路由、修改前端请求封装。

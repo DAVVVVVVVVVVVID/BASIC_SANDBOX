@@ -53,7 +53,7 @@ OBJECT_TYPES: dict[str, dict] = {
             {"type": "buff", "key": "no_move",     "mode": "while_active"},
             {"type": "buff", "key": "no_interact", "mode": "while_active"},
             {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "buff", "key": "energy_regen", "value": 1, "mode": "while_active"},
+            {"type": "buff", "key": "energy_regen", "value": 1, "mode": "instant", "duration": 60000},
             {"type": "tag",  "key": "resting", "mode": "while_active"},
         ],
     },
@@ -86,6 +86,7 @@ OBJECT_TYPES: dict[str, dict] = {
             {"type": "buff", "key": "no_interact", "mode": "while_active"},
             {"type": "buff", "key": "no_use",      "mode": "while_active"},
             {"type": "tag",  "key": "reading", "mode": "while_active"},
+            {"type": "buff", "key": "energy_regen", "value": -3, "mode": "while_active"},
         ],
     },
     "cook": {
@@ -116,6 +117,7 @@ OBJECT_TYPES: dict[str, dict] = {
             {"type": "buff", "key": "no_interact", "mode": "while_active"},
             {"type": "buff", "key": "no_use",      "mode": "while_active"},
             {"type": "tag",  "key": "working", "mode": "while_active"},
+            {"type": "buff", "key": "energy_regen", "value": -1, "mode": "instant", "duration": 60000},
         ],
     },
     "bath": {

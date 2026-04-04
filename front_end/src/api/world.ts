@@ -24,6 +24,28 @@ export async function fetchHistory() {
   return res.json()
 }
 
+export async function timeToggle() {
+  const res = await fetch(`${API_BASE}/time/toggle`, { method: 'POST' })
+  if (!res.ok) throw new Error(`POST /time/toggle failed: ${res.status}`)
+  return res.json()
+}
+
+export async function timeSpeed(value: number) {
+  const res = await fetch(`${API_BASE}/time/speed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value }),
+  })
+  if (!res.ok) throw new Error(`POST /time/speed failed: ${res.status}`)
+  return res.json()
+}
+
+export async function timeReset() {
+  const res = await fetch(`${API_BASE}/time/reset`, { method: 'POST' })
+  if (!res.ok) throw new Error(`POST /time/reset failed: ${res.status}`)
+  return res.json()
+}
+
 export async function sendAction(
   entityId: string,
   type: string,

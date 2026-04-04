@@ -105,12 +105,7 @@ _EVENTS = [
     },
 ]
 
-_WORLD_STATE = {
-    "date": "2001-12-30",
-    "time": "08:00",
-    "isDay": True,
-    "weather": "sunny",
-}
+_WEATHER = "sunny"
 
 # tile 快速查询表
 _TILE_LOOKUP: dict[tuple[int, int], dict] = {
@@ -148,10 +143,13 @@ _player = {
 # ── 公开访问函数 ──────────────────────────────────────────────────────────────
 
 def get_world() -> dict:
+    from game.time_state import get_time_state
+    world_state = get_time_state()
+    world_state["weather"] = _WEATHER
     return {
         "tiles": _TILES,
         "objects": _OBJECTS,
-        "worldState": _WORLD_STATE,
+        "worldState": world_state,
     }
 
 def get_player() -> dict:
