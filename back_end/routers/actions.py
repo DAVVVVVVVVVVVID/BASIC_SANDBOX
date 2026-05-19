@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from models.action import ActionRequest, ActionResponse
 from models.world import Position
+import random
 from game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
-    get_object_at, enter_object, leave_object,
+    get_object_at, enter_object, leave_object, get_walkable_tiles_in_area,
 )
 from game.action_log import append_log
 
@@ -146,12 +147,88 @@ def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
     )
 
 
+def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
+    player = get_player()
+    if not player.get("canMove", True):
+        return ActionResponse(success=False, type="move_n", reason="move_disabled")
+
+    direction = payload.get("direction")
+    steps = payload.get("steps", 1)
+
+    if direction not in _DIRECTION_DELTA:
+        return ActionResponse(success=False, type="move_n", reason="invalid_direction")
+    if not isinstance(steps, int) or steps < 1:
+        return ActionResponse(success=False, type="move_n", reason="invalid_steps")
+
+    dx, dy = _DIRECTION_DELTA[direction]
+    update_player_facing(direction)
+
+    x, y = player["position"]["x"], player["position"]["y"]
+    steps_taken = 0
+    for _ in range(steps):
+        nx, ny = x + dx, y + dy
+        if not is_tile_walkable(nx, ny):
+            break
+        x, y = nx, ny
+        steps_taken += 1
+
+    if steps_taken > 0:
+        update_player_position(x, y, direction)
+
+    return ActionResponse(
+        success=steps_taken > 0,
+        type="move_n",
+        reason=None if steps_taken > 0 else "tile_not_walkable",
+        result={
+            "facing": direction,
+            "position": {"x": x, "y": y},
+            "steps_taken": steps_taken,
+        },
+    )
+
+
+def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
+    player = get_player()
+    if not player.get("canMove", True):
+        return ActionResponse(success=False, type="move_to_area", reason="move_disabled")
+
+    area_type = payload.get("area_type")
+    area_id   = payload.get("area_id")
+
+    if area_type not in ("arena", "sector", "world"):
+        return ActionResponse(success=False, type="move_to_area", reason="invalid_area_type")
+    if not area_id:
+        return ActionResponse(success=False, type="move_to_area", reason="missing_area_id")
+
+    walkable = get_walkable_tiles_in_area(area_type, area_id)
+    if not walkable:
+        return ActionResponse(success=False, type="move_to_area", reason="no_walkable_tiles")
+
+    target  = random.choice(walkable)
+    new_x, new_y = target["x"], target["y"]
+    facing  = _compute_facing(player["position"], new_x, new_y)
+
+    update_player_position(new_x, new_y, facing)
+    return ActionResponse(
+        success=True,
+        type="move_to_area",
+        result={
+            "facing":    facing,
+            "position":  {"x": new_x, "y": new_y},
+            "area_type": area_type,
+            "area_id":   area_id,
+        },
+    )
+
+
 _HANDLERS = {
-    "move":     handle_move,
-    "turn":     handle_turn,
-    "interact": handle_interact,
-    "use":      handle_use,
-    "leave":    handle_leave,
+    "move":         handle_move,
+    "move_n":       handle_move_n,
+    "move_to_area": handle_move_to_area,
+    "turn":         handle_turn,
+    "interact":     handle_interact,
+    "use":          handle_use,
+    "leave":        handle_leave,
 }
 
 

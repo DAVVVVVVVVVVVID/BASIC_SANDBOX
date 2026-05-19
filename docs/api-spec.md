@@ -176,6 +176,8 @@
 | type | 说明 | payload | 触发键 |
 |------|------|---------|--------|
 | `move` | 移动一格或前往目标 tile | `{ direction }` 或 `{ targetTile }` | 方向键 / 鼠标 |
+| `move_n` | 向某方向移动 N 格，逐格校验，遇阻停止 | `{ direction, steps }` | agent |
+| `move_to_area` | 移动到目标区域随机可行走位置 | `{ area_type, area_id }` | agent |
 | `turn` | 仅改变朝向，不移动 | `{ direction }` | Ctrl + 方向键 |
 | `interact` | 阅读正前方对象描述，不改变状态 | `{}` | `I` |
 | `use` | 进入使用正前方对象，加入 userList | `{}` | `E` |
@@ -231,6 +233,55 @@
 ```
 
 > `facing` 在成功和失败时均返回。即使目标格不可行走，朝向也会更新为尝试移动的方向。
+
+---
+
+### move_n
+
+向某方向连续移动最多 N 格，逐格校验可行走性，遇到不可行走格立即停止。不修改原有 `move` 行为。
+
+**payload：**
+
+```json
+{
+  "direction": "up",
+  "steps": 3
+}
+```
+
+`direction` 可选值：`"up"` | `"down"` | `"left"` | `"right"`
+`steps`：正整数，最多尝试移动的格数。
+
+**响应（成功移动至少一格）：**
+
+```json
+{
+  "success": true,
+  "type": "move_n",
+  "result": {
+    "facing": "up",
+    "position": { "x": 3, "y": 1 },
+    "steps_taken": 2
+  }
+}
+```
+
+**响应（第一格即不可行走）：**
+
+```json
+{
+  "success": false,
+  "type": "move_n",
+  "reason": "tile_not_walkable",
+  "result": {
+    "facing": "up",
+    "position": { "x": 3, "y": 3 },
+    "steps_taken": 0
+  }
+}
+```
+
+> `steps_taken` 为实际移动的格数，可能小于请求的 `steps`。朝向始终更新为请求的 `direction`。
 
 ---
 
@@ -405,23 +456,161 @@
 
 ---
 
-## 6. Agent 扩展预留
+## 6. Agent 专用接口
 
-Agent 接入时复用同一 `/action` 接口，`entityId` 改为 agent ID，其余结构完全一致：
+### GET /agent/perceive
+
+一次返回 agent 感知所需的全部信息。
+
+**Query 参数：**
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `entity_id` | string | `player_01` | 实体 ID |
+| `vision_size` | int | `3` | 视野边长（正方形），奇数直接使用，偶数自动 +1 取奇，范围 1–21 |
+
+**响应：**
 
 ```json
 {
-  "entityId": "agent_01",
-  "action": {
-    "type": "move",
-    "payload": { "direction": "up" }
+  "arena_tree": {
+    "id": "town", "name": "小镇",
+    "sector": {
+      "id": "house_A", "name": "A号房子",
+      "arenas": [
+        {
+          "id": "bedroom", "name": "卧室", "current": true,
+          "objects": [
+            { "id": "sofa_01", "name": "沙发", "interactable": true },
+            { "id": "bed_01",  "name": "床",   "interactable": true }
+          ]
+        },
+        {
+          "id": "kitchen", "name": "厨房", "current": false,
+          "objects": [
+            { "id": "fridge_01", "name": "冰箱", "interactable": true }
+          ]
+        }
+      ]
+    }
+  },
+  "vision_tiles": [
+    {
+      "x": 2, "y": 2,
+      "type": "floor", "walkable": true,
+      "world": "town", "sector": "house_A", "arena": "bedroom",
+      "object": null
+    }
+  ],
+  "front_object": { "id": "sofa_01", "name": "沙发" }
+}
+```
+
+**说明：**
+- `arena_tree`：嵌套树 `world → sector → arenas[]`，展示当前 sector 内**所有** arena 及其 objects，**不含坐标**；`current: true` 标记当前所在 arena；当 cognitive_map 中找不到对应名称时，`name` 回退为原始 ID
+- `vision_tiles`：以实体当前位置为中心，边长 `vision_size`（偶数自动取奇）的正方形内所有合法 tile，超出地图边界的 tile 不返回
+- `front_object`：正前方一格的 object 信息，无 object 时为 `null`
+
+---
+
+### GET /agent/arena-tiles
+
+返回指定 arena 内所有 tile 的坐标列表。
+
+**Query 参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `arena_id` | string | 目标 arena ID |
+
+**响应：**
+
+```json
+{
+  "arena_id": "bedroom",
+  "tiles": [
+    { "x": 3, "y": 1 },
+    { "x": 4, "y": 1 }
+  ]
+}
+```
+
+---
+
+### GET /agent/object-position
+
+返回指定 object 的坐标（锚点 position）。
+
+**Query 参数：**
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `object_id` | string | 目标 object ID |
+
+**响应（成功）：**
+
+```json
+{
+  "object_id": "bed_01",
+  "position": { "x": 3, "y": 1 },
+  "tiles": [
+    { "x": 3, "y": 1 },
+    { "x": 4, "y": 1 }
+  ]
+}
+```
+
+- `position`：对象锚点（左上角）
+- `tiles`：对象占用的所有 tile 坐标（单格对象 tiles 长度为 1）
+- `adjacent_walkable`：对象所有占用格的四邻域中可行走的格子列表（已去重），可直接用于导航
+
+**失败（object 不存在）：** HTTP 404
+
+---
+
+### move_to_area
+
+在目标区域内随机选取一个可行走 tile，将实体移动过去。
+
+**payload：**
+
+```json
+{
+  "area_type": "arena",
+  "area_id": "bedroom"
+}
+```
+
+`area_type` 可选值：`"arena"` | `"sector"` | `"world"`
+
+**响应（成功）：**
+
+```json
+{
+  "success": true,
+  "type": "move_to_area",
+  "result": {
+    "facing": "down",
+    "position": { "x": 4, "y": 2 },
+    "area_type": "arena",
+    "area_id": "bedroom"
   }
 }
 ```
 
-以下接口为 agent 管理预留，当前不实现：
+**响应（失败，目标区域无可行走格）：**
 
+```json
+{
+  "success": false,
+  "type": "move_to_area",
+  "reason": "no_walkable_tiles"
+}
 ```
-POST /agent/register     # 注册 agent
-GET  /agent/{id}/status  # 查询 agent 状态
-```
+
+| reason | 说明 |
+|--------|------|
+| `invalid_area_type` | area_type 不在允许值内 |
+| `missing_area_id` | area_id 为空 |
+| `no_walkable_tiles` | 目标区域内无可行走 tile |
+| `move_disabled` | 实体当前无法移动 |

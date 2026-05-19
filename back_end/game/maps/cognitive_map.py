@@ -8,19 +8,12 @@ COGNITIVE_MAP: dict = {
             "name": "小镇",
             "sectors": [
                 {
-                    "id":   "house_A",
-                    "name": "A号房子",
+                    "id":   "house",
+                    "name": "房子",
                     "arenas": [
-                        {"id": "bedroom", "name": "卧室"},
-                        {"id": "kitchen", "name": "厨房"},
-                    ],
-                },
-                {
-                    "id":   "house_B",
-                    "name": "B号房子",
-                    "arenas": [
+                        {"id": "bedroom",  "name": "卧室"},
+                        {"id": "kitchen",  "name": "厨房"},
                         {"id": "bathroom", "name": "浴室"},
-                        {"id": "study",    "name": "书房"},
                     ],
                 },
             ],

@@ -282,6 +282,48 @@ def leave_object(entity_id: str) -> dict | None:
     return obj
 
 
+def get_tile_at(x: int, y: int) -> dict | None:
+    return _TILE_LOOKUP.get((x, y))
+
+def get_zone_at(x: int, y: int) -> dict:
+    """Return {world, sector, arena} ID strings for a tile, any may be None."""
+    return _ZONE_LOOKUP.get((x, y), {"world": None, "sector": None, "arena": None})
+
+def get_tiles_in_square(cx: int, cy: int, half: int) -> list[dict]:
+    """Return all tiles within a square of side (2*half+1) centered on (cx, cy)."""
+    result = []
+    for dy in range(-half, half + 1):
+        for dx in range(-half, half + 1):
+            tile = _TILE_LOOKUP.get((cx + dx, cy + dy))
+            if tile is not None:
+                result.append(tile)
+    return result
+
+def get_objects_in_arena(arena_id: str) -> list[dict]:
+    """Return all objects whose anchor position belongs to the given arena."""
+    result = []
+    for obj in _OBJECTS:
+        pos = obj["position"]
+        zone = _ZONE_LOOKUP.get((pos["x"], pos["y"]), {})
+        if zone.get("arena") == arena_id:
+            result.append(obj)
+    return result
+
+def get_tiles_in_area(area_type: str, area_id: str) -> list[dict]:
+    """Return all tiles belonging to a given world / sector / arena."""
+    return [
+        t for t in _TILES
+        if _ZONE_LOOKUP.get((t["x"], t["y"]), {}).get(area_type) == area_id
+    ]
+
+def get_walkable_tiles_in_area(area_type: str, area_id: str) -> list[dict]:
+    """Return walkable tiles in the given area."""
+    return [t for t in get_tiles_in_area(area_type, area_id) if t["walkable"]]
+
+def get_cognitive_map() -> dict:
+    from game.maps.cognitive_map import COGNITIVE_MAP
+    return COGNITIVE_MAP
+
 def run_buff_tick(delta: float) -> None:
     """在 _player 上执行一次 buff tick（由 routers/player.py 在返回前调用）。"""
     from game.buff_tick import run_tick

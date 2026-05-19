@@ -15,7 +15,7 @@ type OnInteractCallback   = () => void
 type OnUseCallback        = () => void
 type OnLeaveCallback      = () => void
 
-type Direction = 'up' | 'down' | 'left' | 'right'
+export type Direction = 'up' | 'down' | 'left' | 'right'
 
 const DIR_LABEL: Record<Direction, string> = {
   up:    '上',
@@ -24,14 +24,14 @@ const DIR_LABEL: Record<Direction, string> = {
   right: '右',
 }
 
-const DELTAS: Record<Direction, Position> = {
+export const DELTAS: Record<Direction, Position> = {
   up:    { x:  0, y: -1 },
   down:  { x:  0, y:  1 },
   left:  { x: -1, y:  0 },
   right: { x:  1, y:  0 },
 }
 
-function bfs(tiles: Tile[], start: Position, end: Position): Direction[] {
+export function bfs(tiles: Tile[], start: Position, end: Position): Direction[] {
   const walkable = new Set(tiles.filter(t => t.walkable).map(t => `${t.x},${t.y}`))
   if (!walkable.has(`${end.x},${end.y}`)) return []
 
@@ -57,7 +57,7 @@ function bfs(tiles: Tile[], start: Position, end: Position): Direction[] {
 
 const BASE_MOVE_INTERVAL = 300  // ms，基准移动间隔
 
-function getMoveInterval(): number {
+export function getMoveInterval(): number {
   const speed = useGameStore.getState().player?.moveSpeed ?? 1.0
   return BASE_MOVE_INTERVAL / Math.max(0.1, speed)
 }
@@ -164,6 +164,13 @@ export default class InputSystem {
         this.executePathStep()
       }
     })
+  }
+
+  syncFromServer(pos: Position) {
+    if (pos.x !== this.currentPos.x || pos.y !== this.currentPos.y) {
+      this.currentPos = { ...pos }
+      this.pathQueue = []
+    }
   }
 
   update() {
