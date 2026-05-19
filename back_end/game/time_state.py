@@ -81,6 +81,7 @@ def advance_time(real_delta_ms: float) -> float:
     - running=False 时返回 0。
     """
     if not _state["running"]:
+        _state["_last_game_delta"] = 0.0
         return 0.0
 
     game_delta_ms = real_delta_ms * _state["speed"]

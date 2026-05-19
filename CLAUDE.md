@@ -21,6 +21,12 @@
 * 直接修改游戏状态
 * 解决交互问题
 
+## API 管理规则（必须遵守）
+
+* API 标准化文件：`./docs/api-spec.md`
+* 每次对沙盒 API 进行任何增删改（新增接口、修改请求/响应结构、新增 action type），**必须同步更新** `./docs/api-spec.md`
+* agent 调用沙盒的所有接口均以此文件为准
+
 ## 文档索引
 * 项目总体说明：./docs/SRS.md
 * 数据模型：./docs/data-models.md
