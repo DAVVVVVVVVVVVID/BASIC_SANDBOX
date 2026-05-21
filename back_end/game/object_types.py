@@ -7,7 +7,7 @@
 #   - type: "buff" | "tag"
 #   - key: 效果标识
 #   - value: 数值（buff 专用）
-#   - mode: "while_active"（使用期间持续）| "instant"（进入时触发，有 duration）
+#   - mode: "persistent"（使用期间持续）| "timed"（进入时触发，有 duration）
 #   - duration: 毫秒（仅 instant 模式需要）
 
 OBJECT_TYPES: dict[str, dict] = {
@@ -20,10 +20,10 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 1,
         "use_state_label": "{entity} 正在抚摸老橡树",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "tag",  "key": "nature",      "mode": "while_active"},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
+            {"type": "tag",  "key": "nature",      "mode": "persistent"},
         ],
     },
     "well": {
@@ -35,10 +35,10 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 1,
         "use_state_label": "{entity} 正在打水",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "buff", "key": "hp_regen", "value": 1, "mode": "while_active"},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
+            {"type": "buff", "key": "hp_regen", "value": 1, "mode": "persistent"},
         ],
     },
     "sofa": {
@@ -50,11 +50,11 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 2,
         "use_state_label": "{entity} 正在沙发上休息",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "buff", "key": "energy_regen", "value": 1, "mode": "instant", "duration": 60000},
-            {"type": "tag",  "key": "resting", "mode": "while_active"},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
+            {"type": "buff", "key": "energy_regen", "value": 1, "mode": "timed", "duration": 60000},
+            {"type": "tag",  "key": "resting", "mode": "persistent"},
         ],
     },
     "bed": {
@@ -66,11 +66,11 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 1,
         "use_state_label": "{entity} 正在睡觉",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "buff", "key": "energy_regen", "value": 3, "mode": "while_active"},
-            {"type": "tag",  "key": "sleeping", "mode": "while_active"},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
+            {"type": "buff", "key": "energy_regen", "value": 3, "mode": "persistent"},
+            {"type": "tag",  "key": "sleeping", "mode": "persistent"},
         ],
     },
     "book": {
@@ -82,11 +82,11 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 1,
         "use_state_label": "{entity} 正在阅读",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "tag",  "key": "reading", "mode": "while_active"},
-            {"type": "buff", "key": "energy_regen", "value": -3, "mode": "while_active"},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
+            {"type": "tag",  "key": "reading", "mode": "persistent"},
+            {"type": "buff", "key": "energy_regen", "value": -3, "mode": "persistent"},
         ],
     },
     "cook": {
@@ -98,10 +98,10 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 1,
         "use_state_label": "{entity} 正在烹饪",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "tag",  "key": "cooking", "mode": "while_active"},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
+            {"type": "tag",  "key": "cooking", "mode": "persistent"},
         ],
     },
     "desk": {
@@ -113,11 +113,11 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 1,
         "use_state_label": "{entity} 正在工作",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "tag",  "key": "working", "mode": "while_active"},
-            {"type": "buff", "key": "energy_regen", "value": -1, "mode": "instant", "duration": 60000},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
+            {"type": "tag",  "key": "working", "mode": "persistent"},
+            {"type": "buff", "key": "energy_regen", "value": -1, "mode": "timed", "duration": 60000},
         ],
     },
     "bath": {
@@ -129,11 +129,11 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 1,
         "use_state_label": "{entity} 正在泡澡",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "buff", "key": "energy_regen", "value": 2, "mode": "while_active"},
-            {"type": "tag",  "key": "bathing", "mode": "while_active"},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
+            {"type": "buff", "key": "energy_regen", "value": 2, "mode": "persistent"},
+            {"type": "tag",  "key": "bathing", "mode": "persistent"},
         ],
     },
     "toilet": {
@@ -145,9 +145,9 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 1,
         "use_state_label": "{entity} 正在使用马桶",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
         ],
     },
     "sink": {
@@ -159,10 +159,10 @@ OBJECT_TYPES: dict[str, dict] = {
         "max_users": 1,
         "use_state_label": "{entity} 正在洗手",
         "effects": [
-            {"type": "buff", "key": "no_move",     "mode": "while_active"},
-            {"type": "buff", "key": "no_interact", "mode": "while_active"},
-            {"type": "buff", "key": "no_use",      "mode": "while_active"},
-            {"type": "tag",  "key": "clean", "mode": "while_active"},
+            {"type": "buff", "key": "no_move",     "mode": "persistent"},
+            {"type": "buff", "key": "no_interact", "mode": "persistent"},
+            {"type": "buff", "key": "no_use",      "mode": "persistent"},
+            {"type": "tag",  "key": "clean", "mode": "persistent"},
         ],
     },
 }

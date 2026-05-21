@@ -166,13 +166,13 @@ MVP 通过标准（必须全部满足）：
 
 **步骤 1 — 后端：重构 Buff 数据结构**
 
-- [x] `object_types.py`：effects 每条加 `mode`（`while_active` / `instant`）、`duration`（instant 专用）
-- [x] `world_state.py`：`_player` 加 `canMove`、`canInteract`、`canUse`、`moveSpeed`；重构 `enter_object`，按 mode 创建 buff 实例（含 `source`、`remaining`）；`leave_object` 只移除 `while_active` 且 `source` 匹配的 buff
+- [x] `object_types.py`：effects 每条加 `mode`（`persistent` / `timed`）、`duration`（timed 专用）
+- [x] `world_state.py`：`_player` 加 `canMove`、`canInteract`、`canUse`、`moveSpeed`；重构 `enter_object`，按 mode 创建 buff 实例（含 `source`、`remaining`）；`leave_object` 只移除 `persistent` 且 `source` 匹配的 buff
 - [x] `models/player.py`：`Buff` 模型加 `mode`、`remaining`、`source`；`Player` 加四个新字段
 
 **步骤 2 — 后端：实现 Buff Tick 引擎**
 
-- [x] 新建 `back_end/game/buff_tick.py`：实现 `run_tick(player, delta)`，步骤：① 递减/移除 instant buff ② 重置状态控制字段 ③ 遍历 buffs 执行 EFFECT_HANDLERS
+- [x] 新建 `back_end/game/buff_tick.py`：实现 `run_tick(player, delta)`，步骤：① 递减/移除 timed buff ② 重置状态控制字段 ③ 遍历 buffs 执行 EFFECT_HANDLERS
 - [x] 在 `EFFECT_HANDLERS` 中注册：`energy_regen`、`hp_regen`、`no_move`、`no_interact`、`no_use`、`move_speed`
 - [x] `routers/player.py`：`GET /player` 返回前调用 `run_tick()`
 
@@ -184,12 +184,12 @@ MVP 通过标准（必须全部满足）：
 
 - [x] `types/index.ts`：`Buff` 加 `mode`、`remaining`、`source`；`Player` 加 `canMove`、`canInteract`、`canUse`、`moveSpeed`
 - [x] `InputSystem.ts`：读取 `player.moveSpeed`，动态调整 `MOVE_INTERVAL`
-- [x] `HUD.tsx`：buff 标签展示 `remaining`（instant 型显示剩余秒数）
+- [x] `HUD.tsx`：buff 标签展示 `remaining`（timed 型显示剩余秒数）
 
 **验收：**
 - 使用沙发时 `energy_regen` buff 每 tick 实际恢复体力，HUD 数值变化
 - 使用含 `no_move` buff 的 object 时，方向键无效，返回 `move_disabled`
-- 离开 object 后 `while_active` buff 清除，`instant` buff 继续计时直到归零
+- 离开 object 后 `persistent` buff 清除，`timed` buff 继续计时直到归零
 - `move_speed` buff 实际改变移动速度（前端 MOVE_INTERVAL 随之变化）
 
 ---

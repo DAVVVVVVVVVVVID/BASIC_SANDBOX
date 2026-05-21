@@ -41,7 +41,7 @@ def run_tick(player: dict, delta: float) -> None:
     # ① 递减 instant buff
     surviving = []
     for b in player["buffs"]:
-        if b["mode"] == "instant":
+        if b["mode"] == "timed":
             b["remaining"] -= delta
             if b["remaining"] > 0:
                 surviving.append(b)

@@ -213,7 +213,7 @@ Object 采用**类型 + 实例分离**架构。类型定义在 `back_end/game/ob
 | `sprite` | 类型 | 贴图文件名（不含 .png），None 表示无贴图 |
 | `max_users` | 类型 | 最多同时使用人数 |
 | `use_state_label` | 类型 | E 键使用后玩家状态文字，`{entity}` 替换为实体名 |
-| `effects` | 类型 | buff/tag 列表，进入时生效，离开时（while_active）清除 |
+| `effects` | 类型 | buff/tag 列表，进入时生效，离开时（persistent）清除 |
 | `currentUsers` | 实例运行时 | 当前使用人数，自动初始化为 0 |
 | `userList` | 实例运行时 | 当前使用者 ID 列表，自动初始化为 [] |
 
@@ -221,13 +221,15 @@ Object 采用**类型 + 实例分离**架构。类型定义在 `back_end/game/ob
 
 ```python
 "effects": [
-    # buff：进入时创建 buff 实例，驱动玩家属性
-    {"type": "buff", "key": "energy_regen", "value": 1, "mode": "while_active"},
-    {"type": "buff", "key": "no_move",                  "mode": "while_active"},
-    # instant buff：进入时触发，duration 毫秒后自动消失（离开 object 不清除）
-    {"type": "buff", "key": "hp_regen", "value": 2, "mode": "instant", "duration": 5000},
+    # buff（persistent）：进入时创建，离开 object 时清除
+    {"type": "buff", "key": "energy_regen", "value": 1, "mode": "persistent"},
+    {"type": "buff", "key": "no_move",                  "mode": "persistent"},
+    # buff（timed）：进入时触发，duration 毫秒后自动消失（离开 object 不清除）
+    {"type": "buff", "key": "hp_regen", "value": 2, "mode": "timed", "duration": 5000},
+    # instant_effect：进入时一次性结算，直接修改数值，不进 buff 列表
+    {"type": "instant_effect", "key": "energy", "value": 20},
     # tag：纯标记，仅展示，不参与运算
-    {"type": "tag",  "key": "sleeping",                 "mode": "while_active"},
+    {"type": "tag",  "key": "sleeping"},
 ]
 ```
 
@@ -258,10 +260,10 @@ Object 采用**类型 + 实例分离**架构。类型定义在 `back_end/game/ob
     "max_users":       1,
     "use_state_label": "{entity} 正在游玩游戏机",
     "effects": [
-        {"type": "buff", "key": "no_move",     "mode": "while_active"},
-        {"type": "buff", "key": "no_interact", "mode": "while_active"},
-        {"type": "buff", "key": "no_use",      "mode": "while_active"},
-        {"type": "tag",  "key": "gaming",      "mode": "while_active"},
+        {"type": "buff", "key": "no_move",     "mode": "persistent"},
+        {"type": "buff", "key": "no_interact", "mode": "persistent"},
+        {"type": "buff", "key": "no_use",      "mode": "persistent"},
+        {"type": "tag",  "key": "gaming"},
     ],
 },
 ```
@@ -458,8 +460,8 @@ _player = {
 - 例：`"玩家 正在沙发上休息"`
 
 **Buff 生命周期**：
-- `while_active`：E 键进入时创建，Q 键离开后立即清除
-- `instant`：进入时创建，`remaining = duration`；每 tick 递减，归零自动移除；离开 object 不清除
+- `persistent`：E 键进入时创建，Q 键离开后立即清除
+- `timed`：进入时创建，`remaining = duration`；每 tick 递减，归零自动移除；离开 object 不清除
 
 ---
 
@@ -486,8 +488,8 @@ effects（配置）              enter/leave_object（触发）     run_tick（�
 {
     "key":       "energy_regen",   # 效果标识，对应 EFFECT_HANDLERS 注册表
     "value":     1.0,              # 数值（状态控制型忽略此字段）
-    "mode":      "while_active",   # "while_active" | "instant"
-    "remaining": None,             # while_active = None；instant = 剩余毫秒
+    "mode":      "persistent",      # "persistent" | "timed"
+    "remaining": None,             # persistent = None；timed = 剩余毫秒
     "source":    "sofa_01",        # 来源 object id，用于 leave 时精准清除
 }
 ```
@@ -503,7 +505,7 @@ effects（配置）              enter/leave_object（触发）     run_tick（�
 ### Tick 执行顺序（每 200ms，`GET /player` 触发）
 
 ```
-① 递减 instant buff 的 remaining（-200ms），remaining ≤ 0 自动移除
+① 递减 timed buff 的 remaining（-200ms），remaining ≤ 0 自动移除
 ② 重置：canMove=True、canInteract=True、canUse=True、moveSpeed=1.0
 ③ 遍历 player.buffs → 查 EFFECT_HANDLERS → 逐一执行 handler
 ```
@@ -514,8 +516,8 @@ effects（配置）              enter/leave_object（触发）     run_tick（�
 
 | mode | 创建时机 | 清除时机 |
 |------|---------|---------|
-| `while_active` | E 键进入 object | Q 键离开时，按 source + mode 匹配清除 |
-| `instant` | E 键进入 object | tick 递减至 0 自动移除；离开 object **不**清除；再次进入同 source+key 时覆盖（重置 remaining） |
+| `persistent` | E 键进入 object | Q 键离开时，按 source + mode 匹配清除 |
+| `timed` | E 键进入 object | tick 递减至 0 自动移除；离开 object **不**清除；再次进入同 source+key 时覆盖（重置 remaining） |
 
 ---
 
@@ -552,21 +554,26 @@ EFFECT_HANDLERS: dict = {
 
 所有 object 的 buff 配置都在 `back_end/game/object_types.py` 的 `effects` 字段里，修改后**重启后端**生效。
 
-**新增一条 buff：**
+**新增一条 persistent buff：**
 ```python
-# 在 effects 列表里追加
-{"type": "buff", "key": "hp_regen", "value": 2, "mode": "while_active"},
+{"type": "buff", "key": "hp_regen", "value": 2, "mode": "persistent"},
 ```
 
-**新增一条 instant buff（有时限）：**
+**新增一条 timed buff（有时限）：**
 ```python
-{"type": "buff", "key": "energy_regen", "value": 5, "mode": "instant", "duration": 3000},
+{"type": "buff", "key": "energy_regen", "value": 5, "mode": "timed", "duration": 3000},
 # 进入后恢复 3 秒，离开后继续计时直到归零
+```
+
+**新增一条 instant_effect（一次性数值变化）：**
+```python
+{"type": "instant_effect", "key": "energy", "value": 20},
+# 进入时立刻 +20 energy，不进 buff 列表
 ```
 
 **新增一条 tag（纯标记，不运算）：**
 ```python
-{"type": "tag", "key": "cooking", "mode": "while_active"},
+{"type": "tag", "key": "cooking"},
 ```
 
 **删除一条 buff：** 直接从 `effects` 列表里删除对应的字典条目。
@@ -585,8 +592,10 @@ EFFECT_HANDLERS: dict = {
 ③ 遍历 obj["effects"]：
     - type == "buff"：
         · 从 player.buffs 移除同 source + 同 key 的旧条目（覆盖逻辑）
-        · 创建新 buff 实例，mode="while_active" → remaining=None；
-          mode="instant" → remaining=duration
+        · 创建新 buff 实例，mode="persistent" → remaining=None；
+          mode="timed" → remaining=duration
+    - type == "instant_effect"：
+        · 直接修改 player.energy 或 player.hp，不进 buff 列表
         · 追加到 player.buffs
     - type == "tag"：
         · 若 tag 不存在，追加到 player.tags
@@ -596,8 +605,8 @@ EFFECT_HANDLERS: dict = {
 
 ```
 ① 从 obj["userList"] 移除 entity_id，currentUsers -1
-② 从 player.buffs 移除所有 mode=="while_active" 且 source==obj_id 的条目
-   （instant buff 保留，继续倒计时）
+② 从 player.buffs 移除所有 mode=="persistent" 且 source==obj_id 的条目
+   （timed buff 保留，继续倒计时）
 ③ 从 player.tags 移除来源于该 object 的所有 tag
 ④ 重置 player.state = "idle"，stateLabel = None，usingObjectId = None
 ```

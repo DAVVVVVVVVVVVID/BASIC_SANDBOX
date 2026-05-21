@@ -617,7 +617,44 @@
 
 ---
 
-## 5. 管理接口（Admin）
+## 5. 数据结构说明
+
+### Buff
+
+玩家身上的持续/限时状态修改器。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `key` | string | 效果标识，如 `no_move`、`energy_regen` |
+| `value` | float | 数值（无意义的 key 为 0.0） |
+| `mode` | string | `"persistent"` 持续型 / `"timed"` 限时型 |
+| `remaining` | float \| null | `persistent` 时为 null；`timed` 时为剩余游戏毫秒数 |
+| `source` | string | 来源标识（通常为 object id，如 `"bed_01"`） |
+
+**Buff key 一览：**
+
+| key | 作用 | value 含义 |
+|-----|------|-----------|
+| `no_move` | 禁止移动 | 无 |
+| `no_interact` | 禁止交互 | 无 |
+| `no_use` | 禁止使用 Object | 无 |
+| `energy_regen` | Energy 每秒变化 | 正 = 恢复，负 = 消耗（点/秒） |
+| `hp_regen` | HP 每秒变化 | 正 = 恢复，负 = 消耗（点/秒） |
+| `move_speed` | 移动速度倍率 | 倍数 |
+
+### Object Effect
+
+Object 的 `effects` 列表支持三种 type：
+
+| type | 触发时机 | 说明 |
+|------|---------|------|
+| `buff` | 进入时创建，离开/计时结束时移除 | 见上方 Buff 结构 |
+| `instant_effect` | 进入时一次性结算，不进 buff 列表 | `key` 为 `energy` 或 `hp`，`value` 为变化量 |
+| `tag` | 进入时加入，离开时移除 | 纯标记字符串，不参与运算 |
+
+---
+
+## 6. 管理接口（Admin）
 
 用于调试和手动干预玩家状态，不记录行动日志。
 
@@ -629,7 +666,7 @@
 ```json
 {
   "buffs": [
-    { "key": "no_move", "value": 0.0, "mode": "while_active", "remaining": null, "source": "bed_01" }
+    { "key": "no_move", "value": 0.0, "mode": "persistent", "remaining": null, "source": "bed_01" }
   ]
 }
 ```

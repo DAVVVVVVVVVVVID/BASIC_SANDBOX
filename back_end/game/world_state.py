@@ -242,7 +242,7 @@ def enter_object(obj_id: str, entity_id: str) -> None:
                 "key":       e["key"],
                 "value":     e.get("value", 0.0),
                 "mode":      e["mode"],
-                "remaining": None if e["mode"] == "while_active" else e.get("duration", 0.0),
+                "remaining": None if e["mode"] == "persistent" else e.get("duration", 0.0),
                 "source":    obj_id,
             }
             # 同 source + 同 key 时覆盖（重置 remaining）
@@ -251,13 +251,20 @@ def enter_object(obj_id: str, entity_id: str) -> None:
                 if not (b["source"] == obj_id and b["key"] == e["key"])
             ]
             _player["buffs"].append(new_buff)
+        elif e["type"] == "instant_effect":
+            key   = e["key"]
+            value = e.get("value", 0.0)
+            if key == "energy":
+                _player["energy"] = max(0.0, min(100.0, _player["energy"] + value))
+            elif key == "hp":
+                _player["hp"] = max(0.0, min(100.0, _player["hp"] + value))
         elif e["type"] == "tag":
             if e["key"] not in _player["tags"]:
                 _player["tags"].append(e["key"])
 
 
 def leave_object(entity_id: str) -> dict | None:
-    """将实体从当前使用的对象中移除，清除 while_active buff，恢复玩家状态。返回离开的对象。"""
+    """将实体从当前使用的对象中移除，清除 persistent buff，恢复玩家状态。返回离开的对象。"""
     obj_id = _player.get("usingObjectId")
     if obj_id is None:
         return None
@@ -266,10 +273,10 @@ def leave_object(entity_id: str) -> dict | None:
         obj["userList"].remove(entity_id)
         obj["currentUsers"] -= 1
 
-    # 只移除 while_active 且来源匹配的 buff；instant buff 继续计时
+    # 只移除 persistent 且来源匹配的 buff；timed buff 继续计时
     _player["buffs"] = [
         b for b in _player["buffs"]
-        if not (b["mode"] == "while_active" and b["source"] == obj_id)
+        if not (b["mode"] == "persistent" and b["source"] == obj_id)
     ]
     # 移除来源 object 对应的 tag
     if obj:

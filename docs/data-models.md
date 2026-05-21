@@ -122,8 +122,8 @@ type PlayerState = "idle" | "walking" | "requesting_talk" | "talking" | "using"
 type Buff = {
   key: string
   value: number
-  mode: "while_active" | "instant"
-  remaining: number | null    // null = 永久（while_active），毫秒 = 剩余时间（instant）
+  mode: "persistent" | "timed"
+  remaining: number | null    // null = 永久（persistent），毫秒 = 剩余时间（timed）
   source: string              // 来源 object id
 }
 ```
@@ -171,11 +171,11 @@ Buff 分三类，处理位置和机制不同：
 | `move_speed` | 行为参数型 | 倍率（0.5 = 减速，2.0 = 加速） |
 
 **Buff 生命周期：**
-- `while_active`：进入 object 时创建，`remaining = null`；离开时（同 source）清除
-- `instant`：进入 object 时创建，`remaining = duration`；tick 递减，归零自动移除；离开 object 不清除；同 source + 同 key 再次进入时覆盖（重置 remaining）
+- `persistent`：进入 object 时创建，`remaining = null`；离开时（同 source）清除
+- `timed`：进入 object 时创建，`remaining = duration`；tick 递减，归零自动移除；离开 object 不清除；同 source + 同 key 再次进入时覆盖（重置 remaining）
 
 **Tick 执行顺序（每 200ms）：**
-1. 递减 `instant` buff 的 `remaining`，移除归零项
+1. 递减 `timed` buff 的 `remaining`，移除归零项
 2. 重置：`canMove = true`、`canInteract = true`、`canUse = true`、`moveSpeed = 1.0`
 3. 遍历所有 buff，调用对应 Effect Handler
 4. handler 修改 player 属性（energy、hp、canMove 等）
@@ -255,7 +255,7 @@ class PlayerProfile(BaseModel):
 class Buff(BaseModel):
     key: str
     value: float
-    mode: Literal["while_active", "instant"]
+    mode: Literal["persistent", "timed"]
     remaining: Optional[float] = None  # None = 永久；毫秒 = 剩余时间
     source: str                        # 来源 object id
 

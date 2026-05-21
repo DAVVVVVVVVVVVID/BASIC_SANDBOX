@@ -164,7 +164,7 @@ export default function HUD() {
                     borderRadius: 3, padding: '1px 6px', fontSize: 11,
                   }}>
                     {b.key}{b.value ? ` ${b.value > 0 ? '+' : ''}${b.value}` : ''}
-                    {b.mode === 'instant'
+                    {b.mode === 'timed'
                       ? ` (${((localRemaining[buffKey(b)] ?? b.remaining ?? 0) / 1000).toFixed(1)}s)`
                       : ''}
                   </span>

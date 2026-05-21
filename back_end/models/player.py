@@ -12,8 +12,8 @@ class PlayerProfile(BaseModel):
 class Buff(BaseModel):
     key: str
     value: float = 0.0
-    mode: Literal["while_active", "instant"]
-    remaining: Optional[float] = None  # None = 永久（while_active）；毫秒 = 剩余时间（instant）
+    mode: Literal["persistent", "timed"]
+    remaining: Optional[float] = None  # None = 永久（persistent）；毫秒 = 剩余时间（timed）
     source: str                         # 来源 object id
 
 

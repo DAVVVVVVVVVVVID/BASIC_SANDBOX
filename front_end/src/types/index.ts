@@ -72,8 +72,8 @@ export interface PlayerProfile {
 export interface Buff {
   key: string
   value: number
-  mode: 'while_active' | 'instant'
-  remaining: number | null  // null = 永久（while_active）；毫秒 = 剩余时间（instant）
+  mode: 'persistent' | 'timed'
+  remaining: number | null  // null = 永久（persistent）；毫秒 = 剩余时间（timed）
   source: string
 }
 
