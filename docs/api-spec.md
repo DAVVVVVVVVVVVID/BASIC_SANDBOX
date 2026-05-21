@@ -614,3 +614,50 @@
 | `missing_area_id` | area_id 为空 |
 | `no_walkable_tiles` | 目标区域内无可行走 tile |
 | `move_disabled` | 实体当前无法移动 |
+
+---
+
+## 5. 管理接口（Admin）
+
+用于调试和手动干预玩家状态，不记录行动日志。
+
+### GET /admin/player/buffs
+
+返回玩家当前所有 buff。
+
+**响应：**
+```json
+{
+  "buffs": [
+    { "key": "no_move", "value": 0.0, "mode": "while_active", "remaining": null, "source": "bed_01" }
+  ]
+}
+```
+
+---
+
+### DELETE /admin/player/buffs
+
+强制清除玩家所有 buff（不离开当前对象）。
+
+**响应：**
+```json
+{ "ok": true, "cleared": 3 }
+```
+
+---
+
+### POST /admin/player/force-reset
+
+强制重置玩家状态：若正在使用对象则先 leave，然后清除所有 buff 和 tag，状态归 idle。
+
+**请求体（可选）：**
+```json
+{ "entity_id": "player_01" }
+```
+
+**响应：**
+```json
+{ "ok": true, "left_object": "bed_01", "cleared_buffs": 3 }
+```
+若玩家未使用任何对象，`left_object` 为 `null`。

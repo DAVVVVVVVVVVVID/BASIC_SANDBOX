@@ -324,6 +324,38 @@ def get_cognitive_map() -> dict:
     from game.maps.cognitive_map import COGNITIVE_MAP
     return COGNITIVE_MAP
 
+def get_player_buffs() -> list:
+    """返回当前 buff 列表的深拷贝。"""
+    import copy
+    return copy.deepcopy(_player["buffs"])
+
+def clear_player_buffs() -> int:
+    """强制清除所有 buff，返回清除数量。"""
+    count = len(_player["buffs"])
+    _player["buffs"] = []
+    return count
+
+def force_reset_player_state(entity_id: str) -> dict:
+    """
+    强制重置玩家状态：
+    - 若正在使用对象，先执行 leave_object
+    - 清除所有剩余 buff 和 tag
+    - 状态归 idle
+    返回操作摘要。
+    """
+    left_obj_id = None
+    if _player.get("usingObjectId"):
+        obj = leave_object(entity_id)
+        left_obj_id = obj["id"] if obj else None
+
+    cleared_buffs = len(_player["buffs"])
+    _player["buffs"] = []
+    _player["tags"]  = []
+    _player["state"]         = "idle"
+    _player["stateLabel"]    = None
+    _player["usingObjectId"] = None
+    return {"left_object": left_obj_id, "cleared_buffs": cleared_buffs}
+
 def run_buff_tick(delta: float) -> None:
     """在 _player 上执行一次 buff tick（由 routers/player.py 在返回前调用）。"""
     from game.buff_tick import run_tick
