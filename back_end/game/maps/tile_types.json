@@ -1,0 +1,30 @@
+{
+  "grass": {
+    "prototype": "basic",
+    "label": "草地",
+    "walkable": true,
+    "sprite": "grass",
+    "color": "#4a7c59"
+  },
+  "wall": {
+    "prototype": "basic",
+    "label": "墙",
+    "walkable": false,
+    "sprite": "wall",
+    "color": "#555566"
+  },
+  "floor": {
+    "prototype": "basic",
+    "label": "地板",
+    "walkable": true,
+    "sprite": "floor",
+    "color": "#c8a97a"
+  },
+  "floor_occupied": {
+    "prototype": "basic",
+    "label": "地板(占)",
+    "walkable": false,
+    "sprite": "floor_occupied",
+    "color": "#a07850"
+  }
+}

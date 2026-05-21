@@ -1,0 +1,10 @@
+[
+  { "id": "sofa_01",   "type": "sofa",   "position": { "x": 5,  "y": 1 } },
+  { "id": "bed_01",    "type": "bed",    "position": { "x": 3,  "y": 1 } },
+  { "id": "book_01",   "type": "book",   "position": { "x": 1,  "y": 6 } },
+  { "id": "cook_01",   "type": "cook",   "position": { "x": 9,  "y": 6 } },
+  { "id": "desk_01",   "type": "desk",   "position": { "x": 1,  "y": 1 } },
+  { "id": "bath_01",   "type": "bath",   "position": { "x": 8,  "y": 1 } },
+  { "id": "toilet_01", "type": "toilet", "position": { "x": 9,  "y": 1 } },
+  { "id": "sink_01",   "type": "sink",   "position": { "x": 10, "y": 1 } }
+]

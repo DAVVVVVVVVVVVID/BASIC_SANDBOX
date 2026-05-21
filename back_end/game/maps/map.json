@@ -1,0 +1,66 @@
+{
+  "meta": {
+    "name": "小镇",
+    "width": 12,
+    "height": 8,
+    "player_start": { "x": 2, "y": 2, "facing": "down" }
+  },
+  "tile_chars": {
+    "#": "wall",
+    ".": "grass",
+    "f": "floor",
+    "F": "floor_occupied"
+  },
+  "tiles": [
+    "############",
+    "#FFFFFF#FFF#",
+    "#ffFFff#Fff#",
+    "#ffFFff###f#",
+    "#fffffffffff",
+    "#ffffff#fff#",
+    "#FFFfff#FFF#",
+    "############"
+  ],
+  "zone_chars": {
+    "world":  { "T": "town" },
+    "sector": { "H": "house" },
+    "arena":  { "a": "bedroom", "b": "bathroom", "c": "kitchen" }
+  },
+  "world_map": [
+    "TTTTTTTTTTTT",
+    "TTTTTTTTTTTT",
+    "TTTTTTTTTTTT",
+    "TTTTTTTTTTTT",
+    "TTTTTTTTTTTT",
+    "TTTTTTTTTTTT",
+    "TTTTTTTTTTTT",
+    "TTTTTTTTTTTT"
+  ],
+  "sector_map": [
+    "HHHHHHHHHHHH",
+    "HHHHHHHHHHHH",
+    "HHHHHHHHHHHH",
+    "HHHHHHHHHHHH",
+    "HHHHHHHHHHHH",
+    "HHHHHHHHHHHH",
+    "HHHHHHHHHHHH",
+    "HHHHHHHHHHHH"
+  ],
+  "arena_map": [
+    "............",
+    ".aaaaaa.bbb.",
+    ".aaaaaa.bbb.",
+    ".aaaaaa...b.",
+    ".aaaaaa.....",
+    ".aaaaaa.ccc.",
+    ".aaaaaa.ccc.",
+    "............"
+  ],
+  "events": [
+    {
+      "id": "exit",
+      "tiles": [{ "x": 11, "y": 4 }],
+      "description": "前面的区域之后再来探索吧。"
+    }
+  ]
+}

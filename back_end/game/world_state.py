@@ -1,46 +1,36 @@
 import copy
+import json
 import time
-from game.maps.map_data   import MAP
-from game.maps.world_map  import WORLD_MAP,  WORLD_CHARS
-from game.maps.sector_map import SECTOR_MAP, SECTOR_CHARS
-from game.maps.arena_map  import ARENA_MAP,  ARENA_CHARS
+from pathlib import Path
 from game.object_types import OBJECT_TYPES
 
-# ── 地图尺寸（从地图字符串自动推导）─────────────────────────────────────────
-MAP_H = len(MAP)
-MAP_W = len(MAP[0])
+# ── 从 JSON 加载地图数据 ──────────────────────────────────────────────────────
+_MAP_DIR = Path(__file__).parent / "maps"
 
-# ── TileType 定义表 ───────────────────────────────────────────────────────────
-# 新增 tile 类型：在此表里加一条记录
+with open(_MAP_DIR / "map.json", encoding="utf-8") as _f:
+    _MAP_DATA = json.load(_f)
+
+with open(_MAP_DIR / "objects.json", encoding="utf-8") as _f:
+    _OBJECTS_RAW: list[dict] = json.load(_f)
+
+with open(_MAP_DIR / "tile_types.json", encoding="utf-8") as _f:
+    _TILE_TYPES_RAW: dict[str, dict] = json.load(_f)
+
+_META       = _MAP_DATA["meta"]
+MAP_W: int  = _META["width"]
+MAP_H: int  = _META["height"]
+_TILE_ROWS  = _MAP_DATA["tiles"]
+_TILE_CHARS = _MAP_DATA["tile_chars"]        # char → tile type name
+_ZONE_CHARS = _MAP_DATA["zone_chars"]        # layer → {char → zone id}
+_WORLD_ROWS  = _MAP_DATA["world_map"]
+_SECTOR_ROWS = _MAP_DATA["sector_map"]
+_ARENA_ROWS  = _MAP_DATA["arena_map"]
+
+# ── TileType 定义表（从 tile_types.json 加载）────────────────────────────────
 TILE_TYPES: dict[str, dict] = {
-    "grass":          {"walkable_default": True},
-    "wall":           {"walkable_default": False},
-    "floor":          {"walkable_default": True},
-    "floor_occupied": {"walkable_default": False},
+    name: {"walkable_default": defn["walkable"]}
+    for name, defn in _TILE_TYPES_RAW.items()
 }
-
-# ── 字符 → tile 类型映射 ──────────────────────────────────────────────────────
-# 新增字符：在此加一条，同时在 TILE_TYPES 加对应类型
-CHAR_TO_TYPE: dict[str, str] = {
-    "#": "wall",
-    ".": "grass",
-    "f": "floor",
-    "F": "floor_occupied",
-}
-
-# ── Object 实例列表 ───────────────────────────────────────────────────────────
-# 每条只需 id、type、position，tiles/name/sprite/description 全部从 OBJECT_TYPES 自动补全
-
-_OBJECTS_RAW = [
-    {"id": "sofa_01",   "type": "sofa",   "position": {"x": 5,  "y": 1}},
-    {"id": "bed_01",    "type": "bed",    "position": {"x": 3,  "y": 1}},
-    {"id": "book_01",   "type": "book",   "position": {"x": 1,  "y": 6}},
-    {"id": "cook_01",   "type": "cook",   "position": {"x": 9,  "y": 6}},
-    {"id": "desk_01",   "type": "desk",   "position": {"x": 1,  "y": 1}},
-    {"id": "bath_01",   "type": "bath",   "position": {"x": 8,  "y": 1}},
-    {"id": "toilet_01", "type": "toilet", "position": {"x": 9,  "y": 1}},
-    {"id": "sink_01",   "type": "sink",   "position": {"x": 10, "y": 1}},
-]
 
 
 def _build_objects(raw: list[dict]) -> list[dict]:
@@ -84,14 +74,16 @@ _OBJECTS = _build_objects(_OBJECTS_RAW)
 def _build_zone_lookup() -> dict[tuple[int, int], dict]:
     """从三张区域图派生 (x, y) → {world, sector, arena} 查找表，并做一致性校验。"""
     lookup: dict[tuple[int, int], dict] = {}
+    world_chars  = _ZONE_CHARS["world"]
+    sector_chars = _ZONE_CHARS["sector"]
+    arena_chars  = _ZONE_CHARS["arena"]
 
-    for y, row in enumerate(WORLD_MAP):
+    for y, row in enumerate(_WORLD_ROWS):
         for x, ch in enumerate(row):
-            world  = WORLD_CHARS.get(ch)
-            sector = SECTOR_CHARS.get(SECTOR_MAP[y][x])
-            arena  = ARENA_CHARS.get(ARENA_MAP[y][x])
+            world  = world_chars.get(ch)
+            sector = sector_chars.get(_SECTOR_ROWS[y][x])
+            arena  = arena_chars.get(_ARENA_ROWS[y][x])
 
-            # 一致性校验：有 arena 必须有 sector，有 sector 必须有 world
             if arena and not sector:
                 raise ValueError(f"Zone map inconsistency at ({x},{y}): arena='{arena}' but sector is None")
             if sector and not world:
@@ -108,9 +100,9 @@ _ZONE_LOOKUP = _build_zone_lookup()
 
 def _generate_tiles() -> list[dict]:
     tiles = []
-    for y, row in enumerate(MAP):
+    for y, row in enumerate(_TILE_ROWS):
         for x, ch in enumerate(row):
-            tile_type = CHAR_TO_TYPE.get(ch, "grass")
+            tile_type = _TILE_CHARS.get(ch, "grass")
             zone = _ZONE_LOOKUP.get((x, y), {})
             tiles.append({
                 "x": x,
@@ -135,13 +127,7 @@ def _generate_tiles() -> list[dict]:
 
 _TILES = _generate_tiles()
 
-_EVENTS = [
-    {
-        "id": "exit",
-        "tiles": [{"x": 11, "y": 4}],
-        "description": "前面的区域之后再来探索吧。",
-    },
-]
+_EVENTS: list[dict] = _MAP_DATA["events"]
 
 _WEATHER = "sunny"
 
@@ -166,8 +152,8 @@ _player_profile = {
 
 _player = {
     "id":            "player_01",
-    "position":      {"x": 2, "y": 2},
-    "facing":        "down",
+    "position":      {"x": _META["player_start"]["x"], "y": _META["player_start"]["y"]},
+    "facing":        _META["player_start"]["facing"],
     "state":         "idle",       # 枚举：idle / walking / requesting_talk / talking / using
     "stateLabel":    None,         # 展示文字，仅 state == "using" 时有值
     "hp":            100.0,
