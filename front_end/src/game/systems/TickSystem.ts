@@ -1,5 +1,6 @@
 import { fetchWorld, fetchPlayer, fetchHistory } from '../../api/world'
 import { useGameStore } from '../../store/gameStore'
+import { EventBus } from '../EventBus'
 
 export function startTickSystem(): () => void {
   const id = window.setInterval(async () => {
@@ -14,6 +15,10 @@ export function startTickSystem(): () => void {
       setPlayer(player)
       setActionLog(log)
       setTiles(worldData.tiles)
+
+      if (player.pendingMessage) {
+        EventBus.emit('show-interaction', { message: player.pendingMessage })
+      }
     } catch (err) {
       console.error('[Tick Error]', err)
     }

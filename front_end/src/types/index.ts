@@ -93,6 +93,7 @@ export interface Player {
   canInteract: boolean
   canUse: boolean
   moveSpeed: number
+  pendingMessage?: string | null
 }
 
 export interface ActionLogEntry {

@@ -159,14 +159,17 @@ export default class GameScene extends Phaser.Scene {
     try {
       const res = await sendAction(this.player.id, 'use')
       if (res.success) {
-        EventBus.emit('show-interaction', { message: res.result?.playerState })
+        EventBus.emit('show-interaction', { message: res.result?.message })
       } else if (res.reason === 'no_object_in_front') {
         EventBus.emit('show-interaction', { message: '面前没有可使用的对象' })
-      } else if (res.reason === 'object_full') {
-        const { currentUsers, maxUsers } = res.result ?? {}
-        EventBus.emit('show-interaction', { message: `正在使用中（${currentUsers}/${maxUsers}）` })
-      } else if (res.reason === 'not_interactable') {
-        EventBus.emit('show-interaction', { message: '这个对象无法使用' })
+      } else if (res.reason === 'use_disabled') {
+        EventBus.emit('show-interaction', { message: '当前无法使用对象' })
+      } else {
+        const msg = res.result?.message
+          ?? (res.reason === 'object_full'
+            ? `正在使用中（${res.result?.currentUsers}/${res.result?.maxUsers}）`
+            : '无法使用')
+        EventBus.emit('show-interaction', { message: msg })
       }
     } catch (err) {
       console.error('[Use Error]', err)

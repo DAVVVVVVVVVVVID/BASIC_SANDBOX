@@ -45,7 +45,7 @@
 
 ### GET /player
 
-获取当前玩家状态。
+获取当前玩家状态。每次调用会触发一次 buff tick 并检测 max_duration 是否到期。
 
 **响应：**
 
@@ -55,10 +55,24 @@
   "position": { "x": 3, "y": 4 },
   "facing": "down",
   "state": "idle",
+  "stateLabel": null,
   "hp": 100,
-  "energy": 80
+  "energy": 80,
+  "usingObjectId": null,
+  "buffs": [],
+  "tags": [],
+  "canMove": true,
+  "canInteract": true,
+  "canUse": true,
+  "moveSpeed": 1.0,
+  "pendingMessage": null,
+  "profile": { "id": "player_01", "name": "玩家", "age": 25 }
 }
 ```
+
+| 字段 | 说明 |
+|------|------|
+| `pendingMessage` | 后端自动触发的事件消息（如 max_duration 到期自动退出），读取后自动清除；无事件时为 `null` |
 
 ---
 
@@ -343,19 +357,39 @@
 
 ### use
 
-进入使用正前方对象。校验顺序：`interactable` → `available`（`currentUsers < maxUsers`）。
+使用正前方对象。行为根据对象原型（`prototype`）分为两种：
+
+- **instant（瞬间使用型）**：应用效果后立即完成，不进入 `using` 状态
+- **continuous（持续使用型）**：进入 `using` 状态，等待 `Q` 键或 `max_duration` 到期退出
+
+校验顺序（共同）：`canUse` → `interactable` → （continuous：`currentUsers < maxUsers`）
 
 **payload：** `{}`
 
-**响应（成功）：**
+**响应（instant 成功）：**
 
 ```json
 {
   "success": true,
   "type": "use",
   "result": {
-    "playerState": "player_01 正在游玩游戏机",
-    "objectId": "arcade_01",
+    "message": "你使用了马桶，感觉轻松多了。",
+    "objectId": "toilet_01"
+  }
+}
+```
+
+**响应（continuous 成功）：**
+
+```json
+{
+  "success": true,
+  "type": "use",
+  "result": {
+    "message": "你躺在床上，闭上眼睛，困意慢慢袭来。",
+    "playerState": "using",
+    "stateLabel": "玩家 正在睡觉",
+    "objectId": "bed_01",
     "currentUsers": 1,
     "maxUsers": 1
   }
@@ -369,7 +403,11 @@
   "success": false,
   "type": "use",
   "reason": "object_full",
-  "result": { "currentUsers": 1, "maxUsers": 1 }
+  "result": {
+    "message": "床上已经有人了。",
+    "currentUsers": 1,
+    "maxUsers": 1
+  }
 }
 ```
 
@@ -382,6 +420,13 @@
   "reason": "no_object_in_front"
 }
 ```
+
+| reason | 说明 |
+|--------|------|
+| `no_object_in_front` | 正前方没有对象 |
+| `not_interactable` | 对象不可交互，`result.message` 为对象的 `failureMessage` |
+| `object_full` | 对象已满（仅 continuous），`result.message` 为对象的 `failureMessage` |
+| `use_disabled` | 当前无法使用对象（buff 限制）|
 
 ---
 
@@ -437,7 +482,7 @@
 
 ---
 
-## 5. 新增行为类型（扩展方式）
+## 4. 新增行为类型（扩展方式）
 
 需要新增行为时，**不修改接口路径**，只需：
 
@@ -644,13 +689,24 @@
 
 ### Object Effect
 
-Object 的 `effects` 列表支持三种 type：
+Object 的 `effects` 列表支持三种 type，适用原型不同：
 
-| type | 触发时机 | 说明 |
-|------|---------|------|
-| `buff` | 进入时创建，离开/计时结束时移除 | 见上方 Buff 结构 |
-| `instant_effect` | 进入时一次性结算，不进 buff 列表 | `key` 为 `energy` 或 `hp`，`value` 为变化量 |
-| `tag` | 进入时加入，离开时移除 | 纯标记字符串，不参与运算 |
+| type | 适用原型 | 触发时机 | 说明 |
+|------|---------|---------|------|
+| `buff` | continuous | 进入时创建，离开/计时结束时移除 | 见上方 Buff 结构；mode 可为 `persistent` 或 `timed` |
+| `instant_effect` | instant / continuous | 进入时一次性结算，不进 buff 列表 | `key` 为 `energy` 或 `hp`，`value` 为变化量 |
+| `tag` | continuous | 进入时加入，离开时移除 | 纯标记字符串，不参与运算 |
+
+> instant 原型的 `effects` 中，`buff` 只允许 `timed` mode；不允许 `persistent` buff 和 `tag`。
+
+### Object 原型
+
+| prototype | 说明 | 专有字段 |
+|-----------|------|---------|
+| `instant` | 瞬间使用型，应用效果后立即完成 | 无 `max_users`、`use_state_label` |
+| `continuous` | 持续使用型，进入 using 状态直至退出 | `maxUsers`、`useStateLabel`、`maxDuration`、`leaveMessage` |
+
+`maxDuration`：`float`（秒）或 `null`（无限）。到期时后端自动触发 leave，`pendingMessage` 中写入 `leaveMessage` 内容。
 
 ---
 

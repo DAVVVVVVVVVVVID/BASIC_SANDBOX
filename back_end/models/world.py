@@ -19,6 +19,9 @@ class Tile(BaseModel):
 
 
 class Effect(BaseModel):
+    class Config:
+        extra = "allow"
+
     type: str
     key: str
     value: Optional[float] = None
@@ -27,17 +30,23 @@ class Effect(BaseModel):
 class GameObject(BaseModel):
     id: str
     type: str
+    prototype: str
     name: str
     position: Position
     tiles: Optional[List[Position]] = None
     sprite: Optional[str] = None
     interactable: bool
     description: str
-    maxUsers: int
+    effects: List[Effect]
+    successMessage: Optional[str] = None
+    failureMessage: Optional[str] = None
     currentUsers: int
     userList: List[str]
-    useStateLabel: str
-    effects: List[Effect]
+    # continuous 专有（instant 对象为 None）
+    maxUsers: Optional[int] = None
+    useStateLabel: Optional[str] = None
+    maxDuration: Optional[float] = None
+    leaveMessage: Optional[str] = None
 
 
 class WorldState(BaseModel):

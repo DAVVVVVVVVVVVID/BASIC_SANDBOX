@@ -46,39 +46,83 @@ getTileArea(tile) → { worldId, sectionId, arenaId }
 ## 3. Object（场景对象）
 
 采用**类型 + 实例分离**架构：
-- 类型定义在 `back_end/game/object_types.py`（名称、尺寸、贴图、描述）
+- 类型定义在 `back_end/game/object_types.py`（名称、尺寸、贴图、描述、原型）
 - 实例只存 `id`、`type`、`position`，其余字段自动补全
 
+Object 分为两种原型（`prototype`）：
+
+### 瞬间使用型（instant）
+
 ```typescript
-type GameObject = {
+type InstantObject = {
   id: string
-  type: string                          // 对应 OBJECT_TYPES 中的类型键
+  type: string
+  prototype: "instant"
   name: string
-  position: { x: number; y: number }   // 锚点坐标（左上角）
-  tiles: { x: number; y: number }[]    // 占据的所有格子（自动生成）
-  sprite?: string                       // 贴图文件名（不含 .png）
+  position: { x: number; y: number }
+  tiles: { x: number; y: number }[]
+  sprite?: string
   interactable: boolean
-  description: string                   // I 键阅读的描述文本
-  maxUsers: number                      // 最多同时使用人数
-  currentUsers: number                  // 当前使用人数（运行时）
-  userList: string[]                    // 当前使用者 ID 列表（运行时）
-  useStateLabel: string                 // 使用中状态文字模板，"{entity}" 替换为实体名
-  effects: { type: string; key: string; value?: number }[]  // buff/tag，当前仅展示
+  description: string
+  effects: Effect[]                  // 仅 instant_effect / timed buff
+  successMessage: string
+  failureMessage: string
+  // 运行时
+  currentUsers: number               // 始终为 0（无占用概念）
+  userList: string[]
 }
 ```
 
-**派生字段（不存储，实时计算）：**
-- `available = currentUsers < maxUsers`
+行为：`E` → 应用效果 → 立即完成，玩家状态保持 `idle`。
+
+### 持续使用型（continuous）
+
+```typescript
+type ContinuousObject = {
+  id: string
+  type: string
+  prototype: "continuous"
+  name: string
+  position: { x: number; y: number }
+  tiles: { x: number; y: number }[]
+  sprite?: string
+  interactable: boolean
+  description: string
+  maxUsers: number
+  useStateLabel: string              // "{entity}" 替换为实体名
+  maxDuration: number | null         // 秒，null = 无限
+  leaveMessage: string               // max_duration 到期自动退出时的提示
+  effects: Effect[]                  // persistent/timed buff + tag
+  successMessage: string
+  failureMessage: string
+  // 运行时
+  currentUsers: number
+  userList: string[]
+}
+```
+
+**派生字段（不存储，实时计算）：** `available = currentUsers < maxUsers`
 
 **行为规则：**
 
 | 键 | Action | 说明 |
 |----|--------|------|
-| `I` | `interact` | 读取描述信息，不改变任何状态 |
-| `E` | `use` | 进入使用，校验 available，加入 userList，玩家 state 改为 useStateLabel 渲染文字 |
-| `Q` | `leave` | 退出使用，从 userList 移除，玩家 state 恢复 idle |
+| `I` | `interact` | 读取描述信息，不改变状态 |
+| `E` | `use` | instant：应用效果即返回；continuous：校验 available，进入 using 状态 |
+| `Q` | `leave` | 退出 continuous 对象，state 恢复 idle |
 
-`use` 失败时 reason 为 `object_full`，响应含 `currentUsers` / `maxUsers` 供前端展示。
+`use` 失败 reason：`object_full` 时响应含 `currentUsers`/`maxUsers` 和 `message`（failureMessage）。
+
+`maxDuration` 到期时后端自动执行 leave，`GET /player` 的 `pendingMessage` 带出 `leaveMessage`。
+
+### Effect 类型
+
+```typescript
+type Effect =
+  | { type: "instant_effect"; key: "energy" | "hp"; value: number }
+  | { type: "buff"; key: string; value?: number; mode: "persistent" | "timed"; duration?: number }
+  | { type: "tag"; key: string; mode: "persistent" }  // 仅 continuous
+```
 
 ---
 

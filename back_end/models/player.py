@@ -32,3 +32,4 @@ class Player(BaseModel):
     canInteract: bool = True
     canUse: bool = True
     moveSpeed: float = 1.0
+    pendingMessage: Optional[str] = None

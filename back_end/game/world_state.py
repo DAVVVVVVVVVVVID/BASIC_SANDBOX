@@ -1,4 +1,5 @@
 import copy
+import time
 from game.maps.map_data   import MAP
 from game.maps.world_map  import WORLD_MAP,  WORLD_CHARS
 from game.maps.sector_map import SECTOR_MAP, SECTOR_CHARS
@@ -31,8 +32,6 @@ CHAR_TO_TYPE: dict[str, str] = {
 # 每条只需 id、type、position，tiles/name/sprite/description 全部从 OBJECT_TYPES 自动补全
 
 _OBJECTS_RAW = [
-    {"id": "tree_01",   "type": "tree",   "position": {"x": 20, "y": 3}},
-    {"id": "well_01",   "type": "well",   "position": {"x": 14, "y": 13}},
     {"id": "sofa_01",   "type": "sofa",   "position": {"x": 5,  "y": 1}},
     {"id": "bed_01",    "type": "bed",    "position": {"x": 3,  "y": 1}},
     {"id": "book_01",   "type": "book",   "position": {"x": 1,  "y": 6}},
@@ -52,22 +51,29 @@ def _build_objects(raw: list[dict]) -> list[dict]:
         w, h = t["size"]
         x, y = inst["position"]["x"], inst["position"]["y"]
         tiles = [{"x": x + dx, "y": y + dy} for dy in range(h) for dx in range(w)]
-        result.append({
-            "id":              inst["id"],
-            "type":            inst["type"],
-            "name":            t["name"],
-            "position":        inst["position"],
-            "tiles":           tiles,
-            "sprite":          t["sprite"],
-            "interactable":    t["interactable"],
-            "description":     t["description"],
-            "maxUsers":        t["max_users"],
-            "useStateLabel":   t["use_state_label"],
-            "effects":         t["effects"],
+        obj: dict = {
+            "id":             inst["id"],
+            "type":           inst["type"],
+            "prototype":      t["prototype"],
+            "name":           t["name"],
+            "position":       inst["position"],
+            "tiles":          tiles,
+            "sprite":         t["sprite"],
+            "interactable":   t["interactable"],
+            "description":    t["description"],
+            "effects":        t["effects"],
+            "successMessage": t["success_message"],
+            "failureMessage": t["failure_message"],
             # 运行时状态
-            "currentUsers":    0,
-            "userList":        [],
-        })
+            "currentUsers":   0,
+            "userList":       [],
+        }
+        if t["prototype"] == "continuous":
+            obj["maxUsers"]      = t["max_users"]
+            obj["useStateLabel"] = t["use_state_label"]
+            obj["maxDuration"]   = t.get("max_duration")
+            obj["leaveMessage"]  = t.get("leave_message")
+        result.append(obj)
     return result
 
 
@@ -139,6 +145,10 @@ _EVENTS = [
 
 _WEATHER = "sunny"
 
+# ── 运行时全局变量 ─────────────────────────────────────────────────────────────
+_pending_message: str | None = None   # 下次 GET /player 时带出并清除
+_use_start_time:  float | None = None # continuous 对象进入时的时间戳（秒）
+
 # tile 快速查询表
 _TILE_LOOKUP: dict[tuple[int, int], dict] = {
     (t["x"], t["y"]): t for t in _TILES
@@ -185,7 +195,11 @@ def get_world() -> dict:
     }
 
 def get_player() -> dict:
-    return copy.deepcopy(_player)
+    global _pending_message
+    data = copy.deepcopy(_player)
+    data["pendingMessage"] = _pending_message
+    _pending_message = None
+    return data
 
 def get_player_profile() -> dict:
     return copy.deepcopy(_player_profile)
@@ -224,7 +238,8 @@ def get_object_at(x: int, y: int) -> dict | None:
     return None
 
 def enter_object(obj_id: str, entity_id: str) -> None:
-    """将实体加入对象的使用者列表，更新玩家状态、stateLabel，创建 buff 实例和 tag。"""
+    """将实体加入 continuous 对象的使用者列表，更新玩家状态、stateLabel，创建 buff 和 tag。"""
+    global _use_start_time
     obj = get_object_by_id(obj_id)
     if obj is None:
         return
@@ -236,6 +251,8 @@ def enter_object(obj_id: str, entity_id: str) -> None:
     _player["stateLabel"]    = obj["useStateLabel"].replace("{entity}", name)
     _player["usingObjectId"] = obj_id
 
+    _use_start_time = time.time() if obj.get("maxDuration") is not None else None
+
     for e in obj["effects"]:
         if e["type"] == "buff":
             new_buff = {
@@ -245,26 +262,47 @@ def enter_object(obj_id: str, entity_id: str) -> None:
                 "remaining": None if e["mode"] == "persistent" else e.get("duration", 0.0),
                 "source":    obj_id,
             }
-            # 同 source + 同 key 时覆盖（重置 remaining）
             _player["buffs"] = [
                 b for b in _player["buffs"]
                 if not (b["source"] == obj_id and b["key"] == e["key"])
             ]
             _player["buffs"].append(new_buff)
-        elif e["type"] == "instant_effect":
+        elif e["type"] == "tag":
+            if e["key"] not in _player["tags"]:
+                _player["tags"].append(e["key"])
+
+
+def apply_instant_object(obj_id: str, entity_id: str) -> None:
+    """应用 instant 对象的效果（instant_effect + timed buff），不改变玩家状态。"""
+    obj = get_object_by_id(obj_id)
+    if obj is None:
+        return
+    for e in obj["effects"]:
+        if e["type"] == "instant_effect":
             key   = e["key"]
             value = e.get("value", 0.0)
             if key == "energy":
                 _player["energy"] = max(0.0, min(100.0, _player["energy"] + value))
             elif key == "hp":
                 _player["hp"] = max(0.0, min(100.0, _player["hp"] + value))
-        elif e["type"] == "tag":
-            if e["key"] not in _player["tags"]:
-                _player["tags"].append(e["key"])
+        elif e["type"] == "buff" and e.get("mode") == "timed":
+            new_buff = {
+                "key":       e["key"],
+                "value":     e.get("value", 0.0),
+                "mode":      "timed",
+                "remaining": e.get("duration", 0.0),
+                "source":    obj_id,
+            }
+            _player["buffs"] = [
+                b for b in _player["buffs"]
+                if not (b["source"] == obj_id and b["key"] == e["key"])
+            ]
+            _player["buffs"].append(new_buff)
 
 
 def leave_object(entity_id: str) -> dict | None:
     """将实体从当前使用的对象中移除，清除 persistent buff，恢复玩家状态。返回离开的对象。"""
+    global _use_start_time
     obj_id = _player.get("usingObjectId")
     if obj_id is None:
         return None
@@ -273,12 +311,10 @@ def leave_object(entity_id: str) -> dict | None:
         obj["userList"].remove(entity_id)
         obj["currentUsers"] -= 1
 
-    # 只移除 persistent 且来源匹配的 buff；timed buff 继续计时
     _player["buffs"] = [
         b for b in _player["buffs"]
         if not (b["mode"] == "persistent" and b["source"] == obj_id)
     ]
-    # 移除来源 object 对应的 tag
     if obj:
         obj_tags = {e["key"] for e in obj["effects"] if e["type"] == "tag"}
         _player["tags"] = [t for t in _player["tags"] if t not in obj_tags]
@@ -286,6 +322,7 @@ def leave_object(entity_id: str) -> dict | None:
     _player["state"]         = "idle"
     _player["stateLabel"]    = None
     _player["usingObjectId"] = None
+    _use_start_time          = None
     return obj
 
 
@@ -363,7 +400,25 @@ def force_reset_player_state(entity_id: str) -> dict:
     _player["usingObjectId"] = None
     return {"left_object": left_obj_id, "cleared_buffs": cleared_buffs}
 
+def _check_auto_leave() -> None:
+    """检测 continuous 对象的 max_duration 是否到期，到期则自动触发 leave_object。"""
+    global _pending_message
+    if _player.get("usingObjectId") is None or _use_start_time is None:
+        return
+    obj = get_object_by_id(_player["usingObjectId"])
+    if obj is None:
+        return
+    max_duration = obj.get("maxDuration")
+    if max_duration is None:
+        return
+    if time.time() - _use_start_time >= max_duration:
+        left = leave_object("player_01")
+        if left:
+            _pending_message = left.get("leaveMessage")
+
+
 def run_buff_tick(delta: float) -> None:
-    """在 _player 上执行一次 buff tick（由 routers/player.py 在返回前调用）。"""
+    """在 _player 上执行一次 buff tick，并检测 max_duration 自动退出。"""
     from game.buff_tick import run_tick
     run_tick(_player, delta)
+    _check_auto_leave()

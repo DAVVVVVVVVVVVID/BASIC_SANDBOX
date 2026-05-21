@@ -4,7 +4,8 @@ from models.world import Position
 import random
 from game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
-    get_object_at, enter_object, leave_object, get_walkable_tiles_in_area,
+    get_object_at, enter_object, leave_object, apply_instant_object,
+    get_walkable_tiles_in_area,
 )
 from game.action_log import append_log
 
@@ -104,14 +105,35 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
         return ActionResponse(success=False, type="use", reason="no_object_in_front")
 
     if not obj.get("interactable", False):
-        return ActionResponse(success=False, type="use", reason="not_interactable")
+        return ActionResponse(
+            success=False,
+            type="use",
+            reason="not_interactable",
+            result={"message": obj.get("failureMessage")},
+        )
 
+    if obj.get("prototype") == "instant":
+        apply_instant_object(obj["id"], entity_id)
+        return ActionResponse(
+            success=True,
+            type="use",
+            result={
+                "message":  obj.get("successMessage"),
+                "objectId": obj["id"],
+            },
+        )
+
+    # continuous
     if obj["currentUsers"] >= obj["maxUsers"]:
         return ActionResponse(
             success=False,
             type="use",
             reason="object_full",
-            result={"currentUsers": obj["currentUsers"], "maxUsers": obj["maxUsers"]},
+            result={
+                "message":      obj.get("failureMessage"),
+                "currentUsers": obj["currentUsers"],
+                "maxUsers":     obj["maxUsers"],
+            },
         )
 
     enter_object(obj["id"], entity_id)
@@ -120,6 +142,7 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
         success=True,
         type="use",
         result={
+            "message":      obj.get("successMessage"),
             "playerState":  updated["state"],
             "stateLabel":   updated["stateLabel"],
             "objectId":     obj["id"],
