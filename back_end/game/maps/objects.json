@@ -1,10 +1,34 @@
 [
-  { "id": "sofa_01",   "type": "sofa",   "position": { "x": 5,  "y": 1 } },
-  { "id": "bed_01",    "type": "bed",    "position": { "x": 3,  "y": 1 } },
-  { "id": "book_01",   "type": "book",   "position": { "x": 1,  "y": 6 } },
-  { "id": "cook_01",   "type": "cook",   "position": { "x": 9,  "y": 6 } },
-  { "id": "desk_01",   "type": "desk",   "position": { "x": 1,  "y": 1 } },
-  { "id": "bath_01",   "type": "bath",   "position": { "x": 8,  "y": 1 } },
-  { "id": "toilet_01", "type": "toilet", "position": { "x": 9,  "y": 1 } },
-  { "id": "sink_01",   "type": "sink",   "position": { "x": 10, "y": 1 } }
+  {
+    "id": "bed_1779366945721",
+    "type": "bed",
+    "position": {
+      "x": 0,
+      "y": 3
+    }
+  },
+  {
+    "id": "bath_1779367293480",
+    "type": "bath",
+    "position": {
+      "x": 0,
+      "y": 0
+    }
+  },
+  {
+    "id": "fridge_1779367415680",
+    "type": "fridge",
+    "position": {
+      "x": 0,
+      "y": 8
+    }
+  },
+  {
+    "id": "desk_1779367828152",
+    "type": "desk",
+    "position": {
+      "x": 10,
+      "y": 0
+    }
+  }
 ]

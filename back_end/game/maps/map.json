@@ -1,66 +1,102 @@
 {
   "meta": {
-    "name": "小镇",
-    "width": 12,
-    "height": 8,
-    "player_start": { "x": 2, "y": 2, "facing": "down" }
+    "name": "新地图",
+    "width": 20,
+    "height": 15,
+    "player_start": {
+      "x": 3,
+      "y": 3,
+      "facing": "down"
+    }
   },
   "tile_chars": {
-    "#": "wall",
-    ".": "grass",
+    "#": "grass",
+    ".": "wall",
     "f": "floor",
     "F": "floor_occupied"
   },
   "tiles": [
-    "############",
-    "#FFFFFF#FFF#",
-    "#ffFFff#Fff#",
-    "#ffFFff###f#",
-    "#fffffffffff",
-    "#ffffff#fff#",
-    "#FFFfff#FFF#",
-    "############"
+    "fffff.fffffff.######",
+    "fffff.fffffff.######",
+    "....f.fffffff.######",
+    "fffff.fffffff.######",
+    "fffff.fffffff.######",
+    "fffff.fffffff.######",
+    "fffff.fffffff.######",
+    "fffff.fffffff.######",
+    "fffffffffffff.######",
+    "......ff......######",
+    "####################",
+    "####################",
+    "####################",
+    "####################",
+    "####################"
   ],
   "zone_chars": {
-    "world":  { "T": "town" },
-    "sector": { "H": "house" },
-    "arena":  { "a": "bedroom", "b": "bathroom", "c": "kitchen" }
+    "world": {
+      "A": "world"
+    },
+    "sector": {
+      "A": "house",
+      "B": "outside"
+    },
+    "arena": {
+      "A": "bathroom",
+      "B": "workplace",
+      "C": "grass",
+      "D": "bedroom"
+    }
   },
   "world_map": [
-    "TTTTTTTTTTTT",
-    "TTTTTTTTTTTT",
-    "TTTTTTTTTTTT",
-    "TTTTTTTTTTTT",
-    "TTTTTTTTTTTT",
-    "TTTTTTTTTTTT",
-    "TTTTTTTTTTTT",
-    "TTTTTTTTTTTT"
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA",
+    "AAAAAAAAAAAAAAAAAAAA"
   ],
   "sector_map": [
-    "HHHHHHHHHHHH",
-    "HHHHHHHHHHHH",
-    "HHHHHHHHHHHH",
-    "HHHHHHHHHHHH",
-    "HHHHHHHHHHHH",
-    "HHHHHHHHHHHH",
-    "HHHHHHHHHHHH",
-    "HHHHHHHHHHHH"
+    "AAAAAAAAAAAAAABBBBBB",
+    "AAAAAAAAAAAAAABBBBBB",
+    "AAAAAAAAAAAAAABBBBBB",
+    "AAAAAAAAAAAAAABBBBBB",
+    "AAAAAAAAAAAAAABBBBBB",
+    "AAAAAAAAAAAAAABBBBBB",
+    "AAAAAAAAAAAAAABBBBBB",
+    "AAAAAAAAAAAAAABBBBBB",
+    "AAAAAAAAAAAAAABBBBBB",
+    "AAAAAAAAAAAAAABBBBBB",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "BBBBBBBBBBBBBBBBBBBB",
+    "BBBBBBBBBBBBBBBBBBBB"
   ],
   "arena_map": [
-    "............",
-    ".aaaaaa.bbb.",
-    ".aaaaaa.bbb.",
-    ".aaaaaa...b.",
-    ".aaaaaa.....",
-    ".aaaaaa.ccc.",
-    ".aaaaaa.ccc.",
-    "............"
+    "AAAAAABBBBBBBBCCCCCC",
+    "AAAAAABBBBBBBBCCCCCC",
+    "AAAAAABBBBBBBBCCCCCC",
+    "DDDDDDBBBBBBBBCCCCCC",
+    "DDDDDDBBBBBBBBCCCCCC",
+    "DDDDDDBBBBBBBBCCCCCC",
+    "DDDDDDBBBBBBBBCCCCCC",
+    "DDDDDDBBBBBBBBCCCCCC",
+    "DDDDDDBBBBBBBBCCCCCC",
+    "DDDDDDBBBBBBBBCCCCCC",
+    "CCCCCCCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCCCCCCC",
+    "CCCCCCCCCCCCCCCCCCCC"
   ],
-  "events": [
-    {
-      "id": "exit",
-      "tiles": [{ "x": 11, "y": 4 }],
-      "description": "前面的区域之后再来探索吧。"
-    }
-  ]
+  "events": []
 }
