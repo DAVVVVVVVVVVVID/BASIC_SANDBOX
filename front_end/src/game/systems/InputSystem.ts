@@ -72,6 +72,7 @@ export default class InputSystem {
   private pathQueue: Direction[] = []
   private currentPos: Position
   private lastMoveTime = 0
+  private pathTimer: Phaser.Time.TimerEvent | null = null
   // 鼠标路径：目的地和首步标记
   private pathDestination: Position | null = null
   private isFirstPathStep = false
@@ -120,9 +121,17 @@ export default class InputSystem {
       this.onMoveResult(result)
     } catch (err) {
       console.error('[Move Error]', err)
+      this.clearPathTimer()
       this.pathQueue = []
     } finally {
       this.isMoving = false
+    }
+  }
+
+  private clearPathTimer() {
+    if (this.pathTimer) {
+      this.scene.time.removeEvent(this.pathTimer)
+      this.pathTimer = null
     }
   }
 
@@ -140,7 +149,7 @@ export default class InputSystem {
 
     await this.sendMove({ direction }, logOptions)
     if (this.pathQueue.length > 0) {
-      this.scene.time.delayedCall(getMoveInterval(), () => this.executePathStep())
+      this.pathTimer = this.scene.time.delayedCall(getMoveInterval(), () => this.executePathStep())
     }
   }
 
@@ -150,6 +159,7 @@ export default class InputSystem {
       const tile = pixelToTile(pointer.worldX, pointer.worldY)
       if (!tile) return
 
+      this.clearPathTimer()
       this.pathQueue = bfs(this.tiles, this.currentPos, tile)
       if (this.pathQueue.length === 0) return
 
@@ -159,7 +169,7 @@ export default class InputSystem {
       const elapsed = Date.now() - this.lastMoveTime
       const delay = Math.max(0, getMoveInterval() - elapsed)
       if (delay > 0) {
-        this.scene.time.delayedCall(delay, () => this.executePathStep())
+        this.pathTimer = this.scene.time.delayedCall(delay, () => this.executePathStep())
       } else {
         this.executePathStep()
       }
