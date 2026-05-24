@@ -47,10 +47,19 @@ export interface WorldState {
   weather: 'sunny' | 'cloudy' | 'rain'
 }
 
+export interface OtherPlayer {
+  id: string
+  name: string
+  position: Position
+  facing: Facing
+  state: PlayerState
+}
+
 export interface WorldData {
   tiles: Tile[]
   objects: GameObject[]
   worldState: WorldState
+  players: OtherPlayer[]
 }
 
 export type Facing = 'up' | 'down' | 'left' | 'right'

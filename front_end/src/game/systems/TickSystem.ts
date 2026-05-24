@@ -1,20 +1,22 @@
 import { fetchWorld, fetchPlayer, fetchHistory } from '../../api/world'
 import { useGameStore } from '../../store/gameStore'
 import { EventBus } from '../EventBus'
+import type { OtherPlayer } from '../../types'
 
-export function startTickSystem(): () => void {
+export function startTickSystem(playerId: string): () => void {
   const id = window.setInterval(async () => {
     try {
       const [worldData, player, log] = await Promise.all([
         fetchWorld(),
-        fetchPlayer(),
+        fetchPlayer(playerId),
         fetchHistory(),
       ])
-      const { setWorldState, setPlayer, setActionLog, setTiles } = useGameStore.getState()
+      const { setWorldState, setPlayer, setActionLog, setTiles, setOtherPlayers } = useGameStore.getState()
       setWorldState(worldData.worldState)
       setPlayer(player)
       setActionLog(log)
       setTiles(worldData.tiles)
+      setOtherPlayers(worldData.players.filter((p: OtherPlayer) => p.id !== playerId))
 
       if (player.pendingMessage) {
         EventBus.emit('show-interaction', { message: player.pendingMessage })

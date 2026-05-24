@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import GameScene from './scenes/GameScene'
 import { WorldData, Player, WorldEvent } from '../types'
 
-export function initGame(worldData: WorldData, player: Player, events: WorldEvent[]) {
+export function initGame(worldData: WorldData, player: Player, myPlayerId: string, events: WorldEvent[]) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     width: window.innerWidth,
@@ -14,6 +14,6 @@ export function initGame(worldData: WorldData, player: Player, events: WorldEven
 
   game.events.once(Phaser.Core.Events.READY, () => {
     game.canvas.addEventListener('contextmenu', (e) => e.preventDefault())
-    game.scene.add('GameScene', GameScene, true, { worldData, player, events })
+    game.scene.add('GameScene', GameScene, true, { worldData, player, myPlayerId, events })
   })
 }

@@ -1,7 +1,8 @@
 import Phaser from 'phaser'
-import { WorldData, Player, WorldEvent, Position } from '../../types'
+import { WorldData, Player, WorldEvent, Position, OtherPlayer } from '../../types'
 import TileMap, { preloadTileAssets, TILE_SIZE } from '../map/TileMap'
 import PlayerSprite from '../objects/Player'
+import OtherPlayerSprite from '../objects/OtherPlayerSprite'
 import GameObjectSprite from '../objects/GameObjectSprite'
 import InputSystem, { MoveResult, Direction, DELTAS, bfs, getMoveInterval } from '../systems/InputSystem'
 import { EventBus } from '../EventBus'
@@ -11,16 +12,20 @@ import { useGameStore } from '../../store/gameStore'
 interface SceneInitData {
   worldData: WorldData
   player: Player
+  myPlayerId: string
   events: WorldEvent[]
 }
 
 export default class GameScene extends Phaser.Scene {
   private worldData!: WorldData
   private player!: Player
+  private myPlayerId!: string
   private worldEvents!: WorldEvent[]
   private playerSprite!: PlayerSprite
+  private otherSprites: Map<string, OtherPlayerSprite> = new Map()
   private inputSystem!: InputSystem
   private storeUnsub!: () => void
+  private otherUnsub!: () => void
   // tracks the sprite's current tile (updated by both player input and external animation)
   private spritePos!: Position
   // target of an in-progress external animation; null when idle
@@ -41,8 +46,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   init(data: SceneInitData) {
-    this.worldData = data.worldData
-    this.player    = data.player
+    this.worldData   = data.worldData
+    this.player      = data.player
+    this.myPlayerId  = data.myPlayerId
     this.worldEvents = data.events
   }
 
@@ -80,6 +86,10 @@ export default class GameScene extends Phaser.Scene {
       () => this.handleLeave(),
     )
 
+    this.otherUnsub = useGameStore.subscribe((state) => {
+      this._syncOtherPlayers(state.otherPlayers)
+    })
+
     this.storeUnsub = useGameStore.subscribe((state, prev) => {
       const p = state.player
       const q = prev.player
@@ -97,7 +107,12 @@ export default class GameScene extends Phaser.Scene {
       this.runExternalAnim(p.position)
     })
 
-    this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => this.storeUnsub())
+    this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.storeUnsub()
+      this.otherUnsub()
+      this.otherSprites.forEach(s => s.destroy())
+      this.otherSprites.clear()
+    })
   }
 
   private runExternalAnim(target: Position) {
@@ -135,6 +150,25 @@ export default class GameScene extends Phaser.Scene {
     }
 
     step()
+  }
+
+  private _syncOtherPlayers(others: OtherPlayer[]) {
+    const seen = new Set<string>()
+    for (const op of others) {
+      seen.add(op.id)
+      const existing = this.otherSprites.get(op.id)
+      if (existing) {
+        existing.updatePosition(op.position, op.facing)
+      } else {
+        this.otherSprites.set(op.id, new OtherPlayerSprite(this, op.position, op.facing, op.name))
+      }
+    }
+    for (const [id, sprite] of this.otherSprites) {
+      if (!seen.has(id)) {
+        sprite.destroy()
+        this.otherSprites.delete(id)
+      }
+    }
   }
 
   private checkWorldEvents(pos: Position) {

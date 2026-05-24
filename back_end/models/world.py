@@ -64,7 +64,16 @@ class WorldEvent(BaseModel):
     description: str
 
 
+class OtherPlayer(BaseModel):
+    id: str
+    name: str
+    position: Position
+    facing: str
+    state: str
+
+
 class WorldData(BaseModel):
     tiles: List[Tile]
     objects: List[GameObject]
     worldState: WorldState
+    players: List[OtherPlayer] = []

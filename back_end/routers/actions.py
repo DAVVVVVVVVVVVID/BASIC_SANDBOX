@@ -28,7 +28,9 @@ def _compute_facing(current: dict, target_x: int, target_y: int) -> str:
 
 
 def handle_move(entity_id: str, payload: dict) -> ActionResponse:
-    player = get_player()
+    player = get_player(entity_id)
+    if player is None:
+        return ActionResponse(success=False, type="move", reason="player_not_found")
     if not player.get("canMove", True):
         return ActionResponse(success=False, type="move", reason="move_disabled")
     current = player["position"]
@@ -49,7 +51,7 @@ def handle_move(entity_id: str, payload: dict) -> ActionResponse:
     else:
         return ActionResponse(success=False, type="move", reason="missing_direction_or_target")
 
-    update_player_facing(facing)
+    update_player_facing(entity_id, facing)
 
     if not is_tile_walkable(new_x, new_y):
         return ActionResponse(
@@ -59,7 +61,7 @@ def handle_move(entity_id: str, payload: dict) -> ActionResponse:
             result={"facing": facing},
         )
 
-    update_player_position(new_x, new_y, facing)
+    update_player_position(entity_id, new_x, new_y, facing)
     return ActionResponse(
         success=True,
         type="move",
@@ -71,12 +73,14 @@ def handle_turn(entity_id: str, payload: dict) -> ActionResponse:
     direction = payload.get("direction")
     if direction not in _DIRECTION_DELTA:
         return ActionResponse(success=False, type="turn", reason="invalid_direction")
-    update_player_facing(direction)
+    update_player_facing(entity_id, direction)
     return ActionResponse(success=True, type="turn", result={"facing": direction})
 
 
 def handle_interact(entity_id: str, payload: dict) -> ActionResponse:
-    player = get_player()
+    player = get_player(entity_id)
+    if player is None:
+        return ActionResponse(success=False, type="interact", reason="player_not_found")
     if not player.get("canInteract", True):
         return ActionResponse(success=False, type="interact", reason="interact_disabled")
     pos    = player["position"]
@@ -94,7 +98,9 @@ def handle_interact(entity_id: str, payload: dict) -> ActionResponse:
 
 
 def handle_use(entity_id: str, payload: dict) -> ActionResponse:
-    player = get_player()
+    player = get_player(entity_id)
+    if player is None:
+        return ActionResponse(success=False, type="use", reason="player_not_found")
     if not player.get("canUse", True):
         return ActionResponse(success=False, type="use", reason="use_disabled")
     pos    = player["position"]
@@ -137,14 +143,14 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
         )
 
     enter_object(obj["id"], entity_id)
-    updated = get_player()
+    updated = get_player(entity_id)
     return ActionResponse(
         success=True,
         type="use",
         result={
             "message":      obj.get("successMessage"),
-            "playerState":  updated["state"],
-            "stateLabel":   updated["stateLabel"],
+            "playerState":  updated["state"] if updated else "using",
+            "stateLabel":   updated["stateLabel"] if updated else None,
             "objectId":     obj["id"],
             "currentUsers": obj["currentUsers"],
             "maxUsers":     obj["maxUsers"],
@@ -171,7 +177,9 @@ def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
 
 
 def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
-    player = get_player()
+    player = get_player(entity_id)
+    if player is None:
+        return ActionResponse(success=False, type="move_n", reason="player_not_found")
     if not player.get("canMove", True):
         return ActionResponse(success=False, type="move_n", reason="move_disabled")
 
@@ -184,7 +192,7 @@ def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
         return ActionResponse(success=False, type="move_n", reason="invalid_steps")
 
     dx, dy = _DIRECTION_DELTA[direction]
-    update_player_facing(direction)
+    update_player_facing(entity_id, direction)
 
     x, y = player["position"]["x"], player["position"]["y"]
     steps_taken = 0
@@ -196,7 +204,7 @@ def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
         steps_taken += 1
 
     if steps_taken > 0:
-        update_player_position(x, y, direction)
+        update_player_position(entity_id, x, y, direction)
 
     return ActionResponse(
         success=steps_taken > 0,
@@ -211,7 +219,9 @@ def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
 
 
 def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
-    player = get_player()
+    player = get_player(entity_id)
+    if player is None:
+        return ActionResponse(success=False, type="move_to_area", reason="player_not_found")
     if not player.get("canMove", True):
         return ActionResponse(success=False, type="move_to_area", reason="move_disabled")
 
@@ -231,7 +241,7 @@ def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
     new_x, new_y = target["x"], target["y"]
     facing  = _compute_facing(player["position"], new_x, new_y)
 
-    update_player_position(new_x, new_y, facing)
+    update_player_position(entity_id, new_x, new_y, facing)
     return ActionResponse(
         success=True,
         type="move_to_area",

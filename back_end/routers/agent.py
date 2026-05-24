@@ -66,7 +66,10 @@ def perceive(
         vision_size += 1
     half = (vision_size - 1) // 2
 
-    player = get_player()
+    player = get_player(entity_id)
+    if player is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail=f"player not found: {entity_id}")
     pos = player["position"]
     facing = player["facing"]
     px, py = pos["x"], pos["y"]

@@ -12,9 +12,23 @@ export async function fetchWorld() {
   return res.json()
 }
 
-export async function fetchPlayer() {
-  const res = await fetch(`${API_BASE}/player`)
-  if (!res.ok) throw new Error(`GET /player failed: ${res.status}`)
+export async function joinPlayer(name: string) {
+  const res = await fetch(`${API_BASE}/player/join`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  })
+  if (!res.ok) throw new Error(`POST /player/join failed: ${res.status}`)
+  return res.json() as Promise<{ playerId: string; player: import('../types').Player }>
+}
+
+export async function leavePlayer(playerId: string) {
+  await fetch(`${API_BASE}/player/${playerId}/leave`, { method: 'DELETE' })
+}
+
+export async function fetchPlayer(playerId: string) {
+  const res = await fetch(`${API_BASE}/player/${playerId}`)
+  if (!res.ok) throw new Error(`GET /player/${playerId} failed: ${res.status}`)
   return res.json()
 }
 
