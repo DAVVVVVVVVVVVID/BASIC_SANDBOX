@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { WorldData, Player, WorldEvent, Position } from '../../types'
-import TileMap, { preloadTileAssets } from '../map/TileMap'
+import TileMap, { preloadTileAssets, TILE_SIZE } from '../map/TileMap'
 import PlayerSprite from '../objects/Player'
 import GameObjectSprite from '../objects/GameObjectSprite'
 import InputSystem, { MoveResult, Direction, DELTAS, bfs, getMoveInterval } from '../systems/InputSystem'
@@ -49,6 +49,10 @@ export default class GameScene extends Phaser.Scene {
   create() {
     const tileMap = new TileMap(this, this.worldData.tiles)
     tileMap.render()
+
+    const mapW = Math.max(...this.worldData.tiles.map(t => t.x)) + 1
+    const mapH = Math.max(...this.worldData.tiles.map(t => t.y)) + 1
+    this.cameras.main.setBounds(0, 0, mapW * TILE_SIZE, mapH * TILE_SIZE)
 
     for (const obj of this.worldData.objects) {
       new GameObjectSprite(this, obj)
@@ -191,5 +195,7 @@ export default class GameScene extends Phaser.Scene {
 
   update() {
     this.inputSystem.update()
+    const { x, y } = this.playerSprite.getPixelPosition()
+    this.cameras.main.centerOn(x, y)
   }
 }

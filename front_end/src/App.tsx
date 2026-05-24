@@ -8,6 +8,7 @@ import HUD from './ui/HUD'
 import WorldInfoPanel from './ui/WorldInfoPanel'
 import ActionLog from './ui/ActionLog'
 import TimeControlPanel from './ui/TimeControlPanel'
+import Minimap from './ui/Minimap'
 import type { TimePeriod } from './types'
 
 const PERIOD_BG: Record<TimePeriod, string> = {
@@ -30,9 +31,10 @@ function App() {
         console.log('[World Data]', worldData)
         console.log('[Player Data]', player)
 
-        const { setPlayer, setWorldState } = useGameStore.getState()
+        const { setPlayer, setWorldState, setTiles } = useGameStore.getState()
         setPlayer(player)
         setWorldState(worldData.worldState)
+        setTiles(worldData.tiles)
 
         initGame(worldData, player, events)
         startTickSystem()
@@ -61,6 +63,7 @@ function App() {
       <WorldInfoPanel />
       <ActionLog />
       <TimeControlPanel />
+      <Minimap />
     </div>
   )
 }

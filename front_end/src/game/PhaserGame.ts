@@ -5,8 +5,8 @@ import { WorldData, Player, WorldEvent } from '../types'
 export function initGame(worldData: WorldData, player: Player, events: WorldEvent[]) {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
-    width: 1080,
-    height: 720,
+    width: window.innerWidth,
+    height: window.innerHeight,
     parent: 'game-container',
     backgroundColor: '#1a1a2e',
     input: { mouse: { preventDefaultDown: false } },

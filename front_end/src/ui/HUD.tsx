@@ -48,7 +48,7 @@ export default function HUD() {
     setLocalRemaining(prev => {
       const next = { ...prev }
       for (const b of player.buffs) {
-        if (b.mode === 'instant' && b.remaining !== null) {
+        if (b.mode === 'timed' && b.remaining !== null) {
           next[buffKey(b)] = b.remaining
         }
       }

@@ -1,5 +1,6 @@
 import { useGameStore } from '../store/gameStore'
 import { timeToggle, timeSpeed, timeReset } from '../api/world'
+import type { WorldState } from '../types'
 
 const PERIOD_LABEL: Record<string, string> = {
   morning: '早晨',
@@ -17,18 +18,18 @@ export default function TimeControlPanel() {
 
   async function handleToggle() {
     const updated = await timeToggle()
-    setWorldState({ ...worldState, ...updated })
+    setWorldState({ ...worldState, ...updated } as WorldState)
   }
 
   async function handleSpeed(multiplier: number) {
     const newSpeed = speed * multiplier
     const result = await timeSpeed(newSpeed)
-    setWorldState({ ...worldState, speed: result.speed })
+    setWorldState({ ...worldState, speed: result.speed } as WorldState)
   }
 
   async function handleReset() {
     const updated = await timeReset()
-    setWorldState({ ...worldState, ...updated })
+    setWorldState({ ...worldState, ...updated } as WorldState)
   }
 
   return (

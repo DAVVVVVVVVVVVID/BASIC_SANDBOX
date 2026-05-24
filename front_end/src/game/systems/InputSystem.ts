@@ -101,6 +101,7 @@ export default class InputSystem {
   ) {
     if (this.isMoving) return
     this.isMoving = true
+    this.lastMoveTime = Date.now()
     try {
       const res = await sendAction(
         this.playerId,
@@ -122,7 +123,6 @@ export default class InputSystem {
       this.pathQueue = []
     } finally {
       this.isMoving = false
-      this.lastMoveTime = Date.now()
     }
   }
 
@@ -147,7 +147,7 @@ export default class InputSystem {
   private setupMouseInput() {
     this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (pointer.rightButtonDown()) return
-      const tile = pixelToTile(pointer.x, pointer.y)
+      const tile = pixelToTile(pointer.worldX, pointer.worldY)
       if (!tile) return
 
       this.pathQueue = bfs(this.tiles, this.currentPos, tile)
