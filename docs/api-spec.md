@@ -191,7 +191,7 @@
 |------|------|---------|--------|
 | `move` | 移动一格或前往目标 tile | `{ direction }` 或 `{ targetTile }` | 方向键 / 鼠标 |
 | `move_n` | 向某方向移动 N 格，逐格校验，遇阻停止 | `{ direction, steps }` | agent |
-| `move_to_area` | 移动到目标区域随机可行走位置 | `{ area_type, area_id }` | agent |
+| `move_to_area` | 移动到目标区域距离当前位置最近的可行走 tile | `{ area_type, area_id }` | agent |
 | `turn` | 仅改变朝向，不移动 | `{ direction }` | Ctrl + 方向键 |
 | `interact` | 阅读正前方对象描述，不改变状态 | `{}` | `I` |
 | `use` | 进入使用正前方对象，加入 userList | `{}` | `E` |
@@ -615,7 +615,7 @@
 
 ### move_to_area
 
-在目标区域内随机选取一个可行走 tile，将实体移动过去。
+在目标区域内选取距离当前位置最近的可行走 tile（曼哈顿距离），将实体移动过去。
 
 **payload：**
 

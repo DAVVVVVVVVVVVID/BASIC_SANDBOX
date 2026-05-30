@@ -58,8 +58,9 @@ export default function Minimap() {
   return (
     <div style={{
       position: 'fixed',
-      bottom: PADDING,
+      top: '50%',
       right: PADDING,
+      transform: 'translateY(-50%)',
       background: 'rgba(0,0,0,0.65)',
       borderRadius: BORDER_RADIUS,
       padding: 4,

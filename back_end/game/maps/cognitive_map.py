@@ -1,22 +1,3 @@
-# 认知地图 — 纯语义树，只存 id / name / 嵌套关系，零坐标
-# 树形结构：worlds → sectors → arenas
-
-COGNITIVE_MAP: dict = {
-    "worlds": [
-        {
-            "id":   "town",
-            "name": "小镇",
-            "sectors": [
-                {
-                    "id":   "house",
-                    "name": "房子",
-                    "arenas": [
-                        {"id": "bedroom",  "name": "卧室"},
-                        {"id": "kitchen",  "name": "厨房"},
-                        {"id": "bathroom", "name": "浴室"},
-                    ],
-                },
-            ],
-        },
-    ],
-}
+# 此文件已废弃。
+# 语义树现在由 world_state.get_cognitive_map() 从 map.json 的 zone_names 字段动态构建。
+# 可安全删除此文件。

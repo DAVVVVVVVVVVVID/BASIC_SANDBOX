@@ -24,7 +24,7 @@
     "prototype": "basic",
     "label": "地板(占)",
     "walkable": false,
-    "sprite": "floor_occupied",
+    "sprite": "floor",
     "color": "#a07850"
   }
 }

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from game.world_state import (
-    create_player, remove_player, get_player,
+    create_player, remove_player, get_player, touch_player,
     get_player_buffs, clear_player_buffs, force_reset_player_state,
 )
 
@@ -28,6 +28,7 @@ def leave(player_id: str):
 
 @router.get("/player/{player_id}")
 def get_player_data(player_id: str):
+    touch_player(player_id)
     player = get_player(player_id)
     if player is None:
         raise HTTPException(status_code=404, detail=f"player not found: {player_id}")

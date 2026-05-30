@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from models.action import ActionRequest, ActionResponse
 from models.world import Position
-import random
 from game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
     get_object_at, enter_object, leave_object, apply_instant_object,
@@ -237,7 +236,8 @@ def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
     if not walkable:
         return ActionResponse(success=False, type="move_to_area", reason="no_walkable_tiles")
 
-    target  = random.choice(walkable)
+    pos    = player["position"]
+    target = min(walkable, key=lambda t: abs(t["x"] - pos["x"]) + abs(t["y"] - pos["y"]))
     new_x, new_y = target["x"], target["y"]
     facing  = _compute_facing(player["position"], new_x, new_y)
 

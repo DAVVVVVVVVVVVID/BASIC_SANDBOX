@@ -134,6 +134,9 @@ _TILE_LOOKUP: dict[tuple[int, int], dict] = {
 _players:          dict[str, dict]          = {}
 _pending_messages: dict[str, str | None]    = {}
 _use_start_times:  dict[str, float | None]  = {}
+_last_seen:        dict[str, float]         = {}
+
+_PLAYER_TIMEOUT = 10.0  # 秒，超过此时间未心跳则自动清除
 
 
 def _make_player(player_id: str, name: str) -> dict:
@@ -166,6 +169,7 @@ def create_player(name: str) -> dict:
     _players[player_id] = player
     _pending_messages[player_id] = None
     _use_start_times[player_id]  = None
+    _last_seen[player_id]        = time.time()
     return copy.deepcopy(player)
 
 
@@ -177,12 +181,28 @@ def remove_player(player_id: str) -> None:
     _players.pop(player_id, None)
     _pending_messages.pop(player_id, None)
     _use_start_times.pop(player_id, None)
+    _last_seen.pop(player_id, None)
+
+
+def touch_player(player_id: str) -> None:
+    """更新玩家心跳时间戳，表示该玩家仍在线。"""
+    if player_id in _players:
+        _last_seen[player_id] = time.time()
+
+
+def _cleanup_stale_players() -> None:
+    """清除超过 _PLAYER_TIMEOUT 秒未心跳的玩家。"""
+    now = time.time()
+    stale = [pid for pid, ts in _last_seen.items() if now - ts > _PLAYER_TIMEOUT]
+    for pid in stale:
+        remove_player(pid)
 
 
 # ── 公开访问函数 ──────────────────────────────────────────────────────────────
 
 def get_world() -> dict:
     from game.time_state import get_time_state, get_last_game_delta
+    _cleanup_stale_players()
     delta = get_last_game_delta()
     if delta > 0:
         _run_buff_tick_all(delta)
@@ -279,11 +299,12 @@ def enter_object(obj_id: str, entity_id: str) -> None:
 
     for e in obj["effects"]:
         if e["type"] == "buff":
+            mode = e.get("mode", "persistent")
             new_buff = {
                 "key":       e["key"],
                 "value":     e.get("value", 0.0),
-                "mode":      e["mode"],
-                "remaining": None if e["mode"] == "persistent" else e.get("duration", 0.0),
+                "mode":      mode,
+                "remaining": None if mode == "persistent" else e.get("duration", 0.0),
                 "source":    obj_id,
             }
             player["buffs"] = [
@@ -393,8 +414,54 @@ def get_walkable_tiles_in_area(area_type: str, area_id: str) -> list[dict]:
 
 
 def get_cognitive_map() -> dict:
-    from game.maps.cognitive_map import COGNITIVE_MAP
-    return COGNITIVE_MAP
+    """
+    动态从 map.json 构建语义树（worlds → sectors → arenas）。
+    名称来自 zone_names 字段，缺失时 fallback 到 ID 本身。
+    不再依赖 cognitive_map.py。
+    """
+    zone_names = _MAP_DATA.get("zone_names", {})
+
+    def _name(layer: str, zone_id: str) -> str:
+        return zone_names.get(layer, {}).get(zone_id, zone_id)
+
+    world_to_sectors: dict[str, set] = {}
+    sector_to_arenas: dict[str, set] = {}
+
+    for wr, sr, ar in zip(_WORLD_ROWS, _SECTOR_ROWS, _ARENA_ROWS):
+        for wc, sc, ac in zip(wr, sr, ar):
+            world_id  = _ZONE_CHARS["world"].get(wc)
+            sector_id = _ZONE_CHARS["sector"].get(sc)
+            arena_id  = _ZONE_CHARS["arena"].get(ac)
+            if world_id:
+                world_to_sectors.setdefault(world_id, set())
+                if sector_id:
+                    world_to_sectors[world_id].add(sector_id)
+            if sector_id:
+                sector_to_arenas.setdefault(sector_id, set())
+                if arena_id:
+                    sector_to_arenas[sector_id].add(arena_id)
+
+    worlds = []
+    for world_id, sector_ids in world_to_sectors.items():
+        sectors = []
+        for sector_id in sorted(sector_ids):
+            arena_ids = sector_to_arenas.get(sector_id, set())
+            arenas = [
+                {"id": aid, "name": _name("arena", aid)}
+                for aid in sorted(arena_ids)
+            ]
+            sectors.append({
+                "id":     sector_id,
+                "name":   _name("sector", sector_id),
+                "arenas": arenas,
+            })
+        worlds.append({
+            "id":      world_id,
+            "name":    _name("world", world_id),
+            "sectors": sectors,
+        })
+
+    return {"worlds": worlds}
 
 
 def get_player_buffs(player_id: str) -> list:
