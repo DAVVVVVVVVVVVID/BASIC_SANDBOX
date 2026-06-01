@@ -753,4 +753,225 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 ```json
 { "ok": true, "left_object": "bed_01", "cleared_buffs": 3 }
 ```
+
+---
+
+## 7. 对话系统（Chat）
+
+对话系统支持两个 Player 之间（或多人）进行即时文字对话。
+
+### 新增状态
+
+**ChatRequest（对话邀请）**
+```json
+{
+  "request_id": "abc123",
+  "from_entity_id": "player_01",
+  "to_entity_ids": ["player_02"],
+  "greeting": "你好，有时间聊聊吗？",
+  "status": "pending | active | rejected | expired",
+  "accepted_ids": [],
+  "rejected_ids": [],
+  "chat_room_id": null
+}
+```
+
+**ChatRoom（聊天室）**
+```json
+{
+  "chat_room_id": "def456",
+  "participants": ["player_01", "player_02"],
+  "messages": [
+    { "seq": 1, "from_entity_id": "player_01", "content": "你好", "timestamp": "..." }
+  ],
+  "events": [
+    { "seq": 2, "type": "player_exit", "entity_id": "player_02", "timestamp": "..." }
+  ],
+  "status": "active | closed"
+}
+```
+
+**Buff：`chat_active`**
+进入聊天室时对参与者施加，退出时移除。效果：
+- `canMove = false`（移动动作失败，reason: `move_disabled`）
+- `canUse = false`（use/leave 动作失败，reason: `use_disabled`）
+- `state = "talking"`
+
+---
+
+### GET /chat/nearby
+
+查询与请求方处于同一 Arena 的其他 Player。
+
+**Query:** `entity_id=<str>`
+
+**响应：**
+```json
+{
+  "players": [
+    { "entity_id": "player_02", "name": "小刚", "arena_id": "living_room" }
+  ]
+}
+```
+
+---
+
+### POST /chat/request
+
+向一个或多个 Player 发起对话邀请。
+
+**请求体：**
+```json
+{
+  "from_entity_id": "player_01",
+  "to_entity_ids": ["player_02"],
+  "greeting": "你好，有时间聊聊吗？"
+}
+```
+
+**响应：**
+```json
+{ "request_id": "abc123" }
+```
+
+---
+
+### GET /chat/request/{request_id}
+
+查询对话请求当前状态。发起方用于轮询是否被接受（检测 `chat_active` buff 后调用以获取 `chat_room_id`）。
+
+**响应：**
+```json
+{
+  "request_id": "abc123",
+  "status": "pending | active | rejected | expired",
+  "chat_room_id": "def456",
+  "accepted_ids": ["player_02"],
+  "rejected_ids": []
+}
+```
+
+---
+
+### GET /chat/pending
+
+查询该 entity 收到的待处理对话请求。
+
+**Query:** `entity_id=<str>`
+
+**响应：**
+```json
+{
+  "requests": [
+    {
+      "request_id": "abc123",
+      "from_entity_id": "player_01",
+      "from_name": "小明",
+      "greeting": "你好，有时间聊聊吗？"
+    }
+  ]
+}
+```
+
+---
+
+### POST /chat/respond
+
+接受或拒绝对话邀请。
+
+**请求体：**
+```json
+{
+  "entity_id": "player_02",
+  "request_id": "abc123",
+  "accept": true,
+  "message": "好啊，说吧"
+}
+```
+
+**响应（接受 + 聊天室已创建）：**
+```json
+{
+  "chat_room_id": "def456",
+  "status": "room_created",
+  "participants": ["player_01", "player_02"]
+}
+```
+
+**响应（多人邀请，等待其他人）：**
+```json
+{ "chat_room_id": null, "status": "waiting" }
+```
+
+**响应（拒绝）：**
+```json
+{ "chat_room_id": null, "status": "rejected" }
+```
+
+聊天室创建时机：
+- 单人邀请：被邀请者接受后立即创建
+- 多人邀请：所有人响应后（或超时 60 秒后），将接受者放入同一聊天室
+
+---
+
+### GET /chat/room/{chat_room_id}
+
+轮询聊天室状态（增量拉取）。
+
+**Query:** `entity_id=<str>&since_seq=<int>`
+
+`since_seq` 用于增量拉取，只返回 seq > since_seq 的消息和事件。
+
+**响应：**
+```json
+{
+  "status": "active",
+  "participants": ["player_01", "player_02"],
+  "messages": [
+    { "seq": 1, "from_entity_id": "player_01", "from_name": "小明", "content": "你好", "timestamp": "..." }
+  ],
+  "events": [
+    { "seq": 2, "type": "player_exit", "entity_id": "player_02", "name": "小刚", "timestamp": "..." }
+  ]
+}
+```
+
+---
+
+### POST /chat/message
+
+在聊天室中发言。
+
+**请求体：**
+```json
+{
+  "entity_id": "player_01",
+  "chat_room_id": "def456",
+  "content": "最近过得怎么样？"
+}
+```
+
+**响应：**
+```json
+{ "seq": 3 }
+```
+
+---
+
+### POST /chat/exit
+
+退出聊天室。移除 `chat_active` buff，恢复移动/使用能力。若房间内无人则关闭房间。
+
+**请求体：**
+```json
+{
+  "entity_id": "player_01",
+  "chat_room_id": "def456"
+}
+```
+
+**响应：**
+```json
+{ "room_closed": false }
+```
 若玩家未使用任何对象，`left_object` 为 `null`。

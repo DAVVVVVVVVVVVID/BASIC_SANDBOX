@@ -10,6 +10,7 @@ import ActionLog from './ui/ActionLog'
 import TimeControlPanel from './ui/TimeControlPanel'
 import Minimap from './ui/Minimap'
 import JoinScreen from './ui/JoinScreen'
+import ChatPanel from './ui/ChatPanel'
 import type { TimePeriod, Player } from './types'
 
 const PERIOD_BG: Record<TimePeriod, string> = {
@@ -76,6 +77,7 @@ function App() {
       <ActionLog />
       <TimeControlPanel />
       <Minimap />
+      <ChatPanel />
     </div>
   )
 }

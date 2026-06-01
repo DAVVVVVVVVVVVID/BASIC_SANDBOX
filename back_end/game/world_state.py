@@ -174,9 +174,12 @@ def create_player(name: str) -> dict:
 
 
 def remove_player(player_id: str) -> None:
-    """移除玩家，自动离开正在使用的对象。"""
+    """移除玩家，自动离开正在使用的对象并清理聊天室。"""
     if player_id not in _players:
         return
+    # 先清理聊天室（必须在 _players 仍包含该 player 时执行，以便移除 buff）
+    from game.chat_state import cleanup_player_chats
+    cleanup_player_chats(player_id)
     leave_object(player_id)
     _players.pop(player_id, None)
     _pending_messages.pop(player_id, None)

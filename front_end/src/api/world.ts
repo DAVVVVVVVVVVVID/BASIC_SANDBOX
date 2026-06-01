@@ -28,6 +28,7 @@ export async function leavePlayer(playerId: string) {
 
 export async function fetchPlayer(playerId: string) {
   const res = await fetch(`${API_BASE}/player/${playerId}`)
+  if (res.status === 404) return null   // player 不存在（如后端重启后内存被清空）
   if (!res.ok) throw new Error(`GET /player/${playerId} failed: ${res.status}`)
   return res.json()
 }

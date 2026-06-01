@@ -11,6 +11,14 @@ export function startTickSystem(playerId: string): () => void {
         fetchPlayer(playerId),
         fetchHistory(),
       ])
+
+      // player 返回 null 说明后端已重启/player 被清除，退回登录界面
+      if (player === null) {
+        window.clearInterval(id)
+        useGameStore.getState().setMyPlayerId(null)
+        return
+      }
+
       const { setWorldState, setPlayer, setActionLog, setTiles, setOtherPlayers } = useGameStore.getState()
       setWorldState(worldData.worldState)
       setPlayer(player)

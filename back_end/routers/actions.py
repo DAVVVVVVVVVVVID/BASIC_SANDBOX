@@ -158,6 +158,9 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
 
 
 def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
+    player = get_player(entity_id)
+    if player and any(b["key"] == "chat_active" for b in player.get("buffs", [])):
+        return ActionResponse(success=False, type="leave", reason="use_disabled")
     obj = leave_object(entity_id)
     if obj is None:
         return ActionResponse(success=False, type="leave", reason="not_using_any_object")
