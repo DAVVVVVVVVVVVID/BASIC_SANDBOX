@@ -1,9 +1,9 @@
 import { useGameStore } from '../store/gameStore'
 
 const WEATHER_LABEL: Record<string, string> = {
-  sunny:  '晴天 ☀',
-  cloudy: '多云 ☁',
-  rain:   '雨天 🌧',
+  sunny:  'Sunny ☀',
+  cloudy: 'Cloudy ☁',
+  rain:   'Rainy 🌧',
 }
 
 export default function WorldInfoPanel() {
@@ -25,7 +25,7 @@ export default function WorldInfoPanel() {
       textAlign: 'right',
       lineHeight: 1.8,
     }}>
-      <div>{{ morning: '早晨', day: '白天', dusk: '黄昏', night: '夜晚' }[worldState.period] ?? worldState.period}</div>
+      <div>{{ morning: 'Morning', day: 'Day', dusk: 'Dusk', night: 'Night' }[worldState.period] ?? worldState.period}</div>
       <div>{worldState.date} {worldState.time}</div>
       <div>{WEATHER_LABEL[worldState.weather] ?? worldState.weather}</div>
     </div>

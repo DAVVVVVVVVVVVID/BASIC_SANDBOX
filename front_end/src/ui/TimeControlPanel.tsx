@@ -3,10 +3,10 @@ import { timeToggle, timeSpeed, timeReset } from '../api/world'
 import type { WorldState } from '../types'
 
 const PERIOD_LABEL: Record<string, string> = {
-  morning: '早晨',
-  day:     '白天',
-  dusk:    '黄昏',
-  night:   '夜晚',
+  morning: 'Morning',
+  day:     'Day',
+  dusk:    'Dusk',
+  night:   'Night',
 }
 
 export default function TimeControlPanel() {
@@ -53,12 +53,12 @@ export default function TimeControlPanel() {
         {PERIOD_LABEL[period] ?? period} &nbsp;·&nbsp; {speed}x
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={handleToggle} title={running ? '暂停' : '开始'} style={btnStyle}>
+        <button onClick={handleToggle} title={running ? 'Pause' : 'Start'} style={btnStyle}>
           {running ? '⏸' : '▶'}
         </button>
-        <button onClick={() => handleSpeed(2)} title="加速 ×2" style={btnStyle}>＋</button>
-        <button onClick={() => handleSpeed(0.5)} title="减速 ÷2" style={btnStyle}>－</button>
-        <button onClick={handleReset} title="重置" style={btnStyle}>🔄</button>
+        <button onClick={() => handleSpeed(2)} title="Speed Up ×2" style={btnStyle}>＋</button>
+        <button onClick={() => handleSpeed(0.5)} title="Slow Down ÷2" style={btnStyle}>－</button>
+        <button onClick={handleReset} title="Reset" style={btnStyle}>🔄</button>
       </div>
     </div>
   )

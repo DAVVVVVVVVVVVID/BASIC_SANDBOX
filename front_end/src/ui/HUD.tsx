@@ -105,21 +105,21 @@ export default function HUD() {
       <div style={{ fontWeight: 'bold', marginBottom: 6, color: '#90cdf4', fontSize: 13 }}>
         {profile?.name ?? player.id}
       </div>
-      <Row label="年龄" value={profile?.age ?? '—'} />
+      <Row label="Age" value={profile?.age ?? '—'} />
       <Row label="ID"   value={<span style={{ color: '#718096', fontSize: 11 }}>{player.id}</span>} />
 
       <Divider />
 
       {/* 位置与朝向 */}
-      <Row label="位置"   value={<span style={{ color: '#a0aec0', fontSize: 11 }}>{zoneLabel}</span>} />
-      <Row label="坐标"   value={`(${position.x}, ${position.y})`} />
-      <Row label="朝向"   value={{ up: '↑ 上', down: '↓ 下', left: '← 左', right: '→ 右' }[facing]} />
+      <Row label="Location" value={<span style={{ color: '#a0aec0', fontSize: 11 }}>{zoneLabel}</span>} />
+      <Row label="Coords"   value={`(${position.x}, ${position.y})`} />
+      <Row label="Facing"   value={{ up: '↑ Up', down: '↓ Down', left: '← Left', right: '→ Right' }[facing]} />
 
       <Divider />
 
       {/* 状态 */}
       <Row
-        label="状态"
+        label="State"
         value={
           <span style={{ color: state === 'using' ? '#68d391' : state === 'idle' ? '#a0aec0' : '#fbd38d' }}>
             {stateDisplay}
@@ -127,7 +127,7 @@ export default function HUD() {
         }
       />
       {usingObjectId && (
-        <Row label="使用中" value={<span style={{ color: '#68d391', fontSize: 11 }}>{usingObjectId}</span>} />
+        <Row label="Using" value={<span style={{ color: '#68d391', fontSize: 11 }}>{usingObjectId}</span>} />
       )}
 
       <Divider />

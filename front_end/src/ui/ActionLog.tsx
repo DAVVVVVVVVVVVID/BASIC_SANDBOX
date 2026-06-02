@@ -27,7 +27,7 @@ export default function ActionLog() {
       flexDirection: 'column',
     }}>
       <div style={{ marginBottom: 6, fontSize: 12, color: '#a0aec0', borderBottom: '1px solid #4a5568', paddingBottom: 4 }}>
-        行为日志（最近 {log.length} 条）
+        Action Log (last {log.length})
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {log.map((entry, i) => {

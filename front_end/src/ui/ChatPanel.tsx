@@ -156,7 +156,7 @@ export default function ChatPanel() {
           clearInterval(id)
           setMode('idle')
           setWaitingId(null)
-          setToast('对方拒绝了邀请')
+          setToast('The invitation was declined')
         }
       } catch { /* ignore */ }
     }, 1500)
@@ -220,7 +220,7 @@ export default function ChatPanel() {
       setSelected(new Set())
       setGreeting('')
     } catch {
-      setToast('发起请求失败')
+      setToast('Failed to send request')
     } finally {
       setSending(false)
     }
@@ -241,11 +241,11 @@ export default function ChatPanel() {
           // multi-invite: wait for room to be created
           setWaitingId(reqId)
           setMode('waiting')
-          setToast('已接受，等待其他人回应')
+          setToast('Accepted, waiting for others to respond')
         }
       }
     } catch {
-      setToast('操作失败')
+      setToast('Operation failed')
     } finally {
       setSending(false)
     }
@@ -265,7 +265,7 @@ export default function ChatPanel() {
     try {
       await chatApi.sendMessage(myId, roomId, content.trim())
     } catch {
-      setToast('发送失败')
+      setToast('Failed to send')
     }
   }
 
@@ -296,10 +296,10 @@ export default function ChatPanel() {
           color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', fontSize: 13,
           zIndex: 300, display: 'flex', flexDirection: 'column', gap: 10,
         }}>
-          <div style={{ fontWeight: 600, color: '#90cdf4' }}>💬 收到对话邀请</div>
+          <div style={{ fontWeight: 600, color: '#90cdf4' }}>💬 Chat Invitation Received</div>
           <div style={{ color: '#a0aec0', lineHeight: 1.5 }}>
             <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{pendingReq.from_name}</span>
-            {' 说：'}
+            {' says: '}
             <span style={{
               display: 'inline-block', marginTop: 4, padding: '3px 10px',
               background: '#2d3748', borderRadius: 4, color: '#e2e8f0',
@@ -310,7 +310,7 @@ export default function ChatPanel() {
           <textarea
             value={replyText}
             onChange={e => setReplyText(e.target.value)}
-            placeholder="填写回应（接受）或拒绝理由…"
+            placeholder="Reply (accept) or reason for declining…"
             rows={2}
             style={{ ...INPUT, resize: 'none' }}
           />
@@ -319,16 +319,16 @@ export default function ChatPanel() {
               onClick={() => handleRespond(true)}
               disabled={!replyText.trim() || sending}
               style={btn('#276749')}
-            >接受</button>
+            >Accept</button>
             <button
               onClick={() => handleRespond(false)}
               disabled={!replyText.trim() || sending}
               style={btn('#742a2a')}
-            >拒绝</button>
+            >Decline</button>
             <button
               onClick={() => { setPendingReq(null); setReplyText('') }}
               style={{ ...btn('#2d3748'), marginLeft: 'auto' }}
-            >忽略</button>
+            >Ignore</button>
           </div>
         </div>
       )}
@@ -346,7 +346,7 @@ export default function ChatPanel() {
             cursor: 'pointer', zIndex: 200,
           }}
         >
-          {mode === 'in_room' ? '💬 打开聊天室' : `💬 发起对话 (${nearby.length})`}
+          {mode === 'in_room' ? '💬 Open Chat Room' : `💬 Start Chat (${nearby.length})`}
         </button>
       )}
 
@@ -355,19 +355,19 @@ export default function ChatPanel() {
         <div style={PANEL}>
           <div style={PANEL_HEADER}>
             <span style={{ flex: 1, fontWeight: 600, color: '#90cdf4' }}>
-              {mode === 'waiting' ? '💬 等待响应…' : '💬 发起对话'}
+              {mode === 'waiting' ? '💬 Waiting for response…' : '💬 Start Chat'}
             </span>
             <button
               onClick={() => { setMode('idle'); setWaitingId(null); setSelected(new Set()) }}
               style={btn('#2d3748')}
-            >取消</button>
+            >Cancel</button>
           </div>
           <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {mode === 'selecting' && (
               <>
                 {nearby.length === 0 ? (
                   <div style={{ color: '#718096', textAlign: 'center', padding: '8px 0' }}>
-                    附近没有其他玩家
+                    No other players nearby
                   </div>
                 ) : (
                   nearby.map(p => (
@@ -396,25 +396,25 @@ export default function ChatPanel() {
                       value={greeting}
                       onChange={e => setGreeting(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && handleSendRequest()}
-                      placeholder="开场白（如：你好！有空聊聊吗）"
+                      placeholder="Opening message (e.g. Hi! Do you have time to chat?)"
                       style={INPUT}
                     />
                     <div style={{ fontSize: 11, color: '#718096' }}>
-                      提示：开场白仅用于敲门，请勿包含具体信息诉求
+                      Note: This opening message is just to initiate contact, keep it brief
                     </div>
                     <button
                       onClick={handleSendRequest}
                       disabled={!greeting.trim() || sending}
                       style={btn('#2b6cb0')}
-                    >发送邀请</button>
+                    >Send Invitation</button>
                   </>
                 )}
               </>
             )}
             {mode === 'waiting' && (
               <div style={{ color: '#a0aec0', textAlign: 'center', padding: '12px 0' }}>
-                <div style={{ marginBottom: 8 }}>⏳ 等待对方接受邀请…</div>
-                <div style={{ fontSize: 11, color: '#718096' }}>对方接受后将自动进入聊天室</div>
+                <div style={{ marginBottom: 8 }}>⏳ Waiting for the other party to accept…</div>
+                <div style={{ fontSize: 11, color: '#718096' }}>The chat room will open automatically once accepted</div>
               </div>
             )}
           </div>
@@ -425,14 +425,14 @@ export default function ChatPanel() {
       {mode === 'in_room' && !roomHidden && (
         <div style={ROOM_PANEL}>
           <div style={PANEL_HEADER}>
-            <span style={{ flex: 1, fontWeight: 600, color: '#90cdf4' }}>💬 聊天室</span>
+            <span style={{ flex: 1, fontWeight: 600, color: '#90cdf4' }}>💬 Chat Room</span>
             {roomId && (
               <span style={{ fontSize: 11, color: '#718096', marginRight: 4 }}>
                 {roomId.slice(0, 8)}…
               </span>
             )}
-            <button onClick={() => setRoomHidden(true)} style={btn('#2d3748')}>隐藏</button>
-            <button onClick={handleExit} style={btn('#742a2a')}>退出</button>
+            <button onClick={() => setRoomHidden(true)} style={btn('#2d3748')}>Hide</button>
+            <button onClick={handleExit} style={btn('#742a2a')}>Exit</button>
           </div>
           <div style={{ flex: 1, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
             <RoomView
@@ -490,14 +490,14 @@ function RoomView({
       }}>
         {items.length === 0 && (
           <div style={{ color: '#718096', fontSize: 12, textAlign: 'center', padding: '8px 0' }}>
-            对话开始，开始聊天吧
+            Conversation started, say hello!
           </div>
         )}
         {items.map((item, i) => {
           if (item.kind === 'evt') {
             const label =
-              item.data.type === 'player_exit' ? `${item.data.name || item.data.entity_id} 退出了对话` :
-              item.data.type === 'room_closed'  ? '聊天室已关闭' :
+              item.data.type === 'player_exit' ? `${item.data.name || item.data.entity_id} left the conversation` :
+              item.data.type === 'room_closed'  ? 'Chat room closed' :
               item.data.type
             return (
               <div key={i} style={{
@@ -539,12 +539,12 @@ function RoomView({
           value={text}
           onChange={e => setText(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && send()}
-          placeholder="输入消息…"
+          placeholder="Type a message…"
           style={{ ...INPUT, flex: 1 }}
           autoFocus
         />
         <button onClick={send} disabled={!text.trim()} style={btn('#2b6cb0')}>
-          发送
+          Send
         </button>
       </div>
     </>

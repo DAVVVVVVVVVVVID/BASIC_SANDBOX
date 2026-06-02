@@ -18,10 +18,10 @@ type OnLeaveCallback      = () => void
 export type Direction = 'up' | 'down' | 'left' | 'right'
 
 const DIR_LABEL: Record<Direction, string> = {
-  up:    '上',
-  down:  '下',
-  left:  '左',
-  right: '右',
+  up:    'Up',
+  down:  'Down',
+  left:  'Left',
+  right: 'Right',
 }
 
 export const DELTAS: Record<Direction, Position> = {
@@ -141,7 +141,7 @@ export default class InputSystem {
 
     let logOptions: { skipLog?: boolean; logLabel?: string }
     if (this.isFirstPathStep && this.pathDestination) {
-      logOptions = { logLabel: `点击前往 (${this.pathDestination.x}, ${this.pathDestination.y})` }
+      logOptions = { logLabel: `Click to move to (${this.pathDestination.x}, ${this.pathDestination.y})` }
       this.isFirstPathStep = false
     } else {
       logOptions = { skipLog: true }
@@ -202,7 +202,7 @@ export default class InputSystem {
             this.playerId,
             'turn',
             { direction: heldDir },
-            { logLabel: `转向${DIR_LABEL[heldDir]}` },
+            { logLabel: `Turn ${DIR_LABEL[heldDir]}` },
           ).then(res => {
             this.onMoveResult({ success: false, facing: res.result?.facing })
           }).catch(err => console.error('[Turn Error]', err))
@@ -212,7 +212,7 @@ export default class InputSystem {
         if (!this.isMoving && elapsed >= getMoveInterval()) {
           this.sendMove(
             { direction: heldDir },
-            { logLabel: `向${DIR_LABEL[heldDir]}移动` },
+            { logLabel: `Move ${DIR_LABEL[heldDir]}` },
           )
         }
       }

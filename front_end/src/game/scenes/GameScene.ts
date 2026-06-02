@@ -207,7 +207,7 @@ export default class GameScene extends Phaser.Scene {
       if (res.success) {
         EventBus.emit('show-interaction', { message: res.result?.message })
       } else if (res.reason === 'no_object_in_front') {
-        EventBus.emit('show-interaction', { message: '面前没有可交互的对象' })
+        EventBus.emit('show-interaction', { message: 'Nothing interactable in front' })
       }
     } catch (err) {
       console.error('[Interact Error]', err)
@@ -220,14 +220,14 @@ export default class GameScene extends Phaser.Scene {
       if (res.success) {
         EventBus.emit('show-interaction', { message: res.result?.message })
       } else if (res.reason === 'no_object_in_front') {
-        EventBus.emit('show-interaction', { message: '面前没有可使用的对象' })
+        EventBus.emit('show-interaction', { message: 'Nothing usable in front' })
       } else if (res.reason === 'use_disabled') {
-        EventBus.emit('show-interaction', { message: '当前无法使用对象' })
+        EventBus.emit('show-interaction', { message: 'Cannot use object right now' })
       } else {
         const msg = res.result?.message
           ?? (res.reason === 'object_full'
-            ? `正在使用中（${res.result?.currentUsers}/${res.result?.maxUsers}）`
-            : '无法使用')
+            ? `In use (${res.result?.currentUsers}/${res.result?.maxUsers})`
+            : 'Cannot use')
         EventBus.emit('show-interaction', { message: msg })
       }
     } catch (err) {
@@ -239,9 +239,9 @@ export default class GameScene extends Phaser.Scene {
     try {
       const res = await sendAction(this.player.id, 'leave')
       if (res.success) {
-        EventBus.emit('show-interaction', { message: '已离开' })
+        EventBus.emit('show-interaction', { message: 'Left' })
       } else if (res.reason === 'not_using_any_object') {
-        EventBus.emit('show-interaction', { message: '当前没有正在使用的对象' })
+        EventBus.emit('show-interaction', { message: 'Not currently using any object' })
       }
     } catch (err) {
       console.error('[Leave Error]', err)

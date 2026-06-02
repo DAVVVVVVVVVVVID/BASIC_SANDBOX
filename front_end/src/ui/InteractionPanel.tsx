@@ -44,7 +44,7 @@ export default function InteractionPanel() {
     >
       <p style={{ margin: 0 }}>{message}</p>
       <small style={{ color: '#718096', marginTop: '8px', display: 'block' }}>
-        点击或按 Esc 关闭
+        Click or press Esc to close
       </small>
     </div>
   )

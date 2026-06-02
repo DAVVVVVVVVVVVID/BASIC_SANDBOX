@@ -6,7 +6,7 @@ const COLOR_OBJECT = 0xf6ad55
 
 function tooltipLabel(obj: GameObject): string {
   const usage = `${obj.currentUsers}/${obj.maxUsers}`
-  const full = obj.currentUsers >= obj.maxUsers ? ' — 使用中' : ''
+  const full = obj.currentUsers >= obj.maxUsers ? ' — In Use' : ''
   return `${obj.name} (${usage})${full}`
 }
 

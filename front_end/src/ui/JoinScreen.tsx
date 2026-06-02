@@ -12,14 +12,14 @@ export default function JoinScreen({ onJoined }: Props) {
 
   const handleJoin = async () => {
     const trimmed = name.trim()
-    if (!trimmed) { setError('请输入名字'); return }
+    if (!trimmed) { setError('Please enter your name'); return }
     setLoading(true)
     setError('')
     try {
       const { playerId, player } = await joinPlayer(trimmed)
       onJoined(playerId, player)
     } catch (e) {
-      setError('加入失败，请检查后端是否启动')
+      setError('Failed to join, please check if the backend is running')
     } finally {
       setLoading(false)
     }
@@ -37,11 +37,11 @@ export default function JoinScreen({ onJoined }: Props) {
         alignItems: 'center', gap: 16, minWidth: 320,
       }}>
         <div style={{ color: '#eee', fontSize: 22, fontWeight: 'bold', marginBottom: 8 }}>
-          进入游戏
+          Enter Game
         </div>
         <input
           type="text"
-          placeholder="输入你的名字"
+          placeholder="Enter your name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
@@ -63,7 +63,7 @@ export default function JoinScreen({ onJoined }: Props) {
             fontSize: 15, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer',
           }}
         >
-          {loading ? '加入中...' : '加入'}
+          {loading ? 'Joining...' : 'Join'}
         </button>
       </div>
     </div>
