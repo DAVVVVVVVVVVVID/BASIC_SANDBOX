@@ -3,8 +3,8 @@
     "prototype": "basic",
     "label": "草地",
     "walkable": true,
-    "sprite": "grass",
-    "color": "#4a7c59"
+    "sprite": "sunnyside_2_1",
+    "color": "#000000"
   },
   "wall": {
     "prototype": "basic",
@@ -20,11 +20,24 @@
     "sprite": "floor",
     "color": "#c8a97a"
   },
-  "floor_occupied": {
+  "grass1": {
     "prototype": "basic",
-    "label": "地板(占)",
+    "label": "草1",
+    "walkable": true,
+    "sprite": "sunnyside_2_2",
+    "color": "#888888"
+  },
+  "object": {
+    "prototype": "basic",
+    "label": "物体",
     "walkable": false,
     "sprite": "floor",
     "color": "#a07850"
+  },
+  "water": {
+    "prototype": "basic",
+    "label": "水",
+    "walkable": false,
+    "color": "#00bfff"
   }
 }

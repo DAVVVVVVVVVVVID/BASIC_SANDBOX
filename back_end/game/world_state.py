@@ -48,7 +48,7 @@ def _build_objects(raw: list[dict]) -> list[dict]:
             "name":           t["name"],
             "position":       inst["position"],
             "tiles":          tiles,
-            "sprite":         t["sprite"],
+            "sprite":         t.get("sprite", ""),
             "interactable":   t["interactable"],
             "description":    t["description"],
             "effects":        t["effects"],
@@ -216,6 +216,7 @@ def get_world() -> dict:
         "objects":    _OBJECTS,
         "worldState": world_state,
         "players":    get_all_players_snapshot(),
+        "tiled":      _MAP_DATA.get("tiled"),
     }
 
 

@@ -16,6 +16,10 @@ interface SceneInitData {
   events: WorldEvent[]
 }
 
+const MIN_ZOOM = 0.3
+const MAX_ZOOM = 2.0
+const ZOOM_STEP = 0.1
+
 export default class GameScene extends Phaser.Scene {
   private worldData!: WorldData
   private player!: Player
@@ -31,18 +35,16 @@ export default class GameScene extends Phaser.Scene {
   // target of an in-progress external animation; null when idle
   private animTarget: Position | null = null
   private isExternalAnim = false
+  private currentZoom = 1.0
 
   constructor() {
     super({ key: 'GameScene' })
   }
 
   preload() {
-    preloadTileAssets(this)
-    for (const obj of this.worldData.objects) {
-      if (obj.sprite) {
-        this.load.image(`obj_${obj.sprite}`, `assets/sprites/${obj.sprite}.png`)
-      }
-    }
+    preloadTileAssets(this, this.worldData.tiled)
+    this.load.spritesheet('player_walk', 'assets/sprites/player_walk.png', { frameWidth: 96, frameHeight: 64 })
+    this.load.spritesheet('player_idle', 'assets/sprites/player_idle.png', { frameWidth: 96, frameHeight: 64 })
   }
 
   init(data: SceneInitData) {
@@ -52,13 +54,27 @@ export default class GameScene extends Phaser.Scene {
     this.worldEvents = data.events
   }
 
-  create() {
-    const tileMap = new TileMap(this, this.worldData.tiles)
-    tileMap.render()
+  private createAnimations() {
+    const anims = this.anims
+    anims.create({
+      key: 'walk',
+      frames: anims.generateFrameNumbers('player_walk', { start: 0, end: 7 }),
+      frameRate: 8,
+      repeat: -1,
+    })
+    anims.create({
+      key: 'idle',
+      frames: anims.generateFrameNumbers('player_idle', { start: 0, end: 8 }),
+      frameRate: 6,
+      repeat: -1,
+    })
+  }
 
-    const mapW = Math.max(...this.worldData.tiles.map(t => t.x)) + 1
-    const mapH = Math.max(...this.worldData.tiles.map(t => t.y)) + 1
-    this.cameras.main.setBounds(0, 0, mapW * TILE_SIZE, mapH * TILE_SIZE)
+  create() {
+    const tileMap = new TileMap(this, this.worldData.tiles, this.worldData.tiled)
+    tileMap.render()
+    this.createAnimations()
+
 
     for (const obj of this.worldData.objects) {
       new GameObjectSprite(this, obj)
@@ -105,6 +121,11 @@ export default class GameScene extends Phaser.Scene {
       // already animating to this exact target — ignore duplicate polls
       if (this.animTarget && p.position.x === this.animTarget.x && p.position.y === this.animTarget.y) return
       this.runExternalAnim(p.position)
+    })
+
+    // ── 滚轮缩放 ─────────────────────────────────────────────────────────────
+    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, deltaY: number) => {
+      this.adjustZoom(deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP)
     })
 
     this.events.on(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -227,9 +248,17 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
+  private adjustZoom(delta: number) {
+    this.currentZoom = Phaser.Math.Clamp(this.currentZoom + delta, MIN_ZOOM, MAX_ZOOM)
+    this.cameras.main.setZoom(this.currentZoom)
+    const { x, y } = this.playerSprite.getPixelPosition()
+    this.cameras.main.centerOn(x, y)
+  }
+
   update() {
     this.inputSystem.update()
     const { x, y } = this.playerSprite.getPixelPosition()
     this.cameras.main.centerOn(x, y)
+    this.playerSprite.updateDepth()
   }
 }

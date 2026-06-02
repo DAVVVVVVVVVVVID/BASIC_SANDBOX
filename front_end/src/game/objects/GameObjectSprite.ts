@@ -58,7 +58,7 @@ export default class GameObjectSprite {
         const cx = x + TILE_SIZE / 2
         const cy = y + TILE_SIZE / 2
 
-        const rect = scene.add.rectangle(cx, cy, size, size, COLOR_OBJECT)
+        const rect = scene.add.rectangle(cx, cy, size, size, COLOR_OBJECT, 0)
         rect.setDepth(1)
         rect.setInteractive()
 

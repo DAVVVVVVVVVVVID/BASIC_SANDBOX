@@ -5,8 +5,8 @@
     "interactable": true,
     "description": "一张温暖的床",
     "size": [
-      2,
-      3
+      1,
+      2
     ],
     "sprite": "bed",
     "success_message": "困意袭来，在床上渐渐睡去",
@@ -134,7 +134,7 @@
     "interactable": true,
     "description": "一张平坦的桌子，是我工作的地方",
     "size": [
-      2,
+      1,
       1
     ],
     "sprite": "desk",
@@ -165,6 +165,134 @@
       {
         "type": "buff",
         "key": "hp_regen",
+        "value": -1
+      },
+      {
+        "type": "tag",
+        "key": "working"
+      }
+    ]
+  },
+  "bed_21": {
+    "prototype": "continuous",
+    "name": "bed",
+    "interactable": true,
+    "description": "一张温暖的床",
+    "size": [
+      2,
+      1
+    ],
+    "success_message": "困意袭来，在床上渐渐睡去",
+    "failure_message": "还不是睡觉的时候",
+    "max_users": 1,
+    "use_state_label": "{entity} 正在使用",
+    "max_duration": 2,
+    "leave_message": "该起床了",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": 1
+      },
+      {
+        "type": "buff",
+        "key": "hp_regen",
+        "value": 1
+      },
+      {
+        "type": "tag",
+        "key": "sleeping"
+      }
+    ]
+  },
+  "book": {
+    "prototype": "instant",
+    "name": "book",
+    "interactable": true,
+    "description": "放着很多书的书架",
+    "size": [
+      1,
+      1
+    ],
+    "success_message": "看会书吧",
+    "failure_message": "还不想看书",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -1
+      },
+      {
+        "type": "buff",
+        "key": "hp_regen",
+        "value": -1
+      },
+      {
+        "type": "tag",
+        "key": "reading"
+      }
+    ]
+  },
+  "desk_12": {
+    "prototype": "continuous",
+    "name": "desk",
+    "interactable": true,
+    "description": "一张平坦的桌子",
+    "size": [
+      1,
+      2
+    ],
+    "success_message": "开始工作了",
+    "failure_message": "还不想工作",
+    "max_users": 1,
+    "use_state_label": "{entity} 正在使用",
+    "max_duration": 3600,
+    "leave_message": "该休息一下了",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "hp_regen",
+        "value": -1
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
         "value": -1
       },
       {

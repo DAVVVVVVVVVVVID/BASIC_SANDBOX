@@ -1,32 +1,12 @@
 import Phaser from 'phaser'
-import { Tile, Position } from '../../types'
+import { Tile, Position, TiledRenderData, TiledTilesetInfo } from '../../types'
 
 export const TILE_SIZE = 90
 
-// ── TileType 定义表（前端）────────────────────────────────────────────────────
-// sprite: Phaser 预加载的 key，null 表示用纯色兜底
-interface TileTypeDef {
-  sprite: string | null
-  fallbackColor: number
-}
-
-export const TILE_TYPE_DEFS: Record<string, TileTypeDef> = {
-  grass:          { sprite: 'tile_grass',  fallbackColor: 0x4a7c59 },
-  wall:           { sprite: 'tile_wall',   fallbackColor: 0x5c3d2e },
-  floor:          { sprite: 'tile_floor',  fallbackColor: 0xc8a96e },
-  floor_occupied: { sprite: 'tile_floor',  fallbackColor: 0x9e7c4a },
-}
-
-// 未知类型的兜底
-const TILE_TYPE_UNKNOWN: TileTypeDef = { sprite: null, fallbackColor: 0x888888 }
-
-// ── 坐标转换 ──────────────────────────────────────────────────────────────────
+// ── Coordinate helpers ────────────────────────────────────────────────────────
 
 export function tileToPixel(tileX: number, tileY: number) {
-  return {
-    x: tileX * TILE_SIZE,
-    y: tileY * TILE_SIZE,
-  }
+  return { x: tileX * TILE_SIZE, y: tileY * TILE_SIZE }
 }
 
 export function pixelToTile(pixelX: number, pixelY: number): Position | null {
@@ -36,37 +16,106 @@ export function pixelToTile(pixelX: number, pixelY: number): Position | null {
   return { x: tileX, y: tileY }
 }
 
-// ── 预加载辅助（在 GameScene.preload 里调用）─────────────────────────────────
+// ── GID helpers ───────────────────────────────────────────────────────────────
 
-export function preloadTileAssets(scene: Phaser.Scene) {
-  for (const [, def] of Object.entries(TILE_TYPE_DEFS)) {
-    if (def.sprite) {
-      scene.load.image(def.sprite, `assets/tiles/${def.sprite.replace('tile_', '')}.png`)
-    }
+function getTilesetForGid(gid: number, tilesets: TiledTilesetInfo[]): TiledTilesetInfo | null {
+  if (gid <= 0) return null
+  let result: TiledTilesetInfo | null = null
+  for (const ts of tilesets) {
+    if (ts.firstgid <= gid) result = ts
+    else break
+  }
+  return result
+}
+
+function getGidRect(gid: number, ts: TiledTilesetInfo) {
+  const localId = gid - ts.firstgid
+  const col = localId % ts.columns
+  const row = Math.floor(localId / ts.columns)
+  const sx = col * (ts.tilewidth + ts.spacing) + ts.margin
+  const sy = row * (ts.tileheight + ts.spacing) + ts.margin
+  return { sx, sy, sw: ts.tilewidth, sh: ts.tileheight }
+}
+
+// ── Preload helper ────────────────────────────────────────────────────────────
+
+export function preloadTileAssets(scene: Phaser.Scene, tiledData?: TiledRenderData) {
+  if (!tiledData) return
+  for (const ts of tiledData.tilesets) {
+    scene.load.image(ts.imageSource, `assets/tilesets/${ts.imageSource}`)
   }
 }
 
-// ── TileMap 渲染 ──────────────────────────────────────────────────────────────
+// ── TileMap ───────────────────────────────────────────────────────────────────
 
 export default class TileMap {
-  constructor(private scene: Phaser.Scene, private tiles: Tile[]) {}
+  constructor(
+    private scene: Phaser.Scene,
+    private tiles: Tile[],
+    private tiledData?: TiledRenderData,
+  ) {}
 
   render() {
-    const fallbackGraphics = this.scene.add.graphics().setDepth(0)
+    if (this.tiledData && this.tiledData.layers.length > 0) {
+      this.renderTiledLayers()
+    } else {
+      this.renderFallbackTiles()
+    }
+  }
 
+  private renderTiledLayers() {
+    const { tilesets, layers } = this.tiledData!
+    if (layers.length === 0) return
+
+    const mapW = layers[0].width
+    const mapH = layers[0].height
+    const canvasW = mapW * TILE_SIZE
+    const canvasH = mapH * TILE_SIZE
+
+    const offscreen = document.createElement('canvas')
+    offscreen.width  = canvasW
+    offscreen.height = canvasH
+    const ctx = offscreen.getContext('2d')!
+
+    for (const layer of layers) {
+      for (let i = 0; i < layer.data.length; i++) {
+        const gid = layer.data[i]
+        if (gid <= 0) continue
+        const col = i % layer.width
+        const row = Math.floor(i / layer.width)
+        const ts = getTilesetForGid(gid, tilesets)
+        if (!ts) continue
+
+        const srcTexture = this.scene.textures.get(ts.imageSource)
+        const imgEl = srcTexture?.getSourceImage() as HTMLImageElement | undefined
+        if (!imgEl || !imgEl.naturalWidth) {
+          ctx.fillStyle = 'rgba(180,0,180,0.5)'
+          ctx.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+          continue
+        }
+
+        const { sx, sy, sw, sh } = getGidRect(gid, ts)
+        ctx.drawImage(imgEl, sx, sy, sw, sh, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+      }
+    }
+
+    this.scene.textures.addCanvas('tiled_bg', offscreen)
+    this.scene.add.image(0, 0, 'tiled_bg').setOrigin(0, 0).setDepth(0)
+  }
+
+  private renderFallbackTiles() {
+    const FALLBACK_COLORS: Record<string, number> = {
+      grass:          0x4a7c59,
+      wall:           0x555566,
+      floor:          0xc8a97a,
+      floor_occupied: 0xa07850,
+    }
+    const g = this.scene.add.graphics().setDepth(0)
     for (const tile of this.tiles) {
       const { x, y } = tileToPixel(tile.x, tile.y)
-      const def = TILE_TYPE_DEFS[tile.type] ?? TILE_TYPE_UNKNOWN
-
-      if (def.sprite && this.scene.textures.exists(def.sprite)) {
-        this.scene.add
-          .image(x + TILE_SIZE / 2, y + TILE_SIZE / 2, def.sprite)
-          .setDisplaySize(TILE_SIZE, TILE_SIZE)
-          .setDepth(0)
-      } else {
-        fallbackGraphics.fillStyle(def.fallbackColor, 1)
-        fallbackGraphics.fillRect(x, y, TILE_SIZE - 1, TILE_SIZE - 1)
-      }
+      const color = FALLBACK_COLORS[tile.type] ?? 0x888888
+      g.fillStyle(color, 1)
+      g.fillRect(x, y, TILE_SIZE - 1, TILE_SIZE - 1)
     }
   }
 }

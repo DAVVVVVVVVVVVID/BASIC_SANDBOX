@@ -55,11 +55,39 @@ export interface OtherPlayer {
   state: PlayerState
 }
 
+export interface TiledTilesetInfo {
+  name: string
+  firstgid: number
+  tilewidth: number
+  tileheight: number
+  tilecount: number
+  columns: number
+  imageSource: string
+  imageWidth: number
+  imageHeight: number
+  margin: number
+  spacing: number
+}
+
+export interface TiledLayer {
+  id: number
+  name: string
+  data: number[]
+  width: number
+  height: number
+}
+
+export interface TiledRenderData {
+  tilesets: TiledTilesetInfo[]
+  layers: TiledLayer[]
+}
+
 export interface WorldData {
   tiles: Tile[]
   objects: GameObject[]
   worldState: WorldState
   players: OtherPlayer[]
+  tiled?: TiledRenderData
 }
 
 export type Facing = 'up' | 'down' | 'left' | 'right'

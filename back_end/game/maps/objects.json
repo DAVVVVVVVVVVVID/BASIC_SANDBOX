@@ -1,33 +1,113 @@
 [
   {
-    "id": "bed_1779366945721",
+    "id": "bed_1780400782091",
     "type": "bed",
     "position": {
-      "x": 0,
-      "y": 3
-    }
-  },
-  {
-    "id": "bath_1779367293480",
-    "type": "bath",
-    "position": {
-      "x": 0,
+      "x": 11,
       "y": 0
     }
   },
   {
-    "id": "fridge_1779367415680",
-    "type": "fridge",
+    "id": "bed_1780400784835",
+    "type": "bed",
     "position": {
-      "x": 0,
-      "y": 8
+      "x": 39,
+      "y": 0
     }
   },
   {
-    "id": "desk_1779367828152",
+    "id": "bed_21_1780400934916",
+    "type": "bed_21",
+    "position": {
+      "x": 19,
+      "y": 1
+    }
+  },
+  {
+    "id": "bed_21_1780400935573",
+    "type": "bed_21",
+    "position": {
+      "x": 19,
+      "y": 2
+    }
+  },
+  {
+    "id": "desk_1780400974312",
     "type": "desk",
     "position": {
-      "x": 10,
+      "x": 46,
+      "y": 0
+    }
+  },
+  {
+    "id": "book_1780401130868",
+    "type": "book",
+    "position": {
+      "x": 12,
+      "y": 0
+    }
+  },
+  {
+    "id": "book_1780401139403",
+    "type": "book",
+    "position": {
+      "x": 25,
+      "y": 0
+    }
+  },
+  {
+    "id": "book_1780401139783",
+    "type": "book",
+    "position": {
+      "x": 26,
+      "y": 0
+    }
+  },
+  {
+    "id": "book_1780401140277",
+    "type": "book",
+    "position": {
+      "x": 27,
+      "y": 0
+    }
+  },
+  {
+    "id": "book_1780401140723",
+    "type": "book",
+    "position": {
+      "x": 28,
+      "y": 0
+    }
+  },
+  {
+    "id": "book_1780401142042",
+    "type": "book",
+    "position": {
+      "x": 43,
+      "y": 0
+    }
+  },
+  {
+    "id": "book_1780401142458",
+    "type": "book",
+    "position": {
+      "x": 44,
+      "y": 0
+    }
+  },
+  {
+    "id": "desk_1780401155491",
+    "type": "desk",
+    "position": {
+      "x": 20,
+      "y": 5
+    }
+  },
+  {
+    "id": "desk_12_1780401844257",
+    "type": "desk_12",
+    "position": {
+      "x": 4,
       "y": 0
     }
   }

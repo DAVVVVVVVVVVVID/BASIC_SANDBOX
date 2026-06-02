@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Literal, Optional, List
+from typing import Any, Literal, Optional, List
 
 
 class Position(BaseModel):
@@ -77,3 +77,4 @@ class WorldData(BaseModel):
     objects: List[GameObject]
     worldState: WorldState
     players: List[OtherPlayer] = []
+    tiled: Optional[Any] = None
