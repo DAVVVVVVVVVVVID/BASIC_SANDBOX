@@ -1,12 +1,16 @@
+import asyncio
+from collections import deque
 from fastapi import APIRouter, HTTPException
-from models.action import ActionRequest, ActionResponse
-from models.world import Position
-from game.world_state import (
+from AGENT.resource.SANDBOX.back_end.models.action import ActionRequest, ActionResponse
+from AGENT.resource.SANDBOX.back_end.models.world import Position
+from AGENT.resource.SANDBOX.back_end.game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
     get_object_at, enter_object, leave_object, apply_instant_object,
     get_walkable_tiles_in_area,
 )
-from game.action_log import append_log
+from AGENT.resource.SANDBOX.back_end.game.action_log import append_log
+
+BASE_MOVE_INTERVAL = 0.3  # 秒，与前端 BASE_MOVE_INTERVAL=300ms 对齐
 
 router = APIRouter()
 
@@ -16,6 +20,33 @@ _DIRECTION_DELTA = {
     "left":  (-1, 0),
     "right": (1,  0),
 }
+
+
+def _get_move_interval(entity_id: str) -> float:
+    player = get_player(entity_id)
+    speed = player["moveSpeed"] if player else 1.0
+    return BASE_MOVE_INTERVAL / max(0.1, speed)
+
+
+def _bfs_path(start_x: int, start_y: int, goal_x: int, goal_y: int) -> list[tuple[int, int]]:
+    """BFS 求从 start 到 goal 的路径，返回途径坐标列表（不含起点，含终点）。"""
+    if start_x == goal_x and start_y == goal_y:
+        return []
+    queue: deque = deque([(start_x, start_y, [])])
+    visited = {(start_x, start_y)}
+    while queue:
+        x, y, path = queue.popleft()
+        for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+            nx, ny = x + dx, y + dy
+            if (nx, ny) in visited:
+                continue
+            new_path = path + [(nx, ny)]
+            if nx == goal_x and ny == goal_y:
+                return new_path
+            if is_tile_walkable(nx, ny):
+                visited.add((nx, ny))
+                queue.append((nx, ny, new_path))
+    return []
 
 
 def _compute_facing(current: dict, target_x: int, target_y: int) -> str:
@@ -178,7 +209,7 @@ def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
     )
 
 
-def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
+async def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
     player = get_player(entity_id)
     if player is None:
         return ActionResponse(success=False, type="move_n", reason="player_not_found")
@@ -196,6 +227,7 @@ def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
     dx, dy = _DIRECTION_DELTA[direction]
     update_player_facing(entity_id, direction)
 
+    interval = _get_move_interval(entity_id)
     x, y = player["position"]["x"], player["position"]["y"]
     steps_taken = 0
     for _ in range(steps):
@@ -204,9 +236,8 @@ def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
             break
         x, y = nx, ny
         steps_taken += 1
-
-    if steps_taken > 0:
         update_player_position(entity_id, x, y, direction)
+        await asyncio.sleep(interval)
 
     return ActionResponse(
         success=steps_taken > 0,
@@ -220,7 +251,7 @@ def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
     )
 
 
-def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
+async def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
     player = get_player(entity_id)
     if player is None:
         return ActionResponse(success=False, type="move_to_area", reason="player_not_found")
@@ -241,16 +272,27 @@ def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
 
     pos    = player["position"]
     target = min(walkable, key=lambda t: abs(t["x"] - pos["x"]) + abs(t["y"] - pos["y"]))
-    new_x, new_y = target["x"], target["y"]
-    facing  = _compute_facing(player["position"], new_x, new_y)
+    goal_x, goal_y = target["x"], target["y"]
 
-    update_player_position(entity_id, new_x, new_y, facing)
+    path = _bfs_path(pos["x"], pos["y"], goal_x, goal_y)
+    if not path and (pos["x"] != goal_x or pos["y"] != goal_y):
+        return ActionResponse(success=False, type="move_to_area", reason="no_path")
+
+    interval = _get_move_interval(entity_id)
+    prev_x, prev_y = pos["x"], pos["y"]
+    facing = _compute_facing(pos, goal_x, goal_y)
+    for step_x, step_y in path:
+        facing = _compute_facing({"x": prev_x, "y": prev_y}, step_x, step_y)
+        update_player_position(entity_id, step_x, step_y, facing)
+        prev_x, prev_y = step_x, step_y
+        await asyncio.sleep(interval)
+
     return ActionResponse(
         success=True,
         type="move_to_area",
         result={
             "facing":    facing,
-            "position":  {"x": new_x, "y": new_y},
+            "position":  {"x": goal_x, "y": goal_y},
             "area_type": area_type,
             "area_id":   area_id,
         },
@@ -269,11 +311,19 @@ _HANDLERS = {
 
 
 @router.post("/action", response_model=ActionResponse)
-def dispatch(body: ActionRequest):
+async def dispatch(body: ActionRequest):
     handler = _HANDLERS.get(body.action.type)
     if handler is None:
         raise HTTPException(status_code=400, detail=f"unknown action type: {body.action.type}")
-    result = handler(body.entityId, body.action.payload)
+
+    if asyncio.iscoroutinefunction(handler):
+        result = await handler(body.entityId, body.action.payload)
+    else:
+        result = handler(body.entityId, body.action.payload)
+
+    if body.action.type == "move" and result.success:
+        await asyncio.sleep(_get_move_interval(body.entityId))
+
     if not body.skipLog:
         append_log(
             entity_id=body.entityId,
