@@ -1,14 +1,14 @@
 import asyncio
 from collections import deque
 from fastapi import APIRouter, HTTPException
-from AGENT.resource.SANDBOX.back_end.models.action import ActionRequest, ActionResponse
-from AGENT.resource.SANDBOX.back_end.models.world import Position
-from AGENT.resource.SANDBOX.back_end.game.world_state import (
+from models.action import ActionRequest, ActionResponse
+from models.world import Position
+from game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
     get_object_at, enter_object, leave_object, apply_instant_object,
     get_walkable_tiles_in_area,
 )
-from AGENT.resource.SANDBOX.back_end.game.action_log import append_log
+from game.action_log import append_log
 
 BASE_MOVE_INTERVAL = 0.3  # 秒，与前端 BASE_MOVE_INTERVAL=300ms 对齐
 

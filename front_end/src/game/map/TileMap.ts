@@ -76,6 +76,7 @@ export default class TileMap {
     offscreen.width  = canvasW
     offscreen.height = canvasH
     const ctx = offscreen.getContext('2d')!
+    ctx.imageSmoothingEnabled = false
 
     for (const layer of layers) {
       for (let i = 0; i < layer.data.length; i++) {

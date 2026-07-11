@@ -9,6 +9,7 @@ export function initGame(worldData: WorldData, player: Player, myPlayerId: strin
     height: window.innerHeight,
     parent: 'game-container',
     backgroundColor: '#1a1a2e',
+    pixelArt: true,
     input: { mouse: { preventDefaultDown: false } },
   })
 
