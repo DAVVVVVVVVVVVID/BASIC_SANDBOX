@@ -23,3 +23,6 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Sandbox runtime data (SQLite checkpoint, JSONL action logs)
+back_end/data/

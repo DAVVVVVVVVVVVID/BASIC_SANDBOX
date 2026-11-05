@@ -33,19 +33,30 @@
     }
   ],
   "worldState": {
-    "date": "2001-12-30",
-    "time": "08:00",
-    "isDay": true,
+    "date": "2026-11-05",
+    "time": "21:03:17",
+    "period": "dusk",
+    "running": true,
+    "speed": 1.0,
     "weather": "sunny"
   }
 }
 ```
 
+| worldState 字段 | 说明 |
+|------|------|
+| `date` / `time` | 游戏时刻（`YYYY-MM-DD` / `HH:MM:SS`）。时间系统为「真实起点 + 倍率」：首次启动取真实当前时间（时区 `Asia/Shanghai`，环境变量 `SANDBOX_TZ` 可改），`game_now = anchor_game + (now − anchor_real) × speed`；重启后从检查点恢复锚点，游戏时间连续 |
+| `period` | `morning`(06–08) / `day`(08–20) / `dusk`(20–22) / `night`(22–06) |
+| `running` | 是否推进。默认 `true`（环境变量 `SANDBOX_TIME_RUNNING=0` 可改） |
+| `speed` | 倍率，默认 `1.0`（与现实 1:1），下限 1.0 |
+
+> **只读**：`GET /world` 不推进时间、不跑 buff tick、不清理离线玩家。这些都由后端的独立后台 tick 任务（200 ms）完成，没有任何客户端轮询时状态照样演化。
+
 ---
 
-### GET /player
+### GET /player/{player_id}
 
-获取当前玩家状态。每次调用会触发一次 buff tick 并检测 max_duration 是否到期。
+获取玩家状态，并刷新该玩家的心跳（10 s 无心跳的人类玩家会被清除）。buff tick 由后台任务驱动，与本接口无关。
 
 **响应：**
 
@@ -56,8 +67,16 @@
   "facing": "down",
   "state": "idle",
   "stateLabel": null,
-  "hp": 100,
-  "energy": 80,
+  "hp": 70.0,
+  "fullness": 70.0,
+  "energy": 100.0,
+  "social": 60.0,
+  "fun": 60.0,
+  "mood": 65.0,
+  "emotion_tags": [],
+  "closeness": {},
+  "controller": "human",
+  "last_tick_ts": 1762347797.42,
   "usingObjectId": null,
   "buffs": [],
   "tags": [],
@@ -65,14 +84,37 @@
   "canInteract": true,
   "canUse": true,
   "moveSpeed": 1.0,
-  "pendingMessage": null,
-  "profile": { "id": "player_01", "name": "玩家", "age": 25 }
+  "pendingMessage": null
 }
 ```
 
 | 字段 | 说明 |
 |------|------|
+| `fullness` / `energy` / `social` / `fun` / `mood` | 需求值，范围 0–100（ARCHITECTURE §2.5 七变量）。初值：fullness 70、energy 100、social 60、fun 60、mood = 65 + 0.2·(E−50) − 0.3·(N−50)（E、N 默认 50 → 65）。W1 只有物品效果会改动它们；自然衰减（B4）W2 接入 |
+| `hp` | **`fullness` 的别名**，两者始终相等。过渡一个版本后删除（假设），新对接请读 `fullness` |
+| `emotion_tags` | 情绪标签列表，复用 Buff 结构（`mode="timed"`，`remaining` 毫秒倒计时，到期自动移除）。W1 为空 |
+| `closeness` | `{ entity_id: 0–100 }` 亲密度。W1 为空对象 |
+| `controller` | `"human"` \| `"agent"`，谁在操控这个 player。W1 固定 `"human"`（B6 加入 join 参数后可指定） |
+| `last_tick_ts` | 上次 buff tick 的墙钟 epoch 秒（float），供自我层 catch_up 对账 |
 | `pendingMessage` | 后端自动触发的事件消息（如 max_duration 到期自动退出），读取后自动清除；无事件时为 `null` |
+
+> 字段只增不删：旧字段形状不变。
+
+---
+
+### POST /player/join
+
+```json
+{ "name": "鲸仔" }
+```
+
+**响应：** `{ "playerId": "鲸仔_a1b2c3", "player": { ...与 GET /player 相同... } }`
+
+---
+
+### DELETE /player/{player_id}/leave
+
+主动离开，返回 `{ "ok": true }`。
 
 ---
 
@@ -99,41 +141,66 @@
 
 ### GET /history
 
-获取最近的行为日志列表（最多保留 20 条，按时间升序，最新在末尾）。
+获取最近的行为日志列表（内存，最多保留 20 条，按时间升序，最新在末尾）。
 
 **响应：**
 
 ```json
 [
   {
-    "timestamp": "2001-12-30T08:00:01.234",
+    "timestamp": "2026-11-05T21:03:01.234",
     "entityId": "player_01",
     "type": "move",
     "payload": { "direction": "up" },
     "success": true,
-    "reason": null
+    "reason": null,
+    "label": null,
+    "game_time": "2026-11-05T21:03:01+08:00",
+    "controller": "human"
   },
   {
-    "timestamp": "2001-12-30T08:00:02.456",
+    "timestamp": "2026-11-05T21:03:02.456",
     "entityId": "player_01",
     "type": "interact",
     "payload": {},
     "success": false,
-    "reason": "no_object_in_front"
+    "reason": "no_object_in_front",
+    "label": null,
+    "game_time": "2026-11-05T21:03:02+08:00",
+    "controller": "human"
   }
 ]
 ```
 
 | 字段 | 说明 |
 |------|------|
-| `timestamp` | ISO 8601 格式，记录 action 执行时刻 |
+| `timestamp` | ISO 8601 格式（真实时间），记录 action 执行时刻 |
 | `entityId` | 执行行为的实体 ID |
 | `type` | 行为类型（move / turn / interact / …） |
 | `payload` | 行为参数（原样记录） |
 | `success` | 是否执行成功 |
 | `reason` | 失败原因，成功时为 null |
+| `label` | `POST /action` 的 `logLabel`，没有则 null |
+| `game_time` | **新增** 执行时刻的游戏时间（ISO，含时区） |
+| `controller` | **新增** 执行者是 `human` 还是 `agent` |
 
-> 日志存于内存，最多保留最新 20 条，超出时自动丢弃最旧的记录。重启后清空。
+> 每条日志同时 append 到 `data/actions/YYYY-MM-DD.jsonl`（按真实日期分文件，append-only，重启不丢）；内存只保留最近 20 条供本接口返回。`skipLog=true` 的 action 两处都不写。
+
+---
+
+### GET /history/log
+
+从 JSONL 文件读取完整行动日志（供评测与自我层拉取）。
+
+**Query：**
+
+| 参数 | 说明 |
+|------|------|
+| `since` | ISO 时间（可只含日期），只返回 `timestamp >= since` 的记录；缺省 = 全部 |
+| `entity` | 只返回该 `entityId` 的记录 |
+| `limit` | 最多返回最新 N 条 |
+
+**响应：** 与 `GET /history` 元素形状相同的数组，按时间升序。
 
 ---
 
@@ -474,11 +541,21 @@
 
 ---
 
-## 4. Tick 说明
+## 4. Tick 与持久化说明
 
-- 后端世界状态以 `tickRate = 1 tick / 200ms` 为参考推进
-- 前端通过轮询 `GET /world` 同步状态（每 200ms）
-- 未来可升级为 WebSocket 实时推送
+- 后端有一个独立的 asyncio 后台任务，每 200 ms 一次 tick：`real_delta × speed → game_delta`，对所有 player 跑 buff handler、检测 max_duration、清理 10 s 无心跳的玩家。**不依赖任何客户端轮询。**
+- 前端通过轮询 `GET /world` / `GET /player` 同步状态（只读）。
+- 每 5 s 以及进程正常关停时，后端把全部运行时状态写入 SQLite 检查点 `data/sandbox.db`（players、object 使用状态、时间锚点、chat 请求与房间、`meta.last_tick_ts`）。启动时若有检查点则回填，并按停机时长补算一次 tick（`dt ≤ 8 游戏小时`，running=false 时不补）。`kill -9` 最多丢最后 5 s 的变化。
+- 数据目录默认 `back_end/data/`，环境变量 `SANDBOX_DATA_DIR` 可改。
+- 未来可升级为 WebSocket 实时推送。
+
+### 时间控制
+
+| 方法与路径 | 请求 | 响应 |
+|---|---|---|
+| `POST /time/toggle` | — | `worldState`（不含 weather）。暂停时游戏时间静止，恢复后从暂停点继续 |
+| `POST /time/speed` | `{ "value": 60 }` | `{ "speed": 60.0 }`。切换前把当前游戏时刻折算成新锚点，时间不跳变；下限 1.0 |
+| `POST /time/reset` | — | `worldState`。游戏时间回到真实当前时间，倍率回默认 |
 
 ---
 
@@ -684,7 +761,7 @@
 | `no_interact` | 禁止交互 | 无 |
 | `no_use` | 禁止使用 Object | 无 |
 | `energy_regen` | Energy 每秒变化 | 正 = 恢复，负 = 消耗（点/秒） |
-| `hp_regen` | HP 每秒变化 | 正 = 恢复，负 = 消耗（点/秒） |
+| `hp_regen` | fullness（= hp 别名）每游戏秒变化 | 正 = 恢复，负 = 消耗（点/游戏秒） |
 | `move_speed` | 移动速度倍率 | 倍数 |
 
 ### Object Effect
@@ -694,7 +771,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | type | 适用原型 | 触发时机 | 说明 |
 |------|---------|---------|------|
 | `buff` | continuous | 进入时创建，离开/计时结束时移除 | 见上方 Buff 结构；mode 可为 `persistent` 或 `timed` |
-| `instant_effect` | instant / continuous | 进入时一次性结算，不进 buff 列表 | `key` 为 `energy` 或 `hp`，`value` 为变化量 |
+| `instant_effect` | instant / continuous | 进入时一次性结算，不进 buff 列表 | `key` 为七变量之一（`fullness` / `energy` / `social` / `fun` / `mood`；`hp` 视为 `fullness`），`value` 为变化量，结果 clamp 到 0–100 |
 | `tag` | continuous | 进入时加入，离开时移除 | 纯标记字符串，不参与运算 |
 
 > instant 原型的 `effects` 中，`buff` 只允许 `timed` mode；不允许 `persistent` buff 和 `tag`。
@@ -752,6 +829,17 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 **响应：**
 ```json
 { "ok": true, "left_object": "bed_01", "cleared_buffs": 3 }
+```
+
+---
+
+### POST /admin/checkpoint
+
+立即写一份 SQLite 检查点（正常情况下后台每 5 s 自动写；此接口用于测试与手动保障）。
+
+**响应：**
+```json
+{ "ok": true, "players": 1, "rooms": 0, "requests": 0, "saved_at": 1762347797.4, "path": ".../data/sandbox.db" }
 ```
 
 ---

@@ -149,8 +149,17 @@ type Player = {
   facing: "up" | "down" | "left" | "right"  // 当前朝向
   state: PlayerState                         // 系统枚举状态
   stateLabel: string | null                  // 展示文字，仅 state == "using" 时有值
-  hp: number                                 // 生命值，范围 0-100
-  energy: number                             // 体力值，范围 0-100
+  // ── 需求值（七变量，ARCHITECTURE §2.5），范围 0-100 ──
+  hp: number                                 // fullness 的别名，始终相等；过渡一个版本后删除（假设）
+  fullness: number                           // 饱腹，初值 70
+  energy: number                             // 体力，初值 100
+  social: number                             // 社交，初值 60
+  fun: number                                // 乐趣，初值 60
+  mood: number                               // 心情，初值 65 + 0.2·(E−50) − 0.3·(N−50)
+  emotion_tags: Buff[]                       // 情绪标签，复用 Buff（mode="timed"），到期自动移除
+  closeness: Record<string, number>          // entity_id -> 亲密度 0-100
+  controller: "human" | "agent"              // 谁在操控（W1 固定 human）
+  last_tick_ts: number                       // 上次 buff tick 的墙钟 epoch 秒
   usingObjectId: string | null               // 当前使用的 object id
   buffs: Buff[]                              // 当前 buff 实例列表
   tags: string[]                             // 当前 tag 列表
@@ -199,7 +208,7 @@ Buff 分三类，处理位置和机制不同：
 
 | 类型 | 代表 key | 处理位置 | 机制 |
 |------|---------|---------|------|
-| 属性修改型 | `energy_regen`、`hp_regen` | 后端 tick | 每 tick 直接修改 player.energy / hp |
+| 属性修改型 | `energy_regen`、`hp_regen` | 后端 tick | 每 tick 直接修改 player.energy / fullness（hp 同步） |
 | 状态控制型 | `no_move`、`no_interact`、`no_use` | 后端 action 校验 | tick 重置为 true，handler 设为 false，action 执行前校验 |
 | 行为参数型 | `move_speed` | 前后端协作 | tick 计算倍率写入 `moveSpeed`，前端据此调整 MOVE_INTERVAL |
 
@@ -208,7 +217,7 @@ Buff 分三类，处理位置和机制不同：
 | key | 类型 | value 含义 |
 |-----|------|-----------|
 | `energy_regen` | 属性修改型 | 每 tick 恢复体力值 |
-| `hp_regen` | 属性修改型 | 每 tick 恢复生命值 |
+| `hp_regen` | 属性修改型 | 每游戏秒恢复 fullness（hp 别名同步） |
 | `no_move` | 状态控制型 | 无（value 忽略），禁止移动 |
 | `no_interact` | 状态控制型 | 无，禁止 I 键物品描述交互 |
 | `no_use` | 状态控制型 | 无，禁止 E 键使用物品 |
@@ -218,11 +227,14 @@ Buff 分三类，处理位置和机制不同：
 - `persistent`：进入 object 时创建，`remaining = null`；离开时（同 source）清除
 - `timed`：进入 object 时创建，`remaining = duration`；tick 递减，归零自动移除；离开 object 不清除；同 source + 同 key 再次进入时覆盖（重置 remaining）
 
-**Tick 执行顺序（每 200ms）：**
-1. 递减 `timed` buff 的 `remaining`，移除归零项
+**Tick 执行顺序（后台任务每 200ms 真实时间一次，delta = 真实毫秒 × speed）：**
+1. 递减 `timed` buff 与 `emotion_tags` 的 `remaining`，移除归零项
 2. 重置：`canMove = true`、`canInteract = true`、`canUse = true`、`moveSpeed = 1.0`
 3. 遍历所有 buff，调用对应 Effect Handler
-4. handler 修改 player 属性（energy、hp、canMove 等）
+4. handler 修改 player 属性（energy、fullness/hp、canMove 等；需求值 clamp 0–100）
+5. 写入 `last_tick_ts`
+
+**持久化：** 整份 Player dict 作为 JSON 存进 SQLite `players` 表（每 5 s 检查点），重启回填；旧检查点缺少的新字段按初值补齐。
 
 **tag 说明：**
 - 纯标记字符串，如 `"sleeping"`、`"cooking"`
@@ -235,12 +247,18 @@ Buff 分三类，处理位置和机制不同：
 
 ```typescript
 type WorldState = {
-  date: string                            // 格式 "2001-12-30"
-  time: string                            // 格式 "08:00"
-  isDay: boolean                          // 是否白天
+  date: string                            // 游戏日期 "2026-11-05"
+  time: string                            // 游戏时刻 "21:03:17"
+  period: "morning" | "day" | "dusk" | "night"
+  running: boolean                        // 是否推进
+  speed: number                           // 倍率，默认 1.0（与现实 1:1）
   weather: "sunny" | "cloudy" | "rain"   // 天气状态
 }
 ```
+
+时间系统为「真实起点 + 倍率」：后端只存 `anchor_real`（墙钟）、`anchor_game`、`speed`、`running` 四个量，
+`game_now = anchor_game + (now − anchor_real) × speed`。首次启动 `anchor_game` = 真实当前时间
+（时区 Asia/Shanghai，`SANDBOX_TZ` 可改）；之后从 SQLite 检查点 `time_state` 表恢复，重启后游戏时间连续。
 
 ---
 

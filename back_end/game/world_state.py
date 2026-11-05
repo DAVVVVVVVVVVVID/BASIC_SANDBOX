@@ -1,9 +1,12 @@
 import copy
 import json
+import threading
 import time
 import uuid
 from pathlib import Path
 from game.object_types import OBJECT_TYPES
+from game.buff_tick import set_var, NEED_VARS
+from game.time_state import now_real
 
 # ── 从 JSON 加载地图数据 ──────────────────────────────────────────────────────
 _MAP_DIR = Path(__file__).parent / "maps"
@@ -138,8 +141,33 @@ _last_seen:        dict[str, float]         = {}
 
 _PLAYER_TIMEOUT = 10.0  # 秒，超过此时间未心跳则自动清除
 
+# 后台 ticker（事件循环线程）与 FastAPI 同步路由（线程池）会并发访问以上字典，
+# 遍历 / 导出 / 增删 player 时持有此锁（B8）。
+STATE_LOCK = threading.RLock()
 
-def _make_player(player_id: str, name: str) -> dict:
+# 七变量初值（ARCHITECTURE §3.1 B3 / 报告 §4.3 基线）
+INITIAL_FULLNESS = 70.0
+INITIAL_ENERGY   = 100.0
+INITIAL_SOCIAL   = 60.0
+INITIAL_FUN      = 60.0
+MOOD_BASE        = 65.0
+
+
+def mood_baseline(E: float = 50.0, N: float = 50.0) -> float:
+    """mood 基线 = 65 + 0.2·(E−50) − 0.3·(N−50)（ARCHITECTURE §2.5）。"""
+    return MOOD_BASE + 0.2 * (E - 50.0) - 0.3 * (N - 50.0)
+
+
+def _make_player(
+    player_id: str,
+    name: str,
+    controller: str = "human",
+    profile: dict | None = None,
+) -> dict:
+    profile = profile or {}
+    E = float(profile.get("E", 50.0))
+    N = float(profile.get("N", 50.0))
+    fullness = INITIAL_FULLNESS
     return {
         "id":            player_id,
         "name":          name,
@@ -147,8 +175,17 @@ def _make_player(player_id: str, name: str) -> dict:
         "facing":        _META["player_start"]["facing"],
         "state":         "idle",
         "stateLabel":    None,
-        "hp":            100.0,
-        "energy":        80.0,
+        # ── 七变量（B3）。hp 是 fullness 的别名，过渡一个版本 ──
+        "hp":            fullness,
+        "fullness":      fullness,
+        "energy":        INITIAL_ENERGY,
+        "social":        INITIAL_SOCIAL,
+        "fun":           INITIAL_FUN,
+        "mood":          mood_baseline(E, N),
+        "emotion_tags":  [],
+        "closeness":     {},
+        "controller":    controller if controller in ("human", "agent") else "human",
+        "last_tick_ts":  now_real(),
         "usingObjectId": None,
         "buffs":         [],
         "tags":          [],
@@ -159,32 +196,47 @@ def _make_player(player_id: str, name: str) -> dict:
     }
 
 
+def _ensure_player_fields(player: dict) -> None:
+    """给旧版（检查点里）的 player dict 补齐七变量字段，幂等。"""
+    defaults = _make_player(player["id"], player.get("name", player["id"]))
+    for k in ("fullness", "energy", "social", "fun", "mood", "emotion_tags",
+              "closeness", "controller", "last_tick_ts"):
+        if k not in player:
+            player[k] = player.get("hp", defaults[k]) if k == "fullness" else defaults[k]
+    player["hp"] = player["fullness"]
+
+
 # ── 玩家生命周期 ──────────────────────────────────────────────────────────────
 
-def create_player(name: str) -> dict:
-    """创建新玩家，生成唯一 ID，返回玩家数据的深拷贝。"""
+def create_player(name: str, controller: str = "human", profile: dict | None = None) -> dict:
+    """创建新玩家，生成唯一 ID，返回玩家数据的深拷贝。
+
+    controller / profile 为 B6 预留（W1 路由层尚不暴露，默认 human、E=N=50）。
+    """
     safe = name[:12].lower().replace(" ", "_")
     player_id = f"{safe}_{uuid.uuid4().hex[:6]}"
-    player = _make_player(player_id, name)
-    _players[player_id] = player
-    _pending_messages[player_id] = None
-    _use_start_times[player_id]  = None
-    _last_seen[player_id]        = time.time()
+    player = _make_player(player_id, name, controller, profile)
+    with STATE_LOCK:
+        _players[player_id] = player
+        _pending_messages[player_id] = None
+        _use_start_times[player_id]  = None
+        _last_seen[player_id]        = time.time()
     return copy.deepcopy(player)
 
 
 def remove_player(player_id: str) -> None:
     """移除玩家，自动离开正在使用的对象并清理聊天室。"""
-    if player_id not in _players:
-        return
-    # 先清理聊天室（必须在 _players 仍包含该 player 时执行，以便移除 buff）
-    from game.chat_state import cleanup_player_chats
-    cleanup_player_chats(player_id)
-    leave_object(player_id)
-    _players.pop(player_id, None)
-    _pending_messages.pop(player_id, None)
-    _use_start_times.pop(player_id, None)
-    _last_seen.pop(player_id, None)
+    with STATE_LOCK:
+        if player_id not in _players:
+            return
+        # 先清理聊天室（必须在 _players 仍包含该 player 时执行，以便移除 buff）
+        from game.chat_state import cleanup_player_chats
+        cleanup_player_chats(player_id)
+        leave_object(player_id)
+        _players.pop(player_id, None)
+        _pending_messages.pop(player_id, None)
+        _use_start_times.pop(player_id, None)
+        _last_seen.pop(player_id, None)
 
 
 def touch_player(player_id: str) -> None:
@@ -194,21 +246,19 @@ def touch_player(player_id: str) -> None:
 
 
 def _cleanup_stale_players() -> None:
-    """清除超过 _PLAYER_TIMEOUT 秒未心跳的玩家。"""
+    """清除超过 _PLAYER_TIMEOUT 秒未心跳的玩家。由后台 ticker 调用（B8）。"""
     now = time.time()
-    stale = [pid for pid, ts in _last_seen.items() if now - ts > _PLAYER_TIMEOUT]
-    for pid in stale:
-        remove_player(pid)
+    with STATE_LOCK:
+        stale = [pid for pid, ts in _last_seen.items() if now - ts > _PLAYER_TIMEOUT]
+        for pid in stale:
+            remove_player(pid)
 
 
 # ── 公开访问函数 ──────────────────────────────────────────────────────────────
 
 def get_world() -> dict:
-    from game.time_state import get_time_state, get_last_game_delta
-    _cleanup_stale_players()
-    delta = get_last_game_delta()
-    if delta > 0:
-        _run_buff_tick_all(delta)
+    """只读（B8）：时间推进、buff tick、stale 清理都在后台 ticker 里。"""
+    from game.time_state import get_time_state
     world_state = get_time_state()
     world_state["weather"] = _WEATHER
     return {
@@ -225,6 +275,7 @@ def get_player(player_id: str) -> dict | None:
     if player is None:
         return None
     data = copy.deepcopy(player)
+    data["hp"] = data.get("fullness", data.get("hp"))  # 别名兜底
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -330,12 +381,8 @@ def apply_instant_object(obj_id: str, entity_id: str) -> None:
         return
     for e in obj["effects"]:
         if e["type"] == "instant_effect":
-            key   = e["key"]
-            value = e.get("value", 0.0)
-            if key == "energy":
-                player["energy"] = max(0.0, min(100.0, player["energy"] + value))
-            elif key == "hp":
-                player["hp"] = max(0.0, min(100.0, player["hp"] + value))
+            # 对七变量通用 clamp（hp → fullness 别名），非需求变量忽略
+            apply_var_delta(player, e["key"], e.get("value", 0.0))
         elif e["type"] == "buff" and e.get("mode") == "timed":
             new_buff = {
                 "key":       e["key"],
@@ -349,6 +396,15 @@ def apply_instant_object(obj_id: str, entity_id: str) -> None:
                 if not (b["source"] == obj_id and b["key"] == e["key"])
             ]
             player["buffs"].append(new_buff)
+
+
+def apply_var_delta(player: dict, key: str, value: float) -> None:
+    """给 player 的某个需求变量加 value 并 clamp 到 0–100。"""
+    from game.buff_tick import canonical_var
+    var = canonical_var(key)
+    if var is None:
+        return
+    set_var(player, var, player.get(var, 0.0) + float(value))
 
 
 def leave_object(entity_id: str) -> dict | None:
@@ -525,6 +581,68 @@ def _check_auto_leave(player_id: str) -> None:
 
 def _run_buff_tick_all(delta: float) -> None:
     from game.buff_tick import run_tick
-    for player_id in list(_players.keys()):
-        run_tick(_players[player_id], delta)
-        _check_auto_leave(player_id)
+    now = now_real()          # 可注入的墙钟（time_state.set_clock），心跳 _last_seen 仍用 time.time()
+    with STATE_LOCK:
+        for player_id in list(_players.keys()):
+            player = _players.get(player_id)
+            if player is None:
+                continue
+            run_tick(player, delta, now_ts=now)
+            _check_auto_leave(player_id)
+
+
+# ── 持久化：导出 / 回填（B2） ─────────────────────────────────────────────────
+
+def export_runtime() -> dict:
+    """导出 players（含 pending/use_start/last_seen 侧车）与 object 运行时字段。"""
+    with STATE_LOCK:
+        players = {
+            pid: {
+                "player":          copy.deepcopy(p),
+                "pending_message": _pending_messages.get(pid),
+                "use_start_time":  _use_start_times.get(pid),
+                "last_seen":       _last_seen.get(pid),
+            }
+            for pid, p in _players.items()
+        }
+        objects = {
+            o["id"]: {"currentUsers": o["currentUsers"], "userList": list(o["userList"])}
+            for o in _OBJECTS
+        }
+    return {"players": players, "objects": objects}
+
+
+def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
+    """
+    从检查点回填。返回回填的 player 数。
+    grace_last_seen=True：把 last_seen 置为现在，给重启后的客户端 _PLAYER_TIMEOUT 秒重连窗口，
+    否则停机超过 10 s 的 player 会在第一个 tick 被当作 stale 清掉。
+    """
+    now = time.time()
+    with STATE_LOCK:
+        _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
+        for pid, row in (data.get("players") or {}).items():
+            player = row["player"]
+            _ensure_player_fields(player)
+            _players[pid] = player
+            _pending_messages[pid] = row.get("pending_message")
+            _use_start_times[pid]  = row.get("use_start_time")
+            _last_seen[pid] = now if grace_last_seen else (row.get("last_seen") or now)
+        for o in _OBJECTS:
+            rt = (data.get("objects") or {}).get(o["id"])
+            if rt is None:
+                o["currentUsers"] = 0
+                o["userList"] = []
+            else:
+                o["userList"] = [u for u in rt.get("userList", []) if u in _players]
+                o["currentUsers"] = len(o["userList"])
+        return len(_players)
+
+
+def _reset_for_tests() -> None:
+    """清空全部运行时状态（测试用）。"""
+    with STATE_LOCK:
+        _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
+        for o in _OBJECTS:
+            o["currentUsers"] = 0
+            o["userList"] = []

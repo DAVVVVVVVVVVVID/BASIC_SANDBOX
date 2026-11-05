@@ -194,21 +194,30 @@ def dispatch(action_request):
 
 ## 6. Buff Tick 引擎
 
-每次 `GET /player` 触发前，后端执行一次 buff tick，固定步骤：
+后端有一个独立的 asyncio 后台任务（`game/ticker.py`），每 200 ms 真实时间调用一次
+`time_state.advance_time(real_delta_ms)` 得到 `game_delta_ms = real × speed`，再对所有 player 执行
+buff tick。查询接口（`GET /world` / `GET /player`）只读，不再触发 tick。固定步骤：
 
 ```
-① 递减 instant buff 的 remaining（单位：ms，delta = 200）
-   → remaining <= 0 的 buff 自动移除
+⓪ 后台 ticker：real_delta → game_delta（running=false 时为 0，跳过 ①–③）
+① 递减 timed buff 与 emotion_tags 的 remaining（单位：游戏 ms）
+   → remaining <= 0 的项自动移除
 
 ② 重置状态控制字段
    canMove = True, canInteract = True, canUse = True, moveSpeed = 1.0
 
 ③ 遍历 player.buffs，查 EFFECT_HANDLERS 注册表，逐一执行
-   energy_regen → player.energy += value * delta
+   energy_regen → player.energy += value * delta / 1000      （clamp 0–100）
+   hp_regen     → player.fullness (= hp) += value * delta / 1000
    no_move      → player.canMove = False
    move_speed   → player.moveSpeed *= value
    ...
+④ player.last_tick_ts = now
+⑤ ticker 每 5 s 调 persistence.save_checkpoint()（SQLite）
 ```
+
+需求值统一经 `buff_tick.set_var / add_var` 写入（七变量 clamp，`hp` 映射到 `fullness`），
+`instant_effect` 也走同一路径（`world_state.apply_var_delta`）。
 
 Effect Handler 注册表（`buff_tick.py`）：
 

@@ -44,19 +44,26 @@ BASIC_SANDBOX/
 │   │   ├── player.py          # GET /player，管理接口（/admin/player/...）
 │   │   ├── agent.py           # Agent 感知与导航接口（/agent/...）
 │   │   ├── events.py          # GET /events
-│   │   ├── history.py         # GET /history
+│   │   ├── history.py         # GET /history，GET /history/log（JSONL 全量）
 │   │   └── time_control.py    # POST /time/toggle|speed|reset
+│   ├── scripts/
+│   │   └── verify_restart.py  # kill -9 后重启续跑验证脚本
+│   ├── tests/                 # pytest（uv run pytest）
+│   ├── data/                  # 运行时生成：sandbox.db 检查点、actions/*.jsonl（不进 git）
 │   ├── models/
 │   │   ├── world.py           # Pydantic 数据模型
 │   │   ├── player.py          # Player / Buff 模型
 │   │   └── action.py          # ActionRequest / ActionResponse
 │   └── game/
 │       ├── world_state.py     # 全局游戏状态（唯一可信数据源）
-│       ├── time_state.py      # 游戏时间推进逻辑
+│       ├── time_state.py      # 游戏时间：真实起点 + 倍率
+│       ├── ticker.py          # 后台 tick 任务（200 ms）+ 定时检查点
+│       ├── persistence.py     # SQLite 检查点（保存 / 回填 / catch_up）
+│       ├── paths.py           # 数据目录（SANDBOX_DATA_DIR）
 │       ├── object_types.py    # 从 object_types.json 加载 Object 类型
 │       ├── object_types.json  # ← MAP_EDITOR 导出，Object 类型定义
-│       ├── action_log.py      # 行为日志（内存，最多 20 条）
-│       ├── buff_tick.py       # Buff Tick 引擎
+│       ├── action_log.py      # 行为日志：JSONL append-only + 内存最近 20 条
+│       ├── buff_tick.py       # Buff Tick 引擎 + 七变量 clamp
 │       └── maps/
 │           ├── map.json           # ← MAP_EDITOR 导出，地形 + 区域 + 事件
 │           ├── objects.json       # ← MAP_EDITOR 导出，Object 实例列表
@@ -104,8 +111,10 @@ BASIC_SANDBOX/
 
 ### 时间系统
 
-- 世界以固定频率推进：`1 tick = 200ms`
-- 每 tick 结算游戏内时间、天气（sunny / cloudy / rain）、昼夜状态
+- **真实起点 + 倍率**：游戏时间 = `anchor_game + (now − anchor_real) × speed`。首次启动取真实当前时间（北京时间 1:1，`SANDBOX_TZ` 可改），默认 `speed = 1.0`、运行中（`SANDBOX_TIME_RUNNING=0` 可改为启动即暂停）
+- 暂停 / 加速时先把当前游戏时刻折算成新锚点，时间不跳变；时段 morning(06–08) / day(08–20) / dusk(20–22) / night(22–06)
+- **后台 tick**：后端独立 asyncio 任务每 200 ms 推进一次（buff 结算、max_duration、离线清理），不依赖客户端轮询；`GET /world` 只读
+- **持久化**：每 5 s 与关停时写 SQLite 检查点 `back_end/data/sandbox.db`（players、物品使用状态、时间锚点、对话）；行动日志 append-only 写 `back_end/data/actions/YYYY-MM-DD.jsonl`。`kill -9` 后重启，玩家位置、正在用的物品、游戏时间全部续上，并按停机时长补算一次 tick（≤ 8 游戏小时）。数据目录可用 `SANDBOX_DATA_DIR` 覆盖
 - 前端通过轮询同步，支持暂停、加速、重置
 
 ### 玩家控制（前端）
@@ -214,6 +223,7 @@ POST /action
 | `GET /admin/player/buffs` | 查看当前所有 buff |
 | `DELETE /admin/player/buffs` | 强制清除所有 buff（不离开对象） |
 | `POST /admin/player/force-reset` | 离开当前对象并清除所有 buff / tag，状态归 idle |
+| `POST /admin/checkpoint` | 立即写一份 SQLite 检查点 |
 
 > 当 Agent 循环意外中断导致玩家被 `no_move` / `no_interact` / `no_use` buff 卡住时，调用 `force-reset` 即可恢复。
 
@@ -233,6 +243,16 @@ POST /action
 cd back_end
 uv sync                              # 首次安装依赖
 uv run uvicorn main:app --reload     # 启动，监听 http://localhost:8000
+```
+
+> `--reload` 每次重载都会走一遍「关停写检查点 → 启动回填」，开发时属正常现象。
+
+### 运行测试
+
+```bash
+cd back_end
+uv run pytest -q                              # 单元 / 接口测试
+uv run python scripts/verify_restart.py       # kill -9 后重启续跑验证（约 20 s）
 ```
 
 API 文档（自动生成）：[http://localhost:8000/docs](http://localhost:8000/docs)

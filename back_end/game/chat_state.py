@@ -371,3 +371,27 @@ def get_nearby_players(entity_id: str, players: dict, zone_lookup: dict) -> list
                 "arena_id":  my_arena,
             })
     return result
+
+
+# ── 持久化：导出 / 回填（B2） ─────────────────────────────────────────────────
+
+def export_state() -> dict:
+    import copy
+    return {
+        "requests": copy.deepcopy(_chat_requests),
+        "rooms":    copy.deepcopy(_chat_rooms),
+        "seq":      dict(_MSG_SEQ_COUNTER),
+    }
+
+
+def import_state(data: dict) -> None:
+    _chat_requests.clear(); _chat_rooms.clear(); _MSG_SEQ_COUNTER.clear()
+    if not data:
+        return
+    _chat_requests.update(data.get("requests") or {})
+    _chat_rooms.update(data.get("rooms") or {})
+    _MSG_SEQ_COUNTER.update({k: int(v) for k, v in (data.get("seq") or {}).items()})
+
+
+def _reset_for_tests() -> None:
+    _chat_requests.clear(); _chat_rooms.clear(); _MSG_SEQ_COUNTER.clear()

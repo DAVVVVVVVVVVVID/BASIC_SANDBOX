@@ -55,3 +55,10 @@ def admin_force_reset(body: dict = {}):
         raise HTTPException(status_code=400, detail="entity_id required")
     summary = force_reset_player_state(entity_id)
     return {"ok": True, **summary}
+
+
+@router.post("/admin/checkpoint")
+def admin_checkpoint():
+    """立即写一份 SQLite 检查点（B2），返回摘要。"""
+    from game.persistence import save_checkpoint
+    return {"ok": True, **save_checkpoint()}

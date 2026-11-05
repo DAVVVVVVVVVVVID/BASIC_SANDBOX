@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Literal, Optional, List
+from typing import Dict, Literal, Optional, List
 from models.world import Position
 
 
@@ -23,8 +23,17 @@ class Player(BaseModel):
     facing: Literal["up", "down", "left", "right"]
     state: Literal["idle", "walking", "requesting_talk", "talking", "using"]
     stateLabel: Optional[str] = None
-    hp: float
+    # ── 需求值（七变量，ARCHITECTURE §2.5 / B3），范围 0–100 ──
+    hp: float                                   # fullness 的别名（过渡一个版本后删除，假设）
     energy: float
+    fullness: float = 70.0
+    social: float = 60.0
+    fun: float = 60.0
+    mood: float = 65.0
+    emotion_tags: List[Buff] = []               # 复用 Buff 模型，mode="timed"
+    closeness: Dict[str, float] = {}            # entity_id -> 0–100
+    controller: Literal["human", "agent"] = "human"
+    last_tick_ts: float = 0.0                   # 上次 tick 的墙钟 epoch 秒
     usingObjectId: Optional[str] = None
     buffs: List[Buff] = []
     tags: List[str] = []
