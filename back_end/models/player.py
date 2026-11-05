@@ -30,10 +30,14 @@ class Player(BaseModel):
     social: float = 60.0
     fun: float = 60.0
     mood: float = 65.0
+    mood_base: float = 65.0                     # mood 指数回归基线（B4）
     emotion_tags: List[Buff] = []               # 复用 Buff 模型，mode="timed"
     closeness: Dict[str, float] = {}            # entity_id -> 0–100
     controller: Literal["human", "agent"] = "human"
-    last_tick_ts: float = 0.0                   # 上次 tick 的墙钟 epoch 秒
+    online: bool = True                         # B6：agent 10 s 无心跳标 False，不删除
+    scene: Literal["sandbox", "live"] = "sandbox"   # B4：衰减速率按 scene
+    agent_id: Optional[str] = None              # 自我层 agent id（controller=agent 时）
+    last_tick_ts: str = ""                      # 上次 tick 的游戏时刻，ISO 8601（§3.7 裁定 3）
     usingObjectId: Optional[str] = None
     buffs: List[Buff] = []
     tags: List[str] = []

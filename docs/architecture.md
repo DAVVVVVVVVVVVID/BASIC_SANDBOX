@@ -219,18 +219,24 @@ buff tick。查询接口（`GET /world` / `GET /player`）只读，不再触发 
 需求值统一经 `buff_tick.set_var / add_var` 写入（七变量 clamp，`hp` 映射到 `fullness`），
 `instant_effect` 也走同一路径（`world_state.apply_var_delta`）。
 
-Effect Handler 注册表（`buff_tick.py`）：
+Effect Handler 注册表（`buff_tick.py`，B4 用工厂生成）：
 
 ```python
 EFFECT_HANDLERS = {
-    "energy_regen": lambda player, buff, delta: ...,
-    "hp_regen":     lambda player, buff, delta: ...,
-    "no_move":      lambda player, buff, delta: ...,
-    "no_interact":  lambda player, buff, delta: ...,
-    "no_use":       lambda player, buff, delta: ...,
-    "move_speed":   lambda player, buff, delta: ...,
+    **{f"{v}_regen": _make_regen(v) for v in NEED_VARS},   # fullness/energy/social/fun/mood 每游戏秒连续
+    **{f"{v}_delta": _make_delta(v) for v in NEED_VARS},   # 一次性，用后移除
+    "hp_regen":        _make_regen("fullness"),             # 兼容别名
+    "emotion_tag":     _handler_emotion_tag,                # 搬入 player.emotion_tags（timed）
+    "closeness_delta": _handler_closeness_delta,            # closeness[target] += value
+    "decay":           _handler_decay,                      # 元 buff：§2.5 衰减表，按 player.scene 选速率
+    "no_move": ..., "no_interact": ..., "no_use": ..., "move_speed": ...,
 }
 ```
+
+`decay` 元 buff 在 `_make_player` 时挂上（`source="decay"`），admin 清 buff 不会清它。
+衰减不经 `ON_VAR_CHANGE` 钩子；其余需求值变化（物品 buff、instant_effect、/effects）经钩子进
+`self_sync` 的待发池，每 30 游戏秒批量 `POST /self/state/delta`（自我层自己算衰减，见 api-spec §4）。
+停机补算 `catch_up_tick`：前 4 h 全量，4–8 h 只跑 decay 且跳过 fullness / energy。
 
 新增 buff 效果只需在注册表加一条，不修改 tick 主循环。
 

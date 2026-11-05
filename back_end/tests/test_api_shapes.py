@@ -16,7 +16,7 @@ def test_player_lifecycle(client):
     assert pid.startswith("whale_kid_")
     w = client.get("/world").json()
     assert [p["id"] for p in w["players"]] == [pid]
-    assert set(w["players"][0]) == {"id", "name", "position", "facing", "state"}
+    assert {"id", "name", "position", "facing", "state"} <= set(w["players"][0])   # W2 加 controller / online
     assert client.delete(f"/player/{pid}/leave").json() == {"ok": True}
     assert client.get(f"/player/{pid}").status_code == 404
 
@@ -55,7 +55,9 @@ def test_perceive_and_events(client):
 
 def test_admin_buffs(client):
     pid = join(client)
-    assert client.get(f"/admin/player/{pid}/buffs").json() == {"buffs": []}
+    # W2：decay 元 buff 常驻且不可清
+    assert [b["key"] for b in client.get(f"/admin/player/{pid}/buffs").json()["buffs"]] == ["decay"]
     assert client.delete(f"/admin/player/{pid}/buffs").json() == {"ok": True, "cleared": 0}
+    assert [b["key"] for b in client.get(f"/admin/player/{pid}/buffs").json()["buffs"]] == ["decay"]
     r = client.post("/admin/player/force-reset", json={"entity_id": pid}).json()
     assert r["ok"] is True

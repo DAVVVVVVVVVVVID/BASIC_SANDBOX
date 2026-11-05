@@ -38,6 +38,7 @@ class GameObject(BaseModel):
     interactable: bool
     description: str
     effects: List[Effect]
+    advertise: Optional[dict[str, float]] = None   # B5：广告值 {fullness|energy|social|fun|mood: 0–100}
     successMessage: Optional[str] = None
     failureMessage: Optional[str] = None
     currentUsers: int
@@ -70,6 +71,8 @@ class OtherPlayer(BaseModel):
     position: Position
     facing: str
     state: str
+    controller: Optional[str] = None   # B6
+    online: Optional[bool] = None      # B6
 
 
 class WorldData(BaseModel):

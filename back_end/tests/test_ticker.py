@@ -24,20 +24,20 @@ def test_tick_once_applies_regen_without_any_world_poll(client, fake_clock):
     ticker.tick_once(checkpoint=False)        # 建立基线
     fake_clock.advance(1.0)
     ticker.tick_once(checkpoint=False)
-    # bed: energy_regen 1/游戏秒
-    assert p["energy"] == pytest.approx(51.0)
-    assert p["last_tick_ts"] == fake_clock.t
+    # bed: energy_regen 1/游戏秒（减去 1 s 自然衰减 8/3600）
+    assert p["energy"] == pytest.approx(51.0 - 8 / 3600, abs=1e-6)
+    assert p["last_tick_ts"] == time_state.game_now_iso()
 
 
 def test_tick_scales_with_speed(client, fake_clock):
     pid = _bed_user(client)
     p = world_state._players[pid]
-    p["energy"] = 0.0
+    p["energy"] = 10.0                        # 不贴 0 边界，避免 decay 先 clamp
     ticker.tick_once(checkpoint=False)
     time_state.set_speed(60)
     fake_clock.advance(0.5)                   # 30 游戏秒
     ticker.tick_once(checkpoint=False)
-    assert p["energy"] == pytest.approx(30.0)
+    assert p["energy"] == pytest.approx(40.0 - 30 * 8 / 3600, abs=1e-6)
 
 
 def test_paused_time_no_tick_effect(client, fake_clock):
@@ -61,7 +61,7 @@ def test_get_world_is_read_only(client, fake_clock):
         client.get("/world")
     assert p["energy"] == 10.0                # 轮询不推进
     ticker.tick_once(checkpoint=False)
-    assert p["energy"] == pytest.approx(15.0)  # 只有 tick 推进
+    assert p["energy"] == pytest.approx(15.0 - 5 * 8 / 3600, abs=1e-6)  # 只有 tick 推进
 
 
 def test_tick_cleans_stale_players(client, fake_clock):

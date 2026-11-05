@@ -1,6 +1,93 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。日期：2026-11-05。范围：W1 任务 1–6（B7、B8、B2、B1、B3、B14）。
+分支：`whale-integration`。最新：**W2（2026-11-06）**，W1（2026-11-05）记录在后。
+
+---
+
+# W2 · 2026-11-06：需求值管线、controller、对接自我层
+
+## 1. 进度（W2 任务 1–7 全部完成）
+
+| # | 编号 | 任务 | 状态 | 主要文件 |
+|---|---|---|---|---|
+| 1 | §3.7 B3 | `last_tick_ts` 改 ISO 8601（游戏时刻，含时区） | ✅ | `buff_tick.run_tick`、`world_state._ensure_player_fields`（旧 float 检查点自动转 ISO） |
+| 2 | B4 | `EFFECT_HANDLERS` 工厂（`<var>_regen` / `<var>_delta` / `emotion_tag` / `closeness_delta`）、`decay` 元 buff（§2.5 速率表，按 `scene` 切换）、catch_up 分段：fullness / energy 4 h，其余 8 h | ✅ | `back_end/game/buff_tick.py`（重写）、`persistence.catch_up` |
+| 3 | B5 | 7 个类型加 `advertise` 与成本项，`hp` / `hp_regen` 全改 `fullness` / `fullness_regen`；同一物品 30 游戏分钟冷却 → `object_cooldown`；6 h 使用计数 `recent_uses`；`GET /world` 下发 `advertise` | ✅ | `object_types.json`、`world_state`（`_last_used` / `_use_history`）、`routers/actions.handle_use`、`models/world.GameObject` |
+| 4 | B6 | `JoinRequest.controller: str = "human"`、`profile: dict \| None`（与 C 的 `join_player` 同名）；agent 无心跳只标 `online=False` 不删、仍参与 tick；`POST /player/rejoin`；snapshot 带 `controller` / `online` | ✅ | `routers/player.py`、`world_state`（`_cleanup_stale_players` / `rejoin_player` / `touch_player`） |
+| 5 | B13 | `perceive` 加 `needs`（分档文字，不给数值）、`closeness` 分档、`recent_uses`、`players_in_view`；`GET /player/{id}/state`；`POST /player/{id}/effects`（与 object_types 同格式，带 `scene`） | ✅ | `routers/agent.py`、`routers/player.py`、`game/needs.py`（新）、`world_state.apply_effects` |
+| 6 | §2.5 | 每 30 游戏秒 `POST {SELF_URL}/self/state/delta`（带 `ts`），不可达时本地继续 tick、累积重发；join / 重启时 `GET /self/state` 种入；`SELF_URL` / `SELF_TOKEN` / `SELF_SYNC` 可配；`GET /admin/self-sync` | ✅ | `back_end/game/self_sync.py`（新）、`main.py`、`persistence.seed_agents_from_self` |
+| 7 | B14 | 文档同步 | ✅ | `docs/api-spec.md`、`docs/data-models.md`、`docs/architecture.md` §6、`README.md` |
+
+B9 / B10 / B11 / B12 按 §3.6 未动。前端未改（`hp` 别名仍在）。
+
+**关键设计（读了 whale-self/state.py 后定的，请 A 确认）**：自我层的 `apply_delta` 在加 `vars_delta` 之前会先把自己的状态按衰减表 catch_up 到 `ts`。因此沙盒**只上报非衰减变化**（物品 buff、instant_effect、`/effects` 推送，取 clamp 后的实际变化量），自然衰减两边各自按同一张速率表算。否则衰减会被加两遍。实现上 `buff_tick.set_var/add_var` 有 `track` 标志与 `ON_VAR_CHANGE` 钩子，`decay` handler 用 `track=False`。
+
+## 2. 测试命令与结果
+
+```bash
+cd back_end
+uv run pytest -q
+# 93 passed（W1 的 51 个 + W2 新增 42 个）
+
+uv run python scripts/verify_restart.py
+# 15/15 checks passed（W1 回归基线，含 kill -9 重启）
+
+uv run python scripts/verify_self_sync.py --mock --seconds 60
+# batch drift_max=0.020  final diff=0.037  (threshold 0.5, 63 batches) → PASS   （连跑两次：0.020 / 0.026）
+uv run python scripts/verify_self_sync.py --self-url http://127.0.0.1:8100
+# 对真实自我层：本次会话期间 8100 端口无服务（见 §5），未能跑；脚本已就绪，A 的服务起来后一条命令即可
+```
+
+W1 的 51 个测试里有 7 个因 W2 的**预期变化**改了断言（不是放宽）：`last_tick_ts` 变字符串、buffs 恒含 `decay`、snapshot 多 `controller` / `online`、能量期望值减去 1 s 自然衰减（8/3600）。
+
+| 新增文件 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/test_decay.py` | 13 | B4：工厂 key 齐全；新 player 带 decay 元 buff；**一游戏小时对账**（12:00–13:00，200 ms 步长：fullness 58、energy 92、social 54、fun 50、mood 65+10·0.5^0.5、closeness 72−1/24，误差 1e-6）；夜间 ×1.5（02–03 点 energy 88；05:30–06:30 半夜间）；`night_seconds`；live 速率（social −0.12/s、mood 半衰期 70 s）；mood 回 profile 基线；decay 不触发同步钩子而 regen 触发；一次性 `<var>_delta` / `closeness_delta` / `emotion_tag` 用后移除；**catch_up 8 h 停机 fullness / energy 只扣 4 h、social / fun 扣满 8 h**；30 h 停机等同 8 h；短停机全量；第二阶段保留物品 buff 不应用；admin 清 buff / force-reset 保留 decay |
+| `tests/test_cooldown.py` | 7 | B5：7 类型都有 `advertise`、至少一项成本、无 `hp` 键；`GET /world` 下发 advertise；use → leave → use 返回 `object_cooldown`（剩余 1790–1800 s），1801 s 后可用，`recent_uses` 计 2；冷却按（实体, 物品）隔离；6 h 窗口滚动；instant 物品成本（fridge fun −2）与冷却、tag 不挂；冷却与计数随检查点持久化 |
+| `tests/test_controller.py` | 6 | B6：join 带 controller / profile（mood 69.5、agent_id）；默认 human、非法 controller 400、agent_id 缺省 slug；**stale agent 标 offline 不删、human 照旧删**；offline agent 仍衰减；GET /player 心跳与 rejoin 恢复 online、rejoin 未知 404；offline agent 仍可行动且随检查点恢复 |
+| `tests/test_effects_api.py` | 7 | B13：`/state` 形状、404；`/effects` 一次推 instant / emotion_tag / closeness_delta / timed regen / tag + scene=live（applied 6 skipped 1）；scene 校验 400、不带 scene 不切；hp 别名 clamp；**perceive `needs` 全是文字无数值**（low / critical / emergency / mood 低 / tag 文案 / hard 列表）；closeness 分档与 `players_in_view`、`recent_uses`；分档边界 |
+| `tests/test_self_sync.py` | 9 | 任务 6：对端是 `httpx.MockTransport` 跑的 whale-self `state.py` 参考移植（decay / catch_up / apply_delta，sandbox + live）。join 时种入自我层值（energy 70 而非 100）、human 不登记；每 30 游戏秒出批、纯衰减时 `vars_delta` 为空；**两小时场景（23:00→01:00 跨夜间倍率，床上 40 分钟 regen 顶到 100，两次 /effects 推送）240 批后 max\|diff\| < 0.5、drift_max < 0.01、0 次纠偏**；自我层宕机 120 s 后恢复：失败批合回待发池、累积增量一次补发、仍 < 0.5；自我层另有写入 → snap 纠偏一次，关掉 snap 只记 drift；live 场景速率一致；重启回填 + 1 h 停机后重新种入仍 < 0.5；`/admin/self-sync` 形状；`SELF_SYNC=0` 完全不动 |
+
+`verify_self_sync.py` 的判据：① 每批被确认时自我层返回 `vars` 与发批瞬间本地快照之差（`drift_max`）< 0.5；② 结束时两边直读之差 < 0.5；③ 无失败批。采样期间会看到瞬时差 ≈ 1.3——那是**批间延迟**：物品 buff 的连续变化最多滞后 30 游戏秒才上报，量级 = 速率 × 30 s（现有 bed 的 fun 成本 0.05/s → 1.5）。按 §2.5 速率尺度（每小时个位数）这项 < 0.1；现有 object_types 里 ±1/秒的数值是 W1 之前的旧内容，B16 做地图时应改成每小时尺度（见 §4 第 6 条）。
+
+## 3. api-spec 改动摘要（只增不删，形状不变）
+
+| 位置 | 改动 |
+|---|---|
+| `GET /world` | `objects[].advertise`（新）；`players[]` 加 `controller`、`online` |
+| `GET /player/{id}` | 新字段 `mood_base`、`online`、`scene`、`agent_id`；`last_tick_ts` 改为 ISO 字符串；写明七变量衰减速率、`buffs` 恒含 `decay`、agent 初值来自自我层 |
+| `POST /player/join` | 请求体加 `controller`、`profile`；写明 agent 的自我层种入 |
+| `POST /player/rejoin`（新） | `{playerId}` → 与 join 同形状 |
+| `GET /player/{id}/state`（新） | 七变量原始数值 + `last_tick_ts` + `recent_uses` 等 |
+| `POST /player/{id}/effects`（新） | effect 列表 + `scene` + `source` → `{ok, applied, skipped, state}` |
+| `POST /action` use | 新 reason `object_cooldown`（`result.cooldownRemaining`） |
+| §4 Tick | catch_up 分段上限；新增「与自我层同步」小节（对象、种入、上报内容、失败重发、对账、配置、验证） |
+| §5 Buff / Effect | key 表改为工厂形式（`<var>_regen` / `<var>_delta` / `emotion_tag` / `closeness_delta` / `decay`）；扩展字段 `tag` / `target`；Object 类型新增 `advertise` 与成本项说明；`hp` 键全部改名 |
+| §6 perceive | 新增 `players_in_view`、`needs`（分档规则、阈值、文案同源、closeness 分档阈值为假设） |
+| §6 Admin | 新增 `GET /admin/self-sync` |
+
+`docs/data-models.md`：Player 新字段、buff key 表、advertise 段、catch_up 分段、同步说明。`docs/architecture.md` §6：工厂注册表、decay 元 buff、钩子与同步、catch_up。`README.md`：Object/需求值段、Agent API 表、项目结构、测试命令。
+
+## 4. 对契约的建议（请会话 A 汇总）
+
+1. **自我层默认初值与 §2.5 / B3 不一致**。`whale-self/state.py` 的 `DEFAULT_VARS` 是 fullness/energy/social/fun 全 70；B3（已确认）是 70 / 100 / 60 / 60。沙盒对 agent 以自我层为准（种入覆盖），所以运行时不冲突，但请 A 定一个写进 §2.5。
+2. **上报语义写进 §2.5**：「`vars_delta` 只含非衰减变化；衰减由自我层按 `ts` 自己 catch_up」。这是两边不重复扣的前提，目前只在我的 api-spec 与自我层代码注释里。
+3. **沙盒 catch_up 4 h / 8 h 分段 vs 自我层 8 h 单段**：两边同时停机 > 4 h 时沙盒的 fullness / energy 会比自我层高（最多 48 / 32）。沙盒重启后会重新从 `GET /self/state` 种入，所以最终以自我层为准，沙盒的 4 h 上限只在自我层不可达时生效。若希望自我层也「离线等于在睡」，请 A 在 state.py 对 fullness / energy 同样截 4 h。
+4. **自我层的 emotion_tags / closeness 不走 delta**。`POST /self/state/delta` 只收 `vars_delta`，emotion_tag 与 closeness 只能经 `POST /self/state/event`。W2 沙盒的 `/effects` 推送只落本地并把七变量变化并入 delta；**沙盒不转发 event**（否则 mood 会被加两遍，且双写记忆的归属不清）。建议：直播服务同一事件同时推自我层 `/self/state/event` 与沙盒 `/player/{id}/effects`（自我层那一路负责记忆），或 W3 定一个单向链路。
+5. **snap 纠偏（假设）**：批确认时 `max|drift| > 0.5` 就把差值加回本地（以自我层为准）。`SELF_SYNC_SNAP=0` 可关。请确认方向。
+6. **现有 object_types 的数值尺度**：bed `energy_regen +1/游戏秒`（= +3600/h）、desk `−1/s` 等是旧内容，与 §2.5 的每小时尺度相差 3 个量级，使用物品几秒就顶满 / 清零。本次只按 B5 要求加 `advertise` 与成本、改键名，没动旧数值；建议 B16 画新地图时统一改成每小时尺度（我在报告里标为假设，可由 B 在 W3 顺手改）。
+7. **`agent_id` 字段**（假设）：`profile.agent_id` 指定自我层 agent id，缺省取 name 的 slug。请 C 在 `join_player` 的 profile 里带 `agent_id: "whale"`，否则中文名 slug 对不上 persona。
+8. **closeness 分档阈值**（假设）：≥70 很亲近 / ≥40 熟悉 / ≥15 认识 / 其余陌生。
+9. **speed > 1 时自我层的 `GET /self/state`** 以其墙钟 catch_up，而沙盒上报的 `ts` 是游戏时刻（可能领先）；自我层那边 `now − last_tick_ts < 0` 不补算，读到的是「上一批时刻」的值。生产 speed=1.0 无影响，调试加速时读 `/self/state` 会滞后一批（≤ 30 游戏秒）。
+
+## 5. 卡点
+
+- **真实联调未跑**：本次会话期间 `http://127.0.0.1:8100` 没有服务，而规矩第 3 条不允许我启动 whale-self。已用 whale-self `state.py` 的参考移植（测试内 MockTransport + 脚本 `--mock`）验证 < 0.5。A 的服务起来后请任意一方跑：`cd back_end && uv run python scripts/verify_self_sync.py --self-url http://127.0.0.1:8100`，输出最后一行 PASS/FAIL 与 drift。
+- `verify_self_sync.py` 第一次运行时沙盒进程曾意外退出一次（Connection refused），之后三次均正常，日志现已落到临时目录 `sandbox.log` 便于复现；若再出现会附在下次报告。
+
+---
+
+# W1 · 2026-11-05：持久化、时间、七变量（原报告）
 
 ## 1. 进度
 

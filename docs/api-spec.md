@@ -52,6 +52,16 @@
 
 > **只读**：`GET /world` 不推进时间、不跑 buff tick、不清理离线玩家。这些都由后端的独立后台 tick 任务（200 ms）完成，没有任何客户端轮询时状态照样演化。
 
+| objects[] 新增字段 | 说明 |
+|------|------|
+| `advertise` | **B5** Sims 式广告值 `{ fullness \| energy \| social \| fun \| mood: 0–100 }`，供规划器做软偏好打分；来自 `object_types.json` 的 `advertise`，可能为空对象 |
+
+| players[] 字段 | 说明 |
+|------|------|
+| `id` / `name` / `position` / `facing` / `state` | 不变 |
+| `controller` | **B6** `"human"` \| `"agent"` |
+| `online` | **B6** agent 10 s 无心跳为 `false`（身体仍在原地、仍参与 tick）；human 无心跳直接从列表消失 |
+
 ---
 
 ### GET /player/{player_id}
@@ -90,12 +100,17 @@
 
 | 字段 | 说明 |
 |------|------|
-| `fullness` / `energy` / `social` / `fun` / `mood` | 需求值，范围 0–100（ARCHITECTURE §2.5 七变量）。初值：fullness 70、energy 100、social 60、fun 60、mood = 65 + 0.2·(E−50) − 0.3·(N−50)（E、N 默认 50 → 65）。W1 只有物品效果会改动它们；自然衰减（B4）W2 接入 |
+| `fullness` / `energy` / `social` / `fun` / `mood` | 需求值，范围 0–100（ARCHITECTURE §2.5 七变量）。human 初值：fullness 70、energy 100、social 60、fun 60、mood = 65 + 0.2·(E−50) − 0.3·(N−50)（E、N 来自 join 的 `profile`，默认 50 → 65）；agent 初值从自我层 `GET /self/state` 种入（不可达时同 human）。**自然衰减（B4）**由每个 player 常驻的 `decay` 元 buff 执行：fullness −12/游戏小时、energy −8/h（凌晨 0–6 点 ×1.5）、social −6/h（`scene=live` 时 −0.12/s）、fun −10/h、mood 指数回 `mood_base`（半衰期 sandbox 120 分钟、live 70 s）、closeness 每游戏日 −1 |
 | `hp` | **`fullness` 的别名**，两者始终相等。过渡一个版本后删除（假设），新对接请读 `fullness` |
-| `emotion_tags` | 情绪标签列表，复用 Buff 结构（`mode="timed"`，`remaining` 毫秒倒计时，到期自动移除）。W1 为空 |
-| `closeness` | `{ entity_id: 0–100 }` 亲密度。W1 为空对象 |
-| `controller` | `"human"` \| `"agent"`，谁在操控这个 player。W1 固定 `"human"`（B6 加入 join 参数后可指定） |
-| `last_tick_ts` | 上次 buff tick 的墙钟 epoch 秒（float），供自我层 catch_up 对账 |
+| `mood_base` | **W2** mood 回归基线 = 65 + 0.2·(E−50) − 0.3·(N−50)；agent 种入时按自我层的 `ocean` 重算 |
+| `emotion_tags` | 情绪标签列表，复用 Buff 结构（`key` = 标签名如 `smug`，`mode="timed"`，`remaining` 毫秒倒计时，到期自动移除）。来源：`POST /player/{id}/effects` 的 `emotion_tag`，或自我层种入 |
+| `closeness` | `{ entity_id: 0–100 }` 亲密度。来源：`closeness_delta` 效果；每游戏日 −1 |
+| `controller` | `"human"` \| `"agent"`，由 `POST /player/join` 的 `controller` 决定 |
+| `online` | **B6** 心跳状态。human 10 s 无心跳被删除；agent 只标 `false`，`GET /player/{id}` 或 `POST /player/rejoin` 恢复 `true` |
+| `scene` | **B4** `"sandbox"` \| `"live"`，决定衰减速率；由 `POST /player/{id}/effects` 的 `scene` 切换（B11 直播台接入后由 use/leave 切） |
+| `agent_id` | controller=agent 时对接自我层的 agent id（`profile.agent_id`，缺省取 name 的 slug，假设）；human 为 `null` |
+| `last_tick_ts` | 上次 buff tick 的**游戏时刻**，ISO 8601 含时区（§3.7 裁定 3），如 `"2026-11-06T21:03:00+08:00"`；供自我层 catch_up 对账 |
+| `buffs` | 恒含一条 `{"key":"decay","source":"decay","mode":"persistent"}` 元 buff（admin 清 buff / force-reset 不会清它） |
 | `pendingMessage` | 后端自动触发的事件消息（如 max_duration 到期自动退出），读取后自动清除；无事件时为 `null` |
 
 > 字段只增不删：旧字段形状不变。
@@ -105,10 +120,87 @@
 ### POST /player/join
 
 ```json
-{ "name": "鲸仔" }
+{ "name": "鲸仔", "controller": "agent", "profile": { "E": 80, "N": 55, "agent_id": "whale" } }
 ```
 
+| 字段 | 说明 |
+|------|------|
+| `name` | 必填，非空 |
+| `controller` | **B6** `"human"`（默认）\| `"agent"`；其他值 400。与 AGENT_V2 `join_player(controller, profile)` 同名 |
+| `profile` | **B6** 可选 `{ E, N, agent_id? }`：E、N 决定 `mood_base`；`agent_id` 是自我层里的 agent id（缺省取 name 的 slug，假设） |
+
 **响应：** `{ "playerId": "鲸仔_a1b2c3", "player": { ...与 GET /player 相同... } }`
+
+> controller=agent 时，后端会同步 `GET {SELF_URL}/self/state?agent=<agent_id>`（3 s 超时）把七变量 / closeness / emotion_tags / ocean 种入本地；失败则按 §2.5 初值创建，不阻塞 join。
+
+---
+
+### POST /player/rejoin
+
+**B6**：agent 进程崩溃 / 被 supervisor 重拉后，用同一 `playerId` 续接（她的身体一直留在原地）。
+
+```json
+{ "playerId": "鲸仔_a1b2c3" }
+```
+
+**响应：** 与 join 相同 `{ "playerId", "player" }`，`player.online` 置回 `true`、心跳刷新。不存在返回 404（此时应改调 join）。
+
+---
+
+### GET /player/{player_id}/state
+
+**B13 ②**：七变量原始数值 + `last_tick_ts`，给自我层同步与评测。只读：不刷新心跳、不清 `pendingMessage`。
+
+**响应：**
+
+```json
+{
+  "id": "鲸仔_a1b2c3",
+  "vars": { "fullness": 62.0, "energy": 71.5, "social": 48.0, "fun": 35.0, "mood": 68.0 },
+  "mood_base": 69.5,
+  "emotion_tags": [ { "key": "smug", "value": 0.0, "mode": "timed", "remaining": 31200.0, "source": "live:praise" } ],
+  "closeness": { "achan": 72.0 },
+  "scene": "sandbox",
+  "controller": "agent",
+  "online": true,
+  "agent_id": "whale",
+  "last_tick_ts": "2026-11-06T21:03:00+08:00",
+  "recent_uses": { "fridge_01": 2 }
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `recent_uses` | **B5** 6 游戏小时内各物品的使用次数（供 novelty 折减） |
+
+---
+
+### POST /player/{player_id}/effects
+
+**B13 ③**：推送与 `object_types.json` 同格式的 effect 列表（直播服务经自我层推「观众进入 +12 social +4 mood」等），可同时切换 `scene`。
+
+```json
+{
+  "scene": "live",
+  "source": "live:viewer_arrived",
+  "effects": [
+    { "type": "instant_effect", "key": "social", "value": 12 },
+    { "type": "instant_effect", "key": "mood", "value": 4 },
+    { "type": "buff", "key": "emotion_tag", "tag": "smug", "mode": "timed", "duration": 40000 },
+    { "type": "closeness_delta", "target": "viewer_12345", "value": 3 },
+    { "type": "buff", "key": "fun_regen", "value": 0.5, "mode": "timed", "duration": 5000 },
+    { "type": "tag", "key": "streaming" }
+  ]
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `effects[]` | 见 §5「Object Effect」。支持 `instant_effect`、`buff`（任意 handler key，含 `<var>_regen` / `<var>_delta` / `emotion_tag` / `closeness_delta`）、`tag`，以及简写 `{"type":"<var>_delta"}` / `{"type":"closeness_delta"}` / `{"type":"emotion_tag"}`。不认识的 key 计入 `skipped` |
+| `scene` | 可选 `"sandbox"` \| `"live"`，非空即切换该 player 的衰减场景；其他值 400 |
+| `source` | 可选，写进 buff 的 `source`，默认 `"effects"` |
+
+**响应：** `{ "ok": true, "applied": 6, "skipped": 0, "state": { ...与 GET /player/{id}/state 相同... } }`；player 不存在 404。
 
 ---
 
@@ -493,6 +585,7 @@
 | `no_object_in_front` | 正前方没有对象 |
 | `not_interactable` | 对象不可交互，`result.message` 为对象的 `failureMessage` |
 | `object_full` | 对象已满（仅 continuous），`result.message` 为对象的 `failureMessage` |
+| `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message` |
 | `use_disabled` | 当前无法使用对象（buff 限制）|
 
 ---
@@ -546,8 +639,22 @@
 - 后端有一个独立的 asyncio 后台任务，每 200 ms 一次 tick：`real_delta × speed → game_delta`，对所有 player 跑 buff handler、检测 max_duration、清理 10 s 无心跳的玩家。**不依赖任何客户端轮询。**
 - 前端通过轮询 `GET /world` / `GET /player` 同步状态（只读）。
 - 每 5 s 以及进程正常关停时，后端把全部运行时状态写入 SQLite 检查点 `data/sandbox.db`（players、object 使用状态、时间锚点、chat 请求与房间、`meta.last_tick_ts`）。启动时若有检查点则回填，并按停机时长补算一次 tick（`dt ≤ 8 游戏小时`，running=false 时不补）。`kill -9` 最多丢最后 5 s 的变化。
+- 停机补算分段（§3.7 裁定 5）：前 4 游戏小时全量（物品 buff + 衰减）；4–8 h 只补 social / fun / mood / closeness 的衰减，fullness / energy 不再扣（她离线等于在睡，假设）。
 - 数据目录默认 `back_end/data/`，环境变量 `SANDBOX_DATA_DIR` 可改。
 - 未来可升级为 WebSocket 实时推送。
+
+### 与自我层同步（§2.5）
+
+| 项 | 说明 |
+|---|---|
+| 对象 | 只同步 `controller=agent` 的 player，自我层 agent id = `player.agent_id` |
+| 种入 | join 与重启回填后 `GET {SELF_URL}/self/state?agent=…`，用返回的 `vars / closeness / emotion_tags / ocean / scene` 覆盖本地 |
+| 上报 | 每 **30 游戏秒** `POST {SELF_URL}/self/state/delta`：`{"agent","scene","ts":<游戏时刻 ISO>,"vars_delta":{…},"source":"sandbox_tick"}`。**`vars_delta` 只含非衰减变化**（物品 buff、instant_effect、/effects 推送，取 clamp 后的实际变化量）；自然衰减两边各自按同一张速率表计算，自我层在收到 delta 前会先把自己的状态 catch_up 到 `ts`，所以不能把衰减再报一遍 |
+| 失败 | 自我层不可达时本地照常 tick，失败批的 `vars_delta` 合回待发池，指数退避（≤ 30 s）后与后续变化一起重发 |
+| 对账 | 自我层返回的 `vars` 与发批瞬间的本地快照之差记为 drift；`max|drift| > 0.5` 时把差值加回本地（以自我层为准，`SELF_SYNC_SNAP=0` 关闭只记录） |
+| 观测 | `GET /admin/self-sync` |
+| 配置 | `SELF_URL`（默认 `http://127.0.0.1:8100`）、`SELF_TOKEN`（Bearer，可空）、`SELF_SYNC=0` 整体关闭、`SELF_SYNC_SNAP_THRESHOLD`（默认 0.5） |
+| 验证 | `uv run python scripts/verify_self_sync.py --self-url http://127.0.0.1:8100`（无服务时 `--mock`） |
 
 ### 时间控制
 
@@ -624,7 +731,20 @@
       "object": null
     }
   ],
-  "front_object": { "id": "sofa_01", "name": "沙发" }
+  "front_object": { "id": "sofa_01", "name": "沙发" },
+  "players_in_view": [ { "id": "achan_1a2b3c", "name": "阿蝉", "position": { "x": 3, "y": 2 }, "state": "idle" } ],
+  "needs": {
+    "fullness": "饿了",
+    "energy": "还好",
+    "social": "还好",
+    "fun": "有点无聊，想找新鲜事",
+    "mood": "开心",
+    "emotion_tags": ["得意（刚被夸了）"],
+    "lines": ["饿了", "有点无聊，想找新鲜事", "得意（刚被夸了）"],
+    "hard": [],
+    "closeness": { "achan_1a2b3c": { "name": "阿蝉", "tier": "很亲近" } },
+    "recent_uses": { "fridge_01": 2 }
+  }
 }
 ```
 
@@ -632,6 +752,8 @@
 - `arena_tree`：嵌套树 `world → sector → arenas[]`，展示当前 sector 内**所有** arena 及其 objects，**不含坐标**；`current: true` 标记当前所在 arena；当 cognitive_map 中找不到对应名称时，`name` 回退为原始 ID
 - `vision_tiles`：以实体当前位置为中心，边长 `vision_size`（偶数自动取奇）的正方形内所有合法 tile，超出地图边界的 tile 不返回
 - `front_object`：正前方一格的 object 信息，无 object 时为 `null`
+- `players_in_view`（**B13**）：视野正方形内的其他 player
+- `needs`（**B13**）：**只给分档文字，不给数值**（报告 §4.3）。阈值 low 25 / critical 15 / emergency 10；文案与自我层 `state.py` 的 `LABELS` 同源（沿用 mood.py `label()`）。`<var>` 未越阈值为 `"还好"`；`mood` < 35 为「有点委屈…」、> 75 为「开心」；`lines` 是越过阈值的全部文字（含 emotion_tags），`hard` 是 `<var><15` 的硬约束；`closeness` 对视野内 player 分档（≥70 很亲近 / ≥40 熟悉 / ≥15 认识 / 其余 陌生，阈值为假设）；`recent_uses` 同 `GET /player/{id}/state`
 
 ---
 
@@ -760,9 +882,15 @@
 | `no_move` | 禁止移动 | 无 |
 | `no_interact` | 禁止交互 | 无 |
 | `no_use` | 禁止使用 Object | 无 |
-| `energy_regen` | Energy 每秒变化 | 正 = 恢复，负 = 消耗（点/秒） |
-| `hp_regen` | fullness（= hp 别名）每游戏秒变化 | 正 = 恢复，负 = 消耗（点/游戏秒） |
+| `<var>_regen` | **B4** `fullness_regen` / `energy_regen` / `social_regen` / `fun_regen` / `mood_regen`：每游戏秒连续变化 | 点/游戏秒，正 = 恢复，负 = 消耗 |
+| `<var>_delta` | **B4** 一次性加 value，应用后自动移除 | 点 |
+| `emotion_tag` | **B4** 进入 `emotion_tags`（需字段 `tag`），`timed` 到期移除 | 无 |
+| `closeness_delta` | **B4** `closeness[target] += value`（需字段 `target`），一次性 | 点 |
+| `decay` | **B4** 自然衰减元 buff，每个 player 常驻（`source="decay"`），速率见 `GET /player` 字段表 | 无 |
+| `hp_regen` | 兼容别名 = `fullness_regen` | 点/游戏秒 |
 | `move_speed` | 移动速度倍率 | 倍数 |
+
+Buff 可带扩展字段：`tag`（emotion_tag 用）、`target`（closeness_delta 用）。
 
 ### Object Effect
 
@@ -774,7 +902,14 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `instant_effect` | instant / continuous | 进入时一次性结算，不进 buff 列表 | `key` 为七变量之一（`fullness` / `energy` / `social` / `fun` / `mood`；`hp` 视为 `fullness`），`value` 为变化量，结果 clamp 到 0–100 |
 | `tag` | continuous | 进入时加入，离开时移除 | 纯标记字符串，不参与运算 |
 
-> instant 原型的 `effects` 中，`buff` 只允许 `timed` mode；不允许 `persistent` buff 和 `tag`。
+> instant 原型的 `effects` 中，`buff` 只允许 `timed` mode 与一次性 key（`<var>_delta` / `emotion_tag` / `closeness_delta`）；`persistent` buff 和 `tag` 被忽略（没有 leave 时机）。
+
+**Object 类型新增字段（B5）：**
+
+| 字段 | 说明 |
+|------|------|
+| `advertise` | `{ <var>: 0–100 }` 广告值，随 `GET /world` 的 objects 下发 |
+| 成本项 | 每个类型至少一项负向效果（如 fridge `fullness +30, fun −2`；book `fun +8, energy −1`；bed `fun_regen −0.05`；desk `energy_regen −1, fullness_regen −1`）。所有 `hp` / `hp_regen` 键已改为 `fullness` / `fullness_regen` |
 
 ### Object 原型
 
@@ -840,6 +975,18 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 **响应：**
 ```json
 { "ok": true, "players": 1, "rooms": 0, "requests": 0, "saved_at": 1762347797.4, "path": ".../data/sandbox.db" }
+```
+
+---
+
+### GET /admin/self-sync
+
+自我层同步状态（联调用）。
+
+```json
+{ "enabled": true, "self_url": "http://127.0.0.1:8100", "sent": 240, "failed": 0, "seeded": 1, "resyncs": 0,
+  "drift_max": 0.023, "drift_last": { "fullness": 0.001, "energy": 0.0, "social": -0.002, "fun": 0.0, "mood": 0.0 },
+  "last_error": null, "last_ok_ts": 1762440180.2, "pending": { "鲸仔_a1b2c3": { "energy": 0.4 } }, "queue": 0 }
 ```
 
 ---

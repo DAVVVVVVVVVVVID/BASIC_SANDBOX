@@ -32,7 +32,9 @@ class FakeClock:
 @pytest.fixture(autouse=True)
 def isolated_state(tmp_path, monkeypatch):
     monkeypatch.setenv("SANDBOX_DATA_DIR", str(tmp_path / "data"))
-    from game import world_state, chat_state, time_state, action_log, ticker
+    from game import world_state, chat_state, time_state, action_log, ticker, self_sync
+    self_sync._reset_for_tests()
+    self_sync.configure(enabled=False)        # 默认不碰网络；需要的测试自己 configure(transport=...)
     world_state._reset_for_tests()
     chat_state._reset_for_tests()
     time_state._reset_for_tests()
@@ -46,6 +48,7 @@ def isolated_state(tmp_path, monkeypatch):
     time_state.set_clock(None)
     action_log._reset_for_tests()
     ticker._reset_for_tests()
+    self_sync._reset_for_tests()
 
 
 @pytest.fixture

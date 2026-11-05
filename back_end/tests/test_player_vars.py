@@ -19,7 +19,7 @@ def test_get_player_returns_seven_vars_and_alias(client):
     assert p["mood"] == 65.0
     assert p["emotion_tags"] == [] and p["closeness"] == {}
     assert p["controller"] == "human"
-    assert p["last_tick_ts"] > 0
+    assert isinstance(p["last_tick_ts"], str) and "T" in p["last_tick_ts"]   # ISO 8601（§3.7 裁定 3）
     # 旧字段仍在
     for k in ("id", "position", "facing", "state", "stateLabel", "usingObjectId", "buffs", "tags",
               "canMove", "canInteract", "canUse", "moveSpeed", "pendingMessage"):
@@ -79,9 +79,10 @@ def test_instant_object_uses_generic_clamp(client):
 def test_hp_regen_handler_keeps_alias_in_sync():
     p = world_state._make_player("x", "x")
     p["buffs"].append({"key": "hp_regen", "value": -2.0, "mode": "persistent", "remaining": None, "source": "t"})
-    run_tick(p, 1000.0, now_ts=123.0)
+    p["buffs"] = [b for b in p["buffs"] if b["key"] != "decay"]   # 只看 hp_regen
+    run_tick(p, 1000.0, game_ts=1_800_000_000.0)
     assert p["fullness"] == 68.0 and p["hp"] == 68.0
-    assert p["last_tick_ts"] == 123.0
+    assert p["last_tick_ts"].startswith("2027-01-15T")
 
 
 def test_emotion_tags_expire_like_timed_buffs():

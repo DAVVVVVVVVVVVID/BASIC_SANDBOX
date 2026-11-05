@@ -115,6 +115,10 @@ type ContinuousObject = {
 
 `maxDuration` 到期时后端自动执行 leave，`GET /player` 的 `pendingMessage` 带出 `leaveMessage`。
 
+### 广告值（advertise，B5）
+
+每个 Object 类型可带 `advertise: { fullness?: number, energy?: number, social?: number, fun?: number, mood?: number }`（0–100），表示它「宣称」能满足哪些需求，供规划器软偏好打分；随 `GET /world` 下发。每个类型至少有一项负向效果作为成本（如 fridge `fun −2`、bed `fun_regen −0.05`）。同一实体对同一物品 30 游戏分钟内再次 use 返回 `object_cooldown`。
+
 ### Effect 类型
 
 ```typescript
@@ -155,11 +159,15 @@ type Player = {
   energy: number                             // 体力，初值 100
   social: number                             // 社交，初值 60
   fun: number                                // 乐趣，初值 60
-  mood: number                               // 心情，初值 65 + 0.2·(E−50) − 0.3·(N−50)
-  emotion_tags: Buff[]                       // 情绪标签，复用 Buff（mode="timed"），到期自动移除
-  closeness: Record<string, number>          // entity_id -> 亲密度 0-100
-  controller: "human" | "agent"              // 谁在操控（W1 固定 human）
-  last_tick_ts: number                       // 上次 buff tick 的墙钟 epoch 秒
+  mood: number                               // 心情，初值 = mood_base
+  mood_base: number                          // mood 指数回归基线 65 + 0.2·(E−50) − 0.3·(N−50)（B4）
+  emotion_tags: Buff[]                       // 情绪标签（key = 标签名），复用 Buff（mode="timed"），到期自动移除
+  closeness: Record<string, number>          // entity_id -> 亲密度 0-100，每游戏日 −1
+  controller: "human" | "agent"              // 谁在操控（B6，join 时指定）
+  online: boolean                            // B6：agent 10 s 无心跳标 false 不删除；human 无心跳直接删除
+  scene: "sandbox" | "live"                  // B4：衰减速率场景
+  agent_id: string | null                    // 自我层 agent id（controller=agent 时）
+  last_tick_ts: string                       // 上次 buff tick 的游戏时刻，ISO 8601 含时区
   usingObjectId: string | null               // 当前使用的 object id
   buffs: Buff[]                              // 当前 buff 实例列表
   tags: string[]                             // 当前 tag 列表
@@ -217,7 +225,12 @@ Buff 分三类，处理位置和机制不同：
 | key | 类型 | value 含义 |
 |-----|------|-----------|
 | `energy_regen` | 属性修改型 | 每 tick 恢复体力值 |
-| `hp_regen` | 属性修改型 | 每游戏秒恢复 fullness（hp 别名同步） |
+| `hp_regen` | 属性修改型 | 兼容别名 = `fullness_regen` |
+| `<var>_regen` | 属性修改型 | `fullness/energy/social/fun/mood` 每游戏秒连续变化（B4 工厂生成） |
+| `<var>_delta` | 属性修改型 | 一次性加 value，用后移除 |
+| `emotion_tag` | 一次性 | 搬入 `emotion_tags`（字段 `tag`） |
+| `closeness_delta` | 一次性 | `closeness[target] += value`（字段 `target`） |
+| `decay` | 元 buff | 每个 player 常驻（`source="decay"`）：fullness −12/h、energy −8/h（0–6 点 ×1.5）、social −6/h（live −0.12/s）、fun −10/h、mood 指数回 `mood_base`（半衰期 sandbox 120 min / live 70 s）、closeness −1/天 |
 | `no_move` | 状态控制型 | 无（value 忽略），禁止移动 |
 | `no_interact` | 状态控制型 | 无，禁止 I 键物品描述交互 |
 | `no_use` | 状态控制型 | 无，禁止 E 键使用物品 |
@@ -234,7 +247,11 @@ Buff 分三类，处理位置和机制不同：
 4. handler 修改 player 属性（energy、fullness/hp、canMove 等；需求值 clamp 0–100）
 5. 写入 `last_tick_ts`
 
-**持久化：** 整份 Player dict 作为 JSON 存进 SQLite `players` 表（每 5 s 检查点），重启回填；旧检查点缺少的新字段按初值补齐。
+**持久化：** 整份 Player dict 作为 JSON 存进 SQLite `players` 表（每 5 s 检查点），重启回填；旧检查点缺少的新字段按初值补齐（含补挂 `decay` 元 buff、float 版 `last_tick_ts` 转 ISO）。物品冷却与 6 h 使用记录存在同表 `extra` 列。
+
+**停机补算（catch_up）：** 前 4 游戏小时全量 tick；4–8 h 只补 social / fun / mood / closeness 的衰减（fullness / energy 不再扣，假设她离线等于在睡）；> 8 h 的部分丢弃。
+
+**与自我层同步：** controller=agent 的 player 每 30 游戏秒把非衰减变化批量 `POST /self/state/delta`；衰减两边各自算（公式同源）；详见 api-spec §4。
 
 **tag 说明：**
 - 纯标记字符串，如 `"sleeping"`、`"cooking"`

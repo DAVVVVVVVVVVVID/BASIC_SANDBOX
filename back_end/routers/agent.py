@@ -9,7 +9,10 @@ from game.world_state import (
     get_tiles_in_area,
     get_object_by_id,
     is_tile_walkable,
+    get_recent_uses,
+    _players,
 )
+from game.needs import needs_text, closeness_tier
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -141,10 +144,28 @@ def perceive(
     front_obj = get_object_at(px + dx, py + dy)
     front_object = {"id": front_obj["id"], "name": front_obj["name"]} if front_obj else None
 
+    # ── 4. 需求值分档（B13）：只给文字不给数值 ───────────────────────────
+    needs = needs_text(player)
+    closeness_view: dict[str, dict] = {}
+    players_in_view: list[dict] = []
+    for pid, other in _players.items():
+        if pid == entity_id:
+            continue
+        ox, oy = other["position"]["x"], other["position"]["y"]
+        if abs(ox - px) <= half and abs(oy - py) <= half:
+            players_in_view.append({"id": pid, "name": other.get("name", pid),
+                                    "position": {"x": ox, "y": oy}, "state": other["state"]})
+            closeness_view[pid] = {"name": other.get("name", pid),
+                                   "tier": closeness_tier(float(player.get("closeness", {}).get(pid, 0.0)))}
+    needs["closeness"] = closeness_view
+    needs["recent_uses"] = get_recent_uses(entity_id)
+
     return {
-        "arena_tree":   arena_tree,
-        "vision_tiles": vision_tiles,
-        "front_object": front_object,
+        "arena_tree":      arena_tree,
+        "vision_tiles":    vision_tiles,
+        "front_object":    front_object,
+        "players_in_view": players_in_view,
+        "needs":           needs,
     }
 
 

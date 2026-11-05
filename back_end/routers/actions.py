@@ -6,7 +6,7 @@ from models.world import Position
 from game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
     get_object_at, enter_object, leave_object, apply_instant_object,
-    get_walkable_tiles_in_area,
+    get_walkable_tiles_in_area, object_cooldown_remaining, record_object_use,
 )
 from game.action_log import append_log
 
@@ -148,8 +148,20 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
             result={"message": obj.get("failureMessage")},
         )
 
+    # B5：同一物品 30 游戏分钟冷却
+    remaining = object_cooldown_remaining(entity_id, obj["id"])
+    if remaining > 0:
+        return ActionResponse(
+            success=False,
+            type="use",
+            reason="object_cooldown",
+            result={"message": obj.get("failureMessage"), "objectId": obj["id"],
+                    "cooldownRemaining": round(remaining, 1)},
+        )
+
     if obj.get("prototype") == "instant":
         apply_instant_object(obj["id"], entity_id)
+        record_object_use(entity_id, obj["id"])
         return ActionResponse(
             success=True,
             type="use",
@@ -173,6 +185,7 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
         )
 
     enter_object(obj["id"], entity_id)
+    record_object_use(entity_id, obj["id"])
     updated = get_player(entity_id)
     return ActionResponse(
         success=True,

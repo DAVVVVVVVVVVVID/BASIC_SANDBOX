@@ -51,6 +51,9 @@ def _connect(path: Path | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode=WAL")       # kill -9 时保证已提交事务不丢
     conn.execute("PRAGMA synchronous=FULL")
     conn.executescript(_SCHEMA)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(players)")}
+    if "extra" not in cols:                       # W2 迁移：last_used / use_history
+        conn.execute("ALTER TABLE players ADD COLUMN extra TEXT")
     return conn
 
 
@@ -65,9 +68,11 @@ def save_checkpoint(path: Path | None = None) -> dict:
         with conn:
             conn.execute("DELETE FROM players")
             conn.executemany(
-                "INSERT INTO players VALUES (?,?,?,?,?)",
+                "INSERT INTO players (id, player, pending_message, use_start_time, last_seen, extra) VALUES (?,?,?,?,?,?)",
                 [(pid, json.dumps(r["player"], ensure_ascii=False), r["pending_message"],
-                  r["use_start_time"], r["last_seen"]) for pid, r in rt["players"].items()],
+                  r["use_start_time"], r["last_seen"],
+                  json.dumps({"last_used": r.get("last_used", {}), "use_history": r.get("use_history", [])}))
+                 for pid, r in rt["players"].items()],
             )
             conn.execute("DELETE FROM object_runtime")
             conn.executemany(
@@ -127,12 +132,14 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
             })
 
         players = {}
-        for pid, pj, pm, ust, ls in conn.execute(
-            "SELECT id, player, pending_message, use_start_time, last_seen FROM players"
+        for pid, pj, pm, ust, ls, extra in conn.execute(
+            "SELECT id, player, pending_message, use_start_time, last_seen, extra FROM players"
         ):
+            ex = json.loads(extra) if extra else {}
             players[pid] = {
                 "player": json.loads(pj), "pending_message": pm,
                 "use_start_time": ust, "last_seen": ls,
+                "last_used": ex.get("last_used", {}), "use_history": ex.get("use_history", []),
             }
         objects = {
             oid: {"currentUsers": cu, "userList": json.loads(ul)}
@@ -166,11 +173,35 @@ def catch_up_game_ms(downtime_s: float) -> float:
 
 def catch_up(game_ms: float) -> float:
     """
-    重启后补一次 buff tick（B7：按停机时长补衰减，不补事件）。
-    W1 只有物品 buff（如 energy_regen）；B4 的衰减元 buff 接入后自动一并补算。
-    返回实际补算的游戏毫秒。
+    重启后补一次 buff tick（B7 / §3.7 裁定 5）：按停机时长补衰减，不补事件。
+    前 4 h 全量（物品 buff + decay）；4–8 h 只补 social / fun / mood / closeness 的衰减，
+    fullness / energy 不再扣（她离线等于在睡，假设）。返回实际补算的游戏毫秒（≤ 8 h）。
     """
     if game_ms <= 0:
         return 0.0
-    world_state._run_buff_tick_all(game_ms)
-    return game_ms
+    from game.buff_tick import catch_up_tick
+    end_ts = time_state.game_now_ts()
+    done = 0.0
+    with world_state.STATE_LOCK:
+        for pid in list(world_state._players.keys()):
+            p = world_state._players.get(pid)
+            if p is None:
+                continue
+            r = catch_up_tick(p, game_ms, end_ts)
+            done = r["full_ms"] + r["partial_ms"]
+            world_state._check_auto_leave(pid)
+    return done
+
+
+def seed_agents_from_self() -> int:
+    """启动时把 controller=agent 的 player 从自我层 GET /self/state 重新种一遍（report-A §5）。返回成功数。"""
+    from game import self_sync
+    if not self_sync.enabled():
+        return 0
+    n = 0
+    gts = time_state.game_now_ts()
+    with world_state.STATE_LOCK:
+        for p in world_state._players.values():
+            if p.get("controller") == "agent" and self_sync.seed_player(p, gts):
+                n += 1
+    return n

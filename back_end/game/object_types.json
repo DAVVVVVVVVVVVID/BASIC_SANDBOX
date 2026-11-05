@@ -35,14 +35,23 @@
       },
       {
         "type": "buff",
-        "key": "hp_regen",
+        "key": "fullness_regen",
         "value": 1
       },
       {
         "type": "tag",
         "key": "sleeping"
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": -0.05
       }
-    ]
+    ],
+    "advertise": {
+      "energy": 80,
+      "fun": 0
+    }
   },
   "bath": {
     "prototype": "continuous",
@@ -80,7 +89,7 @@
       },
       {
         "type": "buff",
-        "key": "hp_regen",
+        "key": "fullness_regen",
         "value": -2
       },
       {
@@ -94,7 +103,12 @@
         "duration": 3600,
         "value": 1.5
       }
-    ]
+    ],
+    "advertise": {
+      "fun": 25,
+      "energy": 30,
+      "mood": 10
+    }
   },
   "fridge": {
     "prototype": "instant",
@@ -116,7 +130,7 @@
       },
       {
         "type": "instant_effect",
-        "key": "hp",
+        "key": "fullness",
         "value": 30
       },
       {
@@ -125,8 +139,17 @@
         "value": 1.5,
         "mode": "timed",
         "duration": 3600
+      },
+      {
+        "type": "instant_effect",
+        "key": "fun",
+        "value": -2
       }
-    ]
+    ],
+    "advertise": {
+      "fullness": 60,
+      "fun": 5
+    }
   },
   "desk": {
     "prototype": "continuous",
@@ -164,14 +187,18 @@
       },
       {
         "type": "buff",
-        "key": "hp_regen",
+        "key": "fullness_regen",
         "value": -1
       },
       {
         "type": "tag",
         "key": "working"
       }
-    ]
+    ],
+    "advertise": {
+      "fun": 10,
+      "social": 0
+    }
   },
   "bed_21": {
     "prototype": "continuous",
@@ -208,14 +235,23 @@
       },
       {
         "type": "buff",
-        "key": "hp_regen",
+        "key": "fullness_regen",
         "value": 1
       },
       {
         "type": "tag",
         "key": "sleeping"
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": -0.05
       }
-    ]
+    ],
+    "advertise": {
+      "energy": 70,
+      "fun": 0
+    }
   },
   "book": {
     "prototype": "instant",
@@ -248,14 +284,28 @@
       },
       {
         "type": "buff",
-        "key": "hp_regen",
+        "key": "fullness_regen",
         "value": -1
       },
       {
         "type": "tag",
         "key": "reading"
+      },
+      {
+        "type": "instant_effect",
+        "key": "fun",
+        "value": 8
+      },
+      {
+        "type": "instant_effect",
+        "key": "energy",
+        "value": -1
       }
-    ]
+    ],
+    "advertise": {
+      "fun": 40,
+      "social": 0
+    }
   },
   "desk_12": {
     "prototype": "continuous",
@@ -287,7 +337,7 @@
       },
       {
         "type": "buff",
-        "key": "hp_regen",
+        "key": "fullness_regen",
         "value": -1
       },
       {
@@ -299,6 +349,10 @@
         "type": "tag",
         "key": "working"
       }
-    ]
+    ],
+    "advertise": {
+      "fun": 10,
+      "social": 5
+    }
   }
 }

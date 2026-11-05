@@ -47,7 +47,8 @@ BASIC_SANDBOX/
 │   │   ├── history.py         # GET /history，GET /history/log（JSONL 全量）
 │   │   └── time_control.py    # POST /time/toggle|speed|reset
 │   ├── scripts/
-│   │   └── verify_restart.py  # kill -9 后重启续跑验证脚本
+│   │   ├── verify_restart.py  # kill -9 后重启续跑验证脚本
+│   │   └── verify_self_sync.py # 与自我层 delta 同步联调脚本
 │   ├── tests/                 # pytest（uv run pytest）
 │   ├── data/                  # 运行时生成：sandbox.db 检查点、actions/*.jsonl（不进 git）
 │   ├── models/
@@ -58,12 +59,14 @@ BASIC_SANDBOX/
 │       ├── world_state.py     # 全局游戏状态（唯一可信数据源）
 │       ├── time_state.py      # 游戏时间：真实起点 + 倍率
 │       ├── ticker.py          # 后台 tick 任务（200 ms）+ 定时检查点
-│       ├── persistence.py     # SQLite 检查点（保存 / 回填 / catch_up）
+│       ├── persistence.py     # SQLite 检查点（保存 / 回填 / catch_up 分段上限）
+│       ├── self_sync.py       # 自我层同步：GET /self/state 种入、30 游戏秒批量 POST /self/state/delta
+│       ├── needs.py           # 需求值分档文字（perceive 的 needs）
 │       ├── paths.py           # 数据目录（SANDBOX_DATA_DIR）
 │       ├── object_types.py    # 从 object_types.json 加载 Object 类型
 │       ├── object_types.json  # ← MAP_EDITOR 导出，Object 类型定义
 │       ├── action_log.py      # 行为日志：JSONL append-only + 内存最近 20 条
-│       ├── buff_tick.py       # Buff Tick 引擎 + 七变量 clamp
+│       ├── buff_tick.py       # Buff Tick 引擎：handler 工厂、decay 元 buff、catch_up 分段
 │       └── maps/
 │           ├── map.json           # ← MAP_EDITOR 导出，地形 + 区域 + 事件
 │           ├── objects.json       # ← MAP_EDITOR 导出，Object 实例列表
@@ -137,8 +140,13 @@ BASIC_SANDBOX/
 
 - **persistent buff**：使用期间持续生效，离开后清除（如 `no_move`、`energy_regen`）
 - **timed buff**：进入时触发，`duration` 毫秒后自动消失
-- **instant_effect**：瞬间修改属性（如 `hp`、`energy`）
+- **instant_effect**：瞬间修改需求值（`fullness` / `energy` / `social` / `fun` / `mood`，clamp 0–100）
 - **tag**：纯标记，不参与运算（如 `sleeping`、`reading`）
+- **advertise**：每种 Object 的广告值 `{var: 0–100}`，随 `GET /world` 下发给规划器；每个物品至少一项成本；同一物品 30 游戏分钟冷却
+
+### 需求值与自我层
+
+每个 player 有七变量（fullness / energy / social / fun / mood + emotion_tags + closeness），常驻一条 `decay` 元 buff 按 ARCHITECTURE §2.5 的速率自然衰减（fullness −12/h、energy −8/h 夜间 ×1.5、social −6/h、fun −10/h、mood 指数回基线、closeness −1/天；`scene=live` 时 social −0.12/s、mood 半衰期 70 s）。`controller=agent` 的 player 在 join / 重启时从自我层 `GET /self/state` 种入初值，之后每 30 游戏秒把**非衰减**变化 `POST /self/state/delta`（自我层自己算衰减），不可达时累积重发；`GET /admin/self-sync` 看同步状态。环境变量：`SELF_URL`（默认 `http://127.0.0.1:8100`）、`SELF_TOKEN`、`SELF_SYNC=0` 关闭。
 
 ---
 
@@ -208,9 +216,13 @@ POST /action
 
 | 接口 | 说明 |
 |------|------|
-| `GET /agent/perceive` | 当前 arena 语义树、视野范围 tile、正前方物体 |
+| `GET /agent/perceive` | 当前 arena 语义树、视野范围 tile、正前方物体、视野内 player，以及 `needs` 需求分档文字（不给数值） |
 | `GET /agent/arena-tiles` | 指定 arena 内所有 tile 坐标 |
 | `GET /agent/object-position` | 指定 object 的锚点坐标 |
+| `POST /player/join` | `controller: human \| agent`、`profile: {E, N, agent_id}` |
+| `POST /player/rejoin` | agent 进程重拉后用同一 playerId 续接 |
+| `GET /player/{id}/state` | 七变量原始数值、`last_tick_ts`、`recent_uses` |
+| `POST /player/{id}/effects` | 推送与 object_types 同格式的 effect 列表，可带 `scene` |
 
 ---
 
@@ -224,6 +236,7 @@ POST /action
 | `DELETE /admin/player/buffs` | 强制清除所有 buff（不离开对象） |
 | `POST /admin/player/force-reset` | 离开当前对象并清除所有 buff / tag，状态归 idle |
 | `POST /admin/checkpoint` | 立即写一份 SQLite 检查点 |
+| `GET /admin/self-sync` | 自我层同步状态（发送 / 失败 / drift / 待发） |
 
 > 当 Agent 循环意外中断导致玩家被 `no_move` / `no_interact` / `no_use` buff 卡住时，调用 `force-reset` 即可恢复。
 
@@ -253,6 +266,8 @@ uv run uvicorn main:app --reload     # 启动，监听 http://localhost:8000
 cd back_end
 uv run pytest -q                              # 单元 / 接口测试
 uv run python scripts/verify_restart.py       # kill -9 后重启续跑验证（约 20 s）
+uv run python scripts/verify_self_sync.py --self-url http://127.0.0.1:8100   # 与自我层联调：两边数值差 < 0.5
+uv run python scripts/verify_self_sync.py --mock                             # 没有自我层时用内置参考实现自测
 ```
 
 API 文档（自动生成）：[http://localhost:8000/docs](http://localhost:8000/docs)

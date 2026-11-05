@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import world, player, actions, events, history, time_control, agent, chat
-from game import persistence, ticker, time_state
+from game import persistence, ticker, time_state, self_sync
 
 log = logging.getLogger("sandbox")
 
@@ -17,15 +17,20 @@ async def lifespan(app: FastAPI):
         done = persistence.catch_up(info["catch_up_game_ms"])
         log.info("checkpoint restored: %d players, downtime %.1fs, caught up %.0f game-ms",
                  info["players"], info["downtime_s"], done)
+        seeded = persistence.seed_agents_from_self()
+        if seeded:
+            log.info("re-seeded %d agent player(s) from self-layer %s", seeded, self_sync.stats["self_url"])
     else:
         time_state.reset_time()   # 首次启动：游戏时间 = 真实当前时间
         log.info("no checkpoint; fresh world at %s", time_state.game_now_iso())
     ticker.start()
+    self_sync.start()             # 自我层 delta 同步线程（SELF_SYNC=0 关闭）
     try:
         yield
     finally:
         # 关停：停 ticker，写最后一份检查点
         await ticker.stop()
+        self_sync.stop()
         try:
             persistence.save_checkpoint()
         except Exception:
