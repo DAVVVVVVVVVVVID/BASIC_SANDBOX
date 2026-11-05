@@ -207,12 +207,12 @@ def test_unreachable_then_recover_merges_pending(client, ref, fake_clock):
     assert self_sync.stats["failed"] >= 1 and self_sync.stats["sent"] == 0
     assert p["energy"] > 100 - 1 or p["energy"] > 30         # 本地照常 tick
     pend = self_sync.snapshot_stats()["pending"][pid]
-    assert pend.get("energy", 0) > 60                          # 失败批已合回 pending
+    assert pend.get("energy", 0) > 0.5                         # 失败批已合回 pending（bed +25/h × 120 s ≈ 0.83）
     ref.down = False
     _simulate(client, fake_clock, ref, 31)
     assert self_sync.stats["sent"] >= 1
     sent_energy = sum(c["vars_delta"].get("energy", 0) for c in ref.calls)
-    assert sent_energy > 60                                    # 累积的增量一次补发
+    assert sent_energy > 0.5                                   # 累积的增量一次补发
     diffs = _diff(p, ref, _now_dt(fake_clock))
     assert max(diffs.values()) < 0.5, diffs
 

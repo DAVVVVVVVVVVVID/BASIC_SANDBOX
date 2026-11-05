@@ -3,7 +3,7 @@ import pytest
 
 from game import world_state
 from game.object_types import OBJECT_TYPES
-from tests.conftest import BED_ID, BED_STAND, join, action, place
+from tests.conftest import BED_ID, BED_STAND, BED_STAND2, join, action, place
 
 
 def test_object_types_have_advertise_and_cost_and_no_hp():
@@ -39,7 +39,7 @@ def test_cooldown_blocks_reuse_then_expires(client, fake_clock):
 
 def test_cooldown_is_per_object_and_per_player(client, fake_clock):
     a = join(client, "a"); b = join(client, "b")
-    place(a, *BED_STAND); place(b, 12, 1, "left")   # 同一张床的另一侧
+    place(a, *BED_STAND); place(b, *BED_STAND2)      # 同一张床的另一侧
     assert action(client, a, "use")["success"]
     assert action(client, a, "leave")["success"]
     assert action(client, b, "use")["success"]       # b 不受 a 的冷却影响
@@ -58,10 +58,10 @@ def test_recent_uses_window_6h(client, fake_clock):
 
 def test_instant_object_applies_cost_and_cooldown(client, fake_clock):
     pid = join(client)
-    fridge = world_state._build_objects([{"id": "fridge_t", "type": "fridge", "position": {"x": 11, "y": 1}}])[0]
+    fridge = world_state._build_objects([{"id": "fridge_t", "type": "fridge", "position": {"x": 3, "y": 4}}])[0]
     world_state._OBJECTS.append(fridge)
     try:
-        place(pid, *BED_STAND)        # (11,2) 朝 up → (11,1) 现在是 fridge_t（_OBJECTS 顺序：床先匹配）
+        place(pid, *BED_STAND)        # (3,5) 朝 up → (3,4) 现在是 fridge_t（_OBJECTS 顺序：床先匹配）
         world_state._OBJECTS.remove(fridge); world_state._OBJECTS.insert(0, fridge)
         p = world_state._players[pid]
         p["fun"] = 50.0

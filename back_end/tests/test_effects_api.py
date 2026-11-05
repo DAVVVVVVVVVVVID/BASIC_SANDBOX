@@ -80,7 +80,7 @@ def test_perceive_needs_text_not_numbers(client):
 
 def test_perceive_closeness_tiers_and_recent_uses(client):
     me = join(client, "me"); other = join(client, "other"); far = join(client, "far")
-    place(me, 11, 2, "up"); place(other, 12, 2, "up"); place(far, 40, 40, "up")
+    place(me, *BED_STAND); place(other, 4, 5, "up"); place(far, 40, 30, "up")
     world_state._players[me]["closeness"] = {other: 72.0}
     assert action(client, me, "use")["success"]
     r = client.get("/agent/perceive", params={"entity_id": me, "vision_size": 3}).json()

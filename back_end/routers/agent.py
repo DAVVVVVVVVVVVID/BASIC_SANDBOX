@@ -10,6 +10,7 @@ from game.world_state import (
     get_object_by_id,
     is_tile_walkable,
     get_recent_uses,
+    get_phone_feed,
     _players,
 )
 from game.needs import needs_text, closeness_tier
@@ -166,6 +167,7 @@ def perceive(
         "front_object":    front_object,
         "players_in_view": players_in_view,
         "needs":           needs,
+        "phone":           get_phone_feed(entity_id),   # B10：最近一次刷手机的 digest（无则 null）
     }
 
 

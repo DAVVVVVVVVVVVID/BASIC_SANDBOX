@@ -111,6 +111,7 @@
 | `agent_id` | controller=agent 时对接自我层的 agent id（`profile.agent_id`，缺省取 name 的 slug，假设）；human 为 `null` |
 | `last_tick_ts` | 上次 buff tick 的**游戏时刻**，ISO 8601 含时区（§3.7 裁定 3），如 `"2026-11-06T21:03:00+08:00"`；供自我层 catch_up 对账 |
 | `buffs` | 恒含一条 `{"key":"decay","source":"decay","mode":"persistent"}` 元 buff（admin 清 buff / force-reset 不会清它） |
+| `state` | `idle` \| `walking` \| `requesting_talk` \| `walking_over`（**B9** 接受邀请后走向对方）\| `talking` \| `using` |
 | `pendingMessage` | 后端自动触发的事件消息（如 max_duration 到期自动退出），读取后自动清除；无事件时为 `null` |
 
 > 字段只增不删：旧字段形状不变。
@@ -586,6 +587,10 @@
 | `not_interactable` | 对象不可交互，`result.message` 为对象的 `failureMessage` |
 | `object_full` | 对象已满（仅 continuous），`result.message` 为对象的 `failureMessage` |
 | `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message` |
+| `feed_unavailable` | **B10** 手机（`external: feed`）拉自我层 `GET /self/feed` 失败（不可达 / 超时 3 s）。`result.message` 为「手机没信号…」，`result.phone.status = "no_signal"`；物品仍算使用过（有冷却），其余 instant 效果已结算 |
+| `live_unavailable` | **B11** 直播台（`external: live`）向自我层 `POST /self/live/start` 失败。不进入物品、不计冷却，`result.error` 为错误摘要 |
+
+**手机 use 成功时** `result` 多两个字段：`message` = digest 文字（「手机上有 N 条新动态：…」/「手机上没有新消息。」），`phone` = 与 `GET /agent/perceive` 的 `phone` 相同的 digest 对象。
 | `use_disabled` | 当前无法使用对象（buff 限制）|
 
 ---
@@ -652,6 +657,8 @@
 | 上报 | 每 **30 游戏秒** `POST {SELF_URL}/self/state/delta`：`{"agent","scene","ts":<游戏时刻 ISO>,"vars_delta":{…},"source":"sandbox_tick"}`。**`vars_delta` 只含非衰减变化**（物品 buff、instant_effect、/effects 推送，取 clamp 后的实际变化量）；自然衰减两边各自按同一张速率表计算，自我层在收到 delta 前会先把自己的状态 catch_up 到 `ts`，所以不能把衰减再报一遍 |
 | 失败 | 自我层不可达时本地照常 tick，失败批的 `vars_delta` 合回待发池，指数退避（≤ 30 s）后与后续变化一起重发 |
 | 对账 | 自我层返回的 `vars` 与发批瞬间的本地快照之差记为 drift；`max|drift| > 0.5` 时把差值加回本地（以自我层为准，`SELF_SYNC_SNAP=0` 关闭只记录） |
+| 事件单向链路 | §3.9 第 4 条：直播服务只给自我层 `POST /self/state/event`；自我层应用后回推沙盒 `POST /player/{id}/effects` 并带 `source: "self"`。沙盒对 `source == "self"` 的变化 **`track=False`**：落本地、不进 `vars_delta`；沙盒永不转发事件到自我层 |
+| speed > 1 | 自我层 `GET /self/state` 按其墙钟 catch_up，而沙盒上报的 `ts` 是游戏时刻；加速调试时读到的值滞后 ≤ 30 游戏秒。生产 speed = 1 无影响 |
 | 观测 | `GET /admin/self-sync` |
 | 配置 | `SELF_URL`（默认 `http://127.0.0.1:8100`）、`SELF_TOKEN`（Bearer，可空）、`SELF_SYNC=0` 整体关闭、`SELF_SYNC_SNAP_THRESHOLD`（默认 0.5） |
 | 验证 | `uv run python scripts/verify_self_sync.py --self-url http://127.0.0.1:8100`（无服务时 `--mock`） |
@@ -753,6 +760,7 @@
 - `vision_tiles`：以实体当前位置为中心，边长 `vision_size`（偶数自动取奇）的正方形内所有合法 tile，超出地图边界的 tile 不返回
 - `front_object`：正前方一格的 object 信息，无 object 时为 `null`
 - `players_in_view`（**B13**）：视野正方形内的其他 player
+- `phone`（**B10**）：最近一次刷手机的信息流摘要，没刷过为 `null`：`{"status": "ok" | "no_signal", "items": [{"ts", "topic", "sentiment", "is_question", "is_song_request", "summary", "injection"}], "digest_ts", "fetched_at", "for"}`。只有自我层 Quarantine 后的 digest 字段，**不含 id / source / author / 原文**（沙盒侧再做一次白名单过滤）
 - `needs`（**B13**）：**只给分档文字，不给数值**（报告 §4.3）。阈值 low 25 / critical 15 / emergency 10；文案与自我层 `state.py` 的 `LABELS` 同源（沿用 mood.py `label()`）。`<var>` 未越阈值为 `"还好"`；`mood` < 35 为「有点委屈…」、> 75 为「开心」；`lines` 是越过阈值的全部文字（含 emotion_tags），`hard` 是 `<var><15` 的硬约束；`closeness` 对视野内 player 分档（≥70 很亲近 / ≥40 熟悉 / ≥15 认识 / 其余 陌生，阈值为假设）；`recent_uses` 同 `GET /player/{id}/state`
 
 ---
@@ -901,6 +909,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `buff` | continuous | 进入时创建，离开/计时结束时移除 | 见上方 Buff 结构；mode 可为 `persistent` 或 `timed` |
 | `instant_effect` | instant / continuous | 进入时一次性结算，不进 buff 列表 | `key` 为七变量之一（`fullness` / `energy` / `social` / `fun` / `mood`；`hp` 视为 `fullness`），`value` 为变化量，结果 clamp 到 0–100 |
 | `tag` | continuous | 进入时加入，离开时移除 | 纯标记字符串，不参与运算 |
+| `external` | instant / continuous | use 时调自我层 | **B10 / B11** `key = "feed"`：`GET {SELF_URL}/self/feed?for=<agent_id>&n=8`，结果进 `result.phone` 与 perceive 的 `phone`；`key = "live"`：use → `POST /self/live/start`（失败则 use 失败 `live_unavailable`），leave → `POST /self/live/stop`（后台发送、不可失败），使用期间 `player.scene = "live"`。没有 `agent_id` 的人类玩家：feed 用 player id 查，live 只做本地 scene 切换、不打自我层（假设） |
 
 > instant 原型的 `effects` 中，`buff` 只允许 `timed` mode 与一次性 key（`<var>_delta` / `emotion_tag` / `closeness_delta`）；`persistent` buff 和 `tag` 被忽略（没有 leave 时机）。
 
@@ -909,7 +918,19 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | 字段 | 说明 |
 |------|------|
 | `advertise` | `{ <var>: 0–100 }` 广告值，随 `GET /world` 的 objects 下发 |
-| 成本项 | 每个类型至少一项负向效果（如 fridge `fullness +30, fun −2`；book `fun +8, energy −1`；bed `fun_regen −0.05`；desk `energy_regen −1, fullness_regen −1`）。所有 `hp` / `hp_regen` 键已改为 `fullness` / `fullness_regen` |
+| 成本项 | 每个类型至少一项负向效果。所有 `hp` / `hp_regen` 键已改为 `fullness` / `fullness_regen` |
+
+**数值尺度（W3，§3.9 第 6 条）：** 全部物品改为**每游戏小时尺度**。`*_regen` 的 `value` 单位仍是点 / 游戏秒（tick 乘 `delta/1000`），JSON 里写的是 `X/3600`。规则：一次正常使用的恢复量 ≈ 该变量一日衰减量（fullness 288、energy 192+夜间、social 144、fun 240），具体数值为假设：
+
+| 类型 | 原型 | 收益 / 成本（每游戏小时或每次） | advertise | max_duration |
+|---|---|---|---|---|
+| `bed` / `bed_21` | continuous | energy +25 / +20 每小时（睡 8 h ≈ +200）；fun −1/h | energy 80 / 70 | 8 h |
+| `bath` | continuous | fun +20/h、energy +10/h、mood +6/h；fullness −2/h | fun 25、energy 30、mood 10 | 30 min |
+| `fridge` | instant | fullness +40（≈ 日衰减 / 3 餐）、energy +5；fun −2 | fullness 60、fun 5 | — |
+| `desk` / `desk_12` | continuous | mood +3/h；fun −3/h、energy −4/h | fun 5、mood 15（desk_12 另 social 5） | 1 h |
+| `book` | instant | fun +60（≈ 日衰减 / 4 次）；energy −2 | fun 40 | — |
+| `phone` | instant | `external: feed`；fun +15、social +5；energy −2 | fun 10、social 3 | — |
+| `stream_desk` | continuous | `external: live`；social +20/h、fun +8/h；energy −6/h、fullness −3/h；`no_move`、tag `streaming` | social 70、fun 40 | 3 h（假设） |
 
 ### Object 原型
 
@@ -995,6 +1016,27 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 对话系统支持两个 Player 之间（或多人）进行即时文字对话。
 
+### 状态机（B9，按 AI Town 常量：邀请 60 s、walking_over 30 s、本人冷却 60 s、配对冷却 15 s、房间 16 条）
+
+```
+POST /chat/request ──(cooldown?)──▶ {success:false, reason:"chat_cooldown"}
+        │
+        ▼
+     pending ──60 s 无人接受──▶ expired
+        │ 单人：接受 / 多人：全部响应或 60 s 超时且 ≥1 人接受
+        ▼
+  walking_over  ── 请求带 target_arena_id（= 发起者所在 arena）；参与者 player.state = "walking_over"，可移动
+        │ 全员在 target_arena 内且与发起者曼哈顿距离 ≤ 1（假设） ── 或 30 s 超时直接建房
+        ▼
+     active（chat_room_id 有值；参与者挂 chat_active，state = "talking"）
+        │ 任一方 POST /chat/exit → 本人 60 s 冷却、与房内每人 15 s 配对冷却；房间空了 → closed
+        │ 消息数达 16 → events 写 {type: "room_limit"}，房间 closed，所有人解 buff 并进冷却
+        ▼
+     closed
+```
+
+拒绝（`accept: false`）：单人邀请直接 `rejected`；多人邀请全部拒绝为 `rejected`。walking_over 期间参与者被删除 / 离线，不足两人 → `expired`。后台 ticker 每 200 ms 推进一次状态机，`GET /chat/request/{id}` 与 `GET /chat/pending` 前也会推进。
+
 ### 新增状态
 
 **ChatRequest（对话邀请）**
@@ -1004,12 +1046,19 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
   "from_entity_id": "player_01",
   "to_entity_ids": ["player_02"],
   "greeting": "你好，有时间聊聊吗？",
-  "status": "pending | active | rejected | expired",
+  "status": "pending | walking_over | active | rejected | expired",
   "accepted_ids": [],
   "rejected_ids": [],
-  "chat_room_id": null
+  "chat_room_id": null,
+  "target_arena_id": "storage",
+  "participants": ["player_01", "player_02"]
 }
 ```
+
+| 字段 | 说明 |
+|---|---|
+| `target_arena_id` | **B9**（§3.9 C3 定名）walking_over 阶段的汇合 arena = 发起者接受时所在 arena；发起者在 arena 外为 `null`（此时只看距离） |
+| `participants` | walking_over / active 阶段的参与者列表 |
 
 **ChatRoom（聊天室）**
 ```json
@@ -1020,11 +1069,14 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
     { "seq": 1, "from_entity_id": "player_01", "content": "你好", "timestamp": "..." }
   ],
   "events": [
-    { "seq": 2, "type": "player_exit", "entity_id": "player_02", "timestamp": "..." }
+    { "seq": 2, "type": "player_exit", "entity_id": "player_02", "timestamp": "..." },
+    { "seq": 17, "type": "room_limit", "entity_id": null, "timestamp": "..." }
   ],
   "status": "active | closed"
 }
 ```
+
+事件 `type`：`player_exit`（某人退出）、`room_limit`（**B9** 消息达 16 条自动关闭）。
 
 **Buff：`chat_active`**
 进入聊天室时对参与者施加，退出时移除。效果：
@@ -1066,7 +1118,12 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 **响应：**
 ```json
-{ "request_id": "abc123" }
+{ "request_id": "abc123", "success": true }
+```
+
+**冷却中（B9 ③）：** 发起方或任一受邀方在退出对话后 60 s 内，或这对人在 15 s 内刚聊过：
+```json
+{ "request_id": null, "success": false, "reason": "chat_cooldown", "cooldown_remaining": 42.5 }
 ```
 
 ---
@@ -1124,11 +1181,12 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 }
 ```
 
-**响应（接受 + 聊天室已创建）：**
+**响应（接受 → walking_over，B9 ①）：**
 ```json
 {
-  "chat_room_id": "def456",
-  "status": "room_created",
+  "chat_room_id": null,
+  "status": "walking_over",
+  "target_arena_id": "storage",
   "participants": ["player_01", "player_02"]
 }
 ```
@@ -1138,14 +1196,15 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 { "chat_room_id": null, "status": "waiting" }
 ```
 
-**响应（拒绝）：**
+**响应（拒绝，或请求已不是 pending）：**
 ```json
 { "chat_room_id": null, "status": "rejected" }
 ```
 
-聊天室创建时机：
-- 单人邀请：被邀请者接受后立即创建
-- 多人邀请：所有人响应后（或超时 60 秒后），将接受者放入同一聊天室
+聊天室创建时机（旧版的 `room_created` 不再出现）：
+- 接受后进入 `walking_over`，双方走向 `target_arena_id`；全员到达且与发起者相邻（曼哈顿 ≤ 1）或 30 s 超时 → 建房
+- 发起方 / 接受方轮询 `GET /chat/request/{id}`，`status == "active"` 时拿 `chat_room_id`
+- 多人邀请：所有人响应后（或超时 60 秒后），接受者与发起者一起进入 walking_over
 
 ---
 
@@ -1188,8 +1247,14 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 **响应：**
 ```json
-{ "seq": 3 }
+{ "seq": 3, "room_closed": false }
 ```
+
+**第 16 条消息（B9 ④）：** 房间立即关闭，所有参与者解除 `chat_active` 并进入冷却：
+```json
+{ "seq": 16, "room_closed": true, "reason": "room_limit" }
+```
+之后再发言返回 404。
 
 ---
 

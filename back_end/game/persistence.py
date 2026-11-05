@@ -98,7 +98,9 @@ def save_checkpoint(path: Path | None = None) -> dict:
             conn.executemany(
                 "INSERT OR REPLACE INTO meta VALUES (?,?)",
                 [("last_tick_ts", repr(now)), ("saved_at", repr(now)),
-                 ("schema_version", str(SCHEMA_VERSION))],
+                 ("schema_version", str(SCHEMA_VERSION)),
+                 ("chat_cooldowns", json.dumps({"last_chat_end": chat["last_chat_end"],
+                                                "last_pair_end": chat["last_pair_end"]}))],   # B9 ③
             )
     finally:
         conn.close()
@@ -147,10 +149,12 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         }
         n = world_state.import_runtime({"players": players, "objects": objects})
 
+        cooldowns = json.loads(meta.get("chat_cooldowns") or "{}")
         chat_state.import_state({
             "requests": {rid: json.loads(d) for rid, d in conn.execute("SELECT request_id, data FROM chat_requests")},
             "rooms":    {rid: json.loads(d) for rid, d, _ in conn.execute("SELECT chat_room_id, data, seq FROM chat_rooms")},
             "seq":      {rid: s for rid, _, s in conn.execute("SELECT chat_room_id, data, seq FROM chat_rooms")},
+            **cooldowns,
         })
     finally:
         conn.close()

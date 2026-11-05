@@ -115,6 +115,14 @@ type ContinuousObject = {
 
 `maxDuration` 到期时后端自动执行 leave，`GET /player` 的 `pendingMessage` 带出 `leaveMessage`。
 
+### 外部效果（external，B10 / B11）
+
+`{"type": "external", "key": "feed" | "live"}`：use 时调自我层。`feed`（手机）拉 `GET /self/feed` 的 digest，进 perceive 的 `phone`；`live`（直播台）use → `POST /self/live/start`、leave → `/self/live/stop`，使用期间 `player.scene = "live"`。不参与 buff 列表。
+
+### 数值尺度（W3）
+
+全部物品改为每游戏小时尺度：一次正常使用的恢复量 ≈ 该变量一日衰减量（bed +25 energy/h × 8 h ≈ 200；fridge +40 fullness ≈ 日衰减 / 3 餐；book +60 fun ≈ 日衰减 / 4 次）。表见 api-spec §5。
+
 ### 广告值（advertise，B5）
 
 每个 Object 类型可带 `advertise: { fullness?: number, energy?: number, social?: number, fun?: number, mood?: number }`（0–100），表示它「宣称」能满足哪些需求，供规划器软偏好打分；随 `GET /world` 下发。每个类型至少有一项负向效果作为成本（如 fridge `fun −2`、bed `fun_regen −0.05`）。同一实体对同一物品 30 游戏分钟内再次 use 返回 `object_cooldown`。
@@ -178,7 +186,7 @@ type Player = {
   moveSpeed: number                          // 移速倍率，默认 1.0
 }
 
-type PlayerState = "idle" | "walking" | "requesting_talk" | "talking" | "using"
+type PlayerState = "idle" | "walking" | "requesting_talk" | "walking_over" | "talking" | "using"
 
 type Buff = {
   key: string
@@ -196,6 +204,7 @@ type Buff = {
 | `idle` | 静止 |
 | `walking` | 移动中 |
 | `requesting_talk` | 发起对话请求 |
+| `walking_over` | 接受邀请后走向对方（B9），可移动，相邻或 30 s 后变 talking |
 | `talking` | 对话中 |
 | `using` | 正在使用 object，stateLabel 有值 |
 

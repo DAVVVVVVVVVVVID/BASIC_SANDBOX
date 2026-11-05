@@ -142,6 +142,9 @@ _last_seen:        dict[str, float]         = {}
 
 _PLAYER_TIMEOUT = 10.0  # 秒，超过此时间未心跳则自动清除（human 删除；agent 只标 online=False，B6）
 
+# B10：每个 player 最近一次刷手机的 digest（perceive 的 phone 字段）
+_phone_feed: dict[str, dict] = {}
+
 # B5：物品使用记录（游戏秒）
 _last_used:   dict[str, dict[str, float]]        = {}   # entity -> {obj_id: game_ts}
 _use_history: dict[str, list[tuple[float, str]]] = {}   # entity -> [(game_ts, obj_id), ...]
@@ -290,6 +293,7 @@ def remove_player(player_id: str) -> None:
         _last_seen.pop(player_id, None)
         _last_used.pop(player_id, None)
         _use_history.pop(player_id, None)
+        _phone_feed.pop(player_id, None)
     from game import self_sync
     self_sync.unregister(player_id)
 
@@ -376,6 +380,14 @@ def record_object_use(entity_id: str, obj_id: str) -> None:
     _use_history[entity_id] = [(t, o) for t, o in hist if t >= cutoff]
 
 
+def set_phone_feed(entity_id: str, digest: dict) -> None:
+    _phone_feed[entity_id] = digest
+
+
+def get_phone_feed(entity_id: str) -> dict | None:
+    return _phone_feed.get(entity_id)
+
+
 def get_recent_uses(entity_id: str) -> dict[str, int]:
     """6 游戏小时内各物品使用次数（供 novelty 折减）。"""
     now = game_now_ts()
@@ -404,7 +416,7 @@ def update_player_position(player_id: str, x: int, y: int, facing: str) -> None:
     player["position"]["x"] = x
     player["position"]["y"] = y
     player["facing"] = facing
-    if player["state"] != "using":
+    if player["state"] not in ("using", "walking_over", "talking"):   # walking_over 期间移动不改状态（B9）
         player["state"] = "idle"
 
 
@@ -447,6 +459,8 @@ def enter_object(obj_id: str, entity_id: str) -> None:
 
     # continuous 物品：buff（persistent 到 leave 为止 / timed）、tag、以及进入时的一次性 instant_effect
     apply_effects(player, obj["effects"], source=obj_id)
+    if "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
+        player["scene"] = "live"          # B11：直播中按 live 速率衰减
 
 
 def apply_instant_object(obj_id: str, entity_id: str) -> None:
@@ -475,6 +489,7 @@ def apply_effects(
     source: str,
     scene: str | None = None,
     allow_persistent: bool = True,
+    track: bool = True,
 ) -> dict:
     """
     与 object_types.json 同格式的 effect 列表落到 player（B4 / B5 / B13 共用管线）：
@@ -485,6 +500,8 @@ def apply_effects(
       {"type":"closeness_delta","target":id,"value":v}                 closeness[target] += v
       {"type":"tag","key":"sleeping"}                                  纯标记
     scene 非空时切换 player.scene（决定衰减速率）。返回摘要 {"applied": n, "skipped": n}。
+    track=False（source="self"，§3.9 第 4 条）：需求值变化落本地但不进自我层 vars_delta。
+    `external` 类效果由 external_effects 处理，这里跳过不计数。
     """
     from game.buff_tick import canonical_var, NEED_VARS as _VARS
     applied = skipped = 0
@@ -497,10 +514,12 @@ def apply_effects(
         # 把 "<var>_delta" / "closeness_delta" / "emotion_tag" 作为 type 的写法归一成 buff 写法
         if etype in _ONE_SHOT_KEYS or (etype and etype.endswith("_delta") and canonical_var(etype[:-6])):
             key, etype = etype, "buff"
+        if etype == "external":
+            continue
         if etype == "instant_effect":
             if canonical_var(key) is None:
                 skipped += 1; continue
-            add_var(player, key, value); applied += 1
+            add_var(player, key, value, track=track); applied += 1
         elif etype == "tag":
             if key and key not in player["tags"]:
                 player["tags"].append(key)
@@ -519,7 +538,7 @@ def apply_effects(
                     skipped += 1; continue
                 add_closeness(player, str(target), value); applied += 1
             elif key.endswith("_delta") and canonical_var(key[:-6]):
-                add_var(player, key[:-6], value); applied += 1
+                add_var(player, key[:-6], value, track=track); applied += 1
             else:
                 mode = e.get("mode", "persistent")
                 if mode == "persistent" and not allow_persistent:
@@ -551,7 +570,8 @@ def apply_effects_to_player(entity_id: str, effects: list[dict], scene: str | No
         player = _players.get(entity_id)
         if player is None:
             return None
-        summary = apply_effects(player, effects, source=source, scene=scene)
+        # §3.9 第 4 条：自我层回推（source="self"）的变化不再上报，否则会被加两遍
+        summary = apply_effects(player, effects, source=source, scene=scene, track=(source != "self"))
         return {"summary": summary, "player": copy.deepcopy(player)}
 
 
@@ -574,6 +594,12 @@ def leave_object(entity_id: str) -> dict | None:
     if obj:
         obj_tags = {e["key"] for e in obj["effects"] if e["type"] == "tag"}
         player["tags"] = [t for t in player["tags"] if t not in obj_tags]
+
+    if obj and "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
+        player["scene"] = "sandbox"       # B11：下播
+        from game import external_effects
+        from game.time_state import game_now_iso
+        external_effects.live_stop(player, game_now_iso())
 
     player["state"]         = "idle"
     player["stateLabel"]    = None
@@ -803,7 +829,7 @@ def _reset_for_tests() -> None:
     """清空全部运行时状态（测试用）。"""
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
-        _last_used.clear(); _use_history.clear()
+        _last_used.clear(); _use_history.clear(); _phone_feed.clear()
         for o in _OBJECTS:
             o["currentUsers"] = 0
             o["userList"] = []

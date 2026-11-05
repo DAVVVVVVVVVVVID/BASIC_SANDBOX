@@ -14,8 +14,17 @@ from typing import Optional
 _chat_requests: dict[str, dict] = {}   # request_id -> ChatRequest dict
 _chat_rooms:    dict[str, dict] = {}   # chat_room_id -> ChatRoom dict
 
-_REQUEST_TIMEOUT = 60.0   # 秒，多人邀请超时时间
+# B9 对话协议常量（依据 AI Town：INVITE_TIMEOUT 60 s / CONVERSATION_COOLDOWN 15 s /
+# PLAYER_CONVERSATION_COOLDOWN 60 s / MAX_CONVERSATION_MESSAGES 8 → 这里双方各 8 取 16，假设）
+_REQUEST_TIMEOUT      = 60.0   # 秒，所有邀请（单人 / 多人）统一超时
+WALK_TIMEOUT          = 30.0   # 秒，walking_over 最长等待，到时直接建房
+MEET_DISTANCE         = 1      # 曼哈顿距离 ≤ 1 视为「相邻」（假设）
+CHAT_COOLDOWN_PLAYER  = 60.0   # 秒，退出对话后本人冷却
+CHAT_COOLDOWN_PAIR    = 15.0   # 秒，同一对人之间冷却
+MAX_MESSAGES          = 16     # 房间消息上限，达到后 room_limit 关闭
 _MSG_SEQ_COUNTER: dict[str, int] = {}  # chat_room_id -> 最新 seq
+_last_chat_end:  dict[str, float]       = {}   # entity -> 上次对话结束（墙钟）
+_last_pair_end:  dict[frozenset, float] = {}   # {a, b} -> 上次这对人对话结束
 
 
 # ── 内部工具 ──────────────────────────────────────────────────────────────────
@@ -54,8 +63,37 @@ def create_chat_request(
         "accepted_messages": [],   # [{"entity_id": str, "message": str}, ...] 按接受顺序
         "chat_room_id":     None,
         "created_at":       time.time(),
+        # B9 walking_over
+        "participants":     None,
+        "target_arena_id":  None,
+        "walking_since":    None,
     }
     return request_id
+
+
+def chat_cooldown_remaining(from_entity_id: str, to_entity_ids: list[str], now: float | None = None) -> float:
+    """B9 ③：发起方 / 任一受邀方在 60 s 本人冷却内，或这对人在 15 s 配对冷却内 → 返回剩余秒数，0 = 可发起。"""
+    now = now or time.time()
+    worst = 0.0
+    for eid in [from_entity_id, *to_entity_ids]:
+        end = _last_chat_end.get(eid)
+        if end is not None:
+            worst = max(worst, CHAT_COOLDOWN_PLAYER - (now - end))
+    for eid in to_entity_ids:
+        end = _last_pair_end.get(frozenset((from_entity_id, eid)))
+        if end is not None:
+            worst = max(worst, CHAT_COOLDOWN_PAIR - (now - end))
+    return max(0.0, worst)
+
+
+def _record_chat_end(entity_ids: list[str], now: float | None = None) -> None:
+    now = now or time.time()
+    ids = list(dict.fromkeys(entity_ids))
+    for eid in ids:
+        _last_chat_end[eid] = now
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            _last_pair_end[frozenset((ids[i], ids[j]))] = now
 
 
 def get_pending_requests_for(entity_id: str, players: dict) -> list[dict]:
@@ -106,25 +144,12 @@ def respond_to_request(
 
     to_ids = req["to_entity_ids"]
 
-    # 单人邀请：有人接受立即建房，拒绝直接返回
+    # 单人邀请：有人接受 → 进入 walking_over（B9 ①），拒绝直接返回
     if len(to_ids) == 1:
         if not accept:
             req["status"] = "rejected"
             return {"chat_room_id": None, "status": "rejected"}
-        room_id = _create_room(
-            participants=[req["from_entity_id"], entity_id],
-            players=players,
-            greeting_from=req["from_entity_id"],
-            greeting_text=req["greeting"],
-            accept_msgs=req.get("accepted_messages", []),
-        )
-        req["chat_room_id"] = room_id
-        req["status"] = "active"
-        return {
-            "chat_room_id": room_id,
-            "status":       "room_created",
-            "participants": _chat_rooms[room_id]["participants"],
-        }
+        return _start_walking_over(req, [req["from_entity_id"], entity_id], players)
 
     # 多人邀请：等待所有人响应
     all_responded = set(to_ids) <= (set(req["accepted_ids"]) | set(req["rejected_ids"]))
@@ -137,7 +162,65 @@ def respond_to_request(
         req["status"] = "rejected"
         return {"chat_room_id": None, "status": "rejected"}
 
-    participants = [req["from_entity_id"]] + accepted
+    return _start_walking_over(req, [req["from_entity_id"]] + accepted, players)
+
+
+# ── B9 ①：walking_over ────────────────────────────────────────────────────────
+
+def _arena_of(entity_id: str, players: dict) -> str | None:
+    from game.world_state import _ZONE_LOOKUP
+    p = players.get(entity_id)
+    if p is None:
+        return None
+    pos = p["position"]
+    return _ZONE_LOOKUP.get((pos["x"], pos["y"]), {}).get("arena")
+
+
+def _start_walking_over(req: dict, participants: list[str], players: dict) -> dict:
+    """接受后不立刻建房：双方走向发起者所在 arena（target_arena_id），相邻或 30 s 超时才建房。"""
+    req["participants"] = list(participants)
+    req["target_arena_id"] = _arena_of(req["from_entity_id"], players)
+    req["walking_since"] = time.time()
+    req["status"] = "walking_over"
+    for eid in participants:
+        p = players.get(eid)
+        if p is not None and p["state"] in ("idle", "walking"):
+            p["state"] = "walking_over"
+    return {
+        "chat_room_id":    None,
+        "status":          "walking_over",
+        "target_arena_id": req["target_arena_id"],
+        "participants":    req["participants"],
+    }
+
+
+def _all_met(req: dict, players: dict) -> bool:
+    """所有参与者都在 target_arena 内且与发起者曼哈顿距离 ≤ MEET_DISTANCE。"""
+    host = players.get(req["from_entity_id"])
+    if host is None:
+        return False
+    hx, hy = host["position"]["x"], host["position"]["y"]
+    for eid in req["participants"]:
+        p = players.get(eid)
+        if p is None:
+            return False
+        if req["target_arena_id"] is not None and _arena_of(eid, players) != req["target_arena_id"]:
+            return False
+        if abs(p["position"]["x"] - hx) + abs(p["position"]["y"] - hy) > MEET_DISTANCE:
+            return False
+    return True
+
+
+def _finish_walking_over(req: dict, players: dict) -> str | None:
+    """建房；掉线 / 被删的参与者剔除，不足两人则 expired。"""
+    participants = [eid for eid in req["participants"] if eid in players]
+    for eid in req["participants"]:
+        p = players.get(eid)
+        if p is not None and p["state"] == "walking_over":
+            p["state"] = "idle"
+    if len(participants) < 2:
+        req["status"] = "expired"
+        return None
     room_id = _create_room(
         participants=participants,
         players=players,
@@ -147,42 +230,35 @@ def respond_to_request(
     )
     req["chat_room_id"] = room_id
     req["status"] = "active"
-    return {
-        "chat_room_id": room_id,
-        "status":       "room_created",
-        "participants": _chat_rooms[room_id]["participants"],
-    }
+    return room_id
+
+
+def tick(now: float | None = None) -> None:
+    """
+    由后台 ticker 每 200 ms 调一次（也在 get_pending 前调）：
+    - pending 超时 60 s（单人 / 多人统一，B9 ②）：未响应者视为拒绝；有接受者 → walking_over，否则 expired
+    - walking_over：全员相邻或 30 s 超时 → 建房
+    """
+    now = now or time.time()
+    from game.world_state import _players as players
+    for req in list(_chat_requests.values()):
+        if req["status"] == "pending":
+            if now - req["created_at"] < _REQUEST_TIMEOUT:
+                continue
+            for eid in req["to_entity_ids"]:
+                if eid not in req["accepted_ids"] and eid not in req["rejected_ids"]:
+                    req["rejected_ids"].append(eid)
+            if req["accepted_ids"]:
+                _start_walking_over(req, [req["from_entity_id"]] + req["accepted_ids"], players)
+            else:
+                req["status"] = "expired"
+        elif req["status"] == "walking_over":
+            if _all_met(req, players) or now - (req.get("walking_since") or now) >= WALK_TIMEOUT:
+                _finish_walking_over(req, players)
 
 
 def _expire_old_requests() -> None:
-    """超时的多人邀请：未响应者视为拒绝，若有接受者则创建聊天室。"""
-    now = time.time()
-    from game.world_state import _players as players
-    for req in list(_chat_requests.values()):
-        if req["status"] != "pending":
-            continue
-        if len(req["to_entity_ids"]) <= 1:
-            continue
-        if now - req["created_at"] < _REQUEST_TIMEOUT:
-            continue
-        # 超时：未响应的视为拒绝
-        for eid in req["to_entity_ids"]:
-            if eid not in req["accepted_ids"] and eid not in req["rejected_ids"]:
-                req["rejected_ids"].append(eid)
-        accepted = req["accepted_ids"]
-        if accepted:
-            participants = [req["from_entity_id"]] + accepted
-            room_id = _create_room(
-                participants=participants,
-                players=players,
-                greeting_from=req["from_entity_id"],
-                greeting_text=req["greeting"],
-                accept_msgs=req.get("accepted_messages", []),
-            )
-            req["chat_room_id"] = room_id
-            req["status"] = "active"
-        else:
-            req["status"] = "expired"
+    tick()
 
 
 # ── ChatRoom ──────────────────────────────────────────────────────────────────
@@ -298,7 +374,28 @@ def post_message(entity_id: str, room_id: str, content: str) -> dict | None:
         "content":        content,
         "timestamp":      _now_iso(),
     })
-    return {"seq": seq}
+    if len(room["messages"]) >= MAX_MESSAGES:               # B9 ④
+        from game.world_state import _players as players
+        _close_room(room, players, reason="room_limit")
+        return {"seq": seq, "room_closed": True, "reason": "room_limit"}
+    return {"seq": seq, "room_closed": False}
+
+
+def _close_room(room: dict, players: dict, reason: str) -> None:
+    """关闭房间：写 event、给所有参与者解 buff、记冷却。"""
+    seq = _next_seq(room["chat_room_id"])
+    room["events"].append({
+        "seq":       seq,
+        "type":      reason,
+        "entity_id": None,
+        "timestamp": _now_iso(),
+    })
+    participants = list(room["participants"])
+    for eid in participants:
+        _remove_chat_buff(eid, players)
+    _record_chat_end(participants)
+    room["participants"] = []
+    room["status"] = "closed"
 
 
 def exit_room(entity_id: str, room_id: str) -> dict | None:
@@ -317,8 +414,12 @@ def exit_room(entity_id: str, room_id: str) -> dict | None:
             "entity_id": entity_id,
             "timestamp": _now_iso(),
         })
-    # 移除 buff
+    # 移除 buff，记冷却：本人 60 s；与仍在房间里的每个人 15 s 配对冷却（他们自己的 60 s 等他们退出时记）
     _remove_chat_buff(entity_id, players)
+    now = time.time()
+    _last_chat_end[entity_id] = now
+    for other in room["participants"]:
+        _last_pair_end[frozenset((entity_id, other))] = now
     # 若无人在场，关闭房间
     if not room["participants"]:
         room["status"] = "closed"
@@ -345,6 +446,10 @@ def cleanup_player_chats(entity_id: str) -> None:
             "timestamp": _now_iso(),
         })
         _remove_chat_buff(entity_id, players)
+        now = time.time()
+        _last_chat_end[entity_id] = now
+        for other in room["participants"]:
+            _last_pair_end[frozenset((entity_id, other))] = now
         if not room["participants"]:
             room["status"] = "closed"
 
@@ -381,17 +486,25 @@ def export_state() -> dict:
         "requests": copy.deepcopy(_chat_requests),
         "rooms":    copy.deepcopy(_chat_rooms),
         "seq":      dict(_MSG_SEQ_COUNTER),
+        "last_chat_end": dict(_last_chat_end),
+        "last_pair_end": {"|".join(sorted(k)): v for k, v in _last_pair_end.items()},
     }
 
 
 def import_state(data: dict) -> None:
     _chat_requests.clear(); _chat_rooms.clear(); _MSG_SEQ_COUNTER.clear()
+    _last_chat_end.clear(); _last_pair_end.clear()
     if not data:
         return
     _chat_requests.update(data.get("requests") or {})
+    for req in _chat_requests.values():                       # W2 之前的检查点补字段
+        req.setdefault("participants", None); req.setdefault("target_arena_id", None); req.setdefault("walking_since", None)
     _chat_rooms.update(data.get("rooms") or {})
     _MSG_SEQ_COUNTER.update({k: int(v) for k, v in (data.get("seq") or {}).items()})
+    _last_chat_end.update({k: float(v) for k, v in (data.get("last_chat_end") or {}).items()})
+    _last_pair_end.update({frozenset(k.split("|")): float(v) for k, v in (data.get("last_pair_end") or {}).items()})
 
 
 def _reset_for_tests() -> None:
     _chat_requests.clear(); _chat_rooms.clear(); _MSG_SEQ_COUNTER.clear()
+    _last_chat_end.clear(); _last_pair_end.clear()

@@ -36,7 +36,7 @@ from zoneinfo import ZoneInfo
 
 BACK_END = Path(__file__).resolve().parent.parent
 TZ = ZoneInfo(os.environ.get("SANDBOX_TZ", "Asia/Shanghai"))
-OBJ_ID, STAND, FACE = "bed_1780400782091", (11, 2), "up"   # 出生点 BFS 可达；energy/fullness_regen +1 会顶到 100（测 clamp 追踪），fun −0.05
+OBJ_ID, STAND, FACE = "bed_whale", (3, 5), "up"   # 鲸仔房间的床：energy_regen +25/h，fun −1/h
 
 
 def free_port() -> int:

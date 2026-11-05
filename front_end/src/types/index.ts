@@ -98,7 +98,7 @@ export interface WorldEvent {
   description: string
 }
 
-export type PlayerState = 'idle' | 'walking' | 'requesting_talk' | 'talking' | 'using'
+export type PlayerState = 'idle' | 'walking' | 'requesting_talk' | 'walking_over' | 'talking' | 'using'
 
 export interface PlayerProfile {
   id: string

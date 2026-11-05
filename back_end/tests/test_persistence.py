@@ -41,7 +41,7 @@ def test_roundtrip_players_objects_time(client, fake_clock):
     assert info is not None and info["players"] == 1
 
     p = world_state._players[pid]
-    assert p["position"] == {"x": 11, "y": 2}
+    assert p["position"] == {"x": BED_STAND[0], "y": BED_STAND[1]}
     assert p["usingObjectId"] == BED_ID
     assert p["state"] == "using"
     assert p["closeness"] == {"achan": 72.0}
@@ -54,9 +54,9 @@ def test_roundtrip_players_objects_time(client, fake_clock):
     assert time_state.game_now_ts() - g_before == pytest.approx(60)
     # 停机补算：20s × 3 = 60 游戏秒，上限 8h
     assert info["catch_up_game_ms"] == pytest.approx(60_000)
-    # catch_up 后 energy_regen 1/游戏秒 补上 60（再扣 60 s 的自然衰减 8/3600/s ≈ 0.13）
+    # catch_up 后 bed energy_regen +25/h 减衰减 8/h，补 60 游戏秒
     persistence.catch_up(info["catch_up_game_ms"])
-    assert p["energy"] == pytest.approx(20.0 + 60.0 - 60 * 8 / 3600, abs=0.2)
+    assert p["energy"] == pytest.approx(20.0 + 60 * (25 - 8) / 3600, abs=0.01)
     # 重启后 GET /player 仍能读到她
     r = client.get(f"/player/{pid}")
     assert r.status_code == 200 and r.json()["usingObjectId"] == BED_ID
@@ -83,7 +83,10 @@ def test_chat_state_roundtrip(client, fake_clock):
     r = client.post("/chat/request", json={"from_entity_id": a, "to_entity_ids": [b], "greeting": "hi"})
     rid = r.json()["request_id"]
     r = client.post("/chat/respond", json={"entity_id": b, "request_id": rid, "accept": True, "message": "yo"})
-    room = r.json()["chat_room_id"]
+    assert r.json()["status"] == "walking_over"              # B9：先走过去
+    chat_state.tick()                                        # 两人都在出生点、相邻 → 建房
+    room = client.get(f"/chat/request/{rid}").json()["chat_room_id"]
+    assert room
     client.post("/chat/message", json={"entity_id": a, "chat_room_id": room, "content": "第三句"})
 
     persistence.save_checkpoint()

@@ -31,21 +31,16 @@
       {
         "type": "buff",
         "key": "energy_regen",
-        "value": 1
-      },
-      {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": 1
-      },
-      {
-        "type": "tag",
-        "key": "sleeping"
+        "value": 0.006944
       },
       {
         "type": "buff",
         "key": "fun_regen",
-        "value": -0.05
+        "value": -0.000278
+      },
+      {
+        "type": "tag",
+        "key": "sleeping"
       }
     ],
     "advertise": {
@@ -84,24 +79,27 @@
       },
       {
         "type": "buff",
+        "key": "fun_regen",
+        "value": 0.005556
+      },
+      {
+        "type": "buff",
         "key": "energy_regen",
-        "value": 2
+        "value": 0.002778
+      },
+      {
+        "type": "buff",
+        "key": "mood_regen",
+        "value": 0.001667
       },
       {
         "type": "buff",
         "key": "fullness_regen",
-        "value": -2
+        "value": -0.000556
       },
       {
         "type": "tag",
         "key": "taking_bath"
-      },
-      {
-        "type": "buff",
-        "key": "move_speed",
-        "mode": "timed",
-        "duration": 3600,
-        "value": 1.5
       }
     ],
     "advertise": {
@@ -125,20 +123,13 @@
     "effects": [
       {
         "type": "instant_effect",
-        "key": "energy",
-        "value": 10
+        "key": "fullness",
+        "value": 40
       },
       {
         "type": "instant_effect",
-        "key": "fullness",
-        "value": 30
-      },
-      {
-        "type": "buff",
-        "key": "move_speed",
-        "value": 1.5,
-        "mode": "timed",
-        "duration": 3600
+        "key": "energy",
+        "value": 5
       },
       {
         "type": "instant_effect",
@@ -182,13 +173,18 @@
       },
       {
         "type": "buff",
-        "key": "energy_regen",
-        "value": -1
+        "key": "mood_regen",
+        "value": 0.000833
       },
       {
         "type": "buff",
-        "key": "fullness_regen",
-        "value": -1
+        "key": "fun_regen",
+        "value": -0.000833
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.001111
       },
       {
         "type": "tag",
@@ -196,7 +192,8 @@
       }
     ],
     "advertise": {
-      "fun": 10,
+      "fun": 5,
+      "mood": 15,
       "social": 0
     }
   },
@@ -213,7 +210,7 @@
     "failure_message": "还不是睡觉的时候",
     "max_users": 1,
     "use_state_label": "{entity} 正在使用",
-    "max_duration": 2,
+    "max_duration": 28800,
     "leave_message": "该起床了",
     "effects": [
       {
@@ -231,21 +228,16 @@
       {
         "type": "buff",
         "key": "energy_regen",
-        "value": 1
-      },
-      {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": 1
-      },
-      {
-        "type": "tag",
-        "key": "sleeping"
+        "value": 0.005556
       },
       {
         "type": "buff",
         "key": "fun_regen",
-        "value": -0.05
+        "value": -0.000278
+      },
+      {
+        "type": "tag",
+        "key": "sleeping"
       }
     ],
     "advertise": {
@@ -266,40 +258,14 @@
     "failure_message": "还不想看书",
     "effects": [
       {
-        "type": "buff",
-        "key": "no_move"
-      },
-      {
-        "type": "buff",
-        "key": "no_interact"
-      },
-      {
-        "type": "buff",
-        "key": "no_use"
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -1
-      },
-      {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": -1
-      },
-      {
-        "type": "tag",
-        "key": "reading"
-      },
-      {
         "type": "instant_effect",
         "key": "fun",
-        "value": 8
+        "value": 60
       },
       {
         "type": "instant_effect",
         "key": "energy",
-        "value": -1
+        "value": -2
       }
     ],
     "advertise": {
@@ -337,13 +303,18 @@
       },
       {
         "type": "buff",
-        "key": "fullness_regen",
-        "value": -1
+        "key": "mood_regen",
+        "value": 0.000833
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": -0.000833
       },
       {
         "type": "buff",
         "key": "energy_regen",
-        "value": -1
+        "value": -0.001111
       },
       {
         "type": "tag",
@@ -351,8 +322,102 @@
       }
     ],
     "advertise": {
-      "fun": 10,
+      "fun": 5,
+      "mood": 15,
       "social": 5
     }
+  },
+  "phone": {
+    "prototype": "instant",
+    "name": "手机",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "book",
+    "interactable": true,
+    "description": "一部旧手机，能刷到直播间和 B 站的动静。",
+    "effects": [
+      {
+        "type": "external",
+        "key": "feed"
+      },
+      {
+        "type": "instant_effect",
+        "key": "fun",
+        "value": 15
+      },
+      {
+        "type": "instant_effect",
+        "key": "social",
+        "value": 5
+      },
+      {
+        "type": "instant_effect",
+        "key": "energy",
+        "value": -2
+      }
+    ],
+    "advertise": {
+      "fun": 10,
+      "social": 3
+    },
+    "success_message": "你拿起手机刷了一会儿。",
+    "failure_message": "手机现在用不了。"
+  },
+  "stream_desk": {
+    "prototype": "continuous",
+    "name": "直播台",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": true,
+    "description": "摆着麦克风和摄像头的直播台，坐下就能开播。",
+    "effects": [
+      {
+        "type": "external",
+        "key": "live"
+      },
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "social_regen",
+        "value": 0.005556
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": 0.002222
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.001667
+      },
+      {
+        "type": "buff",
+        "key": "fullness_regen",
+        "value": -0.000833
+      },
+      {
+        "type": "tag",
+        "key": "streaming"
+      }
+    ],
+    "advertise": {
+      "social": 70,
+      "fun": 40
+    },
+    "max_users": 1,
+    "use_state_label": "{entity} 正在直播",
+    "max_duration": 10800,
+    "success_message": "直播开始了。",
+    "failure_message": "直播台现在用不了。",
+    "leave_message": "直播结束，你关掉了摄像头。"
   }
 }

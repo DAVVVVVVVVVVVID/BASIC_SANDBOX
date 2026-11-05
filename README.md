@@ -48,7 +48,10 @@ BASIC_SANDBOX/
 │   │   └── time_control.py    # POST /time/toggle|speed|reset
 │   ├── scripts/
 │   │   ├── verify_restart.py  # kill -9 后重启续跑验证脚本
-│   │   └── verify_self_sync.py # 与自我层 delta 同步联调脚本
+│   │   ├── verify_self_sync.py # 与自我层 delta 同步联调脚本
+│   │   ├── verify_external.py # 手机 / 直播台对自我层联调
+│   │   ├── soak.py            # 稳定性复现
+│   │   └── gen_map.py         # 地图生成器（阿蝉家 + 小镇）
 │   ├── tests/                 # pytest（uv run pytest）
 │   ├── data/                  # 运行时生成：sandbox.db 检查点、actions/*.jsonl（不进 git）
 │   ├── models/
@@ -61,6 +64,7 @@ BASIC_SANDBOX/
 │       ├── ticker.py          # 后台 tick 任务（200 ms）+ 定时检查点
 │       ├── persistence.py     # SQLite 检查点（保存 / 回填 / catch_up 分段上限）
 │       ├── self_sync.py       # 自我层同步：GET /self/state 种入、30 游戏秒批量 POST /self/state/delta
+│       ├── external_effects.py # external effect：feed（手机）/ live（直播台）调自我层
 │       ├── needs.py           # 需求值分档文字（perceive 的 needs）
 │       ├── paths.py           # 数据目录（SANDBOX_DATA_DIR）
 │       ├── object_types.py    # 从 object_types.json 加载 Object 类型
@@ -112,6 +116,8 @@ BASIC_SANDBOX/
 
 地图采用四级层级：`world → sector → arena → tile`。每个 tile 有坐标 `(x, y)` 和可行走标志，最多放置一个 Object。坐标系以左上角为原点，x 向右递增，y 向下递增。
 
+当前地图「阿蝉家与小镇」（60 × 40）由 `back_end/scripts/gen_map.py` 生成（MAP_EDITOR 不在本机，按其导出格式直出；旧 50 × 50 地图在 `game/maps/legacy_50x50/`）：阿蝉家（小仓库 = 鲸仔房间：bed / desk / book / phone / stream_desk；阿蝉房间；厨房 fridge）、四个 NPC 家（厨子、杂货商、渔夫、常客，对应 whale-self `personas/`）、街道、广场、公园、码头与河。出生点在小仓库。改地图：改脚本常量后重新运行 `uv run python scripts/gen_map.py`。
+
 ### 时间系统
 
 - **真实起点 + 倍率**：游戏时间 = `anchor_game + (now − anchor_real) × speed`。首次启动取真实当前时间（北京时间 1:1，`SANDBOX_TZ` 可改），默认 `speed = 1.0`、运行中（`SANDBOX_TIME_RUNNING=0` 可改为启动即暂停）
@@ -143,6 +149,8 @@ BASIC_SANDBOX/
 - **instant_effect**：瞬间修改需求值（`fullness` / `energy` / `social` / `fun` / `mood`，clamp 0–100）
 - **tag**：纯标记，不参与运算（如 `sleeping`、`reading`）
 - **advertise**：每种 Object 的广告值 `{var: 0–100}`，随 `GET /world` 下发给规划器；每个物品至少一项成本；同一物品 30 游戏分钟冷却
+- **external**：`phone`（use 拉自我层 `/self/feed` 摘要进 perceive 的 `phone`）与 `stream_desk`（use 开播 / leave 下播，期间按 live 速率衰减）
+- 数值为**每游戏小时尺度**：睡 8 h energy ≈ +200，一顿饭 fullness +40，一本书 fun +60（见 api-spec §5）
 
 ### 需求值与自我层
 
@@ -268,6 +276,9 @@ uv run pytest -q                              # 单元 / 接口测试
 uv run python scripts/verify_restart.py       # kill -9 后重启续跑验证（约 20 s）
 uv run python scripts/verify_self_sync.py --self-url http://127.0.0.1:8100   # 与自我层联调：两边数值差 < 0.5
 uv run python scripts/verify_self_sync.py --mock                             # 没有自我层时用内置参考实现自测
+uv run python scripts/verify_external.py --self-url http://127.0.0.1:8100     # B10 手机 / B11 直播台对自我层联调（自测沙盒起 8001）
+uv run python scripts/soak.py --minutes 30 --rounds 3                         # 稳定性：长时间驱动，监控进程是否意外退出
+uv run python scripts/gen_map.py                                              # 重新生成地图
 ```
 
 API 文档（自动生成）：[http://localhost:8000/docs](http://localhost:8000/docs)

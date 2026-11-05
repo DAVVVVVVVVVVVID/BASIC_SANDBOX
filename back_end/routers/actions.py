@@ -7,7 +7,10 @@ from game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
     get_object_at, enter_object, leave_object, apply_instant_object,
     get_walkable_tiles_in_area, object_cooldown_remaining, record_object_use,
+    set_phone_feed, _players,
 )
+from game import external_effects
+from game.time_state import game_now_iso
 from game.action_log import append_log
 
 BASE_MOVE_INTERVAL = 0.3  # 秒，与前端 BASE_MOVE_INTERVAL=300ms 对齐
@@ -159,17 +162,21 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
                     "cooldownRemaining": round(remaining, 1)},
         )
 
+    ext = external_effects.external_keys(obj)
+
     if obj.get("prototype") == "instant":
         apply_instant_object(obj["id"], entity_id)
-        record_object_use(entity_id, obj["id"])
-        return ActionResponse(
-            success=True,
-            type="use",
-            result={
-                "message":  obj.get("successMessage"),
-                "objectId": obj["id"],
-            },
-        )
+        record_object_use(entity_id, obj["id"])            # B10：没信号也算用过（有冷却）
+        result = {"message": obj.get("successMessage"), "objectId": obj["id"]}
+        if "feed" in ext:                                   # B10 手机：拉自我层信息流摘要
+            digest = external_effects.fetch_feed(_players.get(entity_id, player), game_now_iso())
+            set_phone_feed(entity_id, digest)
+            text = external_effects.feed_text(digest)
+            result["message"] = text
+            result["phone"] = digest
+            if digest["status"] != "ok":
+                return ActionResponse(success=False, type="use", reason="feed_unavailable", result=result)
+        return ActionResponse(success=True, type="use", result=result)
 
     # continuous
     if obj["currentUsers"] >= obj["maxUsers"]:
@@ -183,6 +190,14 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
                 "maxUsers":     obj["maxUsers"],
             },
         )
+
+    if "live" in ext:                                       # B11 直播台：先开播，失败就不坐下
+        live = external_effects.live_start(_players.get(entity_id, player), game_now_iso())
+        if not live["ok"]:
+            return ActionResponse(
+                success=False, type="use", reason="live_unavailable",
+                result={"message": obj.get("failureMessage"), "objectId": obj["id"], "error": live.get("error")},
+            )
 
     enter_object(obj["id"], entity_id)
     record_object_use(entity_id, obj["id"])

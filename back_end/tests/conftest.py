@@ -68,11 +68,18 @@ def client():
     return TestClient(app)
 
 
-# ── 地图上的已知位置（map.json / objects.json）────────────────────────────────
-BED_ID   = "bed_1780400782091"   # 占 (11,0)(11,1)；站 (11,2) 朝 up 可用
-DESK_ID  = "desk_1780400974312"  # 占 (46,0)；站 (46,1) 朝 up 可用
-BED_STAND  = (11, 2, "up")
-DESK_STAND = (46, 1, "up")
+# ── 地图上的已知位置（scripts/gen_map.py 生成的 map.json / objects.json）──────────
+BED_ID   = "bed_whale"           # 占 (3,3)(3,4)；站 (3,5) 朝 up 或 (4,3) 朝 left 可用
+DESK_ID  = "desk_whale"          # 占 (10,3)；站 (10,4) 朝 up 可用
+PHONE_ID = "phone_whale"         # 占 (10,7)；站 (10,8) 朝 up
+STREAM_ID = "stream_desk_whale"  # 占 (3,13)；站 (3,12) 朝 down
+FRIDGE_ID = "fridge_kitchen"     # 占 (24,3)；站 (24,4) 朝 up
+BED_STAND  = (3, 5, "up")
+BED_STAND2 = (4, 3, "left")      # 同一张床的另一侧
+DESK_STAND = (10, 4, "up")
+PHONE_STAND = (10, 8, "up")
+STREAM_STAND = (3, 12, "down")
+FRIDGE_STAND = (24, 4, "up")
 
 
 def place(player_id: str, x: int, y: int, facing: str) -> None:

@@ -31,9 +31,10 @@ from pathlib import Path
 BACK_END = Path(__file__).resolve().parent.parent
 # 目标物品：desk_12（continuous，energy_regen −1 / 游戏秒）——从出生点 (10,17) BFS 21 步可达，
 # 使用中能量下降，重启 catch_up 的效果肉眼可见。
-OBJ_ID = "desk_12_1780401844257"
-STAND = (4, 2)
+OBJ_ID = "desk_whale"
+STAND = (10, 4)
 FACE = "up"
+SPEED = 60.0          # desk energy −4/h、fun −3/h：6 s × 60 = 360 游戏秒 → energy −1.2 可见
 
 
 def free_port() -> int:
@@ -126,7 +127,7 @@ def main() -> int:
         check(f"walked to {STAND}", (me["position"]["x"], me["position"]["y"]) == STAND, str(me["position"]))
         use = act(base, pid, "use")
         check("use desk", use["success"] and use["result"]["objectId"] == OBJ_ID, use.get("reason") or "")
-        http("POST", f"{base}/time/speed", {"value": 3})
+        http("POST", f"{base}/time/speed", {"value": SPEED})
         time.sleep(1.0)                                 # 让能量先掉一点
 
         before_p = http("GET", f"{base}/player/{pid}")
@@ -156,19 +157,20 @@ def main() -> int:
               f"{after_p['usingObjectId']} / {after_p['state']}")
         desk = next(o for o in http("GET", f"{base}/world")["objects"] if o["id"] == OBJ_ID)
         check("desk userList restored", desk["userList"] == [pid] and desk["currentUsers"] == 1, str(desk["userList"]))
-        check("speed restored", after_w["speed"] == 3.0, str(after_w["speed"]))
+        check("speed restored", after_w["speed"] == SPEED, str(after_w["speed"]))
         check("seven vars present", all(k in after_p for k in
               ("fullness", "energy", "social", "fun", "mood", "emotion_tags", "closeness", "controller", "last_tick_ts")))
-        # desk energy_regen −1/游戏秒：停机 downtime × 3 游戏秒应被 catch_up 补算
+        # desk energy_regen −4/h + 衰减 −8/h：停机 downtime × SPEED 游戏秒应被 catch_up 补算
         drop = before_p["energy"] - after_p["energy"]
-        check("energy caught up over downtime (≈ downtime × speed)", drop >= args.downtime * 3.0 * 0.8,
-              f"{before_p['energy']:.1f} -> {after_p['energy']:.1f} (drop {drop:.1f})")
+        expected_drop = args.downtime * SPEED * 12 / 3600
+        check("energy caught up over downtime (≈ downtime × speed × 12/h)", drop >= expected_drop * 0.8,
+              f"{before_p['energy']:.2f} -> {after_p['energy']:.2f} (drop {drop:.2f}, expected ≈ {expected_drop:.2f})")
         check("hp is fullness alias", after_p["hp"] == after_p["fullness"], f"{after_p['hp']:.1f}")
 
         real_elapsed = t_up - t_kill
         game_elapsed = (game_dt(after_w) - game_dt(before_w)).total_seconds()
-        expected = real_elapsed * 3.0
-        check("game time continuous (≈ real × speed)", abs(game_elapsed - expected) <= 3 * 3.0 + 2,
+        expected = real_elapsed * SPEED
+        check("game time continuous (≈ real × speed)", abs(game_elapsed - expected) <= 3 * SPEED + 2,
               f"game +{game_elapsed:.0f}s, expected ≈ {expected:.0f}s")
 
         hist = http("GET", f"{base}/history/log")

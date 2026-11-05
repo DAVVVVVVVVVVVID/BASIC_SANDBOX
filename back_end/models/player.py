@@ -21,7 +21,7 @@ class Player(BaseModel):
     id: str
     position: Position
     facing: Literal["up", "down", "left", "right"]
-    state: Literal["idle", "walking", "requesting_talk", "talking", "using"]
+    state: Literal["idle", "walking", "requesting_talk", "walking_over", "talking", "using"]
     stateLabel: Optional[str] = None
     # ── 需求值（七变量，ARCHITECTURE §2.5 / B3），范围 0–100 ──
     hp: float                                   # fullness 的别名（过渡一个版本后删除，假设）

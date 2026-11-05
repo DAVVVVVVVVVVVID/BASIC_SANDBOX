@@ -240,6 +240,9 @@ EFFECT_HANDLERS = {
 
 新增 buff 效果只需在注册表加一条，不修改 tick 主循环。
 
+`external` 类 effect 不进注册表：`routers/actions.handle_use` 在 use 时调 `external_effects.fetch_feed / live_start`，
+`world_state.leave_object` 调 `live_stop`（后台线程）。对话协议状态机（B9）在 `chat_state.tick()`，由同一个后台 ticker 驱动。
+
 ---
 
 ## 7. 扩展预留

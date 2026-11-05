@@ -1,10 +1,89 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W2（2026-11-06）**，W1（2026-11-05）记录在后。
+分支：`whale-integration`。最新：**W3（2026-11-06）**；W2、W1 记录在后。
 
 ---
 
-# W2 · 2026-11-06：需求值管线、controller、对接自我层
+# W3 · 2026-11-06：手机与直播台、对话协议、地图与数值尺度
+
+## 1. 进度（W3 任务 1–7 全部完成）
+
+| # | 编号 | 任务 | 状态 | 主要文件 |
+|---|---|---|---|---|
+| 1 | §3.9 B4 | `POST /player/{id}/effects` 的 `source == "self"` → `track=False`（落本地、不进 `vars_delta`） | ✅ | `world_state.apply_effects(track=)` / `apply_effects_to_player` |
+| 2 | §3.9 B6 + B16 | `object_types.json` 全部改每游戏小时尺度（规则：一次正常使用恢复量 ≈ 一日衰减量，数值标假设）；新地图「阿蝉家 + 小镇」60×40：小仓库（鲸仔：bed / desk / book / phone / stream_desk）、阿蝉房间、厨房、四个 NPC 家、街道 / 广场 / 公园 / 码头 / 河 | ✅ | `game/object_types.json`、`scripts/gen_map.py`（新，MAP_EDITOR 不在本机，按其导出格式直出）、`game/maps/{map,objects}.json`（旧图存 `maps/legacy_50x50/`） |
+| 3 | B10 | `phone`（instant）+ `external_effects.py`：`external: feed` → `GET {SELF_URL}/self/feed?for=<agent_id>`（3 s 超时）→ `result.phone` 与 perceive 的 `phone`（只保留 digest 白名单字段）；不可达 → `feed_unavailable`「手机没信号」，仍计冷却 | ✅ | `game/external_effects.py`（新）、`routers/actions.handle_use`、`routers/agent.perceive`、`world_state._phone_feed` |
+| 4 | B11 | `stream_desk`（continuous）：use → `POST /self/live/start`（失败 → `live_unavailable`，不坐下）；进入 `scene=live`；leave / 自动离开 / 玩家删除 → `/self/live/stop`（后台线程、不可失败）→ `scene=sandbox` | ✅ | `external_effects.py`、`routers/actions.py`、`world_state.enter_object / leave_object` |
+| 5 | B9 | 对话协议四件：① `walking_over` 态（请求带 `target_arena_id`，参与者 `state="walking_over"` 可移动，相邻（曼哈顿 ≤ 1）或 30 s 建房）② 单人邀请也 60 s 超时 ③ `chat_cooldown`（本人 60 s / 配对 15 s）④ `room_limit`（16 条关房）；状态机由后台 ticker 推进；冷却随检查点持久化 | ✅ | `game/chat_state.py`、`routers/chat.py`、`models/player.py`（state 加 `walking_over`）、`game/ticker.py`、`persistence.py`（meta.chat_cooldowns） |
+| 6 | 稳定性 | 复现脚本 `scripts/soak.py`：3 × 30 min 驱动 e7a036a（运行台同版本）；运行台 `run/data/sandbox.log` 只读检查 | ✅ 见 §5 | `scripts/soak.py`（新） |
+| 7 | B14 | 文档同步 | ✅ | `docs/api-spec.md`（§7 状态机重写、external、尺度表、新 reason、perceive.phone、source=self）、`docs/data-models.md`、`docs/architecture.md` §6、`README.md`；前端 `types/index.ts` 的 `PlayerState` 加 `walking_over`（一行，类型） |
+
+B12 freeform 留 W6。运行台 8000 仍是 `e7a036a`，本次提交含地图与物品数值变化，**请总控择机把 8000 切到本报告末尾的提交号**（切换后旧检查点的 player 位置可能落在新地图的墙里——首次切换建议清空 `run/data/sandbox/`；旧检查点里的物品 id 与新图不同，`object_runtime` 会被忽略，不报错）。
+
+## 2. 测试命令与结果
+
+```bash
+cd back_end
+uv run pytest -q
+# 120 passed（W2 的 93 个 + W3 新增 27 个）
+
+uv run python scripts/verify_restart.py
+# 15/15 checks passed（新地图；desk_whale，speed 60）
+
+uv run python scripts/verify_self_sync.py --mock --seconds 45
+# batch drift_max=0.037  final diff=0.103 (threshold 0.5, 48 batches) → PASS
+
+uv run python scripts/verify_external.py --self-url http://127.0.0.1:8100      # B10 / B11 对运行台自我层
+# 10/10 checks passed → PASS
+#   seed from self-layer OK（remote scene=sandbox）
+#   phone use → feed status=ok items=0（自我层当前 digest 为空）；perceive.phone 有 digest，无 raw 字段
+#   stream_desk use → self-layer scene == live；沙盒 /player/{id}/state scene == live
+#   leave → 两边都回 sandbox；whale-self data/ops/live.log 收到 start / stop 两行（catch_up_seconds 3 / 0）
+```
+
+W2 的 93 个测试里改了断言的（都是预期变化）：bed 速率从 +1/s 改 +25/h（ticker / persistence 的能量期望）、fridge 效果改 +40/+5/−2、self_sync 失败重发的累积阈值从 60 降到 0.5（速率小了 3 个量级）、地图常量（`BED_ID=bed_whale` 等）、`respond` 后要先 `tick()` 才有房间（walking_over）。
+
+| 新增文件 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/test_w3_objects.py` | 7 | 任务 1：`source=self` 推送落本地、pending 为空、下一批 `vars_delta` 只有其他来源的变化；任务 2：所有 `*_regen` ≤ 30/h、instant ≤ 60；**睡 8 h（22:00–06:00，含夜间 ×1.5）energy 0 → ≥ 99**，4 h 白天线性对账 +68、fun −44；一顿饭 +40/+5/−2；B16：三间房 + 四个 NPC 家 + 街道广场公园码头河、中文 zone_names、鲸仔房间物品齐全、出生点在小仓库、每个 NPC 家有床、**全部 20 个物品从出生点 BFS 可达**、生成脚本可重放且与仓库内 JSON 一致 |
+| `tests/test_external_effects.py` | 9 | B10：use 手机拉 digest 进 `result.phone` 与 perceive（含点歌文案）、**raw 字段（id / source / author / text）被过滤**、七变量按 +15/+5/−2 变化；自我层宕 → `feed_unavailable`「没信号」、perceive.phone=no_signal、仍计冷却；空 feed 文案；没刷过 perceive.phone 为 null；人类玩家 `for=<player id>`。B11：use → `live/start` 带 agent 与 ISO ts、scene=live、tag streaming、`/state` 跟着变；leave → `live/stop`、scene 回 sandbox；自我层宕 → `live_unavailable`，不坐下、不计冷却、userList 不变；live 速率生效（social −0.12/s + 20/h）；人类玩家只本地切 scene 不打自我层；删玩家时发 stop；`apply_effects` 跳过 external |
+| `tests/test_chat_protocol.py` | 11 | B9：接受 → `walking_over` + `target_arena_id`（发起者 arena）+ 双方 state、可移动、移动不清状态；走到相邻 → tick 建房、消息顺序、state=talking；同 arena 不相邻 → 等到 30 s 建房；参与者被删 → expired 且发起者回 idle；**单人邀请 60 s 过期**、过期后响应无效、pending 列表为空；多人超时 1 人接受 → walking_over；后台 ticker 驱动；**退出后本人 60 s / 受邀方冷却 / 配对 15 s 单独生效**；**第 16 条消息关房**：events room_limit、参与者解 buff 回 idle、再发言 404、双方进冷却；冷却与新字段随检查点持久化；`GET /chat/request/{id}` 旧字段不变 |
+
+## 3. api-spec 改动摘要（只增不删）
+
+| 位置 | 改动 |
+|---|---|
+| §7 对话系统 | 新增**状态机图**（pending → walking_over → active → closed，含超时 / 冷却 / 上限常量）；ChatRequest 加 `target_arena_id`、`participants`，status 加 `walking_over`；ChatRoom events 加 `room_limit`；`POST /chat/request` 响应加 `success`，冷却时 `{request_id: null, success: false, reason: "chat_cooldown", cooldown_remaining}`；`POST /chat/respond` 接受时返回 `status: "walking_over"`（**`room_created` 不再出现**，改为轮询 `GET /chat/request/{id}` 到 `active`）；`POST /chat/message` 响应加 `room_closed`，第 16 条返回 `reason: "room_limit"` |
+| `POST /action` use | 新 reason `feed_unavailable`、`live_unavailable`；手机成功时 `result.phone` |
+| `GET /agent/perceive` | 新字段 `phone`（digest 白名单字段说明） |
+| `GET /player` | `state` 枚举加 `walking_over` |
+| §5 Object Effect | 新 type `external`（feed / live 语义、人类玩家兜底）；**每游戏小时尺度表**（9 个类型的收益 / 成本 / advertise / max_duration） |
+| §4 同步 | 加「事件单向链路」行（`source: "self"` 不计入 delta，沙盒永不转发事件）与「speed > 1 滞后」行 |
+
+`docs/data-models.md`：PlayerState、external、尺度说明。`docs/architecture.md` §6：external 与 chat 状态机的驱动位置。`README.md`：新地图说明与生成方式、external、尺度、新脚本。
+
+## 4. 对契约的建议（请会话 A 汇总）
+
+1. **`POST /chat/respond` 不再返回 `room_created`**。接受即 `walking_over`，房间在 `GET /chat/request/{id}` 变 `active` 时出现。C 的 loop 已说按 `walking_over` 处理，请确认它会轮询请求状态而不是等 respond 的 `chat_room_id`。
+2. **`POST /chat/request` 冷却时的返回**：`{request_id: null, success: false, reason: "chat_cooldown", cooldown_remaining}`（HTTP 200，不是 4xx）。只加字段，但 `request_id` 可能为 null，C 取值前先看 `success`。
+3. `target_arena_id` 在发起者站在 arena 外（街道以外的草地）时为 `null`，此时只看曼哈顿距离。相邻阈值 1、walking 超时 30 s、消息上限 16 为假设（AI Town 常量）。
+4. **人类玩家的 external 物品**（假设）：没有 `agent_id` → 手机用 player id 查 feed（自我层目前对 `for` 不区分，返回同一份 digest）；直播台只本地切 `scene`，不打自我层。若要禁止人类用直播台，一行改成 `live_unavailable`。
+5. **物品数值表**（§3.9 第 6 条要求标假设）见 api-spec §5：bed +25 energy/h、fridge +40 fullness、book +60 fun、stream_desk social +20/h 等。stream_desk 的 `max_duration` 3 h 沿用 B11 的假设。A 若在 persona 层有「一天几顿 / 睡几小时」的设定，请对齐。
+6. **地图不是 MAP_EDITOR 画的**（假设可接受）：本机没有 MAP_EDITOR，`scripts/gen_map.py` 按其导出格式直出，`tiled` 渲染层省略（前端回退到按 tile 类型着色）。如需用 MAP_EDITOR 再编辑，可把生成的 `map.json / objects.json` 作为导入起点。地图 60×40，zone_names 已填中文。
+7. **运行台观察**：联调时 `GET /self/state?agent=whale` 读到 fun = 0.0、mood = 94.7、social 81、energy 96。fun 长时间贴 0 说明运行台上没有任何东西在恢复 fun（8000 跑的 e7a036a 旧地图 + agent 可能没在用物品）。切到本提交后新地图有 book / phone / bath 可恢复 fun；建议 C 的 Plan 把 `advertise` 纳入软偏好，否则 fun 会一直在地板上。
+8. **8000 换版本**：请切到本节末尾提交号；首次切换建议清空 `run/data/sandbox/`（旧检查点里的 player 位置是旧地图坐标）。
+
+## 5. 稳定性（任务 6）
+
+- **运行台 8000**（`run/data/sandbox.log`，只读）：自 11-06 起 9 行日志，全是正常请求，0 条 Traceback / ERROR，进程未重启。
+- **复现**：`scripts/soak.py --minutes 30 --rounds 3 --backend-dir /tmp/sandbox_soak_e7a036a/back_end`（`git worktree` 的 e7a036a，与运行台同版本；内置参考自我层；两名玩家每秒随机 move / turn / use / leave / effects，每 2 s 读 world / player / perceive，每 7 s 一轮对话邀请，每 10 s 检查点 + self-sync 统计，每 5 min 切倍率；每秒 poll 进程、每 30 s 记 RSS）。
+- **结论**：__SOAK_RESULT__
+- **对 W2 那次「意外退出」的解释**：__SOAK_EXPLANATION__
+
+---
+
+
+# W2 · 2026-11-06：需求值管线、controller、对接自我层（原报告）
 
 ## 1. 进度（W2 任务 1–7 全部完成）
 

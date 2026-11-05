@@ -61,17 +61,17 @@ def test_generic_clamp_and_alias():
 
 
 def test_instant_object_uses_generic_clamp(client):
-    """注入一个 fridge（hp +30 / energy +10）验证 instant_effect 走通用路径。"""
+    """注入一个 fridge（fullness +40 / energy +5 / fun −2）验证 instant_effect 走通用路径。"""
     pid = join(client)
     fridge = world_state._build_objects([{"id": "fridge_test", "type": "fridge", "position": {"x": 0, "y": 0}}])[0]
     world_state._OBJECTS.append(fridge)
     try:
         p = world_state._players[pid]
-        p["energy"] = 95.0
+        p["energy"] = 97.0; p["fun"] = 50.0
         world_state.apply_instant_object("fridge_test", pid)
-        assert p["fullness"] == 100.0 and p["hp"] == 100.0   # 70+30
-        assert p["energy"] == 100.0                           # clamp
-        assert any(b["key"] == "move_speed" for b in p["buffs"])
+        assert p["fullness"] == 100.0 and p["hp"] == 100.0   # 70+40 clamp
+        assert p["energy"] == 100.0                           # 97+5 clamp
+        assert p["fun"] == 48.0
     finally:
         world_state._OBJECTS.remove(fridge)
 

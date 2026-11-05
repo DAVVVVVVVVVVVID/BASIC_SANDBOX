@@ -64,12 +64,16 @@ def post_chat_request(body: ChatRequestBody):
     """向一个或多个 Player 发起对话邀请，返回 request_id。"""
     if not body.to_entity_ids:
         raise HTTPException(status_code=400, detail="to_entity_ids cannot be empty")
+    remaining = chat_state.chat_cooldown_remaining(body.from_entity_id, body.to_entity_ids)   # B9 ③
+    if remaining > 0:
+        return {"request_id": None, "success": False, "reason": "chat_cooldown",
+                "cooldown_remaining": round(remaining, 1)}
     request_id = chat_state.create_chat_request(
         from_entity_id=body.from_entity_id,
         to_entity_ids=body.to_entity_ids,
         greeting=body.greeting,
     )
-    return {"request_id": request_id}
+    return {"request_id": request_id, "success": True}
 
 
 # ── 2b. 查询对话请求状态 ──────────────────────────────────────────────────────
@@ -80,12 +84,15 @@ def get_request_status(request_id: str):
     req = chat_state._chat_requests.get(request_id)
     if req is None:
         raise HTTPException(status_code=404, detail=f"request not found: {request_id}")
+    chat_state.tick()
     return {
-        "request_id":   req["request_id"],
-        "status":       req["status"],
-        "chat_room_id": req["chat_room_id"],
-        "accepted_ids": req["accepted_ids"],
-        "rejected_ids": req["rejected_ids"],
+        "request_id":      req["request_id"],
+        "status":          req["status"],              # pending | walking_over | active | rejected | expired
+        "chat_room_id":    req["chat_room_id"],
+        "accepted_ids":    req["accepted_ids"],
+        "rejected_ids":    req["rejected_ids"],
+        "target_arena_id": req.get("target_arena_id"),  # B9 ①（§3.9 C3 定名）
+        "participants":    req.get("participants"),
     }
 
 
@@ -106,9 +113,9 @@ def respond(body: ChatRespondBody):
     """
     接受或拒绝对话请求。
     响应：
-      - "rejected"     — 拒绝
-      - "waiting"      — 接受，但聊天室尚未创建（多人邀请等待中）
-      - "room_created" — 接受，聊天室已创建
+      - "rejected"     — 拒绝（或请求已不是 pending）
+      - "waiting"      — 接受，但多人邀请还有人未响应
+      - "walking_over" — 接受，双方走向 target_arena_id，相邻或 30 s 后建房（轮询 GET /chat/request/{id}）
     """
     players = dict(_players_dict)
     result = chat_state.respond_to_request(
