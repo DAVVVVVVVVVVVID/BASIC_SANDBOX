@@ -1,82 +1,58 @@
-const API_BASE = 'http://localhost:8000'
+import { apiGet, apiPost, apiDelete, apiGetOrNull } from './client'
+import type { Player, PlayerStateVars, WorldData, WorldEvent, ActionLogEntry, WorldState } from '../types'
 
-export async function fetchEvents() {
-  const res = await fetch(`${API_BASE}/events`)
-  if (!res.ok) throw new Error(`GET /events failed: ${res.status}`)
-  return res.json()
+export const fetchEvents  = () => apiGet<WorldEvent[]>('/events')
+export const fetchWorld   = () => apiGet<WorldData>('/world')
+export const fetchHistory = () => apiGet<ActionLogEntry[]>('/history')
+
+export function joinPlayer(name: string) {
+  return apiPost<{ playerId: string; player: Player }>('/player/join', { name, controller: 'human' })
 }
 
-export async function fetchWorld() {
-  const res = await fetch(`${API_BASE}/world`)
-  if (!res.ok) throw new Error(`GET /world failed: ${res.status}`)
-  return res.json()
-}
-
-export async function joinPlayer(name: string) {
-  const res = await fetch(`${API_BASE}/player/join`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  })
-  if (!res.ok) throw new Error(`POST /player/join failed: ${res.status}`)
-  return res.json() as Promise<{ playerId: string; player: import('../types').Player }>
+export function rejoinPlayer(playerId: string) {
+  return apiPost<{ playerId: string; player: Player }>('/player/rejoin', { playerId })
 }
 
 export async function leavePlayer(playerId: string) {
-  await fetch(`${API_BASE}/player/${playerId}/leave`, { method: 'DELETE' })
+  try { await apiDelete(`/player/${encodeURIComponent(playerId)}/leave`) } catch { /* ignore */ }
 }
 
-export async function fetchPlayer(playerId: string) {
-  const res = await fetch(`${API_BASE}/player/${playerId}`)
-  if (res.status === 404) return null   // player 不存在（如后端重启后内存被清空）
-  if (!res.ok) throw new Error(`GET /player/${playerId} failed: ${res.status}`)
-  return res.json()
+/** 刷新心跳并取完整状态；404（后端清掉了该 player）返回 null */
+export const fetchPlayer = (playerId: string) =>
+  apiGetOrNull<Player>(`/player/${encodeURIComponent(playerId)}`)
+
+/** B13 只读接口：七变量原始数值，不刷心跳、不清 pendingMessage（旁观模式用它） */
+export const fetchPlayerState = (playerId: string) =>
+  apiGetOrNull<PlayerStateVars>(`/player/${encodeURIComponent(playerId)}/state`)
+
+export const timeToggle = () => apiPost<Partial<WorldState>>('/time/toggle')
+export const timeSpeed  = (value: number) => apiPost<{ speed: number }>('/time/speed', { value })
+export const timeReset  = () => apiPost<Partial<WorldState>>('/time/reset')
+
+export interface ActionResponse {
+  success: boolean
+  type: string
+  reason?: string | null
+  result?: Record<string, unknown> & {
+    facing?: import('../types').Facing
+    position?: import('../types').Position
+    message?: string
+    currentUsers?: number
+    maxUsers?: number
+    cooldownRemaining?: number
+  }
 }
 
-export async function fetchHistory() {
-  const res = await fetch(`${API_BASE}/history`)
-  if (!res.ok) throw new Error(`GET /history failed: ${res.status}`)
-  return res.json()
-}
-
-export async function timeToggle() {
-  const res = await fetch(`${API_BASE}/time/toggle`, { method: 'POST' })
-  if (!res.ok) throw new Error(`POST /time/toggle failed: ${res.status}`)
-  return res.json()
-}
-
-export async function timeSpeed(value: number) {
-  const res = await fetch(`${API_BASE}/time/speed`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ value }),
-  })
-  if (!res.ok) throw new Error(`POST /time/speed failed: ${res.status}`)
-  return res.json()
-}
-
-export async function timeReset() {
-  const res = await fetch(`${API_BASE}/time/reset`, { method: 'POST' })
-  if (!res.ok) throw new Error(`POST /time/reset failed: ${res.status}`)
-  return res.json()
-}
-
-export async function sendAction(
+export function sendAction(
   entityId: string,
   type: string,
   payload: Record<string, unknown> = {},
   options: { skipLog?: boolean; logLabel?: string } = {},
 ) {
-  const res = await fetch(`${API_BASE}/action`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      entityId,
-      action: { type, payload },
-      skipLog:  options.skipLog  ?? false,
-      logLabel: options.logLabel ?? null,
-    }),
+  return apiPost<ActionResponse>('/action', {
+    entityId,
+    action: { type, payload },
+    skipLog:  options.skipLog  ?? false,
+    logLabel: options.logLabel ?? null,
   })
-  if (!res.ok) throw new Error(`POST /action failed: ${res.status}`)
-  return res.json()
 }

@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8000'
+import { apiGet, apiPost } from './client'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,24 +52,11 @@ export interface RoomData {
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`)
-  if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
-  return res.json()
-}
-
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`)
-  return res.json()
-}
+const get  = <T>(path: string) => apiGet<T>(path)
+const post = <T>(path: string, body: unknown) => apiPost<T>(path, body)
 
 export const getNearby = (entityId: string) =>
-  get<{ players: NearbyPlayer[] }>(`/chat/nearby?entity_id=${entityId}`)
+  get<{ players: NearbyPlayer[] }>(`/chat/nearby?entity_id=${encodeURIComponent(entityId)}`)
 
 export const sendRequest = (fromId: string, toIds: string[], greeting: string) =>
   post<{ request_id: string }>('/chat/request', {
@@ -82,7 +69,7 @@ export const getRequestStatus = (requestId: string) =>
   get<RequestStatus>(`/chat/request/${requestId}`)
 
 export const getPending = (entityId: string) =>
-  get<{ requests: PendingRequest[] }>(`/chat/pending?entity_id=${entityId}`)
+  get<{ requests: PendingRequest[] }>(`/chat/pending?entity_id=${encodeURIComponent(entityId)}`)
 
 export const respond = (entityId: string, requestId: string, accept: boolean, message: string) =>
   post<RespondResult>('/chat/respond', {
@@ -93,7 +80,7 @@ export const respond = (entityId: string, requestId: string, accept: boolean, me
   })
 
 export const getRoom = (roomId: string, entityId: string, sinceSeq: number) =>
-  get<RoomData>(`/chat/room/${roomId}?entity_id=${entityId}&since_seq=${sinceSeq}`)
+  get<RoomData>(`/chat/room/${roomId}?entity_id=${encodeURIComponent(entityId)}&since_seq=${sinceSeq}`)
 
 export const sendMessage = (entityId: string, roomId: string, content: string) =>
   post<{ seq: number }>('/chat/message', { entity_id: entityId, chat_room_id: roomId, content })

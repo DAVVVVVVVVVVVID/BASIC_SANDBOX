@@ -17,7 +17,8 @@ export interface Tile {
 export interface Effect {
   type: string
   key: string
-  value?: number
+  value?: number | null
+  tag?: string
 }
 
 export interface GameObject {
@@ -34,9 +35,11 @@ export interface GameObject {
   userList: string[]
   useStateLabel: string
   effects: Effect[]
+  advertise?: Record<string, number>
 }
 
 export type TimePeriod = 'morning' | 'day' | 'dusk' | 'night'
+export type Weather = 'sunny' | 'cloudy' | 'rain'
 
 export interface WorldState {
   date: string
@@ -44,15 +47,20 @@ export interface WorldState {
   period: TimePeriod
   running: boolean
   speed: number
-  weather: 'sunny' | 'cloudy' | 'rain'
+  weather: Weather
 }
 
+export type Controller = 'human' | 'agent'
+
+/** GET /world players[] 的元素（B6：带 controller / online） */
 export interface OtherPlayer {
   id: string
   name: string
   position: Position
   facing: Facing
   state: PlayerState
+  controller?: Controller
+  online?: boolean
 }
 
 export interface TiledTilesetInfo {
@@ -98,7 +106,9 @@ export interface WorldEvent {
   description: string
 }
 
-export type PlayerState = 'idle' | 'walking' | 'requesting_talk' | 'walking_over' | 'talking' | 'using'
+export type PlayerState =
+  | 'idle' | 'walking' | 'requesting_talk' | 'walking_over' | 'talking' | 'using'
+  | (string & {})
 
 export interface PlayerProfile {
   id: string
@@ -114,7 +124,12 @@ export interface Buff {
   source: string
 }
 
-export interface Player {
+/** 七变量（ARCHITECTURE §2.5）。hp 是 fullness 的别名，过渡期保留 */
+export const NEED_KEYS = ['fullness', 'energy', 'social', 'fun', 'mood'] as const
+export type NeedKey = typeof NEED_KEYS[number]
+export type NeedVars = Record<NeedKey, number>
+
+export interface Player extends Partial<NeedVars> {
   id: string
   profile: PlayerProfile
   position: Position
@@ -131,6 +146,28 @@ export interface Player {
   canUse: boolean
   moveSpeed: number
   pendingMessage?: string | null
+  emotion_tags?: Buff[]
+  closeness?: Record<string, number>
+  controller?: Controller
+  online?: boolean
+  scene?: 'sandbox' | 'live'
+  agent_id?: string | null
+  mood_base?: number
+}
+
+/** GET /player/{id}/state（B13，只读，不刷心跳） */
+export interface PlayerStateVars {
+  id: string
+  vars: NeedVars
+  mood_base: number
+  emotion_tags: Buff[]
+  closeness: Record<string, number>
+  scene: 'sandbox' | 'live'
+  controller: Controller
+  online: boolean
+  agent_id: string | null
+  last_tick_ts: string
+  recent_uses: Record<string, number>
 }
 
 export interface ActionLogEntry {
@@ -141,4 +178,15 @@ export interface ActionLogEntry {
   success: boolean
   reason: string | null
   label: string | null
+  game_time?: string
+  controller?: Controller
 }
+
+/** 叠加层聊天气泡 */
+export interface ChatBubble {
+  entityId: string
+  content: string
+  until: number   // performance.now() 毫秒
+}
+
+export type ConnectionStatus = 'connecting' | 'online' | 'offline'

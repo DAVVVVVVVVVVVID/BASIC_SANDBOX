@@ -18,7 +18,7 @@ export default function JoinScreen({ onJoined }: Props) {
     try {
       const { playerId, player } = await joinPlayer(trimmed)
       onJoined(playerId, player)
-    } catch (e) {
+    } catch {
       setError('加入失败，请检查后端是否启动')
     } finally {
       setLoading(false)

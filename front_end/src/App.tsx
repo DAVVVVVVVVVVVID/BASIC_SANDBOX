@@ -11,36 +11,35 @@ import TimeControlPanel from './ui/TimeControlPanel'
 import Minimap from './ui/Minimap'
 import JoinScreen from './ui/JoinScreen'
 import ChatPanel from './ui/ChatPanel'
-import type { TimePeriod, Player } from './types'
+import ConnectionBadge from './ui/ConnectionBadge'
+import SpectateApp from './spectate/SpectateApp'
+import { isSpectateRoute } from './spectate/params'
+import type { Player } from './types'
 
-const PERIOD_BG: Record<TimePeriod, string> = {
-  morning: '#F5C518',
-  day:     '#87CEEB',
-  dusk:    '#FF6B35',
-  night:   '#1A1A3E',
-}
-
-function App() {
+/** 操控模式（作者以阿蝉身份进入） */
+function PlayApp() {
   const initialized = useRef(false)
-  const period    = useGameStore((s) => s.worldState?.period ?? 'night')
   const myPlayerId = useGameStore((s) => s.myPlayerId)
-  const { setPlayer, setWorldState, setTiles, setMyPlayerId } = useGameStore.getState()
 
   const handleJoined = async (playerId: string, player: Player) => {
     if (initialized.current) return
     initialized.current = true
-
+    const { setPlayer, setWorldState, setTiles, setObjects, setMyPlayerId, setPlayers, setMode } = useGameStore.getState()
+    setMode('play')
     setMyPlayerId(playerId)
     setPlayer(player)
-
     try {
       const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents()])
       setWorldState(worldData.worldState)
       setTiles(worldData.tiles)
-      initGame(worldData, player, playerId, events)
-      startTickSystem(playerId)
+      setObjects(worldData.objects)
+      setPlayers(worldData.players ?? [])
+      initGame({ mode: 'play', worldData, events, player, myPlayerId: playerId })
+      startTickSystem(playerId, player.profile?.name ?? playerId)
     } catch (err) {
       console.error('[Init Error]', err)
+      initialized.current = false
+      setMyPlayerId(null)
     }
   }
 
@@ -58,28 +57,21 @@ function App() {
   }
 
   return (
-    <div style={{
-      position: 'relative',
-      width: '100%',
-      height: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: PERIOD_BG[period],
-      transition: 'background-color 2s ease',
-    }}>
-      <div style={{ position: 'relative' }}>
-        <div id="game-container" />
-        <InteractionPanel />
-      </div>
+    <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#0f1020' }}>
+      <div id="game-container" style={{ position: 'absolute', inset: 0 }} />
+      <InteractionPanel />
       <HUD />
       <WorldInfoPanel />
       <ActionLog />
       <TimeControlPanel />
       <Minimap />
       <ChatPanel />
+      <ConnectionBadge />
     </div>
   )
 }
 
-export default App
+export default function App() {
+  if (isSpectateRoute()) return <SpectateApp />
+  return <PlayApp />
+}

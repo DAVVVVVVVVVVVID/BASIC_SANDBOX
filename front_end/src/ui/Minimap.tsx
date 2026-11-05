@@ -9,6 +9,7 @@ const TILE_COLORS: Record<string, string> = {
 }
 const UNKNOWN_COLOR  = '#888888'
 const PLAYER_COLOR   = '#63b3ed'
+const OTHER_COLOR    = '#f6ad55'
 const MINIMAP_MAX_W  = 180
 const MINIMAP_MAX_H  = 140
 const BORDER_RADIUS  = 6
@@ -17,6 +18,8 @@ const PADDING        = 8
 export default function Minimap() {
   const tiles  = useGameStore((s) => s.tiles)
   const player = useGameStore((s) => s.player)
+  const players = useGameStore((s) => s.players)
+  const myId = useGameStore((s) => s.myPlayerId)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   const mapW = tiles.length > 0 ? Math.max(...tiles.map(t => t.x)) + 1 : 0
@@ -42,6 +45,16 @@ export default function Minimap() {
       ctx.fillRect(t.x * cell, t.y * cell, cell, cell)
     }
 
+    for (const op of players) {
+      if (op.id === myId) continue
+      ctx.fillStyle = OTHER_COLOR
+      ctx.globalAlpha = op.online === false ? 0.4 : 1
+      ctx.beginPath()
+      ctx.arc(op.position.x * cell + cell / 2, op.position.y * cell + cell / 2, Math.max(2, cell * 0.6), 0, Math.PI * 2)
+      ctx.fill()
+      ctx.globalAlpha = 1
+    }
+
     if (player) {
       const px = player.position.x * cell + cell / 2
       const py = player.position.y * cell + cell / 2
@@ -51,7 +64,7 @@ export default function Minimap() {
       ctx.arc(px, py, r, 0, Math.PI * 2)
       ctx.fill()
     }
-  }, [tiles, player, canvasW, canvasH, cell, mapW])
+  }, [tiles, player, players, myId, canvasW, canvasH, cell, mapW])
 
   if (mapW === 0) return null
 

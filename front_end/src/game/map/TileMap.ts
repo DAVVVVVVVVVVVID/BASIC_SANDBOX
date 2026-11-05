@@ -1,12 +1,23 @@
 import Phaser from 'phaser'
 import { Tile, Position, TiledRenderData, TiledTilesetInfo } from '../../types'
 
-export const TILE_SIZE = 90
+/**
+ * 一格的屏幕像素数。源图块为 16 px，96 = 16 × 6，相机 zoom 取 1/6 的整数倍时屏幕上是整数像素缩放。
+ * （旧值 90 不是 16 的整数倍，像素会不均匀。）
+ */
+export const TILE_SIZE = 96
+export const SOURCE_TILE = 16
+/** 背景按 chunk 分块烘焙，避免单张 4800×4800 超过 OBS/CEF 的纹理上限 */
+const CHUNK_TILES = 10
 
 // ── Coordinate helpers ────────────────────────────────────────────────────────
 
 export function tileToPixel(tileX: number, tileY: number) {
   return { x: tileX * TILE_SIZE, y: tileY * TILE_SIZE }
+}
+
+export function tileCenter(tileX: number, tileY: number) {
+  return { x: tileX * TILE_SIZE + TILE_SIZE / 2, y: tileY * TILE_SIZE + TILE_SIZE / 2 }
 }
 
 export function pixelToTile(pixelX: number, pixelY: number): Position | null {
@@ -42,13 +53,28 @@ function getGidRect(gid: number, ts: TiledTilesetInfo) {
 export function preloadTileAssets(scene: Phaser.Scene, tiledData?: TiledRenderData) {
   if (!tiledData) return
   for (const ts of tiledData.tilesets) {
-    scene.load.image(ts.imageSource, `assets/tilesets/${ts.imageSource}`)
+    if (!scene.textures.exists(ts.imageSource)) {
+      scene.load.image(ts.imageSource, `assets/tilesets/${ts.imageSource}`)
+    }
   }
+}
+
+/** 地图尺寸（格） */
+export function mapSize(tiles: Tile[], tiled?: TiledRenderData) {
+  if (tiled && tiled.layers.length > 0) {
+    return { w: tiled.layers[0].width, h: tiled.layers[0].height }
+  }
+  let w = 0, h = 0
+  for (const t of tiles) { if (t.x + 1 > w) w = t.x + 1; if (t.y + 1 > h) h = t.y + 1 }
+  return { w, h }
 }
 
 // ── TileMap ───────────────────────────────────────────────────────────────────
 
 export default class TileMap {
+  private images: Phaser.GameObjects.GameObject[] = []
+  private textureKeys: string[] = []
+
   constructor(
     private scene: Phaser.Scene,
     private tiles: Tile[],
@@ -63,45 +89,75 @@ export default class TileMap {
     }
   }
 
+  destroy() {
+    for (const img of this.images) img.destroy()
+    this.images = []
+    for (const k of this.textureKeys) {
+      if (this.scene.textures.exists(k)) this.scene.textures.remove(k)
+    }
+    this.textureKeys = []
+  }
+
   private renderTiledLayers() {
     const { tilesets, layers } = this.tiledData!
-    if (layers.length === 0) return
-
     const mapW = layers[0].width
     const mapH = layers[0].height
-    const canvasW = mapW * TILE_SIZE
-    const canvasH = mapH * TILE_SIZE
+    // 以源像素烘焙（16 px/格），显示时整体放大 TILE_SIZE/16，像素更干净、内存更小
+    const scale = TILE_SIZE / SOURCE_TILE
 
-    const offscreen = document.createElement('canvas')
-    offscreen.width  = canvasW
-    offscreen.height = canvasH
-    const ctx = offscreen.getContext('2d')!
-    ctx.imageSmoothingEnabled = false
-
-    for (const layer of layers) {
-      for (let i = 0; i < layer.data.length; i++) {
-        const gid = layer.data[i]
-        if (gid <= 0) continue
-        const col = i % layer.width
-        const row = Math.floor(i / layer.width)
-        const ts = getTilesetForGid(gid, tilesets)
-        if (!ts) continue
-
-        const srcTexture = this.scene.textures.get(ts.imageSource)
-        const imgEl = srcTexture?.getSourceImage() as HTMLImageElement | undefined
-        if (!imgEl || !imgEl.naturalWidth) {
-          ctx.fillStyle = 'rgba(180,0,180,0.5)'
-          ctx.fillRect(col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-          continue
-        }
-
-        const { sx, sy, sw, sh } = getGidRect(gid, ts)
-        ctx.drawImage(imgEl, sx, sy, sw, sh, col * TILE_SIZE, row * TILE_SIZE, TILE_SIZE, TILE_SIZE)
-      }
+    const sources = new Map<string, HTMLImageElement | null>()
+    for (const ts of tilesets) {
+      const tex = this.scene.textures.get(ts.imageSource)
+      const img = tex?.getSourceImage() as HTMLImageElement | undefined
+      sources.set(ts.imageSource, img && img.naturalWidth ? img : null)
     }
 
-    this.scene.textures.addCanvas('tiled_bg', offscreen)
-    this.scene.add.image(0, 0, 'tiled_bg').setOrigin(0, 0).setDepth(0)
+    const stamp = Date.now().toString(36)
+    for (let cy = 0; cy < mapH; cy += CHUNK_TILES) {
+      for (let cx = 0; cx < mapW; cx += CHUNK_TILES) {
+        const cw = Math.min(CHUNK_TILES, mapW - cx)
+        const ch = Math.min(CHUNK_TILES, mapH - cy)
+        const canvas = document.createElement('canvas')
+        canvas.width  = cw * SOURCE_TILE
+        canvas.height = ch * SOURCE_TILE
+        const ctx = canvas.getContext('2d')!
+        ctx.imageSmoothingEnabled = false
+        let drew = false
+
+        for (const layer of layers) {
+          for (let ty = 0; ty < ch; ty++) {
+            for (let tx = 0; tx < cw; tx++) {
+              const col = cx + tx
+              const row = cy + ty
+              const gid = layer.data[row * layer.width + col]
+              if (!gid || gid <= 0) continue
+              const ts = getTilesetForGid(gid, tilesets)
+              if (!ts) continue
+              const imgEl = sources.get(ts.imageSource)
+              if (!imgEl) {
+                ctx.fillStyle = 'rgba(180,0,180,0.5)'
+                ctx.fillRect(tx * SOURCE_TILE, ty * SOURCE_TILE, SOURCE_TILE, SOURCE_TILE)
+                drew = true
+                continue
+              }
+              const { sx, sy, sw, sh } = getGidRect(gid, ts)
+              ctx.drawImage(imgEl, sx, sy, sw, sh, tx * SOURCE_TILE, ty * SOURCE_TILE, SOURCE_TILE, SOURCE_TILE)
+              drew = true
+            }
+          }
+        }
+        if (!drew) continue
+
+        const key = `tiled_bg_${stamp}_${cx}_${cy}`
+        this.scene.textures.addCanvas(key, canvas)
+        this.textureKeys.push(key)
+        const img = this.scene.add.image(cx * TILE_SIZE, cy * TILE_SIZE, key)
+          .setOrigin(0, 0)
+          .setScale(scale)
+          .setDepth(0)
+        this.images.push(img)
+      }
+    }
   }
 
   private renderFallbackTiles() {
@@ -110,6 +166,7 @@ export default class TileMap {
       wall:           0x555566,
       floor:          0xc8a97a,
       floor_occupied: 0xa07850,
+      object:         0x6b5b45,
     }
     const g = this.scene.add.graphics().setDepth(0)
     for (const tile of this.tiles) {
@@ -118,5 +175,6 @@ export default class TileMap {
       g.fillStyle(color, 1)
       g.fillRect(x, y, TILE_SIZE - 1, TILE_SIZE - 1)
     }
+    this.images.push(g)
   }
 }

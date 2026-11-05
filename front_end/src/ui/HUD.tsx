@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../store/gameStore'
 import type { Buff } from '../types'
+import { NEED_KEYS } from '../types'
+import { NEED_LABELS } from '../game/objects/ActorSprite'
+
+const NEED_CSS: Record<string, string> = {
+  fullness: '#f6ad55', energy: '#63b3ed', social: '#b794f4', fun: '#68d391', mood: '#fbd38d',
+}
+const NEED_FULL: Record<string, string> = {
+  fullness: '饱腹', energy: '精力', social: '社交', fun: '乐趣', mood: '心情',
+}
 
 const BAR_WIDTH = 160
 
@@ -58,6 +67,7 @@ export default function HUD() {
       }
       return next
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 只关心 buffs 变化
   }, [player?.buffs])
 
   // 本地每 100ms 按游戏速度递减
@@ -79,7 +89,8 @@ export default function HUD() {
 
   if (!player) return null
 
-  const { profile, position, facing, state, stateLabel, hp, energy, usingObjectId, buffs, tags } = player
+  const { profile, position, facing, state, stateLabel, usingObjectId, buffs, tags } = player
+  const emotionTags = player.emotion_tags ?? []
 
   const currentTile = tiles.find(t => t.x === position.x && t.y === position.y)
   const zoneParts = [currentTile?.world, currentTile?.sector, currentTile?.arena].filter(Boolean)
@@ -132,23 +143,28 @@ export default function HUD() {
 
       <Divider />
 
-      {/* HP */}
-      <div style={{ marginBottom: 6 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-          <span style={{ color: '#a0aec0' }}>HP</span>
-          <span>{Math.floor(hp)} / 100</span>
+      {/* 七变量（ARCHITECTURE §2.5）；hp 是 fullness 别名，不再单列 */}
+      {NEED_KEYS.map(k => {
+        const v = (player[k] ?? (k === 'fullness' ? player.hp : 0)) as number
+        return (
+          <div key={k} style={{ marginBottom: 5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+              <span style={{ color: '#a0aec0' }}>{NEED_LABELS[k]} {NEED_FULL[k]}</span>
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.floor(v)} / 100</span>
+            </div>
+            <Bar value={v} max={100} color={v < 25 ? '#e53e3e' : NEED_CSS[k]} />
+          </div>
+        )
+      })}
+      {emotionTags.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+          {emotionTags.map((t, i) => (
+            <span key={i} style={{ background: '#2a2d3e', color: '#fbd38d', borderRadius: 3, padding: '1px 6px', fontSize: 11 }}>
+              {t.key}{t.remaining !== null ? ` ${(t.remaining / 1000).toFixed(0)}s` : ''}
+            </span>
+          ))}
         </div>
-        <Bar value={hp} max={100} color="#e53e3e" />
-      </div>
-
-      {/* Energy */}
-      <div style={{ marginBottom: 4 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-          <span style={{ color: '#a0aec0' }}>Energy</span>
-          <span>{Math.floor(energy)} / 100</span>
-        </div>
-        <Bar value={energy} max={100} color="#3182ce" />
-      </div>
+      )}
 
       {/* Buffs & Tags */}
       {(buffs.length > 0 || tags.length > 0) && (

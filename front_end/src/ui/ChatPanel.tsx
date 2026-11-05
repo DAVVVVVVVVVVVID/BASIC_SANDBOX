@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../store/gameStore'
 import * as chatApi from '../api/chat'
+import { EventBus } from '../game/EventBus'
 import type { ChatMessage, ChatRoomEvent, NearbyPlayer, PendingRequest } from '../api/chat'
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
@@ -180,6 +181,8 @@ export default function ChatPanel() {
         }
         if (d.messages.length > 0) {
           setMessages(prev => [...prev, ...d.messages])
+          // 叠加层聊天气泡：每个发言者取最新一条
+          for (const m of d.messages) EventBus.emit('chat-message', { entityId: m.from_entity_id, content: m.content })
         }
         if (d.events.length > 0) {
           setRoomEvents(prev => [...prev, ...d.events])
@@ -380,7 +383,7 @@ export default function ChatPanel() {
                         checked={selected.has(p.entity_id)}
                         onChange={e => setSelected(prev => {
                           const next = new Set(prev)
-                          e.target.checked ? next.add(p.entity_id) : next.delete(p.entity_id)
+                          if (e.target.checked) next.add(p.entity_id); else next.delete(p.entity_id)
                           return next
                         })}
                         style={{ accentColor: '#4299e1', width: 14, height: 14, flexShrink: 0 }}
