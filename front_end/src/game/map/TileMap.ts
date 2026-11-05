@@ -160,21 +160,70 @@ export default class TileMap {
     }
   }
 
+  /** 没有 Tiled 数据（B16 新地图当前如此）：按 tile.type 画色块，同样烘焙成 chunk 画布 */
   private renderFallbackTiles() {
-    const FALLBACK_COLORS: Record<string, number> = {
-      grass:          0x4a7c59,
-      wall:           0x555566,
-      floor:          0xc8a97a,
-      floor_occupied: 0xa07850,
-      object:         0x6b5b45,
+    const FALLBACK_COLORS: Record<string, string> = {
+      grass:          '#4f8a5a',
+      grass1:         '#5b9663',
+      floor:          '#c9ad7c',
+      floor_occupied: '#a88a5e',
+      wall:           '#6b5a52',
+      water:          '#3e78b4',
+      object:         '#b89a6c',
+      road:           '#9a8f7c',
+      sand:           '#d9c48a',
     }
-    const g = this.scene.add.graphics().setDepth(0)
-    for (const tile of this.tiles) {
-      const { x, y } = tileToPixel(tile.x, tile.y)
-      const color = FALLBACK_COLORS[tile.type] ?? 0x888888
-      g.fillStyle(color, 1)
-      g.fillRect(x, y, TILE_SIZE - 1, TILE_SIZE - 1)
+    const { w: mapW, h: mapH } = mapSize(this.tiles)
+    const byKey = new Map<string, Tile>()
+    for (const t of this.tiles) byKey.set(`${t.x},${t.y}`, t)
+    const scale = TILE_SIZE / SOURCE_TILE
+    const stamp = Date.now().toString(36)
+    // 简单的确定性噪声，让草地 / 水面有一点肌理
+    const hash = (x: number, y: number) => { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967295 }
+
+    for (let cy = 0; cy < mapH; cy += CHUNK_TILES) {
+      for (let cx = 0; cx < mapW; cx += CHUNK_TILES) {
+        const cw = Math.min(CHUNK_TILES, mapW - cx)
+        const ch = Math.min(CHUNK_TILES, mapH - cy)
+        const canvas = document.createElement('canvas')
+        canvas.width  = cw * SOURCE_TILE
+        canvas.height = ch * SOURCE_TILE
+        const ctx = canvas.getContext('2d')!
+        ctx.imageSmoothingEnabled = false
+        let drew = false
+        for (let ty = 0; ty < ch; ty++) {
+          for (let tx = 0; tx < cw; tx++) {
+            const t = byKey.get(`${cx + tx},${cy + ty}`)
+            if (!t) continue
+            const base = FALLBACK_COLORS[t.type] ?? '#888888'
+            ctx.fillStyle = base
+            ctx.fillRect(tx * SOURCE_TILE, ty * SOURCE_TILE, SOURCE_TILE, SOURCE_TILE)
+            const n = hash(t.x, t.y)
+            if (t.type.startsWith('grass') || t.type === 'water') {
+              ctx.fillStyle = t.type === 'water' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)'
+              if (n > 0.6) ctx.fillRect(tx * SOURCE_TILE + 4, ty * SOURCE_TILE + 6, 3, 2)
+              if (n > 0.85) ctx.fillRect(tx * SOURCE_TILE + 10, ty * SOURCE_TILE + 11, 2, 2)
+            }
+            if (t.type === 'wall') {
+              ctx.fillStyle = 'rgba(0,0,0,0.25)'
+              ctx.fillRect(tx * SOURCE_TILE, ty * SOURCE_TILE + SOURCE_TILE - 2, SOURCE_TILE, 2)
+              ctx.fillStyle = 'rgba(255,255,255,0.10)'
+              ctx.fillRect(tx * SOURCE_TILE, ty * SOURCE_TILE, SOURCE_TILE, 1)
+            }
+            if (t.type === 'floor' || t.type === 'object') {
+              ctx.fillStyle = 'rgba(0,0,0,0.08)'
+              ctx.fillRect(tx * SOURCE_TILE, ty * SOURCE_TILE, SOURCE_TILE, 1)
+              ctx.fillRect(tx * SOURCE_TILE, ty * SOURCE_TILE, 1, SOURCE_TILE)
+            }
+            drew = true
+          }
+        }
+        if (!drew) continue
+        const key = `fallback_bg_${stamp}_${cx}_${cy}`
+        this.scene.textures.addCanvas(key, canvas)
+        this.textureKeys.push(key)
+        this.images.push(this.scene.add.image(cx * TILE_SIZE, cy * TILE_SIZE, key).setOrigin(0, 0).setScale(scale).setDepth(0))
+      }
     }
-    this.images.push(g)
   }
 }

@@ -68,6 +68,7 @@ export default class ActorSprite {
   private idleAt = 0
   private stateLabel: string | null = null
   private dimmed = false
+  private uiScale = 1
   readonly name: string
   readonly isSelf: boolean
 
@@ -210,10 +211,11 @@ export default class ActorSprite {
     const d = y
     this.sprite.setDepth(d)
     if (this.arrow) { this.arrow.setDepth(d + 1); this.redrawArrow() }
-    this.nameText.setPosition(x, y + NAME_Y).setDepth(d + 2)
-    this.stateText.setPosition(x, y + STATE_Y).setDepth(d + 2)
-    if (this.bubble) this.bubble.setPosition(x, y + BUBBLE_Y).setDepth(d + 3)
-    if (this.bar) this.bar.setPosition(x - BAR_W / 2, y + BAR_Y).setDepth(d + 2)
+    const u = this.uiScale
+    this.nameText.setPosition(x, y + NAME_Y * u).setDepth(d + 2)
+    this.stateText.setPosition(x, y + STATE_Y * u).setDepth(d + 2)
+    if (this.bubble) this.bubble.setPosition(x, y + BUBBLE_Y * u).setDepth(d + 3)
+    if (this.bar) this.bar.setPosition(x - BAR_W / 2 * u, y + BAR_Y * u).setDepth(d + 2)
   }
 
   private redrawArrow() {
@@ -230,6 +232,17 @@ export default class ActorSprite {
   }
 
   // ── 叠加层 ───────────────────────────────────────────────────────────────────
+
+  /** 相机 zoom 的倒数：让名字牌 / 气泡 / 小条在屏幕上保持同样大小 */
+  setUiScale(s: number) {
+    if (Math.abs(s - this.uiScale) < 1e-3) return
+    this.uiScale = s
+    this.nameText.setScale(s)
+    this.stateText.setScale(s)
+    this.bubble?.setScale(s)
+    this.bar?.setScale(s)
+    this.layout()
+  }
 
   setStateLabel(label: string | null) {
     if (label === this.stateLabel) return
@@ -264,7 +277,7 @@ export default class ActorSprite {
         wordWrap: { width: 220, useAdvancedWrap: true },
         align: 'left',
       }).setOrigin(0.5, 1).setResolution(2)
-      this.bubble = this.scene.add.container(this.sprite.x, this.sprite.y + BUBBLE_Y, [this.bubbleBg, this.bubbleText])
+      this.bubble = this.scene.add.container(this.sprite.x, this.sprite.y + BUBBLE_Y, [this.bubbleBg, this.bubbleText]).setScale(this.uiScale)
     }
     const t = this.bubbleText!
     t.setText(text)
@@ -292,7 +305,7 @@ export default class ActorSprite {
     }
     if (this.barVars && NEED_KEYS.every(k => Math.abs(this.barVars![k] - vars[k]) < 0.5)) return
     this.barVars = { ...vars }
-    if (!this.bar) this.bar = this.scene.add.graphics()
+    if (!this.bar) this.bar = this.scene.add.graphics().setScale(this.uiScale)
     const g = this.bar
     g.clear()
     const totalH = NEED_KEYS.length * (BAR_H + BAR_GAP) + 2

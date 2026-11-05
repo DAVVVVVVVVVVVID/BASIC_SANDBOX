@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type {
   Player, WorldState, ActionLogEntry, Tile, OtherPlayer, GameObject,
-  PlayerStateVars, ChatBubble, ConnectionStatus,
+  PlayerStateVars, ChatBubble, ConnectionStatus, TiledRenderData,
 } from '../types'
 
 export type AppMode = 'play' | 'spectate'
@@ -12,6 +12,9 @@ interface GameStore {
   worldState: WorldState | null
   actionLog: ActionLogEntry[]
   tiles: Tile[]
+  tiled: TiledRenderData | null
+  /** tiles / tiled 内容变化时 +1（后端换地图、重启），GameScene 据此重建背景 */
+  mapVersion: number
   objects: GameObject[]
   myPlayerId: string | null
   /** 所有 player（含自己）；GameScene 自行过滤 */
@@ -30,6 +33,7 @@ interface GameStore {
   setWorldState: (ws: WorldState) => void
   setActionLog: (log: ActionLogEntry[]) => void
   setTiles: (tiles: Tile[]) => void
+  setMap: (tiles: Tile[], tiled: TiledRenderData | null | undefined) => void
   setObjects: (objects: GameObject[]) => void
   setMyPlayerId: (id: string | null) => void
   setPlayers: (players: OtherPlayer[]) => void
@@ -47,6 +51,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   worldState: null,
   actionLog: [],
   tiles: [],
+  tiled: null,
+  mapVersion: 0,
   objects: [],
   myPlayerId: null,
   players: [],
@@ -61,6 +67,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setWorldState: (worldState) => set({ worldState }),
   setActionLog: (actionLog) => set({ actionLog }),
   setTiles: (tiles) => set({ tiles }),
+  setMap: (tiles, tiled) => set((s) => ({ tiles, tiled: tiled ?? null, mapVersion: s.mapVersion + 1 })),
   setObjects: (objects) => set({ objects }),
   setMyPlayerId: (myPlayerId) => set({ myPlayerId }),
   setPlayers: (players) => set({ players, lastWorldAt: performance.now() }),

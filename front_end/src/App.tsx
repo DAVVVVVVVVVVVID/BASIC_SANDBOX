@@ -21,21 +21,21 @@ function PlayApp() {
   const initialized = useRef(false)
   const myPlayerId = useGameStore((s) => s.myPlayerId)
 
-  const handleJoined = async (playerId: string, player: Player) => {
+  const handleJoined = async (playerId: string, player: Player, name: string) => {
     if (initialized.current) return
     initialized.current = true
-    const { setPlayer, setWorldState, setTiles, setObjects, setMyPlayerId, setPlayers, setMode } = useGameStore.getState()
+    const { setPlayer, setWorldState, setMap, setObjects, setMyPlayerId, setPlayers, setMode } = useGameStore.getState()
     setMode('play')
     setMyPlayerId(playerId)
     setPlayer(player)
     try {
       const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents()])
       setWorldState(worldData.worldState)
-      setTiles(worldData.tiles)
+      setMap(worldData.tiles, worldData.tiled)
       setObjects(worldData.objects)
       setPlayers(worldData.players ?? [])
-      initGame({ mode: 'play', worldData, events, player, myPlayerId: playerId })
-      startTickSystem(playerId, player.profile?.name ?? playerId)
+      initGame({ mode: 'play', worldData, events, player, myPlayerId: playerId, playerName: name })
+      startTickSystem(playerId, name)
     } catch (err) {
       console.error('[Init Error]', err)
       initialized.current = false

@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import GameScene, { SceneInitData } from './scenes/GameScene'
+import UIScene from './scenes/UIScene'
 
 export const SPECTATE_W = 1920
 export const SPECTATE_H = 1080
@@ -28,6 +29,7 @@ export function initGame(init: SceneInitData): Phaser.Game {
   game.events.once(Phaser.Core.Events.READY, () => {
     game.canvas.addEventListener('contextmenu', (e) => e.preventDefault())
     game.scene.add('GameScene', GameScene, true, init)
+    game.scene.add('UIScene', UIScene, true, { mode: init.mode, params: init.spectate ?? null })
   })
   return game
 }

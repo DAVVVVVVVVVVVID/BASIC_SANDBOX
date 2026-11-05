@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { joinPlayer } from '../api/world'
 
 interface Props {
-  onJoined: (playerId: string, player: import('../types').Player) => void
+  onJoined: (playerId: string, player: import('../types').Player, name: string) => void
 }
 
 export default function JoinScreen({ onJoined }: Props) {
@@ -17,7 +17,7 @@ export default function JoinScreen({ onJoined }: Props) {
     setError('')
     try {
       const { playerId, player } = await joinPlayer(trimmed)
-      onJoined(playerId, player)
+      onJoined(playerId, player, trimmed)
     } catch {
       setError('加入失败，请检查后端是否启动')
     } finally {

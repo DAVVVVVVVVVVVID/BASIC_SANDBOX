@@ -2,8 +2,9 @@
 export interface SpectateParams {
   follow: string | null
   hud: boolean          // React 面板（默认 1；OBS 用 0）
-  clock: boolean        // 画布内时钟（默认 1）
+  clock: boolean        // 画布内时钟（默认 = !hud：OBS 的 hud=0 时画在画布里；hud=1 时由 React 面板显示）
   zoom: number | null   // 跟随镜头 zoom（默认 2/3 → 64 px/格 = 4× 源像素）
+  panzoom: number | null // 全景 zoom（默认按地图自动，吸附到 1/6 的整数倍）
   bg: 'dark' | 'transparent'
   stats: boolean        // 画布内帧率
   bars: 'target' | 'all' | 'none'
@@ -16,14 +17,16 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
     if (v === null) return def
     return !(v === '0' || v === 'false' || v === 'no')
   }
-  const zoomRaw = q.get('zoom')
-  const zoom = zoomRaw !== null && !Number.isNaN(Number(zoomRaw)) && Number(zoomRaw) > 0 ? Number(zoomRaw) : null
+  const num = (k: string) => { const v = q.get(k); return v !== null && !Number.isNaN(Number(v)) && Number(v) > 0 ? Number(v) : null }
+  const zoom = num('zoom')
+  const panzoom = num('panzoom')
   const bars = q.get('bars')
   return {
     follow: q.get('follow') || null,
     hud:    flag('hud', true),
-    clock:  flag('clock', true),
+    clock:  flag('clock', !flag('hud', true)),
     zoom,
+    panzoom,
     bg:     q.get('bg') === 'transparent' ? 'transparent' : 'dark',
     stats:  flag('stats', false),
     bars:   bars === 'all' || bars === 'none' ? bars : 'target',

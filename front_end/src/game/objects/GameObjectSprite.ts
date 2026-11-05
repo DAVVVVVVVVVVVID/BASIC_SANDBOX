@@ -2,7 +2,11 @@ import Phaser from 'phaser'
 import { GameObject } from '../../types'
 import { tileToPixel, TILE_SIZE } from '../map/TileMap'
 
-const COLOR_OBJECT = 0xf6ad55
+const COLOR_OBJECT = 0x8b6b3e
+const TYPE_ICON: [RegExp, string][] = [
+  [/bed/i, '🛏'], [/desk|stream/i, '🖥'], [/book/i, '📚'], [/phone/i, '📱'], [/fridge|cook|stove/i, '🧊'],
+  [/bath|shower/i, '🛁'], [/toilet/i, '🚽'], [/sink/i, '🚰'], [/sofa/i, '🛋'], [/tree/i, '🌳'], [/well/i, '🪣'],
+]
 
 function tooltipLabel(obj: GameObject): string {
   const usage = `${obj.currentUsers}/${obj.maxUsers}`
@@ -10,74 +14,64 @@ function tooltipLabel(obj: GameObject): string {
   return `${obj.name} (${usage})${full}`
 }
 
+/** 地图物品：有 sprite 用图；没有就画一个带名字的圆角色块（E6 换美术前的占位） */
 export default class GameObjectSprite {
-  constructor(scene: Phaser.Scene, obj: GameObject) {
-    const footprint = obj.tiles ?? [obj.position]
-    const size = Math.max(TILE_SIZE - 2, 2)
+  private nodes: Phaser.GameObjects.GameObject[] = []
 
-    // 计算 footprint 包围盒
+  constructor(scene: Phaser.Scene, obj: GameObject) {
+    const footprint = obj.tiles && obj.tiles.length > 0 ? obj.tiles : [obj.position]
     const xs = footprint.map(p => p.x)
     const ys = footprint.map(p => p.y)
-    const minX = Math.min(...xs)
-    const minY = Math.min(...ys)
-    const maxX = Math.max(...xs)
-    const maxY = Math.max(...ys)
-    const cols  = maxX - minX + 1
-    const rows  = maxY - minY + 1
+    const minX = Math.min(...xs), minY = Math.min(...ys)
+    const maxX = Math.max(...xs), maxY = Math.max(...ys)
+    const cols = maxX - minX + 1
+    const rows = maxY - minY + 1
+    const { x: px, y: py } = tileToPixel(minX, minY)
+    const imgW = cols * TILE_SIZE
+    const imgH = rows * TILE_SIZE
 
     const spriteKey = obj.sprite ? `obj_${obj.sprite}` : null
-
+    let hit: Phaser.GameObjects.GameObject
     if (spriteKey && scene.textures.exists(spriteKey)) {
-      // 用一张图覆盖整个 footprint
-      const { x: px, y: py } = tileToPixel(minX, minY)
-      const imgW = cols * TILE_SIZE
-      const imgH = rows * TILE_SIZE
-      const img = scene.add
-        .image(px + imgW / 2, py + imgH / 2, spriteKey)
+      const img = scene.add.image(px + imgW / 2, py + imgH / 2, spriteKey)
         .setDisplaySize(imgW, imgH)
         .setDepth(1)
         .setInteractive()
-
-      const tooltip = scene.add
-        .text(px + imgW / 2, py - 2, tooltipLabel(obj), {
-          fontSize: '10px',
-          color: '#ffffff',
-          backgroundColor: '#1a1a2e',
-          padding: { x: 4, y: 2 },
-        })
-        .setOrigin(0.5, 1)
-        .setDepth(10)
-        .setVisible(false)
-
-      img.on('pointerover', () => tooltip.setVisible(true))
-      img.on('pointerout',  () => tooltip.setVisible(false))
+      this.nodes.push(img)
+      hit = img
     } else {
-      // 无 sprite：每格画一个色块，tooltip 挂第一格
-      footprint.forEach((pos, index) => {
-        const { x, y } = tileToPixel(pos.x, pos.y)
-        const cx = x + TILE_SIZE / 2
-        const cy = y + TILE_SIZE / 2
-
-        const rect = scene.add.rectangle(cx, cy, size, size, COLOR_OBJECT, 0)
-        rect.setDepth(1)
-        rect.setInteractive()
-
-        if (index === 0) {
-          const tooltip = scene.add
-            .text(cx, y - 2, tooltipLabel(obj), {
-              fontSize: '10px',
-              color: '#ffffff',
-              backgroundColor: '#1a1a2e',
-              padding: { x: 4, y: 2 },
-            })
-            .setOrigin(0.5, 1)
-            .setDepth(10)
-            .setVisible(false)
-
-          rect.on('pointerover', () => tooltip.setVisible(true))
-          rect.on('pointerout',  () => tooltip.setVisible(false))
-        }
-      })
+      const g = scene.add.graphics().setDepth(1)
+      g.fillStyle(COLOR_OBJECT, 0.9)
+      g.lineStyle(2, 0x3b2a1a, 0.8)
+      g.fillRoundedRect(px + 6, py + 6, imgW - 12, imgH - 12, 10)
+      g.strokeRoundedRect(px + 6, py + 6, imgW - 12, imgH - 12, 10)
+      this.nodes.push(g)
+      const icon = TYPE_ICON.find(([re]) => re.test(`${obj.type} ${obj.name}`))?.[1] ?? '📦'
+      const label = scene.add.text(px + imgW / 2, py + imgH / 2, `${icon}\n${obj.name}`, {
+        fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
+        fontSize: '14px', color: '#fff7e6', align: 'center',
+        stroke: '#000000', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(2).setResolution(2)
+      this.nodes.push(label)
+      const zone = scene.add.zone(px + imgW / 2, py + imgH / 2, imgW, imgH).setInteractive()
+      this.nodes.push(zone)
+      hit = zone
     }
+
+    const tooltip = scene.add
+      .text(px + imgW / 2, py - 2, tooltipLabel(obj), {
+        fontSize: '12px', color: '#ffffff', backgroundColor: '#1a1a2e', padding: { x: 4, y: 2 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(10)
+      .setVisible(false)
+    this.nodes.push(tooltip)
+    hit.on('pointerover', () => tooltip.setVisible(true))
+    hit.on('pointerout',  () => tooltip.setVisible(false))
+  }
+
+  destroy() {
+    for (const n of this.nodes) n.destroy()
+    this.nodes = []
   }
 }

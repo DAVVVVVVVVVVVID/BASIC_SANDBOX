@@ -28,6 +28,7 @@ export default function SpectateApp() {
     if (params.bg === 'transparent') {
       document.documentElement.style.background = 'transparent'
       document.body.style.background = 'transparent'
+      const root = document.getElementById('root'); if (root) root.style.background = 'transparent'
     }
 
     let cancelled = false
@@ -40,7 +41,7 @@ export default function SpectateApp() {
           const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents()])
           const s = useGameStore.getState()
           s.setWorldState(worldData.worldState)
-          s.setTiles(worldData.tiles)
+          s.setMap(worldData.tiles, worldData.tiled)
           s.setObjects(worldData.objects)
           s.setPlayers(worldData.players ?? [])
           s.setConnection('online')

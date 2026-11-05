@@ -5,7 +5,6 @@ import PlayerSprite from '../objects/Player'
 import OtherPlayerSprite from '../objects/OtherPlayerSprite'
 import GameObjectSprite from '../objects/GameObjectSprite'
 import InputSystem from '../systems/InputSystem'
-import Overlay from '../systems/Overlay'
 import { EventBus } from '../EventBus'
 import { sendAction } from '../../api/world'
 import { useGameStore } from '../../store/gameStore'
@@ -19,6 +18,8 @@ export interface SceneInitData {
   player?: Player
   myPlayerId?: string
   spectate?: SpectateParams
+  /** 操控模式：登录框里输入的名字（/player/{id} 不带 name） */
+  playerName?: string
 }
 
 const MIN_ZOOM = 1 / 6
@@ -77,13 +78,13 @@ export default class GameScene extends Phaser.Scene {
   private player: Player | null = null
   private myPlayerId: string | null = null
   private params: SpectateParams | null = null
+  private playerName: string | null = null
 
   private tileMap!: TileMap
   private self: PlayerSprite | null = null
   private others: Map<string, OtherPlayerSprite> = new Map()
   private objectSprites: GameObjectSprite[] = []
   private inputSystem: InputSystem | null = null
-  private overlay!: Overlay
   private unsubs: (() => void)[] = []
   private busHandlers: [string, (...args: never[]) => void][] = []
 
@@ -99,10 +100,9 @@ export default class GameScene extends Phaser.Scene {
   private mapPx = { w: 0, h: 0 }
 
   // 统计
-  private statsText: Phaser.GameObjects.Text | null = null
   private statsAt = 0
+  private lastUiScale = 0
   private lastPrune = 0
-  private lastWorldLen = 0
 
   constructor() {
     super({ key: 'GameScene' })
@@ -115,6 +115,7 @@ export default class GameScene extends Phaser.Scene {
     this.player      = data.player ?? null
     this.myPlayerId  = data.myPlayerId ?? null
     this.params      = data.spectate ?? null
+    this.playerName  = data.playerName ?? null
   }
 
   preload() {
@@ -163,22 +164,15 @@ export default class GameScene extends Phaser.Scene {
       cam.centerOn(this.camX, this.camY)
     }
 
-    this.overlay = new Overlay(this, { clock: this.mode === 'spectate' ? (this.params?.clock ?? true) : false })
-
-    if (this.params?.stats) {
-      this.statsText = this.add.text(12, 12, '', {
-        fontFamily: 'monospace', fontSize: '14px', color: '#9ae6b4',
-        backgroundColor: 'rgba(0,0,0,0.5)', padding: { x: 6, y: 3 },
-      }).setScrollFactor(0).setDepth(10004)
-    }
-
     // ── store 订阅 ──
     this.syncOthers(useGameStore.getState().players)
     this.unsubs.push(useGameStore.subscribe((s, prev) => {
       if (s.players !== prev.players || s.objects !== prev.objects) this.syncOthers(s.players)
-      if (s.tiles !== prev.tiles && s.tiles.length > 0 && s.tiles.length !== this.lastWorldLen) {
-        // 地图换了（B16 新地图 / 后端换版本）：重建背景
+      if (s.mapVersion !== prev.mapVersion && s.tiles.length > 0) {
+        // 地图换了（B16 新地图 / 后端换版本 / 重启）：重建背景与物品
+        this.worldData = { ...this.worldData, tiles: s.tiles, tiled: s.tiled ?? undefined, objects: s.objects }
         this.inputSystem?.setTiles(s.tiles)
+        this.rebuildMap()
       }
       if (s.playerVars !== prev.playerVars) this.syncVars()
       if (s.myPlayerId !== prev.myPlayerId && s.myPlayerId && this.mode === 'play') {
@@ -186,7 +180,6 @@ export default class GameScene extends Phaser.Scene {
         this.inputSystem?.setPlayerId(s.myPlayerId)
       }
     }))
-    this.lastWorldLen = this.worldData.tiles.length
 
     this.on('player-snapshot', ({ player, sentAt }: { player: Player; sentAt: number }) => {
       this.player = player
@@ -205,6 +198,14 @@ export default class GameScene extends Phaser.Scene {
       useGameStore.getState().pushBubble(entityId, content)
     })
 
+    // 调试 / 自动化测量用（Playwright 读）：自己的像素位置、在途请求数
+    ;(window as unknown as { __whaleDebug: unknown }).__whaleDebug = {
+      selfPixel: () => this.self?.getPixelPosition() ?? null,
+      selfTile: () => this.self?.getTile() ?? null,
+      inflight: () => this.inputSystem?.hasInflight() ?? false,
+      others: () => [...this.others.entries()].map(([id, s]) => ({ id, px: s.getPixelPosition(), tile: s.getTile(), moving: s.isMoving() })),
+    }
+
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardown())
   }
 
@@ -222,14 +223,26 @@ export default class GameScene extends Phaser.Scene {
     this.others.forEach(s => s.destroy())
     this.others.clear()
     this.self?.destroy()
-    this.overlay?.destroy()
     this.tileMap?.destroy()
   }
 
   // ── 地图 ─────────────────────────────────────────────────────────────────────
 
+  /** 运行中换图：新 tileset 可能还没加载，先加载再重建 */
+  private rebuildMap() {
+    const world = this.worldData
+    const missing = (world.tiled?.tilesets ?? []).filter(ts => !this.textures.exists(ts.imageSource))
+    const missingObj = world.objects.filter(o => o.sprite && !this.textures.exists(`obj_${o.sprite}`))
+    if (missing.length === 0 && missingObj.length === 0) { this.buildMap(world); return }
+    preloadTileAssets(this, world.tiled)
+    for (const o of missingObj) this.load.image(`obj_${o.sprite}`, `assets/sprites/${o.sprite}.png`)
+    this.load.once(Phaser.Loader.Events.COMPLETE, () => this.buildMap(world))
+    this.load.start()
+  }
+
   private buildMap(world: WorldData) {
     this.tileMap?.destroy()
+    for (const o of this.objectSprites) o.destroy()
     this.objectSprites = []
     this.tileMap = new TileMap(this, world.tiles, world.tiled)
     this.tileMap.render()
@@ -240,14 +253,14 @@ export default class GameScene extends Phaser.Scene {
     const cam = this.cameras.main
     // 全景 zoom：整张图放进画面，吸附到 1/6 的整数倍
     const fit = Math.min(cam.width / this.mapPx.w, cam.height / this.mapPx.h)
-    this.panZoom = Math.max(MIN_ZOOM, snapZoom(fit))
-    cam.setBounds(-this.mapPx.w, -this.mapPx.h, this.mapPx.w * 3, this.mapPx.h * 3)
+    this.panZoom = this.params?.panzoom ? snapZoom(this.params.panzoom) : Math.max(MIN_ZOOM, snapZoom(fit))
+    if (this.mode === 'spectate' && this.camMode === 'pan') cam.setZoom(this.panZoom)
   }
 
   // ── 自己 ─────────────────────────────────────────────────────────────────────
 
   private createSelf(player: Player) {
-    this.self = new PlayerSprite(this, player.position, player.facing, player.profile?.name ?? player.id)
+    this.self = new PlayerSprite(this, player.position, player.facing, this.playerName ?? player.profile?.name ?? player.id)
     this.inputSystem = new InputSystem(
       this,
       player.id,
@@ -429,8 +442,18 @@ export default class GameScene extends Phaser.Scene {
     const k = 1 - Math.exp(-dt / CAMERA_LERP_MS)
     this.camX += (tx - this.camX) * k
     this.camY += (ty - this.camY) * k
-    cam.centerOn(this.camX, this.camY)
+    this.centerClamped(this.camX, this.camY)
     void playerVars
+  }
+
+  /** 居中到 (x, y)，但视野比地图小时不露出地图外的黑边；比地图大时居中整张图 */
+  private centerClamped(x: number, y: number) {
+    const cam = this.cameras.main
+    const vw = cam.width / cam.zoom
+    const vh = cam.height / cam.zoom
+    const cx = vw >= this.mapPx.w ? this.mapPx.w / 2 : Phaser.Math.Clamp(x, vw / 2, this.mapPx.w - vw / 2)
+    const cy = vh >= this.mapPx.h ? this.mapPx.h / 2 : Phaser.Math.Clamp(y, vh / 2, this.mapPx.h - vh / 2)
+    cam.centerOn(cx, cy)
   }
 
   update(time: number, dt: number) {
@@ -441,11 +464,19 @@ export default class GameScene extends Phaser.Scene {
       this.inputSystem?.update(time)
       this.self?.update(time, dt, speed)
       const p = this.self!.getPixelPosition()
-      this.cameras.main.centerOn(p.x, p.y)
+      this.centerClamped(p.x, p.y)
     } else {
       this.updateSpectateCamera(time, dt)
     }
     for (const s of this.others.values()) s.update(time, dt, 1)
+
+    // 标签 / 气泡在屏幕上恒定大小
+    const ui = Phaser.Math.Clamp(1 / this.cameras.main.zoom, 1, 6)
+    if (Math.abs(ui - this.lastUiScale) > 1e-3) {
+      this.lastUiScale = ui
+      this.self?.setUiScale(ui)
+      for (const s of this.others.values()) s.setUiScale(ui)
+    }
 
     // 气泡
     if (time - this.lastPrune > 250) {
@@ -458,11 +489,6 @@ export default class GameScene extends Phaser.Scene {
       for (const [id, s] of this.others) s.setBubble(byId.get(id) ?? null)
       if (this.self && this.myPlayerId) this.self.setBubble(byId.get(this.myPlayerId) ?? null)
       this.hadBubbles = bubbles.length > 0
-    }
-
-    this.overlay.update(store.worldState)
-    if (this.mode === 'spectate' && (this.params?.hud ?? true)) {
-      this.overlay.setBadge(store.connection === 'offline' ? '后端连接中断，重连中…' : null)
     }
 
     if (time - this.statsAt > 1000) {
@@ -478,7 +504,6 @@ export default class GameScene extends Phaser.Scene {
       }
       ;(window as unknown as { __whaleStats: typeof stats }).__whaleStats = stats
       EventBus.emit('stats', stats)
-      this.statsText?.setText(`${stats.fps} fps · ${stats.actors} actors · ${stats.connection} · ${stats.camMode}${stats.target ? ' → ' + stats.target : ''}`)
     }
   }
   private hadBubbles = false

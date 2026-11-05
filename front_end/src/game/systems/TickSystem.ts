@@ -12,12 +12,22 @@ export const POLL_VARS_MS    = 1000
 
 interface TickHandles { stop: () => void }
 
+let lastMapSig = ''
+/** 便宜的地图签名：数量 + 不可走格数 + 图层数；足够区分换图与重启 */
+export function mapSignature(world: { tiles: { walkable: boolean; type: string }[]; tiled?: { layers: unknown[] } | null }): string {
+  let blocked = 0
+  let typeHash = 0
+  for (const t of world.tiles) { if (!t.walkable) blocked++; typeHash = (typeHash * 31 + t.type.length) >>> 0 }
+  return `${world.tiles.length}:${blocked}:${typeHash}:${world.tiled?.layers?.length ?? 0}`
+}
+
 function applyWorld(world: Awaited<ReturnType<typeof fetchWorld>>) {
   const s = useGameStore.getState()
   s.setWorldState(world.worldState)
   s.setObjects(world.objects)
-  // tiles 很大（2500 条），只有数量变了才替换，避免每轮触发全量重渲染
-  if (s.tiles.length !== world.tiles.length) s.setTiles(world.tiles)
+  // tiles 很大（几千条），只有地图签名变了才替换（后端换地图 / 重启），避免每轮全量重渲染
+  const sig = mapSignature(world)
+  if (sig !== lastMapSig) { lastMapSig = sig; s.setMap(world.tiles, world.tiled) }
   s.setPlayers(world.players ?? [])
   s.setConnection('online')
 }
