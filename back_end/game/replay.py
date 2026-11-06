@@ -278,6 +278,39 @@ def _replay_body(date, actions, external, states, first, last, t_start, t_end, c
             elif k == "effects_push" and p is not None:
                 world_state.apply_effects(p, e.get("effects") or [], source=e.get("source") or "effects", scene=e.get("scene"), track=False)
                 applied["effects_push"] += 1
+            elif k == "scenario":
+                op = e.get("op"); args = e.get("args") or {}; res_ = e.get("result") or {}
+                if op in ("set_vars", "teleport", "occupy", "release", "spawn", "remove", "effects"):
+                    target = world_state._players.get(pid) if pid else None
+                    if op == "spawn" and res_ and pid not in world_state._players:
+                        spawn(pid, {"vars": res_.get("vars", {}), "position": res_.get("position", {"x": 6, "y": 9}),
+                                    "controller": res_.get("controller", "agent"), "agent_id": args.get("agent_id"),
+                                    "scene": res_.get("scene", "sandbox"), "facing": res_.get("facing"), "online": True})
+                    elif op == "remove" and target is not None:
+                        world_state.remove_player(pid)
+                    elif target is not None:
+                        if op == "set_vars":
+                            for v, val in (args.get("vars") or {}).items():
+                                buff_tick.set_var(target, v, float(val), track=False)
+                            if args.get("mood_base") is not None:
+                                target["mood_base"] = float(args["mood_base"])
+                            if args.get("scene") in ("sandbox", "live"):
+                                target["scene"] = args["scene"]
+                        elif op == "teleport":
+                            if target.get("usingObjectId"):
+                                world_state.leave_object(pid)
+                            world_state.update_player_position(pid, int(args["x"]), int(args["y"]), args.get("facing") or target["facing"])
+                        elif op == "occupy":
+                            if res_.get("position"):
+                                target["position"] = dict(res_["position"]); target["facing"] = res_.get("facing", target["facing"])
+                            world_state.enter_object(args["object"], pid)
+                            if args.get("sticky"):
+                                world_state._use_start_times[pid] = None
+                        elif op == "release":
+                            world_state.leave_object(pid)
+                        elif op == "effects":
+                            world_state.apply_effects(target, args.get("effects") or [], source="scenario", scene=args.get("scene"), track=False)
+                applied["scenario"] = applied.get("scenario", 0) + 1
             elif k == "adjudication" and p is not None:
                 effs = e.get("effects") or []
                 mine = [x for x in effs if x.get("target") in (None, "", "self", pid)]

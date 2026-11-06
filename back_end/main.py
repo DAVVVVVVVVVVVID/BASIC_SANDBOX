@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import world, player, actions, events, history, time_control, agent, chat, ws
+from routers import world, player, actions, events, history, time_control, agent, chat, ws, scenario
 from game import persistence, ticker, time_state, self_sync
 
 log = logging.getLogger("sandbox")
@@ -59,3 +59,4 @@ app.include_router(time_control.router)
 app.include_router(agent.router)
 app.include_router(chat.router)
 app.include_router(ws.router)
+app.include_router(scenario.router)

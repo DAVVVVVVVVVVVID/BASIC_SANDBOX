@@ -1123,10 +1123,44 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | 行来源 | `data/actions/<date>.jsonl`、`data/chat/<date>.jsonl`、`data/state/<date>.jsonl`，行序即文件序；`manifest.counts` 与文件行数一致 |
 | 每行新增字段 | **W6** `town`（环境变量 `SANDBOX_TOWN`，默认 `main`）、`map_version`、`seed`。W6 之前写的旧行没有这三项，导出时按当前配置回填并加 `"backfilled": true`，`manifest.backfilled_rows` 计数 |
 | `state` | **W6** 每个 player 每 30 游戏秒一行（与自我层 delta 同节拍），由后台 ticker 写 `data/state/<date>.jsonl`，`kind: "sample"`；**W8 Q1**：join / rejoin / 检查点回填时立即各写一行（`kind: "join" | "rejoin" | "restore"`，并把 30 s 节拍对齐到此刻），每行带 `mood_base` |
-| `external` | **W7 B19** `data/external/<date>.jsonl`：外部效果与不确定性输入——`self_seed`（种入的七变量）、`self_snap`（纠偏差值）、`effects_push`（`/effects` 完整载荷）、`adjudication`（freeform 裁决结果）、`feed` / `live` / `game`（外部调用结果）、`nondeterministic`（`time_speed / time_toggle / time_reset`）。每行带 `ts / game_time / town / map_version / seed / entity`。`kinds` 默认含它 |
+| `external` | **W7 B19** `data/external/<date>.jsonl`：外部效果与不确定性输入——`self_seed`（种入的七变量）、`self_snap`（纠偏差值）、`effects_push`（`/effects` 完整载荷）、`adjudication`（freeform 裁决结果）、`feed` / `live` / `game`（外部调用结果）、`nondeterministic`（`time_speed / time_toggle / time_reset`）、**`scenario`（W8：验收夹具的每一步）**。每行带 `ts / game_time / town / map_version / seed / entity`。`kinds` 默认含它 |
 
 **可复现回放（B19）：** `cd back_end && uv run python scripts/replay.py --date 2026-11-06 --town main --data-dir run/data/sandbox`：从每个 player 当日第一条 state 行起步，按游戏时间把 actions 与 external 合成时间线，事件之间以 1 游戏秒步进跑同一套 tick（外部调用按日志打桩，不打网络），末态与 state 最后一行逐变量作差（阈值 0.5），并列出窗口内的 nondeterministic 输入与「重放结果与日志 success 不一致」的动作。同一游戏秒内的事件按真实毫秒时间戳（`ts` / `timestamp`）排序，配合 join / rejoin 的立即采样，同秒动作无歧义（W8 Q1）；窗口内后续的 join / rejoin / restore 行作为**同步点**（重启回填 / 续接那一刻的 vars、位置、朝向、正在用的物品）；聊天 JSONL 的 `room_open / player_exit / room_close / room_limit` 事件是第四个输入（对话期间 `chat_active` 让 move / use / leave 失败，决定物品使用时长）；state 行自 W8 起带 `facing`。`--start-kind rejoin` 可从某类起点行回放。注意：用 `place()` 之类不进日志的改动无法回放；回放只覆盖有 state 行的时间窗。
 | 对账脚本 | `cd back_end && uv run python scripts/dataset_fetch.py --base http://127.0.0.1:8000 --date 2026-11-06 --data-dir run/data/sandbox` 写出 `<out>/<town>/<date>/{actions,chat,state}.jsonl + manifest.json` 并校验 写出行数 == manifest == 本地文件行数 |
+
+---
+
+### POST /admin/scenario
+
+**W8 Q0b 行为验收夹具**（`docs/behavior-acceptance.md`「分工 B」）：一次把世界摆成指定状态。**只在 `SANDBOX_SCENARIO=1` 的实例开放**（运行台主镇不开，townctl 的 `bench` 镇开；`run_town.sh --scenario`），否则 403。
+
+```json
+{ "label": "S01", "steps": [
+    { "op": "reset" },
+    { "op": "set_time", "time": "11:30", "date": "2026-11-10" },
+    { "op": "spawn", "name": "鲸仔", "agent_id": "whale", "x": 35, "y": 25, "facing": "up", "vars": { "fullness": 15 } } ] }
+```
+
+按序执行，遇错即停；响应 `{ ok, label, steps: [{op, ok, detail}], world: {time, players[]} }`，失败时 `ok=false`、`error="step i (op): …"`、`steps` 为已完成的步。`player` / `from` / `to[]` 可填 id 或**唯一的** name。
+
+| op | 参数 | 作用 |
+|---|---|---|
+| `reset` | `running?` | 清空所有玩家 / 对话 / 物品占用 / 冷却 / 待发同步；时间回真实当前 |
+| `set_time` | `time:"HH:MM[:SS]"`, `date?`, `speed?`, `running?` | 游戏时间拨到该时刻（锚点重设，之后照常走）；天气按 seed 重算 |
+| `spawn` | `name`, `agent_id?`, `controller?="agent"`, `x?`, `y?`, `facing?`, `vars?`, `profile?` | 放一个玩家（agent 会照常从自我层种入，之后再按 `vars` 直写）；不传坐标落出生点 / 家 |
+| `remove` | `player` | 删玩家（自动退出物品与对话） |
+| `teleport` | `player`, `x`, `y`, `facing?` | 必须可走格；正在用物品先离开；`pos_seq` +1 |
+| `set_vars` | `player`, `vars{…}`, `mood_base?`, `scene?`, `closeness?` | 七变量直写（clamp，`hp` 视为 fullness），**不进自我层 vars_delta** |
+| `effects` | `player`, `effects[]`, `scene?`, `event?` | 同 `POST /player/{id}/effects`，`source="scenario"` |
+| `occupy` | `player`, `object`, `sticky?` | 让玩家占住 continuous 物品：跳过距离 / 冷却 / 营业时间 / 外部调用（直播台只本地切 live）；站到相邻可走格并面向它；`sticky=true` 关掉 max_duration 自动离开（S05「占着不走」）。满员 → 错 |
+| `release` | `player` | 离开正在用的物品 |
+| `invite` | `from`, `to[]`, `greeting` | 代某玩家发邀请，**跳过冷却**，返回 `request_id` |
+| `respond` | `player`, `request_id`, `accept`, `message`, `tick?=true` | 代某玩家响应；默认立刻推进一次状态机（相邻则建房），返回 `status_now` / `chat_room_id` |
+| `say` | `player`, `room`, `text` | 代某玩家发言 |
+| `exit_chat` | `player`, `room` | 代某玩家退出房间 |
+| `clear_cooldowns` | `player?` | 清物品冷却 / 使用计数与对话冷却 |
+
+**可见性：** 每步写一条 `external` 日志（`kind: "scenario"`，含 label / step / op / args / result），`spawn / teleport / set_vars / effects / occupy / release` 另给受影响玩家立即写一行 state（`kind: "scenario"`）。回放把 scenario 行当外部输入重现。
 
 ---
 

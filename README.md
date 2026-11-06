@@ -280,6 +280,7 @@ POST /action
 | `POST /admin/checkpoint` | 立即写一份 SQLite 检查点 |
 | `GET /admin/self-sync` | 自我层同步状态（发送 / 失败 / drift / 待发） |
 | `GET /admin/metrics` | tick 耗时 / 间隔分位、玩家数、WS 订阅数、RSS |
+| `POST /admin/scenario` | 行为验收夹具：一次摆世界（teleport / 七变量 / 时间 / 放撤 NPC / 占物品 / 代发邀请发言 / 重置），仅 `SANDBOX_SCENARIO=1`（`run_town.sh --scenario`） |
 
 > 当 Agent 循环意外中断导致玩家被 `no_move` / `no_interact` / `no_use` buff 卡住时，调用 `force-reset` 即可恢复。
 

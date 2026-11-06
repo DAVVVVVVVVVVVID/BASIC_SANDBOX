@@ -55,7 +55,7 @@ max |diff| = 0.003  (threshold 0.5) → PASS
 ## 4. 测试与提交
 
 ```bash
-cd back_end && uv run pytest -q      # 210 passed（W7 的 181 + Q1 4 + Q0 24 + 回放同步点 1）
+cd back_end && uv run pytest -q      # 220 passed（W7 的 181 + Q1 4 + Q0 24 + Q0b 10 + 回放同步点 1）
 uv run python scripts/replay.py --date 2026-11-06 --town main      # max |diff| 0.003 → PASS（跨重启）
 uv run python scripts/inspect_runstation.py                        # §1 那一行
 ```
@@ -74,6 +74,13 @@ uv run python scripts/inspect_runstation.py                        # §1 那一�
 - **修法**：① `leave` 对正在使用的物品永远放行，失败只剩 `not_using_any_object` / `player_not_found`；② 检查点回填后 `chat_active` 与活跃房间对账（没房间的清掉、有房间的补上）。
 - **单测** `tests/test_w8_q0_leave.py`（24 例）：地图上 **19 个 continuous 物品逐个 use → tick → leave 必须成功**（覆盖所有 no_use / no_move 物品）；对话中 use 钓位 → move 仍 `move_disabled`（预期）但 leave 成功；use → 重启回填 → leave 成功；对同一物品再次 use 不重复计数 → leave 成功；回填清掉无房间的 `chat_active`。
 - 行为契约：api-spec `leave` 小节已注明。提交：`3ec0fe1`（修复 + 单测）与其后一提交（单测时序修正），**请总控切到最新提交**；旧实例上被卡住的人仍可用 `POST /admin/player/force-reset` 解开。
+
+## 5c. Q0b 行为验收夹具（插队，同日）
+
+- `POST /admin/scenario {label, steps[]}`，14 个原子 op：`reset / set_time / spawn / remove / teleport / set_vars / effects / occupy(sticky) / release / invite / respond / say / exit_chat / clear_cooldowns`；按序执行遇错即停；`player` 可用唯一 name；只在 `SANDBOX_SCENARIO=1` 开放（`run_town.sh --scenario`），否则 403。
+- 对数据集可见：每步一条 `external` 行（`kind=scenario`），受影响玩家立即一行 state（`kind=scenario`）；回放把 scenario 行当外部输入重现（`set_vars / teleport / spawn / remove / occupy / release / effects`）。
+- 单测 `tests/test_w8_scenario.py` 10 例：门禁 403；S01 摆法端到端（reset → 11:30 → 广场放鲸仔 fullness 15，时间继续走，日志与采样）；teleport 校验可走格与 name 歧义；set_vars / effects / closeness 直写且不进 self-sync；occupy sticky 让别人 `object_full`、不触发自动离开、跳过营业时间、满员 / 非 continuous 报错、release；占直播台只本地切 live；对话四 op 跳过冷却并建房；remove / clear_cooldowns / 未知 op；S02 摆法 + `move_to_area(storage)` 可达；scenario 行回放一致。
+- 给 C 的跑手：S01–S10 的「摆法」列都能用上表拼出（S04 用 `spawn` NPC + `invite`；S05 用 `occupy sticky`；S07 用 `set_time 19:50` + `teleport` 小仓库；S08 用 `set_time 22:30` + `set_vars fullness 20`）；S06 / S09 / S10 的记忆、inbox、Dream 部分在自我层，夹具只管沙盒侧。api-spec §6 新小节。提交号见下。
 
 ## 6. 小队列余项
 

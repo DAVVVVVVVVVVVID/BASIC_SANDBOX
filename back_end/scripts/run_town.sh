@@ -3,7 +3,8 @@
 #
 #   scripts/run_town.sh --port 8010 --data run/data/m2a [--self-url http://127.0.0.1:8310] [--log run/data/m2a.log]
 #                       [--cors http://localhost:5183] [--host 127.0.0.1] [--tz Asia/Shanghai] [--seed 2]
-#                       [--env K=V ...] [--no-sync] [--fg]
+#                       [--env K=V ...] [--no-sync] [--scenario] [--fg]
+#   --scenario：开 SANDBOX_SCENARIO=1（行为验收夹具 POST /admin/scenario，只给 bench 镇）
 #
 # 与总控 townctl.py 的 start() 对齐：townctl 传 SANDBOX_DATA_DIR / SELF_URL / SANDBOX_TZ 与 towns.yaml 的 sandbox_env
 # （SANDBOX_SEED、SELF_SYNC），这里分别对应 --data / --self-url / --tz / --seed / --env；日志由 --log（townctl 自己重定向）。
@@ -12,7 +13,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT=8000; DATA=""; SELF_URL="${SELF_URL:-http://127.0.0.1:8100}"; LOG=""; HOST=127.0.0.1; CORS=""; SYNC=1; FG=0
-TZ_NAME="${SANDBOX_TZ:-Asia/Shanghai}"; SEED="${SANDBOX_SEED:-}"; EXTRA_ENV=()
+TZ_NAME="${SANDBOX_TZ:-Asia/Shanghai}"; SEED="${SANDBOX_SEED:-}"; EXTRA_ENV=(); SCENARIO=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --port) PORT="$2"; shift 2;;
@@ -25,6 +26,7 @@ while [[ $# -gt 0 ]]; do
     --seed) SEED="$2"; shift 2;;
     --env) EXTRA_ENV+=("$2"); shift 2;;
     --no-sync) SYNC=0; shift;;
+    --scenario) SCENARIO=1; shift;;
     --fg) FG=1; shift;;
     -h|--help) sed -n '2,12p' "$0"; exit 0;;
     *) echo "unknown arg: $1" >&2; exit 2;;
@@ -40,8 +42,9 @@ fi
 export SANDBOX_DATA_DIR="$DATA" SELF_URL="$SELF_URL" SELF_SYNC="$SYNC" SANDBOX_TZ="$TZ_NAME"
 [[ -n "$CORS" ]] && export SANDBOX_CORS_ORIGINS="$CORS"
 [[ -n "$SEED" ]] && export SANDBOX_SEED="$SEED"
+[[ "$SCENARIO" == 1 ]] && export SANDBOX_SCENARIO=1
 for kv in "${EXTRA_ENV[@]:-}"; do [[ -n "$kv" ]] && export "$kv"; done
-echo "sandbox :$PORT  data=$DATA  self=$SELF_URL  sync=$SYNC  tz=$TZ_NAME  seed=${SEED:-none}  log=$LOG"
+echo "sandbox :$PORT  data=$DATA  self=$SELF_URL  sync=$SYNC  tz=$TZ_NAME  seed=${SEED:-none}  scenario=$SCENARIO  log=$LOG"
 cd "$HERE"
 if [[ "$FG" == 1 ]]; then
   exec uv run uvicorn main:app --host "$HOST" --port "$PORT"
