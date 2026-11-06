@@ -47,7 +47,9 @@ class _FakeClock:
         return self.t
 
 
-def replay(date: str, data_dir: Path, until: str | None = None, step_s: float = 1.0, threshold: float = 0.5) -> dict:
+def replay(date: str, data_dir: Path, until: str | None = None, step_s: float = 1.0, threshold: float = 0.5,
+           mood_base_by_agent: dict[str, float] | None = None) -> dict:
+    """mood_base_by_agent：历史 state 行没有 mood_base 时按 agent_id 补（来自自我层 persona 的 OCEAN 基线）。"""
     from game import world_state, time_state, self_sync, external_effects, buff_tick
     from routers import actions as actions_mod
 
@@ -87,14 +89,14 @@ def replay(date: str, data_dir: Path, until: str | None = None, step_s: float = 
     world_state.time.time = clock           # _check_auto_leave / 心跳用的墙钟也走假时钟
     try:
         return _replay_body(date, actions, external, states, first, last, t_start, t_end, clock, step_s, threshold,
-                            world_state, time_state, buff_tick, actions_mod)
+                            world_state, time_state, buff_tick, actions_mod, mood_base_by_agent or {})
     finally:
         time_state.set_clock(None)
         world_state.time.time = real_time
 
 
 def _replay_body(date, actions, external, states, first, last, t_start, t_end, clock, step_s, threshold,
-                 world_state, time_state, buff_tick, actions_mod) -> dict:
+                 world_state, time_state, buff_tick, actions_mod, mood_base_by_agent) -> dict:
     import asyncio
 
     def spawn(pid: str, r: dict) -> None:
@@ -104,6 +106,8 @@ def _replay_body(date, actions, external, states, first, last, t_start, t_end, c
             buff_tick.set_var(p, v, float(r["vars"][v]), track=False)
         if r.get("mood_base") is not None:
             p["mood_base"] = float(r["mood_base"])
+        elif r.get("agent_id") in mood_base_by_agent:
+            p["mood_base"] = float(mood_base_by_agent[r["agent_id"]])
         p["scene"] = r.get("scene", "sandbox")
         p["position"] = dict(r["position"]); p["closeness"] = dict(r.get("closeness") or {})
         p["online"] = r.get("online", True)

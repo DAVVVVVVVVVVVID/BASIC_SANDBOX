@@ -24,17 +24,18 @@
 **对 11-06 主镇（运行台 `run/data/sandbox`，只读）回放：**
 
 ```
-replay main 2026-11-06  window 2026-11-06T11:01:45+08:00 → 2026-11-06T11:22:49+08:00 (1264 s)
+replay main 2026-11-06  window 2026-11-06T11:01:45+08:00 → 2026-11-06T11:23:19+08:00 (1294 s)
   seed=None map=阿蝉家与小镇@1b824832ace2
-  players=['e键测试_347b78', 'e键测试_3a4cad', 'e键测试_e41717', '阿蝉_5d3096', '阿蝉_6b53a8', '阿蝉_c7013d', '阿蝉_fb59b4', '鲸仔_ddba81'] state_rows=57 events=40 applied={'actions': 24, 'effects_push': 0, 'self_seed': 0, 'self_snap': 0, 'adjudication': 0, 'skipped': 0, 'action_result_mismatch': 4} actions_before_window_skipped=367
+  mood_base from self-layer persona (历史 state 行缺字段): {'whale': 69.5}
+  players=['e键测试_347b78', 'e键测试_3a4cad', 'e键测试_e41717', '阿蝉_5d3096', '阿蝉_6b53a8', '阿蝉_c7013d', '阿蝉_fb59b4', '鲸仔_ddba81'] state_rows=58 events=40 applied={'actions': 24, 'effects_push': 0, 'self_seed': 0, 'self_snap': 0, 'adjudication': 0, 'skipped': 0, 'action_result_mismatch': 4} actions_before_window_skipped=367
   ⚠ 4 个动作重放结果与日志不一致，例如：[{'game_time': '2026-11-06T11:14:01+08:00', 'entity': '阿蝉_fb59b4', 'type': 'move', 'logged': False, 'logged_reason': 'tile_not_walkable', 'replay': True, 'replay_reason': None}, {'game_time': '2026-11-06T11:16:57+08:00', 'entity': '阿蝉_6b53a8', 'type': 'move', 'logged': False, 'logged_reason': 'tile_not_walkable', 'replay': True, 'replay_reason': None}, {'game_time': '2026-11-06T11:16:58+08:00', 'entity': '阿蝉_6b53a8', 'type': 'use', 'logged': True, 'logged_reason': None, 'replay': False, 'replay_reason': 'no_object_in_front'}]
   nondeterministic inputs in window: 0
   player                 var          replay    actual     diff
-  鲸仔_ddba81              fullness     68.106    68.106   -0.000
-  鲸仔_ddba81              energy       79.806    79.806   +0.000
-  鲸仔_ddba81              social       46.847    46.847   +0.000
-  鲸仔_ddba81              fun          92.902    92.902   -0.000
-  鲸仔_ddba81              mood         70.289    70.804   -0.515  ✗
+  鲸仔_ddba81              fullness     68.006    68.006   -0.000
+  鲸仔_ddba81              energy       79.739    79.739   +0.000
+  鲸仔_ddba81              social       46.797    46.797   +0.000
+  鲸仔_ddba81              fun          92.819    92.819   -0.000
+  鲸仔_ddba81              mood         70.800    70.800   +0.000
   阿蝉_5d3096              fullness     69.296    69.298   -0.002
   阿蝉_5d3096              energy       99.531    99.532   -0.001
   阿蝉_5d3096              social       59.648    59.649   -0.001
@@ -71,12 +72,12 @@ replay main 2026-11-06  window 2026-11-06T11:01:45+08:00 → 2026-11-06T11:22:49
   阿蝉_6b53a8              fun          59.999    59.999   +0.000
   阿蝉_6b53a8              mood         65.000    65.000   +0.000
 
-max |diff| = 0.515  (threshold 0.5) → FAIL
+max |diff| = 0.002  (threshold 0.5) → PASS
 ```
 
 读法：
-- 窗口是 11:01:45 → 11:20:49：运行台 11:05 才切到带 `state_log` 的版本（46a968b 在 W6 加的），之前没有 state 行无起点可回；8 个 player 里鲸仔与一个长驻的阿蝉有多条样本，其余是只采过一次的临时测试玩家（在各自那一刻截取，差值 0）。
-- **鲸仔 fullness / energy / social / fun 差 ≤ 0.002**；mood −0.469 的来源是历史 state 行没有 `mood_base`（她从自我层种入的 OCEAN 基线 69.5，回放只能用默认 65）——本提交起 state 行带 `mood_base`，这一项就归零。
+- 窗口是 11:01:45 → 11:23:19：运行台 11:05 才切到带 `state_log` 的版本（46a968b 在 W6 加的），之前没有 state 行无起点可回；8 个 player 里鲸仔与一个长驻的阿蝉有多条样本，其余是只采过一次的临时测试玩家（在各自那一刻截取，差值 0）。
+- **鲸仔五变量差 ≤ 0.000，阿蝉 ≤ 0.002，max |diff| = 0.002**。历史 state 行没有 `mood_base`（鲸仔从自我层种入的 OCEAN 基线是 69.5），`replay.py` 对缺字段的 agent 用只读 token 从自我层 `GET /self/state` 取 ocean 算基线补上（输出里的 `mood_base from self-layer persona`）；本提交起 state 行自带 `mood_base`，不再依赖这一步。
 - 4 个「重放结果与日志不一致」的动作全是临时测试玩家在采样同一秒的 move / use（30 s 采样粒度下动作落在快照前后的歧义），不影响七变量。
 - 窗口内 0 条 nondeterministic 输入——因为外部日志是本提交才开始写的；运行台切换后，自我层种入 / 纠偏、`/effects` 回推、切倍率都会进 `external/`，全天回放才有完整输入。
 - 合成验证（`tests/test_w7.py::test_replay_synthetic_day_matches_state_log`）：2 小时 21 分里睡觉 / 吃饭 / 两次 `/effects` 推送 / 切 live / 切倍率 / 四步移动，11 个动作 + 3 次推送全部重放，**五变量差 0.000**，`time_speed` 被记为 nondeterministic。
@@ -89,7 +90,7 @@ cd back_end
 uv run pytest -q
 # 181 passed（W6 的 170 个 + W7 新增 11 个：test_w7.py）
 
-uv run python scripts/replay.py --date 2026-11-06 --town main      # 见 §2，max |diff| 0.469 → PASS
+uv run python scripts/replay.py --date 2026-11-06 --town main      # 见 §2，max |diff| 0.002 → PASS
 uv run python scripts/verify_game.py                               # 8/8 PASS（D 接口未变）
 uv run python scripts/inspect_runstation.py                        # §5 的那一行
 ```

@@ -24,6 +24,9 @@ def main() -> int:
     ap.add_argument("--until", default=None)
     ap.add_argument("--threshold", type=float, default=0.5)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--self-url", default=os.environ.get("SELF_URL", "http://127.0.0.1:8100"),
+                    help="历史 state 行缺 mood_base 时，从自我层 GET /self/state 取各 agent 的 OCEAN 基线（SELF_TOKEN_RO）")
+    ap.add_argument("--no-self", action="store_true")
     args = ap.parse_args()
     data_dir = Path(args.data_dir)
     state_file = data_dir / "state" / f"{args.date}.jsonl"
@@ -46,7 +49,33 @@ def main() -> int:
         os.environ["SANDBOX_MAP_DIR"] = str(Path(args.map_dir).resolve())
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from game import replay as rp, world_state
-    res = rp.replay(args.date, data_dir, until=args.until, threshold=args.threshold)
+    from game.buff_tick import mood_baseline
+    # 缺 mood_base 的 agent → 从自我层拿 ocean 算基线（只读 token，~/.env 兜底）
+    mb: dict[str, float] = {}
+    agents = set()
+    if state_file.exists():
+        for raw in state_file.read_text(encoding="utf-8").splitlines():
+            if raw.strip():
+                row = json.loads(raw)
+                if row.get("agent_id") and row.get("mood_base") is None:
+                    agents.add(row["agent_id"])
+    if agents and not args.no_self:
+        token = os.environ.get("SELF_TOKEN_RO") or os.environ.get("SELF_TOKEN")
+        if not token and (Path.home() / ".env").exists():
+            for line in (Path.home() / ".env").read_text().splitlines():
+                if line.startswith("SELF_TOKEN_RO="):
+                    token = line.split("=", 1)[1].strip().strip('"')
+        import urllib.request
+        for a in sorted(agents):
+            try:
+                req = urllib.request.Request(f"{args.self_url}/self/state?agent={a}", headers={"Authorization": f"Bearer {token}"} if token else {})
+                with urllib.request.urlopen(req, timeout=5) as r:
+                    oc = (json.load(r).get("ocean") or {})
+                mb[a] = mood_baseline(oc.get("E", 50), oc.get("N", 50))
+            except Exception as e:
+                print(f"  (mood_base for {a} unavailable from self-layer: {e})")
+    res = rp.replay(args.date, data_dir, until=args.until, threshold=args.threshold, mood_base_by_agent=mb)
+    res["mood_base_from_self"] = mb
     res["town"] = args.town; res["seed"] = seed; res["map_version"] = world_state.MAP_VERSION; res["map_version_in_data"] = expected_mv
     if args.json:
         print(json.dumps(res, ensure_ascii=False, indent=2)); return 0 if res.get("ok") else 1
@@ -54,6 +83,8 @@ def main() -> int:
         print(f"replay failed: {res['error']}"); return 1
     print(f"replay {args.town} {args.date}  window {res['window']['from']} → {res['window']['to']} ({res['window']['seconds']} s)")
     print(f"  seed={seed} map={res['map_version']}" + (f"  (data says {expected_mv} ⚠)" if expected_mv and expected_mv != res["map_version"] else ""))
+    if res.get("mood_base_from_self"):
+        print(f"  mood_base from self-layer persona (历史 state 行缺字段): {res['mood_base_from_self']}")
     print(f"  players={res['players']} state_rows={res['state_rows']} events={res['events']} applied={res['applied']} "
           f"actions_before_window_skipped={res['actions_before_window_skipped']}")
     if res["applied"].get("action_result_mismatch"):
