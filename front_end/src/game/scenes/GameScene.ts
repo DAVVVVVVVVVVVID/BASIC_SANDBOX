@@ -31,10 +31,11 @@ const FOLLOW_ZOOM = 2 / 3
 const TARGET_LOSS_MS = 500
 const CAMERA_LERP_MS = 140
 
-/** 把 zoom 吸附到 1/6 的整数倍（源像素整数缩放） */
-function snapZoom(z: number): number {
-  const k = Math.max(1, Math.floor(z * (TILE_SIZE / SOURCE_TILE) + 1e-6))
-  return k / (TILE_SIZE / SOURCE_TILE)
+/** 把 zoom 吸附到 1/6 的整数倍（源像素整数缩放）。用户参数取最近值（0.3333 → 2/6），自适应全景向下取整（保证整图放得下） */
+function snapZoom(z: number, mode: 'round' | 'floor' = 'round'): number {
+  const steps = TILE_SIZE / SOURCE_TILE
+  const k = Math.max(1, mode === 'floor' ? Math.floor(z * steps + 1e-6) : Math.round(z * steps))
+  return k / steps
 }
 
 const USE_ICONS: [RegExp, string][] = [
@@ -254,7 +255,7 @@ export default class GameScene extends Phaser.Scene {
     const cam = this.cameras.main
     // 全景 zoom：整张图放进画面，吸附到 1/6 的整数倍
     const fit = Math.min(cam.width / this.mapPx.w, cam.height / this.mapPx.h)
-    this.panZoom = this.params?.panzoom ? snapZoom(this.params.panzoom) : Math.max(MIN_ZOOM, snapZoom(fit))
+    this.panZoom = this.params?.panzoom ? snapZoom(this.params.panzoom) : Math.max(MIN_ZOOM, snapZoom(fit, 'floor'))
     if (this.mode === 'spectate' && this.camMode === 'pan') cam.setZoom(this.panZoom)
   }
 
