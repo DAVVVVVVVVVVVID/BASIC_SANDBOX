@@ -51,6 +51,26 @@ async function jsonl<T = Record<string, unknown>>(url: string): Promise<T[]> {
   return out
 }
 
+/**
+ * Q1 回顾字幕：A 的 Dream 日摘要 `days/<date>.md` 第一段按句切开（她自己的话）；没有日摘要时退回当天记忆事件的描述。
+ * 弹幕 / 评论原文不在这两个来源里（A 的事件已脱敏，日摘要是她写的）。
+ */
+export interface RecapLine { text: string; t?: number }
+export async function loadRecapLines(date: string, events: MemEvent[]): Promise<{ lines: RecapLine[]; source: 'days' | 'events' | 'none' }> {
+  try {
+    const res = await fetch(`/selfdays/${date}.md`, { cache: 'no-store' })
+    if (res.ok) {
+      const md = await res.text()
+      const body = md.replace(/^#.*$/m, '').split(/\n##\s/)[0].trim()
+      const sentences = body.split(/(?<=[。！？!?])\s*/).map(s => s.trim()).filter(s => s.length >= 4)
+      if (sentences.length > 0) return { lines: sentences.map(text => ({ text })), source: 'days' }
+    }
+  } catch { /* fall through */ }
+  const picked = events.filter(e => e.description && !/^状态变化/.test(e.description)).sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0)).slice(0, 12).sort((a, b) => a.t - b.t)
+  if (picked.length > 0) return { lines: picked.map(e => ({ text: e.description, t: e.t })), source: 'events' }
+  return { lines: [], source: 'none' }
+}
+
 export async function loadReplay(town: string, date: string): Promise<ReplayData> {
   const notes: string[] = []
   const ds = `/dataset/${encodeURIComponent(town)}/${date}`

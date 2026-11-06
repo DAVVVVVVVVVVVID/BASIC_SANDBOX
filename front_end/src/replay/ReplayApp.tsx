@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadReplay, approximateTrack, ReplayData, PosSample } from './data'
+import { loadReplay, approximateTrack, loadRecapLines, ReplayData, PosSample, RecapLine } from './data'
 import { zoneLabel } from '../game/map/zones'
 import type { Tile } from '../types'
 
@@ -42,6 +42,8 @@ const PARAMS = readParams()
 export default function ReplayApp() {
   const { q, town, date } = PARAMS
   const autoExport = q.get('export') === '1'
+  const recap = q.get('recap') === '1'
+  const exportSeconds = Math.max(30, Math.min(180, Number(q.get('seconds') || 60)))
   const initialSpeed = q.get('speed') === 'fit' ? 'fit' : Number(q.get('speed') || 8)
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -54,15 +56,17 @@ export default function ReplayApp() {
   const stateRef = useRef({ playing: true, speed: initialSpeed as number | 'fit', cursor: 0 })
   stateRef.current = { playing, speed, cursor }
   const trackRef = useRef<PosSample[]>([])
+  const recapRef = useRef<{ lines: RecapLine[]; source: string }>({ lines: [], source: 'none' })
   const tileIndex = useRef(new Map<string, Tile>())
 
   useEffect(() => {
-    loadReplay(town, date).then(d => {
+    loadReplay(town, date).then(async d => {
       trackRef.current = approximateTrack(d, { x: 6, y: 9 })
       tileIndex.current = new Map(d.tiles.map(t => [`${t.x},${t.y}`, t]))
+      if (recap) recapRef.current = await loadRecapLines(date, d.events)
       setData(d)
     }).catch(e => setErr(String(e)))
-  }, [town, date])
+  }, [town, date, recap])
 
   // ── 时间推进 ──
   useEffect(() => {
@@ -73,7 +77,7 @@ export default function ReplayApp() {
       const s = stateRef.current
       if (s.playing) {
         const span = data.t1 - data.t0
-        const rate = s.speed === 'fit' ? span / 60000 : s.speed       // 回放毫秒 / 真实毫秒
+        const rate = s.speed === 'fit' ? span / (exportSeconds * 1000) : s.speed       // 回放毫秒 / 真实毫秒
         const next = s.cursor + (dt * rate) / span
         if (next >= 1) { setCursor(1); setPlaying(false) } else setCursor(next)
       }
@@ -107,8 +111,8 @@ export default function ReplayApp() {
     setExporting(true)
     setCursor(0); setSpeed('fit'); setPlaying(true)
     rec.start(1000)
-    // 61 s 后停（整天 60 s + 收尾 1 s）
-    window.setTimeout(() => { if (rec.state !== 'inactive') rec.stop() }, 61000)
+    // 整天 exportSeconds + 收尾 1.5 s
+    window.setTimeout(() => { if (rec.state !== 'inactive') rec.stop() }, exportSeconds * 1000 + 1500)
   }
   useEffect(() => { if (data && autoExport) window.setTimeout(startExport, 800) /* eslint-disable-line react-hooks/exhaustive-deps */ }, [data])
 
@@ -127,7 +131,7 @@ export default function ReplayApp() {
     g.font = '22px system-ui, sans-serif'; g.fillStyle = '#c3c2b7'
     g.fillText(fmtClock(t), MAP_X + 520, 22)
     g.font = '14px system-ui, sans-serif'
-    g.fillText(`${s.speed === 'fit' ? '整天 → 60 s' : s.speed + '×'}${s.playing ? '' : ' · 暂停'}`, MAP_X + 640, 28)
+    g.fillText(`${s.speed === 'fit' ? `整天 → ${exportSeconds} s` : s.speed + '×'}${s.playing ? '' : ' · 暂停'}`, MAP_X + 640, 28)
 
     // 地图
     const mapW = Math.max(1, ...d.tiles.map(x => x.x + 1)), mapH = Math.max(1, ...d.tiles.map(x => x.y + 1))
@@ -198,6 +202,29 @@ export default function ReplayApp() {
       g.fillStyle = f.kind === 'chat' ? '#f0efec' : f.kind === 'mem' ? '#c3c2b7' : '#9a9a90'
       g.fillText(ellipsis(g, f.text, CHART_W - 90), bx + 66, fy + 40 + i * 24)
     })
+
+    // Q1 回顾字幕带（recap=1）：日摘要按句均分到时间轴（事件来源则按各自时间）
+    if (recap) {
+      const rl = recapRef.current
+      let line: RecapLine | null = null
+      if (rl.lines.length > 0) {
+        if (rl.source === 'days') line = rl.lines[Math.min(rl.lines.length - 1, Math.floor(s.cursor * rl.lines.length))]
+        else line = [...rl.lines].reverse().find(l => (l.t ?? 0) <= t) ?? null
+      }
+      const by0 = H - 120
+      g.fillStyle = 'rgba(15,16,32,0.82)'; roundRect(g, MAP_X, by0, W - MAP_X * 2, 64, 12); g.fill()
+      g.fillStyle = '#c3c2b7'; g.font = '14px system-ui, sans-serif'; g.fillText(`${fmtClock(t).slice(0, 5)}  ${rl.source === 'days' ? '鲸仔的日记' : rl.source === 'events' ? '她记下的事' : ''}`, MAP_X + 18, by0 + 10)
+      g.fillStyle = '#f0efec'; g.font = '600 24px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif'
+      g.fillText(line ? ellipsis(g, line.text, W - MAP_X * 2 - 36) : '', MAP_X + 18, by0 + 30)
+      // 片头 / 片尾
+      if (s.cursor < 0.04 || s.cursor > 0.985) {
+        g.fillStyle = 'rgba(26,26,25,0.88)'; g.fillRect(0, 0, W, H)
+        g.fillStyle = '#f0efec'; g.textAlign = 'center'; g.font = '600 56px system-ui, "PingFang SC", sans-serif'
+        g.fillText(s.cursor < 0.04 ? '鲸仔的一天' : '明天见', W / 2, H / 2 - 60)
+        g.font = '26px system-ui, sans-serif'; g.fillStyle = '#c3c2b7'; g.fillText(`${d.date} · ${d.town === 'main' ? '鲸仔小镇' : d.town}`, W / 2, H / 2 + 10)
+        g.textAlign = 'left'
+      }
+    }
 
     // 底部时间轴
     const tx = MAP_X, ty = H - 40, tw = W - MAP_X * 2
