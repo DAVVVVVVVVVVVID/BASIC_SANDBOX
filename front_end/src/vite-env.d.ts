@@ -11,4 +11,5 @@ interface ImportMetaEnv {
   readonly VITE_SANDBOX_DATA_DIR?: string
   readonly VITE_GAME_RUNS_DIR?: string
   readonly VITE_SELF_DAYS_DIR?: string
+  readonly VITE_SELF_MEMORY_DIR?: string
 }
