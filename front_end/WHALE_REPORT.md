@@ -29,7 +29,7 @@
 
 | 项 | 值 |
 |---|---|
-| 代码 | `whale-frontend` @ `2e64e45`（基于 B 的 `4d6a931`）；本报告提交在其后，总控起 5173 请用含报告的最新提交 |
+| 代码 | `whale-frontend` @ `ddc555d`（基于 B 的 `4d6a931`）；本报告提交在其后，总控起 5173 请用含报告的最新提交 |
 | 开发 | `cd front_end && npm install && npm run dev`（默认 5173；自测 `-- --port 5174`）。**运行台建议用 `npm run build && npm run preview -- --port 5173`**（静态产物 + `/api` 代理，无 HMR 风险，见 §3.3） |
 | 产物 | `npm run build` → `dist/`；`npm run preview` 同样带 `/api` 代理 |
 | 检查 | `npm test`（tsc + eslint） |
@@ -52,7 +52,7 @@
 
 | 项 | 结果 |
 |---|---|
-| 旁观 fps | 单页 58–59；3 个无头页并开时 37–52（软件渲染互抢 CPU）。**真 GPU 的 1080p 60 fps 请主播在直播机上看 `&stats=1` 确认**，我这里拿不到硬件数 |
+| 旁观 fps | 无头软件 WebGL：单页 58–59；3 个无头页并开时 37–52。**主播本机真 GPU（144 Hz 显示器）实测 144 fps**（`&stats=1` 截图，2026-11-06 09:42），即 1080p 60 fps 有一倍以上余量；没有限帧，OBS 浏览器源按自己的 60 Hz 取帧 |
 | 操控 fps | 51–53（同上，软件 GL） |
 | 按键 → 起步 | **1 帧（2 ms）**，像素位置下一帧即变化 |
 | 长按 2.0 s + 1.2 s | 服务器位置 (6,9) → (13,13)：7 + 4 格，与 300 ms/格一致 |
@@ -113,6 +113,7 @@ E9（换 ws）我 W4 第一件做；接口形状按 `4d6a931` 的 api-spec §8�
 - 本机无图形浏览器，fps 只能在软件 WebGL 下量；真 GPU 1080p 60 fps 需要主播在直播机开 `&stats=1` 看一眼。
 - 运行台 8000 当前是 B16 新地图但 `tiled: null`（没有 Tiled 渲染层），画面是色块回退；需要 B 的地图导出带 `tiled`，或等 E7 在 W4 做新地图渲染。
 - `public/assets/tilesets/` 的 Sunnyside World 付费素材许可问题留给 W4 E6，本周未动。
+- 主播截图里房子里的「白方块」是后端给 `fridge` 借用的 `tree.png`（整张纯白 30×30）。已改：凡是借用别的物品图当占位的（fridge→tree、phone→book、stream_desk / shop_counter / restaurant_table→desk、fishing_spot→well）一律画带图标和名字的色块，不再误导观众；正式图等 E6。
 
 ## 7. 文件清单（本次新增 / 修改，全部在 `front_end/`）
 
