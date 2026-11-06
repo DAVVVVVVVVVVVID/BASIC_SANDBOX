@@ -25,10 +25,10 @@ def _dir() -> Path:
     return p
 
 
-def _row(player: dict, game_iso: str) -> dict:
+def _row(player: dict, game_iso: str, kind: str = "sample") -> dict:
     from game.world_state import MAP_VERSION, SANDBOX_SEED, TOWN
     return {
-        "kind": "sample", "ts": datetime.now().isoformat(timespec="milliseconds"), "game_time": game_iso,
+        "kind": kind, "ts": datetime.now().isoformat(timespec="milliseconds"), "game_time": game_iso,
         "town": TOWN, "map_version": MAP_VERSION, "seed": SANDBOX_SEED,
         "player_id": player["id"], "agent_id": player.get("agent_id"), "controller": player.get("controller", "human"),
         "scene": player.get("scene", "sandbox"),
@@ -37,7 +37,7 @@ def _row(player: dict, game_iso: str) -> dict:
         "emotion_tags": [t["key"] for t in player.get("emotion_tags", [])],
         "closeness": {k: round(float(v), 3) for k, v in (player.get("closeness") or {}).items()},
         "online": player.get("online", True),
-        "position": dict(player["position"]), "using": player.get("usingObjectId"),
+        "position": dict(player["position"]), "facing": player.get("facing"), "using": player.get("usingObjectId"),
     }
 
 
@@ -60,6 +60,17 @@ def on_tick(game_ts: float, game_iso: str, players: dict[str, dict]) -> int:
                 for r in rows:
                     f.write(json.dumps(r, ensure_ascii=False) + "\n")
     return len(rows)
+
+
+def sample_now(player: dict, kind: str) -> dict:
+    """Q1（§3.21 第 3 条）：join / rejoin / restore 时立即写一行，并把 30 s 节拍对齐到此刻。kind ∈ join | rejoin | restore。"""
+    from game.time_state import game_now_ts, game_now_iso
+    row = _row(player, game_now_iso(), kind)
+    _last_sample_game_ts[player["id"]] = game_now_ts()
+    with _LOCK:
+        with open(_dir() / f"{datetime.now().date().isoformat()}.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return row
 
 
 def read_log(date: str | None = None, player: str | None = None, limit: int | None = None) -> list[dict]:

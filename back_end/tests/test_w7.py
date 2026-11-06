@@ -162,7 +162,10 @@ def test_replay_synthetic_day_matches_state_log(client, fake_clock, tmp_path):
     actions_mod.BASE_MOVE_INTERVAL = 0.0
     pid = client.post("/player/join", json={"name": "鲸仔", "controller": "agent", "profile": {"agent_id": "whale"}}).json()["playerId"]
     p = world_state._players[pid]
-    p["fullness"] = 40.0; p["hp"] = 40.0; p["energy"] = 30.0; p["fun"] = 20.0
+    # 初值通过会进 external 日志的 /effects 改（直接改 _players 不进日志，回放复现不了）
+    client.post(f"/player/{pid}/effects", json={"source": "test", "effects": [
+        {"type": "instant_effect", "key": "fullness", "value": -30}, {"type": "instant_effect", "key": "energy", "value": -70},
+        {"type": "instant_effect", "key": "fun", "value": -40}]})
     ticker.tick_once(checkpoint=False)
     def run(seconds, step=10):
         for _ in range(int(seconds // step)):
@@ -196,6 +199,6 @@ def test_replay_synthetic_day_matches_state_log(client, fake_clock, tmp_path):
     assert res["ok"], res["table"]
     row = next(r for r in res["table"] if r["player"] == pid)
     assert row["max_abs"] < 0.5 and row["actual"] == {k: round(float(last["vars"][k]), 3) for k in ("fullness", "energy", "social", "fun", "mood")}
-    assert res["applied"]["actions"] >= 11 and res["applied"]["effects_push"] == 3 and res["applied"]["action_result_mismatch"] == 0
+    assert res["applied"]["actions"] >= 11 and res["applied"]["effects_push"] == 4 and res["applied"]["action_result_mismatch"] == 0
     assert [e["op"] for e in res["nondeterministic"] if e["kind"] == "nondeterministic"] == ["time_speed"]
     assert row["replay"]["fullness"] == pytest.approx(row["actual"]["fullness"], abs=0.5)

@@ -48,23 +48,40 @@ class _FakeClock:
 
 
 def replay(date: str, data_dir: Path, until: str | None = None, step_s: float = 1.0, threshold: float = 0.5,
-           mood_base_by_agent: dict[str, float] | None = None) -> dict:
-    """mood_base_by_agent：历史 state 行没有 mood_base 时按 agent_id 补（来自自我层 persona 的 OCEAN 基线）。"""
+           mood_base_by_agent: dict[str, float] | None = None, start_kind: str | None = None) -> dict:
+    """mood_base_by_agent：历史 state 行没有 mood_base 时按 agent_id 补（来自自我层 persona 的 OCEAN 基线）。
+    start_kind：起点改为该 player 最后一条此 kind（join / rejoin / restore）的行（默认第一条任意行）。"""
     from game import world_state, time_state, self_sync, external_effects, buff_tick
     from routers import actions as actions_mod
 
     actions = [a for a in _load(data_dir / "actions" / f"{date}.jsonl") if a.get("game_time")]
     external = [e for e in _load(data_dir / "external" / f"{date}.jsonl") if e.get("game_time")]
+    # 第四个输入：聊天 JSONL 的房间事件（对话期间 chat_active 让 move / use / leave 失败，影响物品使用时长）
+    chat_events = [c for c in _load(data_dir / "chat" / f"{date}.jsonl")
+                   if c.get("kind") == "event" and c.get("game_time") and c.get("event") in ("room_open", "player_exit", "room_close", "room_limit")]
     states = _load(data_dir / "state" / f"{date}.jsonl")
     if not states:
         return {"ok": False, "error": "no state samples for that date", "date": date}
 
     # 起点：每个 player 的第一条 state 行；终点：最后一条
+    until_ts = _ts(until) if until else None
+    if until_ts is not None:
+        states = [r for r in states if _ts(r["game_time"]) <= until_ts]
+        if not states:
+            return {"ok": False, "error": "no state samples before --until", "date": date}
     first: dict[str, dict] = {}
     last: dict[str, dict] = {}
     for r in states:
-        first.setdefault(r["player_id"], r)
+        if start_kind:
+            if r.get("kind") == start_kind:
+                first[r["player_id"]] = r
+        else:
+            first.setdefault(r["player_id"], r)
         last[r["player_id"]] = r
+    if start_kind:
+        last = {pid: r for pid, r in last.items() if pid in first}
+        if not first:
+            return {"ok": False, "error": f"no state rows of kind {start_kind}", "date": date}
     t_start = min(_ts(r["game_time"]) for r in first.values())
     t_end = max(_ts(r["game_time"]) for r in last.values())
     if until:
@@ -89,15 +106,25 @@ def replay(date: str, data_dir: Path, until: str | None = None, step_s: float = 
     world_state.time.time = clock           # _check_auto_leave / 心跳用的墙钟也走假时钟
     try:
         return _replay_body(date, actions, external, states, first, last, t_start, t_end, clock, step_s, threshold,
-                            world_state, time_state, buff_tick, actions_mod, mood_base_by_agent or {})
+                            world_state, time_state, buff_tick, actions_mod, mood_base_by_agent or {}, chat_events)
     finally:
         time_state.set_clock(None)
         world_state.time.time = real_time
 
 
 def _replay_body(date, actions, external, states, first, last, t_start, t_end, clock, step_s, threshold,
-                 world_state, time_state, buff_tick, actions_mod, mood_base_by_agent) -> dict:
+                 world_state, time_state, buff_tick, actions_mod, mood_base_by_agent, chat_events) -> dict:
     import asyncio
+
+    # 历史 state 行没有 facing：用该 player 第一条 state 行之前最后一次成功的 turn / 方向 move 推断
+    facing_hint: dict[str, str] = {}
+    for a in actions:
+        pid = a["entityId"]
+        if pid not in first or _ts(a["game_time"]) > _ts(first[pid]["game_time"]):
+            continue
+        d = (a.get("payload") or {}).get("direction")
+        if a["type"] in ("turn", "move", "move_n") and d in ("up", "down", "left", "right") and (a["type"] == "turn" or a.get("success")):
+            facing_hint[pid] = d
 
     def spawn(pid: str, r: dict) -> None:
         p = world_state._make_player(pid, pid.rsplit("_", 1)[0], controller=r.get("controller", "human"),
@@ -111,6 +138,9 @@ def _replay_body(date, actions, external, states, first, last, t_start, t_end, c
         p["scene"] = r.get("scene", "sandbox")
         p["position"] = dict(r["position"]); p["closeness"] = dict(r.get("closeness") or {})
         p["online"] = r.get("online", True)
+        facing = r.get("facing") or facing_hint.get(pid)
+        if facing in ("up", "down", "left", "right"):
+            p["facing"] = facing
         with world_state.STATE_LOCK:
             world_state._players[pid] = p
             world_state._pending_messages[pid] = None; world_state._use_start_times[pid] = None
@@ -119,25 +149,43 @@ def _replay_body(date, actions, external, states, first, last, t_start, t_end, c
             world_state.enter_object(r["using"], pid)
     players_in_window = set(first)
 
-    # 时间线
-    events: list[tuple[float, int, str, dict]] = []
+    # 时间线：同一游戏秒内按真实毫秒时间戳排序（Q1：join/rejoin/restore 立即采样 + 真实 ts 排序 → 同秒动作无歧义）
+    def _real(rec: dict) -> str:
+        return rec.get("ts") or rec.get("timestamp") or ""
+    events: list[tuple[float, str, int, str, dict]] = []
     for a in actions:
         t = _ts(a["game_time"])
         pid = a["entityId"]
-        # 只重放该 player 第一条 state 行之后的动作（快照已含之前的结果）
-        if pid in players_in_window and _ts(first[pid]["game_time"]) <= t <= t_end:
-            events.append((t, 1, "action", a))
+        if pid not in players_in_window or t > t_end:
+            continue
+        fr = first[pid]
+        if (t, _real(a)) < (_ts(fr["game_time"]), _real(fr)):   # 快照之前的动作已含在快照里
+            continue
+        events.append((t, _real(a), 1, "action", a))
     for pid, r in first.items():
-        events.append((_ts(r["game_time"]), -2, "spawn", {"player_id": pid, "row": r}))
+        events.append((_ts(r["game_time"]), _real(r), 0, "spawn", {"player_id": pid, "row": r}))
+    # 同步点（W8 Q1）：窗口内后续的 join / rejoin / restore 行记录了重启回填 / 续接那一刻的真实状态
+    # （vars、scene、正在用的物品、位置），回放到该时刻按行对齐——重启本身不是动作，没有这一步无法复现
+    sync_rows = 0
+    for r in states:
+        pid = r["player_id"]
+        if r.get("kind") in ("join", "rejoin", "restore") and pid in first and r is not first[pid]:
+            t = _ts(r["game_time"])
+            if t <= t_end:
+                events.append((t, _real(r), 0, "sync", {"player_id": pid, "row": r})); sync_rows += 1
     for e in external:
         t = _ts(e["game_time"])
         if t_start <= t <= t_end:
-            events.append((t, 0, "external", e))
+            events.append((t, _real(e), 1, "external", e))
+    for c in chat_events:
+        t = _ts(c["game_time"])
+        if t_start <= t <= t_end:
+            events.append((t, _real(c), 1, "chat", c))
     for pid, r in last.items():                                  # 在每个 player 最后一条 state 行的时刻截取回放值
-        events.append((_ts(r["game_time"]), -1, "capture", {"player_id": pid}))
-    events.sort(key=lambda x: (x[0], x[1]))
+        events.append((_ts(r["game_time"]), _real(r), 2, "capture", {"player_id": pid}))
+    events.sort(key=lambda x: (x[0], x[1], x[2]))
     captured: dict[str, dict] = {}
-    nondet = [e for _, _, k, e in events if k == "external" and e["kind"] in ("nondeterministic", "self_snap", "self_seed")]
+    nondet = [e for _, _, _, k, e in events if k == "external" and e["kind"] in ("nondeterministic", "self_snap", "self_seed")]
     skipped_actions = sum(1 for a in actions if _ts(a["game_time"]) < t_start)
 
     def advance_to(t: float):
@@ -151,14 +199,49 @@ def _replay_body(date, actions, external, states, first, last, t_start, t_end, c
     applied = {"actions": 0, "effects_push": 0, "self_seed": 0, "self_snap": 0, "adjudication": 0, "skipped": 0,
                "action_result_mismatch": 0}
     mismatches: list[dict] = []
-    for t, _, kind, e in events:
+    for t, _, _, kind, e in events:
         advance_to(t)
         if kind == "spawn":
             spawn(e["player_id"], e["row"]); continue
+        if kind == "sync":
+            sp = world_state._players.get(e["player_id"]); r = e["row"]
+            if sp is None:
+                spawn(e["player_id"], r); continue
+            for v in VARS:
+                buff_tick.set_var(sp, v, float(r["vars"][v]), track=False)
+            if r.get("mood_base") is not None:
+                sp["mood_base"] = float(r["mood_base"])
+            sp["scene"] = r.get("scene", sp.get("scene", "sandbox")); sp["position"] = dict(r["position"])
+            if r.get("facing") in ("up", "down", "left", "right"):
+                sp["facing"] = r["facing"]
+            if sp.get("usingObjectId") != r.get("using"):
+                if sp.get("usingObjectId"):
+                    world_state.leave_object(e["player_id"])
+                if r.get("using"):
+                    world_state.enter_object(r["using"], e["player_id"])
+            applied["sync_rows"] = applied.get("sync_rows", 0) + 1
+            continue
         if kind == "capture":
             cp = world_state._players.get(e["player_id"])
             if cp is not None:
                 captured[e["player_id"]] = {v: float(cp[v]) for v in VARS}
+            continue
+        if kind == "chat":
+            from game import chat_state
+            ev = e.get("event")
+            if ev == "room_open":
+                for pid in e.get("participants") or []:
+                    if pid in world_state._players:
+                        chat_state._apply_chat_buff(pid, world_state._players)
+            elif ev == "player_exit":
+                pid = e.get("entity")
+                if pid in world_state._players:
+                    chat_state._remove_chat_buff(pid, world_state._players)
+            elif ev in ("room_close", "room_limit"):
+                for pid in e.get("participants") or []:
+                    if pid in world_state._players:
+                        chat_state._remove_chat_buff(pid, world_state._players)
+            applied["chat_events"] = applied.get("chat_events", 0) + 1
             continue
         if kind == "action":
             handler = actions_mod._HANDLERS.get(e["type"])

@@ -337,6 +337,8 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
         _last_seen[player_id]        = time.time()
         _last_used.setdefault(player_id, {})
         _use_history.setdefault(player_id, [])
+    from game import state_log
+    state_log.sample_now(player, "join")            # Q1：回放起点，消除 30 s 粒度歧义
     return copy.deepcopy(player)
 
 
@@ -368,6 +370,8 @@ def rejoin_player(player_id: str) -> dict | None:
             return None
         player["online"] = True
         _ensure_valid_position(player)
+        from game import state_log
+        state_log.sample_now(player, "rejoin")
         _last_seen[player_id] = time.time()
         return copy.deepcopy(player)
 
@@ -1002,6 +1006,9 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
             _use_history[pid] = [(float(t), o) for t, o in (row.get("use_history") or [])]
             if player.get("controller") == "agent":
                 self_sync.register(pid, game_now_ts())
+        from game import state_log
+        for p in _players.values():
+            state_log.sample_now(p, "restore")        # Q1：回填后立即采样
         for o in _OBJECTS:
             rt = (data.get("objects") or {}).get(o["id"])
             if rt is None:

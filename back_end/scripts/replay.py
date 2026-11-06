@@ -27,6 +27,7 @@ def main() -> int:
     ap.add_argument("--self-url", default=os.environ.get("SELF_URL", "http://127.0.0.1:8100"),
                     help="历史 state 行缺 mood_base 时，从自我层 GET /self/state 取各 agent 的 OCEAN 基线（SELF_TOKEN_RO）")
     ap.add_argument("--no-self", action="store_true")
+    ap.add_argument("--start-kind", default=None, choices=[None, "join", "rejoin", "restore"], help="起点改为该类 state 行（Q1）")
     args = ap.parse_args()
     data_dir = Path(args.data_dir)
     state_file = data_dir / "state" / f"{args.date}.jsonl"
@@ -74,7 +75,7 @@ def main() -> int:
                 mb[a] = mood_baseline(oc.get("E", 50), oc.get("N", 50))
             except Exception as e:
                 print(f"  (mood_base for {a} unavailable from self-layer: {e})")
-    res = rp.replay(args.date, data_dir, until=args.until, threshold=args.threshold, mood_base_by_agent=mb)
+    res = rp.replay(args.date, data_dir, until=args.until, threshold=args.threshold, mood_base_by_agent=mb, start_kind=args.start_kind)
     res["mood_base_from_self"] = mb
     res["town"] = args.town; res["seed"] = seed; res["map_version"] = world_state.MAP_VERSION; res["map_version_in_data"] = expected_mv
     if args.json:

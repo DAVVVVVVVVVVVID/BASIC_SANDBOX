@@ -63,6 +63,7 @@ def append_log(
     success: bool,
     reason: str | None,
     label: str | None = None,
+    object_id: str | None = None,
 ) -> dict:
     now = datetime.now()
     game_time, controller = _game_time_and_controller(entity_id)
@@ -74,6 +75,7 @@ def append_log(
         "success":    success,
         "reason":     reason,
         "label":      label,
+        "objectId":   object_id,          # W8：use / leave / interact 涉及的物品 id（A 的 episodes 需要）
         "game_time":  game_time,
         "controller": controller,
         **_dataset_fields(),

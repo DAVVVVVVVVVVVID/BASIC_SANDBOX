@@ -1,0 +1,49 @@
+replay main 2026-11-06  window 2026-11-06T11:01:45+08:00 → 2026-11-06T11:29:50+08:00 (1685 s)
+  seed=None map=阿蝉家与小镇@1b824832ace2
+  mood_base from self-layer persona (历史 state 行缺字段): {'whale': 69.5}
+  players=['e键测试_347b78', 'e键测试_3a4cad', 'e键测试_e41717', '阿蝉_5d3096', '阿蝉_6b53a8', '阿蝉_c7013d', '阿蝉_fb59b4', '鲸仔_ddba81'] state_rows=71 events=40 applied={'actions': 24, 'effects_push': 0, 'self_seed': 0, 'self_snap': 0, 'adjudication': 0, 'skipped': 0, 'action_result_mismatch': 4} actions_before_window_skipped=367
+  ⚠ 4 个动作重放结果与日志不一致，例如：[{'game_time': '2026-11-06T11:14:01+08:00', 'entity': '阿蝉_fb59b4', 'type': 'move', 'logged': False, 'logged_reason': 'tile_not_walkable', 'replay': True, 'replay_reason': None}, {'game_time': '2026-11-06T11:16:57+08:00', 'entity': '阿蝉_6b53a8', 'type': 'move', 'logged': False, 'logged_reason': 'tile_not_walkable', 'replay': True, 'replay_reason': None}, {'game_time': '2026-11-06T11:16:58+08:00', 'entity': '阿蝉_6b53a8', 'type': 'use', 'logged': True, 'logged_reason': None, 'replay': False, 'replay_reason': 'no_object_in_front'}]
+  nondeterministic inputs in window: 0
+  player                 var          replay    actual     diff
+  鲸仔_ddba81              fullness     66.702    66.701   +0.001
+  鲸仔_ddba81              energy       78.871    78.869   +0.002
+  鲸仔_ddba81              social       46.146    46.144   +0.002
+  鲸仔_ddba81              fun          91.732    91.731   +0.001
+  鲸仔_ddba81              mood         70.752    70.752   +0.000
+  阿蝉_5d3096              fullness     69.296    69.298   -0.002
+  阿蝉_5d3096              energy       99.531    99.532   -0.001
+  阿蝉_5d3096              social       59.648    59.649   -0.001
+  阿蝉_5d3096              fun          59.413    59.415   -0.002
+  阿蝉_5d3096              mood         65.000    65.000   +0.000
+  阿蝉_fb59b4              fullness     69.999    69.999   +0.000
+  阿蝉_fb59b4              energy      100.000   100.000   +0.000
+  阿蝉_fb59b4              social       60.000    60.000   +0.000
+  阿蝉_fb59b4              fun          59.999    59.999   +0.000
+  阿蝉_fb59b4              mood         65.000    65.000   +0.000
+  阿蝉_c7013d              fullness     69.999    69.999   +0.000
+  阿蝉_c7013d              energy      100.000   100.000   +0.000
+  阿蝉_c7013d              social       60.000    60.000   +0.000
+  阿蝉_c7013d              fun          59.999    59.999   +0.000
+  阿蝉_c7013d              mood         65.000    65.000   +0.000
+  e键测试_e41717            fullness     69.999    69.999   +0.000
+  e键测试_e41717            energy      100.000   100.000   +0.000
+  e键测试_e41717            social       60.000    60.000   +0.000
+  e键测试_e41717            fun          59.999    59.999   +0.000
+  e键测试_e41717            mood         65.000    65.000   +0.000
+  e键测试_3a4cad            fullness     69.999    69.999   +0.000
+  e键测试_3a4cad            energy      100.000   100.000   +0.000
+  e键测试_3a4cad            social       60.000    60.000   +0.000
+  e键测试_3a4cad            fun          59.999    59.999   +0.000
+  e键测试_3a4cad            mood         65.000    65.000   +0.000
+  e键测试_347b78            fullness     69.999    69.999   +0.000
+  e键测试_347b78            energy      100.000   100.000   +0.000
+  e键测试_347b78            social       60.000    60.000   +0.000
+  e键测试_347b78            fun          59.999    59.999   +0.000
+  e键测试_347b78            mood         65.000    65.000   +0.000
+  阿蝉_6b53a8              fullness     69.999    69.999   +0.000
+  阿蝉_6b53a8              energy      100.000   100.000   +0.000
+  阿蝉_6b53a8              social       60.000    60.000   +0.000
+  阿蝉_6b53a8              fun          59.999    59.999   +0.000
+  阿蝉_6b53a8              mood         65.000    65.000   +0.000
+
+max |diff| = 0.002  (threshold 0.5) → PASS

@@ -484,5 +484,6 @@ async def dispatch(body: ActionRequest):
             success=result.success,
             reason=result.reason,
             label=body.logLabel,
+            object_id=(result.result or {}).get("objectId"),
         )
     return result

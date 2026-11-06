@@ -1,10 +1,81 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W7（2026-11-06）**；W6、W5、W4、W3、W2、W1 记录在后。
+分支：`whale-integration`。最新：**W8 维护节奏 · 第 1 轮（2026-11-06）**；W7–W1 记录在后。
 
 ---
 
-# W7 · 2026-11-06：可复现回放、作息与营业时间、七天长跑巡检、E 的新需求
+# W8 · 维护节奏 · 2026-11-06 第 1 轮
+
+## 1. 巡检（每天一轮第 1 步）
+
+| 日期 | 日志行数 | 2xx / 4xx / 5xx | Traceback / ERROR / 401+403 | tick 间隔 p95 / max | tick 耗时 p95 / max | RSS | players / ws | actions / chat / state / external 行 | mapVersion |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-06 | 105278 | 2xx 105086 / 4xx 27 / 5xx 0 | 0 / 0 / 0 | 201.7 / 211.4 ms | 0.338 / 11.202 ms | 71.5 MB | 1 / 1 | 398 / 9 / 94 / 1 | 阿蝉家与小镇@1b824832ace2 |
+
+运行台已是 `1bfe54d`（11:30 游戏时切换，`external/` 开始有行：1 条 `self_seed`）。0 Traceback，无需热修。
+
+## 2. 「给 B」条目（每天一轮第 2 步）
+
+| 来源 | 条目 | 处理 |
+|---|---|---|
+| A（W9 §2「episodes 的依赖」） | 行动日志里 agent 的 `use` 没带 objectId，episodes 看不出「用了什么」 | **已落地**：行动日志每行新增 `objectId`（取自动作结果，use / leave / interact 有值，其余 null）；`GET /history` / `/history/log` / `/admin/export` 同步带。数据契约只加字段，api-spec `GET /history` 字段表已更新 |
+| A（S60 质检 `chat_vs_ws na`） | 当天无 `chat/2026-11-06.jsonl` | 现已有 9 行（11:0x 起有对话）；`/history/chat` 可对账 |
+| A（S77b） | 导出沙盒源 3 类 | W7 已多出 `external` 一类，请加 `kinds=external`（已在 W7 报告） |
+| C | W1–W3 的旧条目（walking_over 字段、rejoin 路径、床可见） | 均已在 W3–W5 落地；C 报告无新条目 |
+| E | W4 §4：`tile_gids.json`、`zone_names`、action `object_type` | W7 已落地；E W5 报告仍未出，等 |
+| D | 无 | 维持过渡契约 |
+
+## 3. 小队列 Q1（join / rejoin / 回填立即采样）——完成
+
+- `state_log.sample_now(player, kind)`：join / rejoin / 检查点回填后各立即写一行（`kind: join | rejoin | restore`），并把 30 s 节拍对齐到此刻；state 行新增 `mood_base`、`facing`。
+- 回放：同一游戏秒内按真实毫秒 `ts` 排序；窗口内后续 join / rejoin / restore 行作为**同步点**（对齐 vars、位置、朝向、正在用的物品——重启回填不是动作，没有这步无法复现）；聊天 JSONL 的房间事件作为第四个输入（对话期间 `chat_active` 让 leave 失败，决定钓鱼 / 睡觉的时长）；历史行缺 `facing` 时从窗口前最后一次 turn / 方向 move 推断；`--until` 时「实际值」取窗口内最后一行（修了一个 bug）；`--start-kind rejoin` 可从起点行回放。
+- 验收：`tests/test_w8_q1.py` 3 例——join / rejoin / restore 三行 + 节拍对齐；行动日志 objectId；**rejoin 同一秒内瞬移 / 转向 / use 再睡 30 min，从 rejoin 行回放差 0、动作结果零不一致**；重启回填（restore 行）把「正在用的床」带回来，回放差 < 0.5。
+- **对 11-06 主镇全天（含 11:30 的运行台重启）回放：**
+
+```
+replay main 2026-11-06  window 2026-11-06T11:01:45+08:00 → 2026-11-06T11:42:42+08:00 (2457 s)
+  players=['e键测试_347b78', 'e键测试_3a4cad', 'e键测试_e41717', '阿蝉_5d3096', '阿蝉_6b53a8', '阿蝉_c7013d', '阿蝉_fb59b4', '鲸仔_ddba81'] state_rows=97 events=50 applied={'actions': 31, 'effects_push': 0, 'self_seed': 1, 'self_snap': 0, 'adjudication': 0, 'skipped': 0, 'action_result_mismatch': 4, 'chat_events': 2} actions_before_window_skipped=367
+  nondeterministic inputs in window: 1  kinds=['self_seed:']
+  player                 var          replay    actual     diff
+  鲸仔_ddba81              fullness     63.763    63.766   -0.003
+  鲸仔_ddba81              energy       76.621    76.623   -0.002
+  鲸仔_ddba81              social       44.843    44.845   -0.002
+  鲸仔_ddba81              fun          92.559    92.560   -0.001
+  鲸仔_ddba81              mood         71.301    71.300   +0.001
+  阿蝉_5d3096              fullness     69.296    69.298   -0.002
+  阿蝉_5d3096              energy       99.531    99.532   -0.001
+  阿蝉_5d3096              social       59.648    59.649   -0.001
+  阿蝉_5d3096              fun          59.413    59.415   -0.002
+  阿蝉_5d3096              mood         65.000    65.000   +0.000
+max |diff| = 0.003  (threshold 0.5) → PASS
+```
+
+今天的分叉源依次是：① `--until` 口径 bug（已修）② 历史 state 行无 `facing`（她在码头面朝右才能钓鱼；现已记）③ 对话状态不在行动日志里（她钓鱼时在和 NPC 聊天，`leave` 被 `chat_active` 挡住所以一直钓；现把 chat JSONL 房间事件当输入）。三处修完，跨重启全天 **max |diff| 0.003**。剩下 4 个「结果不一致」动作全是 Q1 之前采样同秒的临时测试玩家，不影响七变量。
+
+## 4. 测试与提交
+
+```bash
+cd back_end && uv run pytest -q      # 185 passed（W7 的 181 + Q1 新增 3 + 回放同步点 1）
+uv run python scripts/replay.py --date 2026-11-06 --town main      # max |diff| 0.003 → PASS（跨重启）
+uv run python scripts/inspect_runstation.py                        # §1 那一行
+```
+
+本轮用时约 1 小时。提交见 `git log -1`。回放原始输出 `back_end/scripts/replay_main_2026-11-06.txt`（全天）与 `…_until1130.txt`（重启前）。
+
+## 5. 对契约 / 其他会话
+
+1. **给 A（数据契约）**：行动日志行加 `objectId`；state 行加 `facing`、`kind` 多 `join | rejoin | restore` 三值。只加字段。
+2. **给 A（质检）**：聊天 JSONL 的房间事件现在是回放输入，`dataset_check.py` 若校验 chat 行数请连事件行一起算（`kind=event`）。
+3. **运行台**：建议下次重起切到本提交（含 Q1 的立即采样与 `facing`）；不切也不影响运行，只影响下一次重启那一刻的可复现性。
+
+## 6. 小队列余项
+
+Q2（12 agent 七天内存 / 检查点趋势，每天一点）、Q3（m1c 真实负载巡检，等 C 起镇）、Q4（freeform 使用统计）、Q5（api-spec 全文核对）——明天起每轮做一项。
+
+---
+
+
+# W7 · 2026-11-06：可复现回放、作息与营业时间、七天长跑巡检、E 的新需求（原报告）
 
 ## 1. 进度（任务 1–6 全部完成）
 
