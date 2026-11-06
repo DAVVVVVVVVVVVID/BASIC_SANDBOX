@@ -53,7 +53,7 @@
 
 | 项 | 值 |
 |---|---|
-| 代码 | `whale-frontend` @ `e3887ae`（基于 B 的 `59d1ac8`）；总控起 5173 请用分支最新提交 |
+| 代码 | `whale-frontend` @ `38597b2`（基于 B 的 `59d1ac8`）；总控起 5173 请用分支最新提交 |
 | 新增页面 | `/replay?town=&date=&speed=&export=1` |
 | 新增参数 | `/spectate?…&town=m2a`、`&art=v1`、`&layout=live\|full`、`&panel=0` |
 | 新增环境变量 | `VITE_TOWNS_YAML`、`VITE_DATASET_DIR`、`VITE_SANDBOX_DATA_DIR`、`VITE_GAME_RUNS_DIR`（默认值见 `vite.config.ts` 顶部注释） |
