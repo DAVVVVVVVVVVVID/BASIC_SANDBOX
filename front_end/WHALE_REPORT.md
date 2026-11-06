@@ -2,7 +2,7 @@
 
 ---
 
-# W6 · 2026-11-06：维护节奏第 1 轮 + Q1 回顾视频
+# W6 · 2026-11-06：维护节奏第 1 轮 + Q0 她的脑子 + Q1 回顾视频
 
 ## 每天一轮
 
@@ -22,14 +22,23 @@
 
 ## 小队列状态
 
-Q1 完成；Q2（多角色避让 / 连线 / 切换快捷键）等 C 起 NPC 后做；Q3 `/towns` 总览页、Q4 OBS CEF 实测步骤、Q5 v1 细修排后。
+Q0、Q1 完成；Q2（多角色避让 / 连线 / 切换快捷键）等 C 起 NPC 后做；Q3 `/towns` 总览页、Q4 OBS CEF 实测步骤、Q5 v1 细修排后。
+
+## Q0 「她的脑子」页 `/brain`（插队，完成）
+
+- 地址：`http://<前端主机>:5173/brain`（可加 `?date=YYYY-MM-DD` 看别的日子、`&shadow=1` 把 Shadow 层也列出来）。数据源只有总控的只读观察服务 8002（经 Vite 代理 `/observe`，接口形状按 `whale/scripts/observe_server.py`），加一个只读目录 `/selfmem/` → `whale-self/data/self/whale/memory`（点记忆看 .md 全文）。页面只发 GET，不含弹幕原文（观察服务本身也没有）。
+- **左栏 实时思考**：`GET /observe/stream`（SSE）滚动每次 Think / Plan（时间、第几步、计划、她的话——从 `finish(reply=…)` 里抠出来、工具调用、模型、是否命中缓存、费用）；Plan 的 `{"plans": [...]}` 展开成编号列表。SSE 断了退回 3 s 一次 `GET /observe/traces?since=`，顶栏显示「实时（SSE / 轮询）」。「跟随最新」勾选时自动贴底。
+- **右栏 今天**：顶栏七变量当前值（`/observe/latest.needs_lines`）与今日统计（调用数 / Think / Plan / 费用 / 记忆数）；四个页签——① **计划批次**：每批的标题、时间段、Think 次数、花费、思考摘录（纯工具调用的批次提示去左栏看），下方可展开 `current_plans.md`；② **写下的记忆**：事件 / 认识，倒序，点开读全文（path 用她记忆目录的月索引 `events/<YYYY-MM>/MEMORY.md` 按描述 + 时间对上，兜底用 A 的当日导出）；③ **日程**：`schedule/<date>.md` 渲染（表格 + 折叠的原始 JSON）；④ **Dream / 日摘要**：有则渲染，没有写明「她睡着以后 Dream 才会写」。右上角常显当前计划。`/observe/today` 每 60 s 刷新，`/latest` 每 5 s。
+- **点任一条思考** → `GET /observe/prompt/{call_id}`：左边完整输入（system + user，显示字数），右边输出正文 + 工具调用，顶部 usage（in / out / cache）与费用。
+- 实测（运行台 8002 真数据，11-06 12:35 前后）：217 次调用、Think 137、Plan 14、$6.72、记忆 65；SSE 连上即回放当天全部 trace 再实时追加；点 10:30:58 的 Plan 看到 4607 字输入与 4 条计划输出；点 12:34 的事件记忆读到 `events/event_000105.md` 全文。截图 `report_shots/Q0_brain_main.jpg`、`Q0_brain_prompt.jpg`、`Q0_brain_memory.jpg`。
+- 给总控 / C：观察服务的 `memories[].path` 现在是 null，我靠月索引匹配；`observe_server.py` 若在 `_jsonl(history/events-*.jsonl)` 的 `result.path` 有值时直接带出来，前端会优先用。`traces` 的 `thought` 对 finish 调用只给「→ finish」，她的话在 `tool_calls` 字串里，我按 `'reply': '…'` 抠，若 C 改成 JSON 字串形式也兼容（双引号）。
 
 ## 提交号
 
 | 项 | 值 |
 |---|---|
-| 代码 | `whale-frontend` @ `54cc669`（基于 B 的 `1bfe54d`） |
-| 新增 | `tools/recap_export.mjs`、`/replay` 的 `recap= seconds=`、只读目录 `/selfdays`（`VITE_SELF_DAYS_DIR`） |
+| 代码 | `whale-frontend` @ `3a2eb82`（基于 B 的 `1bfe54d`）；**请总控切运行台 5173 到此提交**（`npm run build && npm run preview`），`/brain` 与 `/replay` 都走 preview 自带的代理与只读目录 |
+| 新增 | `/brain` 页（`src/brain/*`）、只读目录 `/selfmem`（`VITE_SELF_MEMORY_DIR`）、`tools/recap_export.mjs`、`/replay` 的 `recap= seconds=`、只读目录 `/selfdays`（`VITE_SELF_DAYS_DIR`） |
 
 ---
 
