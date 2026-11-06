@@ -1,9 +1,67 @@
-分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `59d1ac8`。只改了 `front_end/` 与仓库根 `.gitignore`（加了两行忽略第三方素材目录）。
-总控把运行台 5173 换到本分支时请用下文「提交号」一节。
+分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `59d1ac8`（运行台 8000 现为 W6 构建，mapVersion `…@1b824832ace2`）。只改了 `front_end/`。
+总控把运行台 5173 换到本分支时请用下文「提交号」一节。截图在 `front_end/report_shots/`。
 
 ---
 
-# W4 · 2026-11-06：版权与自制素材、真地砖、思考字幕、WebSocket
+# W5 · 2026-11-06：形象重画、阿蝉操控台、回放页、多镇旁观、游戏机小窗、OBS 布局
+
+## 1. 进度（任务 1–7）
+
+| # | 编号 | 状态 | 做了什么 |
+|---|---|---|---|
+| 1 | E11 | 完成（待主播选） | 主播的立绘已在 `front_end/ref/`（鲸仔 / 阿蝉正面全身 + 设定图 + Live2D 渲染）。**v2** 按正面全身图逐像素重画 16×24 四向：鲸仔——深蓝→浅蓝长卷发、白色荷叶边头饰、两侧蓝蝴蝶结与鳍耳、呆毛、白衬衫泡泡袖 + 深蓝裙 + 白围裙 + 蝴蝶结铃铛、白长袜深蓝鞋、身后鲸尾；阿蝉——白色蓬发 + 呆毛、白猫耳粉内耳、右侧两枚蓝发卡、灰蓝眼、蓝短袖衬衫罩白衬衫 + 黑领带 + 工牌、黑裤、白蓝运动鞋、白猫尾。**v1** 是 W4 按 persona 文字画的版本，保留为 `char_whale_v1 / char_achan_v1`，旁观页 `&art=v1` 可切回对比。两版并排：`report_shots/E11_whale_achan_v1_v2.png`（上：跟随画面局部放大；下：完整精灵表）。每套新增第 5 行：坐（正 / 左 / 右）与睡（侧卧盖被）帧，按 `stateLabel` 自动切（睡觉→躺，坐 / 休息 / 玩游戏 / 看书 / 吃饭 / 钓鱼 / 直播→坐）。所有角色同样有坐 / 睡帧。默认用 v2 |
+| 2 | E12 | 完成 | 操控页（阿蝉）新增快捷区：显示鲸仔状态与坐标；「**走到她旁边**」= 客户端 BFS 到她的相邻格逐格 move（每步仍由后端裁定；无路时退回后端 `move_to_area`）；「**邀请她聊天**」一键 `POST /chat/request`（human 无冷却，B W6），等待态区分 pending / `walking_over`（「对方接受了，正在走过来」）/ `expired`；房间内打字、看她回复、退出；HUD 新增「🐳 鲸仔」块显示她的七变量**分档**（紧急 <10 / 很差 <15 / 偏低 <25 / 一般 / 不错，只读 `/player/{id}/state`）。**实测**（运行台 8000，C 的真 agent）：走到 (50,24) 与她 (51,24) 相邻 → 邀请 → **4 s 内她接受并回了一句**（「阿蝉，我今天还不错！刚在渔夫家的冰箱里吃了一顿…你呢？」）→ 阿蝉再发两句 → 退出。`data/chat/2026-11-06.jsonl` 里 `room_open`、5 条 `message`（`controller` human / agent）、`player_exit` 全在；`GET /history/chat` 一致（截图 `E12_achan_chat.jpg`）。**没做到的**：她对后两句 90 s 内没有再回复——C 的 agent 在房间里的发言由其 think 节奏决定（接受时那句是 respond 自带的 message），不是前端问题；见 §4 给 C |
+| 3 | E13 | 完成 | `/replay?town=main&date=2026-11-06[&speed=1\|8\|60\|fit][&export=1]`：只读 A 的 `data/dataset/<town>/<date>/{state,episodes,events}.jsonl` + B 的 `run/data/sandbox/{actions,chat,state}/<date>.jsonl`（Vite 只读目录中间件 `/dataset` `/sandboxdata`，白名单后缀、拒绝 `..`），地图几何取 `GET /world?fields=tiles,objects` 一次。单张 1600×900 画布：左地图 + 鲸仔位置 / 轨迹（有 state 位置样本用样本，样本开始前按 `move / move_to_area` 近似推算并标注）、右上七变量折线（固定顺序配色，图例带当前值）、「她在想」（episodes 的计划 / 想法 / 模型 / 费用）、「发生了什么」（记忆写入 / 行动 / 聊天倒序 11 条）、底部时间轴（思考与聊天刻度）；可拖动、1× / 8× / 60× / 整天压 60 s。**导出**：`MediaRecorder` 录画布 → `replay_<town>_<date>.webm`。11-06 主镇：七变量 30 点、思考 71 段、记忆 60 条、行动 372 条、聊天 5 条；导出 **60.96 s、1600×900、VP8 30 fps、8.9 MB**（`/tmp/pw/shots/replay_main_2026-11-06.webm`，中途 30 s 处正好是全天中点 09:18，截图 `E13_replay.jpg`） |
+| 4 | E14 | 完成 | `?town=m2a` → 前端 API 前缀改为 `/t/m2a/api`（含 ws），Vite 读 `run/towns.yaml` 的 `towns.<name>.k` 生成代理表（端口 8000+10k；`VITE_TOWNS_YAML` 可改），前端只传镇名、浏览器不直连后端。信息面板名字行带 `[m2a]`。实测 `http://127.0.0.1:5174/spectate?town=m2a&follow=鲸仔` → `transport=ws`、`online`，m2a 的鲸仔当时离线所以全景（截图 `E14_town_m2a.jpg`）。矩阵格名（M2a）在 towns.yaml 里有但前端拿不到，见 §4 |
+| 5 | E15 | 完成（联调通过） | 跟随目标 `/state.game.status === "playing"`（或 tag `gaming` / stateLabel 玩游戏中）时右上出小窗：第几天 / 时段 / 生命 / 饥饿 / 理智 / 死亡 / 局 id，并从 `/gameruns/<run_id>/` 取最新 `.gif/.png`（D 的 `tools/replay.py` 产物）。**联调一局**：以阿蝉走到 `game_console_whale`(10,11) 旁按 E → 后端 `stateLabel`「阿蝉 玩游戏中」、`game = {status: playing, run_id: run-1793933517, day 3, phase day, health 150, hunger 70.5, sanity 137.6}` → 旁观页小窗如实显示（截图 `E15_game_window.jpg`）→ 按 Q 离开 → `game` 清空。该局 D 的 runs 目录里还没有 GIF，小窗只显示指标。新增 `game_console` 物品图 |
+| 6 | E16 | 完成（待主播确认） | `&layout=live`：右下留 Live2D 安全区（= `safe=br`，字幕底中、信息面板左下、时钟右上、游戏机小窗右上时钟下）；`&layout=full`：全屏默认。配色按 W4 反馈已柔和化，本周没再改。截图 `E16_layout_live.jpg` / `E16_layout_full.jpg`。**主播确认见 §2** |
+| 7 | 报告 | 本文 | — |
+
+## 2. 主播确认（E16 / E11）
+
+【待填：本次会话结束前向主播确认，答复写在这里】
+
+## 3. 测试与结果
+
+| 项 | 结果 |
+|---|---|
+| `npm test` / `npm run build` | 通过 / 通过 |
+| E12 | 见 §1 第 2 行：真 agent 4 s 接受并回复一句；chat JSONL 9 行（含两次 60 s 超时的 `request_expired`——那两次是她在 30 格外、我先用后端 `move_to_area` 没走到她身边，于是改成客户端 BFS 真走过去） |
+| E13 | 导出 webm 用浏览器 `<video>` 核验：duration 60.96 s、1600×900；中途截图时刻 09:18 ≈ (07:25 + 11:10) / 2 |
+| E14 | `/t/m2a/api/world` 200；旁观页 ws 经代理连 8010 成功；路径穿越 `/dataset/../..` 与 `%2e%2e` → 403 |
+| E15 | 8/8 步骤：走到 → 面向 → use → stateLabel / game 指标 → 旁观小窗 → leave → 清空 |
+| 键盘 | 发现 Playwright 的 `keyboard.press`（按下即抬起）在无头低帧率下会被 Phaser 的 `JustDown` 漏掉，真人按键 ≥ 1 帧没问题；自动化改用 down → 120 ms → up |
+
+## 4. 给其他会话
+
+1. **给 C**：阿蝉在房间里的后续发言，鲸仔的回复要等她下一轮 think；如果希望「聊三轮」有来有回，请让 chat_session 在房间 active 期间以更短周期（≤ 15 s）轮询 `GET /chat/room/{id}?since_seq=` 并回复，或在 perceive 里把「房间有新消息」提升为打断条件。前端这边不改。
+2. **给 B**：① `GET /world` 加 `zone_names`（W4 已提，仍需要）；② `/ws/world` 的 `players.upsert` 带 `game`（status / day / phase…），现在小窗靠 1 s 轮询 `/state`；③ 回放页想要 `GET /admin/export` 的 `state` 行（W6 已有），运行台切 W6 后 `data/state/` 已开始落盘，11-06 11:05 以后的位置是精确的；④ `move_to_area` 对大区域（grass）会停在离出发点最近的格，不适合「走到某人身边」——前端已自己 BFS，不需改。
+3. **给 A**：回放页读 `data/dataset/<town>/<date>/` 的 `state.jsonl`（kind=sample/history 都认 `ts` + `vars`）、`episodes.jsonl`（`window.from/to`、`plan`、`thought`、`think.model/cost_usd`）、`events.jsonl`（`time`、`description`）。如果 schema 0.3 改字段名请知会；另建议导出里加 B 的 `actions / chat / state`（现在我直接读 `run/data/sandbox/`，只有主镇能这么做）。
+4. **给 D**：游戏机小窗读 `runs/<run_id>/*.gif|png` 的最新一张；若 `tools/replay.py` 能在局中每 N tick 出一张 `latest.png`，直播画面就能看到局内俯视图。
+5. **给总控**：运行台 5173 切到本报告之后的最新提交（`npm run build && npm run preview`）；`run/towns.yaml` 里 `k` 值变动会自动进代理表（重启 preview 生效）。
+
+## 5. 假设
+
+- v2 形象在 16×24 里只能保留轮廓特征（头饰、鳍耳、围裙、鲸尾；猫耳、领带、工牌、猫尾），颜色取立绘主色；是否够像由主播定。
+- 回放页位置近似：`move_to_area` 落到区域质心最近的可走格，`move_n` 按 `steps` 全走成功；只用于 11-06 11:05 前没有 state 样本的时段。
+- 回放时间轴以当天有记录的最早 / 最晚时刻为界（不是 00:00–24:00），整天压 60 s。
+- 分档阈值 10 / 15 / 25 取自 A 的 `state.jsonl.thresholds`（emergency / critical / low），60 以上记「不错」是我加的。
+- 多镇代理只读 `towns.yaml` 的 `k`，不读 `self_port`；镇名只允许 `[a-z0-9_-]`。
+
+## 6. 提交号与运行方式
+
+| 项 | 值 |
+|---|---|
+| 代码 | `whale-frontend` @ `e3887ae`（基于 B 的 `59d1ac8`）；总控起 5173 请用分支最新提交 |
+| 新增页面 | `/replay?town=&date=&speed=&export=1` |
+| 新增参数 | `/spectate?…&town=m2a`、`&art=v1`、`&layout=live\|full`、`&panel=0` |
+| 新增环境变量 | `VITE_TOWNS_YAML`、`VITE_DATASET_DIR`、`VITE_SANDBOX_DATA_DIR`、`VITE_GAME_RUNS_DIR`（默认值见 `vite.config.ts` 顶部注释） |
+| 素材再生成 | `python3 tools/gen_assets.py`（v1 / v2 两套都出） |
+| 文件 | 新增 `src/replay/{ReplayApp.tsx,data.ts}`、`src/game/systems/{GameWindow,InfoPanel}.ts`、`report_shots/*`、`ref/*`（主播提供）；修改 `tools/gen_assets.py`、`src/game/assets.ts`、`ActorSprite`、`UIScene`、`InfoPanel`、`ChatPanel`、`HUD`、`TickSystem`、`InputSystem`、`GameScene`、`api/{client,world,chat}.ts`、`spectate/params.ts`、`vite.config.ts`、`types` |
+
+---
+
+# W4 · 2026-11-06：版权与自制素材、真地砖、思考字幕、WebSocket（原报告）
 
 ## 1. 进度（任务 1–7，含 6b）
 
