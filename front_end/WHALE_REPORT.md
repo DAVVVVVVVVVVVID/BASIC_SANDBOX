@@ -1,11 +1,127 @@
-# WHALE_REPORT — 会话 E（BASIC_SANDBOX/front_end，前端观感线）
-
-分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `4d6a931`（含 B17 `GET /ws/world`）。只改了 `front_end/`。
+分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `59d1ac8`。只改了 `front_end/` 与仓库根 `.gitignore`（加了两行忽略第三方素材目录）。
 总控把运行台 5173 换到本分支时请用下文「提交号」一节。
 
 ---
 
-# W3 · 2026-11-06：E1–E5 全部完成
+# W4 · 2026-11-06：版权与自制素材、真地砖、思考字幕、WebSocket
+
+## 1. 进度（任务 1–7，含 6b）
+
+| # | 编号 | 状态 | 做了什么 |
+|---|---|---|---|
+| 1 | E6a | 完成 | 许可原文核实（§2），结论：**移出 git + 全部换自制 CC0**。Sunnyside 两张 tileset 与借用它的角色帧（`player_walk/idle/player.png`）已 `git rm`；`.gitignore` 加 `front_end/public/assets/tilesets/`、`vendor/`。历史里仍有这几张图，要不要重写历史由总控定（§5） |
+| 2 | E6b | 完成 | `tools/gen_assets.py`（PIL，确定性，约 440 行）程序化生成：**7 套角色四向走路表**（鲸仔蓝白发+头顶背鳍+背面鲸尾鳍；阿蝉白发白猫耳蓝衬衫领带蓝发卡；厨子/杂货商/渔夫/常客/村民）、**19 个物品**（bed、bed_21、bath、fridge、desk、stream_desk 带监视器与红灯、desk_12、book、phone、restaurant_table、bench、fishing_spot、shop_counter、sofa、cook、sink、toilet、well、tree），全部由脚本画，CC0。物品按 `type` 取图，没有同名图才退回旧图或色块；当前运行台地图 **0 个占位块**（截图 `art_pan2.png`）。角色按名字选：鲸→whale、阿蝉→achan、厨/杂货/渔/常客→对应 NPC，其余按名字哈希稳定分配，人类玩家默认阿蝉 |
+| 3 | E7 | 完成 | 自制 18 格地砖集 `gen/tiles.png`：草（三种 + 小花）、公园草丛、街道碎石、广场石板、码头木板、室内木地板、厨房/浴室瓷砖、餐馆红毯、杂货店地面、砖墙顶/墙面、水 4 帧动画、门。渲染规则按 **tile 类型 + arena**（街道/广场/码头/公园按区域；室内按厨房/浴室/餐馆/杂货店分地板；墙按下方是否为墙分顶/面）；水面 240 格用动画精灵按位置错相位流动。**区域名**：进入新区域顶部淡入「阿蝉家 · 小仓库」（2.5 s），小地图画出 7 个 sector 的中文名，HUD 位置列改中文。B 的 `tiled` 现在指向 Sunnyside 且 gid 是假设值（画出来是蓝色地板和一排蘑菇），所以前端**只在 `tilesets[0].imageSource === "gen/tiles.png"` 时采用 `tiled` 按 gid 画**，否则按类型画——B 落地 6b 后两条路出图一致 |
+| 4 | E8 | 完成 | `ThoughtBar`：Vite 代理 `/observe` → `VITE_OBSERVE_TARGET`（默认 `http://127.0.0.1:8002`，路径不改写），每 2 s `GET /observe/latest`，画布底部「鲸仔正在想：…」打字机、≤ 40 字、最后一次变化 8 s 后淡出，`needs_lines` 前两条作第二行小字。**只读 `thought` / `needs_lines` / `ts` 三个字段**，其余（含将来任何 raw / danmaku）在 `api/observe.ts` 里显式丢弃；用 mock 服务放了一个 `raw_danmaku` 字段验证 DOM 与画布都没出现（`thought.png`）。8002 没起时静默（退避到 30 s），不显示任何提示。C 的 8002 本次会话期间未运行，**运行台联调待 C 起服务** |
+| 5 | E9 | 完成 | `WorldFeed`：首选 `GET /ws/world`（经 Vite 代理 `ws: true`），处理 `snapshot` / `patch`（worldState 增量、players upsert/remove、objects 使用状态、`chat` → 气泡、`action` → 事件总线）、`heartbeat`；15 s 无消息视为死连接。**断线立刻退回** `GET /world?fields=players,objects,worldState` 500 ms 轮询（实测 82 ms），ws 按 2→30 s 退避重连，snapshot 一到就停轮询；`mapVersion` 变了重拉一次全量。对账：ws 状态与 `GET /world` 位置一致（§3） |
+| 6 | 直播机验收 | 部分 | 主播本机 144 Hz 显示器实测 **144 fps**（上一轮报告）。本轮新增 `&safe=br|bl|tr|tl` 安全区参数（字幕 / 统计 / 时钟避开被 Live2D 占住的角）。**观感反馈待主播在直播机看过新素材后给**：zoom（默认 2/3）、字号、字幕位置都可按反馈调 |
+| 6b | tiled gid | 完成（待 B 落地） | `front_end/public/assets/gen/tile_gids.json`（内容见 §4.1）：顶层键就是 B `gen_map.py` 的 `TILE_GIDS` 覆盖格式；`_tileset` 是我这张图的 Tiled 描述，请 B 把 `TILESET` 常量换成它（或改成从同一文件读）。B 切过去之后 `tiled` 非 null 且前端按 gid 画，与按类型画的结果相同 |
+| 7 | 报告 | 本文 | — |
+
+## 2. E6a 许可原文与结论
+
+来源：https://danieldiggle.itch.io/sunnyside （作者 danieldiggle，Name your own price，2026-11-06 抓取）。
+
+> **NEW LICENCE: V1**
+> "This asset pack can be used in free and commercial projects. You can modify the assets as you need."
+> "Credit is not necessary, but always appreciated."
+> "You can redistribute the assets as part of tutorials or educational courses as long as a link to the Sunnyside World itch.io page is included: https://danieldiggle.itch.io/sunnyside."
+> "You may not repackage and resell the assets, no matter how much they are modified - this includes as NFT's."
+> "You may not use these assets to train AI."
+>
+> **PREVIOUS LICENSE: V0.1**
+> "This asset pack can be used in free and commercial projects. You can modify the assets as you need."
+> "Credit is not necessary, but always appreciated."
+> "You may not repackage, redistribute or resell the assets, no matter how much they are modified - this includes as NFT's."
+
+仓库里的文件名是 `SunnysideWorld_Tileset_V0.1.png`，即 V0.1 时期下载的；V0.1 **禁止任何再分发**，V1 只放开「教程 / 教学课程」场景。公开的开源仓库把原图放在 `public/assets/` 里属于再分发，两版都不允许；且 V1 明文禁止用这些素材训练 AI，公开仓库也无法约束下游。**结论**：三选一里取「自制」为主、「移出 git」为辅——工作树里已删除并 gitignore，画面全部换成 `tools/gen_assets.py` 生成的自制 CC0 素材；git 历史里仍有这两张图（`7f319e1` 起），是否 `filter-repo` 重写由总控决定（会改所有人的提交号，建议在 W4 末各分支合并后统一做一次）。
+
+## 3. 测试与结果
+
+| 项 | 结果 |
+|---|---|
+| `npm test` / `npm run build` | 通过 / 通过 |
+| ws 通道 | 旁观页 `transport=ws` 后 5 s 内 **0 次** HTTP `/world`；杀转发器后 **82 ms** 退回轮询（要求 ≤ 10 s），断线期间 `connection=offline`；恢复后 4.1 s 轮询在线、4.1 s ws 回来；ws 状态与 `GET /world` 的 players 位置一致；0 pageerror（`/tmp/pw/ws.mjs`） |
+| 思考字幕 | mock `/observe/latest` 轮换三句，画布显示打字机字幕与 needs 小字；响应里夹带的 `raw_danmaku` 未出现在 DOM（画布只画 thought）；无 8002 时无任何可见提示 |
+| 画面 | 全景 / 跟随 / 操控三张截图（`art_pan2.png`、`art_follow2.png`、`art_play.png`）：街道、广场、公园、码头、河、六栋房子的地板分材质、物品全部有图、角色各不相同、区域名淡入、小地图带区域名 |
+| 帧率 | 无头软件 WebGL 53–56 fps（比上周多了 240 个水面动画精灵，没有明显下降）；真 GPU 上周 144 fps |
+
+## 4. 给 B 的需求 / 交付
+
+### 4.1 `game/maps/tile_gids.json`（E 交付，B 落地）
+
+文件在本分支 `front_end/public/assets/gen/tile_gids.json`，B 复制到 `back_end/game/maps/tile_gids.json` 即可被 `gen_map.py` 的覆盖口读到；`_tileset` 请替换 `TILESET` 常量。内容：
+
+```json
+{
+  "grass": 1,
+  "grass1": 18,
+  "wall": 9,
+  "floor": 7,
+  "object": 7,
+  "water": 11,
+  "_tileset": {
+    "name": "whale_gen_tiles",
+    "firstgid": 1,
+    "tilewidth": 16,
+    "tileheight": 16,
+    "tilecount": 18,
+    "columns": 8,
+    "imageSource": "gen/tiles.png",
+    "imageWidth": 128,
+    "imageHeight": 48,
+    "margin": 0,
+    "spacing": 0
+  },
+  "_arena_gids": {
+    "park": 3,
+    "square": 5,
+    "dock": 6,
+    "road": 4,
+    "kitchen": 8,
+    "regular_bath": 8,
+    "cook_kitchen": 8,
+    "rest_kitchen": 8,
+    "dining": 15,
+    "grocer_shop": 16
+  },
+  "_wall_face": 10,
+  "_water_frames": [
+    11,
+    12,
+    13,
+    14
+  ],
+  "_note": "自制 CC0 地砖（front_end/tools/gen_assets.py）。顶层键是 B 的 TILE_GIDS 覆盖；_ 开头的是给前端/人的说明。"
+}
+```
+
+### 4.2 其他
+
+1. **`GET /world` 暴露 `zone_names`**（map.json 里已有 `zone_names`）：前端现在复制了一份 `gen_map.py` 的 ZONE_NAMES（`src/game/map/zones.ts`，**假设**不常变），B16 续加区域时会对不上。放在 `worldState` 旁边或 `tiles` 同级都行，只读。
+2. 已满足、本周接入：`players[].stateLabel/tags/usingObjectId/pos_seq`（叠加层不再猜）、`?fields=`（轮询退路 10 KB）、`mapVersion`（换图重拉）、`/ws/world` 含 `chat`/`action`、`agent_id`（follow= 直接匹配）、心跳改 POST（旁观端本来就不碰 `GET /player/{id}`，现在作者页也不会把离线 agent 标回在线）。
+3. 低优先：ws `patch.players.upsert` 里带 `pos_seq`（已有）之外，若 `action` 事件带 `object_type`，前端可以不用再按 id 查 objects。
+
+## 5. 卡点与需要总控决定的事
+
+- **git 历史重写**：Sunnyside 文件仍在历史里（见 §2），是否 `git filter-repo` 由总控定；做之前请通知 B / C，所有分支提交号会变。
+- **C 的 8002 未运行**：E8 只在 mock 上验证；C 起 `ui_server --observe` 后请总控在运行台 5173 的 `/spectate` 看一眼字幕（预期 2 s 内出现）。
+- **主播观感反馈未收到**：新素材是程序化像素画，精细度有限；若主播希望更接近 Live2D 形象，下周可以在生成器里逐像素改鲸仔 / 阿蝉的 16×24 帧，或接受主播提供的手绘帧（同样放 `gen/`）。
+- 运行台 5173 现为 `d0afc9f`，**没有**本周内容（素材 / ws / 字幕）；请总控切到本报告之后的最新提交并 `npm run build && npm run preview`。
+
+## 6. 提交号与运行方式
+
+| 项 | 值 |
+|---|---|
+| 代码 | `whale-frontend` @ `c4b2836`（基于 B 的 `59d1ac8`）；总控起 5173 请用分支最新提交 |
+| 新增参数 | `/spectate?...&safe=br`（安全区，字幕靠左）、`&thought=0`（关字幕）、`&panzoom=0.34`（全景 2/6 更大） |
+| 新增环境变量 | `VITE_OBSERVE_BASE`（默认 `/observe`）、`VITE_OBSERVE_TARGET`（默认 `http://127.0.0.1:8002`） |
+| 素材再生成 | `cd front_end && python3 tools/gen_assets.py`（只依赖 Pillow） |
+| 文件 | 新增 `tools/gen_assets.py`、`public/assets/gen/*`（30 个文件）、`src/game/assets.ts`、`src/game/map/zones.ts`、`src/game/systems/{WorldFeed,ThoughtBar}.ts`、`src/api/observe.ts`；修改 `TileMap`、`ActorSprite`、`GameObjectSprite`、`GameScene`、`UIScene`、`Overlay`、`TickSystem`、`store`、`types`、`HUD`、`Minimap`、`vite.config.ts`、`params.ts`；删除 `public/assets/tilesets/*`、`sprites/player_*.png` |
+
+---
+
+# W3 · 2026-11-06：E1–E5 全部完成（原报告）
 
 ## 1. 进度
 
