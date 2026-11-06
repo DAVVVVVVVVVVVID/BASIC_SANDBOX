@@ -159,6 +159,9 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
     finally:
         conn.close()
 
+    with world_state.STATE_LOCK:
+        chat_state.reconcile_chat_buffs(world_state._players)     # Q0：chat_active 与房间状态一致
+
     last_tick_ts = float(meta["last_tick_ts"])
     downtime = max(0.0, time_state.now_real() - last_tick_ts)
     return {

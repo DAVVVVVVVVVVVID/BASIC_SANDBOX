@@ -528,6 +528,19 @@ def import_state(data: dict) -> None:
     _last_pair_end.update({frozenset(k.split("|")): float(v) for k, v in (data.get("last_pair_end") or {}).items()})
 
 
+def reconcile_chat_buffs(players: dict) -> int:
+    """Q0：检查点回填后，player 身上的 chat_active 必须对应一个 active 房间，否则清掉（state 回 idle）。返回修正数。"""
+    in_room = {pid for room in _chat_rooms.values() if room["status"] == "active" for pid in room["participants"]}
+    fixed = 0
+    for pid, p in players.items():
+        has = any(b.get("key") == "chat_active" for b in p.get("buffs", []))
+        if has and pid not in in_room:
+            _remove_chat_buff(pid, players); fixed += 1
+        elif not has and pid in in_room:
+            _apply_chat_buff(pid, players); fixed += 1
+    return fixed
+
+
 def _reset_for_tests() -> None:
     _chat_requests.clear(); _chat_rooms.clear(); _MSG_SEQ_COUNTER.clear()
     _last_chat_end.clear(); _last_pair_end.clear()

@@ -260,9 +260,12 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
 
 
 def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
-    player = get_player(entity_id)
-    if player and any(b["key"] == "chat_active" for b in player.get("buffs", [])):
-        return ActionResponse(success=False, type="leave", reason="use_disabled")
+    """
+    Q0（W8）：离开正在使用的物品**永远放行**。no_use / no_move / chat_active 只约束去用别的物品或移动，
+    否则「钓位 no_move + 对话 chat_active」会把人锁死（11-06 鲸仔卡在 fishing_spot_2 近两小时）。
+    """
+    if entity_id not in _players:
+        return ActionResponse(success=False, type="leave", reason="player_not_found")
     obj = leave_object(entity_id)
     if obj is None:
         return ActionResponse(success=False, type="leave", reason="not_using_any_object")

@@ -55,7 +55,7 @@ max |diff| = 0.003  (threshold 0.5) → PASS
 ## 4. 测试与提交
 
 ```bash
-cd back_end && uv run pytest -q      # 185 passed（W7 的 181 + Q1 新增 3 + 回放同步点 1）
+cd back_end && uv run pytest -q      # 210 passed（W7 的 181 + Q1 4 + Q0 24 + 回放同步点 1）
 uv run python scripts/replay.py --date 2026-11-06 --town main      # max |diff| 0.003 → PASS（跨重启）
 uv run python scripts/inspect_runstation.py                        # §1 那一行
 ```
@@ -67,6 +67,13 @@ uv run python scripts/inspect_runstation.py                        # §1 那一�
 1. **给 A（数据契约）**：行动日志行加 `objectId`；state 行加 `facing`、`kind` 多 `join | rejoin | restore` 三值。只加字段。
 2. **给 A（质检）**：聊天 JSONL 的房间事件现在是回放输入，`dataset_check.py` 若校验 chat 行数请连事件行一起算（`kind=event`）。
 3. **运行台**：建议下次重起切到本提交（含 Q1 的立即采样与 `facing`）；不切也不影响运行，只影响下一次重启那一刻的可复现性。
+
+## 5b. Q0 紧急项（插队，同日）——钓位死锁
+
+- **根因**（与交接单的 `no_use` 诊断略有出入）：`handle_leave` 唯一的拦截是 `chat_active`（对话中返回 `use_disabled`），`no_use` 并不挡 leave。死锁组合是：钓位 / 长椅 / 浴缸带 `no_move`（挡 move），同时她在对话里（`chat_active` 挡 leave）——对话不结束就两头都走不了；`chat_active` 没有 tick handler，`canUse` 每 tick 复位，所以对话中 `use` 钓位能成功（12:02 / 12:17 / 12:32 三次正是如此），然后被锁。重启不是诱因，但回填会把 `chat_active` 原样带回来。
+- **修法**：① `leave` 对正在使用的物品永远放行，失败只剩 `not_using_any_object` / `player_not_found`；② 检查点回填后 `chat_active` 与活跃房间对账（没房间的清掉、有房间的补上）。
+- **单测** `tests/test_w8_q0_leave.py`（24 例）：地图上 **19 个 continuous 物品逐个 use → tick → leave 必须成功**（覆盖所有 no_use / no_move 物品）；对话中 use 钓位 → move 仍 `move_disabled`（预期）但 leave 成功；use → 重启回填 → leave 成功；对同一物品再次 use 不重复计数 → leave 成功；回填清掉无房间的 `chat_active`。
+- 行为契约：api-spec `leave` 小节已注明。提交号见 §4（本轮第 2 次提交）。
 
 ## 6. 小队列余项
 
