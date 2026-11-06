@@ -91,7 +91,7 @@ export default function ReplayApp() {
     const c = canvasRef.current
     if (!c || exporting) return
     const stream = c.captureStream(30)
-    const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
+    const mime = ['video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'].find(m => MediaRecorder.isTypeSupported(m)) ?? 'video/webm'
     const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6_000_000 })
     const chunks: Blob[] = []
     rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data) }
@@ -125,9 +125,9 @@ export default function ReplayApp() {
     g.fillStyle = '#f0efec'; g.font = '600 26px system-ui, "PingFang SC", "Microsoft YaHei", sans-serif'; g.textBaseline = 'top'
     g.fillText(`鲸仔的一天 · ${d.town} · ${d.date}`, MAP_X, 20)
     g.font = '22px system-ui, sans-serif'; g.fillStyle = '#c3c2b7'
-    g.fillText(fmtClock(t), MAP_X + 420, 22)
+    g.fillText(fmtClock(t), MAP_X + 520, 22)
     g.font = '14px system-ui, sans-serif'
-    g.fillText(`${s.speed === 'fit' ? '整天 → 60 s' : s.speed + '×'}${s.playing ? '' : ' · 暂停'}`, MAP_X + 560, 28)
+    g.fillText(`${s.speed === 'fit' ? '整天 → 60 s' : s.speed + '×'}${s.playing ? '' : ' · 暂停'}`, MAP_X + 640, 28)
 
     // 地图
     const mapW = Math.max(1, ...d.tiles.map(x => x.x + 1)), mapH = Math.max(1, ...d.tiles.map(x => x.y + 1))
@@ -163,7 +163,7 @@ export default function ReplayApp() {
       g.textAlign = 'left'
     }
     g.fillStyle = '#8a897f'; g.font = '12px system-ui, sans-serif'
-    g.fillText(d.positions.length ? '位置：沙盒 state 样本' : '位置：按行动日志近似推算（move / move_to_area）', mx, my + mapH * cell + 8)
+    g.fillText(d.positions.length ? (cur && d.positions.some(p => p.t <= cur.t) ? '位置：沙盒 state 样本' : '位置：按行动日志近似推算（state 样本从 ' + fmtClock(d.positions[0].t).slice(0, 5) + ' 起）') : '位置：按行动日志近似推算（move / move_to_area）', mx, my + mapH * cell + 8)
 
     // 七变量折线
     drawChart(g, d, t)

@@ -7,7 +7,7 @@ const COLOR_OBJECT = 0x8b6b3e
 const TYPE_ICON: [RegExp, string][] = [
   [/stream/i, '📺'], [/phone/i, '📱'], [/fishing/i, '🎣'], [/restaurant|table/i, '🍽'], [/shop|counter/i, '🛒'],
   [/bed/i, '🛏'], [/desk/i, '🖥'], [/book/i, '📚'], [/fridge|cook|stove/i, '🧊'],
-  [/bath|shower/i, '🛁'], [/toilet/i, '🚽'], [/sink/i, '🚰'], [/sofa/i, '🛋'], [/tree/i, '🌳'], [/well/i, '🪣'],
+  [/bath|shower/i, '🛁'], [/toilet/i, '🚽'], [/sink/i, '🚰'], [/sofa/i, '🛋'], [/tree/i, '🌳'], [/well/i, '🪣'], [/game|console/i, '🎮'],
 ]
 
 /**

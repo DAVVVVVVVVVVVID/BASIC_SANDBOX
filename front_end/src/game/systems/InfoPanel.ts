@@ -5,6 +5,7 @@ import { NEED_KEYS } from '../../types'
 import { NEED_COLORS, NEED_LABELS } from '../objects/ActorSprite'
 import { zoneLabel, buildTileIndex } from '../map/zones'
 import { deriveStateLabel } from '../scenes/GameScene'
+import { TOWN } from '../../api/client'
 import type { Tile } from '../../types'
 
 const W = 300
@@ -104,14 +105,14 @@ export default class InfoPanel {
     if (sig === this.lastSig) return
     this.lastSig = sig
     if (!target) {
-      this.name.setText(this.opts.follow ?? '鲸仔小镇')
+      this.name.setText(TOWN ? `${TOWN} · ${this.opts.follow ?? '全景'}` : (this.opts.follow ?? '鲸仔小镇'))
       this.sub.setText(this.opts.follow ? '目标不在场 · 全景' : `${s.players.length} 人在镇上`)
       this.state.setText('')
       this.vals = null
       this.values.forEach(v => v.setText('–'))
     } else {
       this.name.setText(target.name)
-      this.sub.setText(`${zone || '小镇'}${online ? '' : ' · 离线'}`)
+      this.sub.setText(`${TOWN ? `[${TOWN}] ` : ''}${zone || '小镇'}${online ? '' : ' · 离线'}`)
       this.state.setText(label)
       this.vals = vars ? NEED_KEYS.map(k => vars.vars[k]) : null
       this.values.forEach((v, i) => v.setText(this.vals ? String(Math.round(this.vals[i])) : '–'))

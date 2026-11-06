@@ -178,6 +178,22 @@ export interface PlayerStateVars {
   agent_id: string | null
   last_tick_ts: string
   recent_uses: Record<string, number>
+  /** B18（W6）：她在用游戏机时 brain 的局内指标 */
+  game?: GameSession | null
+}
+
+export interface GameSession {
+  status: 'playing' | 'ended' | string
+  started_at?: string
+  brain_run_id?: string
+  run_id?: string
+  ticks?: number
+  day?: number
+  phase?: string
+  health?: number
+  hunger?: number
+  sanity?: number
+  deaths?: number
 }
 
 export interface ActionLogEntry {

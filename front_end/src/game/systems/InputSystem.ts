@@ -138,6 +138,11 @@ export default class InputSystem {
   }
 
   setPlayerId(id: string) { this.playerId = id }
+  /** 调试：键盘状态 */
+  debugKeys() {
+    const kb = this.scene.input.keyboard
+    return { enabled: this.enabled, pluginEnabled: kb?.enabled, managerEnabled: kb?.manager?.enabled, e: this.useKey.isDown, q: this.leaveKey.isDown, up: this.cursors.up.isDown, keysTotal: kb?.keys?.filter(Boolean).length }
+  }
   setEnabled(v: boolean) { this.enabled = v }
   setTiles(tiles: Tile[]) {
     this.walkable.clear()

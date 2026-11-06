@@ -208,6 +208,7 @@ export default class GameScene extends Phaser.Scene {
       this.self?.snapTo(player.position, player.facing)
       this.inputSystem?.reset(player.position, player.facing)
     })
+    window.addEventListener('whale-walk-to', (e) => EventBus.emit('walk-to', (e as CustomEvent).detail))
     this.on('walk-to', ({ x, y }: { x: number; y: number }) => {
       const n = this.inputSystem?.walkToAdjacent({ x, y }) ?? 0
       EventBus.emit('walk-to-result', { steps: n })
@@ -221,6 +222,7 @@ export default class GameScene extends Phaser.Scene {
       selfPixel: () => this.self?.getPixelPosition() ?? null,
       selfTile: () => this.self?.getTile() ?? null,
       inflight: () => this.inputSystem?.hasInflight() ?? false,
+      keys: () => this.inputSystem?.debugKeys() ?? null,
       others: () => [...this.others.entries()].map(([id, s]) => ({ id, px: s.getPixelPosition(), tile: s.getTile(), moving: s.isMoving() })),
     }
 

@@ -143,7 +143,15 @@ export async function loadReplay(town: string, date: string): Promise<ReplayData
 
 /** 行动日志推算位置轨迹（没有 state 位置样本时）：move / move_n 按方向位移，move_to_area 到区域质心 */
 export function approximateTrack(d: ReplayData, start: Position): PosSample[] {
-  if (d.positions.length > 0) return d.positions.filter(p => d.whaleIds.has(p.player))
+  const exact = d.positions.filter(p => d.whaleIds.has(p.player))
+  const approx = approximateFromActions(d, start)
+  if (exact.length === 0) return approx
+  // state 样本开始之前的时段用近似轨迹衔接
+  const first = exact[0].t
+  return [...approx.filter(p => p.t < first), ...exact]
+}
+
+function approximateFromActions(d: ReplayData, start: Position): PosSample[] {
   const walkable = new Set(d.tiles.filter(t => t.walkable).map(t => `${t.x},${t.y}`))
   const cent = new Map<string, { sx: number; sy: number; n: number; pts: Position[] }>()
   for (const t of d.tiles) {

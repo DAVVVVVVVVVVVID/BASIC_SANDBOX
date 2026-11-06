@@ -593,6 +593,15 @@ def obj_well():
     d.rectangle([3, 2, 3, 9], fill=rgb("#8a5a3c")); d.rectangle([12, 2, 12, 9], fill=rgb("#8a5a3c")); d.rectangle([2, 1, 13, 2], fill=rgb("#a86f3e"))
     return img
 
+def obj_game_console():
+    img, d = new_obj(1, 1)
+    box(d, 1, 1, 14, 9, "#2b2f3a")                                  # 电视
+    d.rectangle([2, 2, 13, 8], fill=rgb("#6aa2d6")); d.rectangle([4, 4, 7, 6], fill=rgb("#f2c14e")); d.point((10, 5), fill=rgb("#ffffff"))
+    box(d, 3, 11, 12, 14, "#8a949c")                                 # 主机
+    d.rectangle([5, 12, 6, 12], fill=rgb("#2b2f3a")); d.point((10, 12), fill=rgb("#7ee787"))
+    d.rectangle([8, 10, 8, 10], fill=rgb("#2b2f3a"))                 # 线
+    return img
+
 def obj_tree():
     img, d = new_obj(1, 1)
     d.rectangle([7, 10, 8, 15], fill=rgb("#7a4e2d")); d.ellipse([2, 1, 13, 11], fill=rgb("#3f8544"), outline=rgb("#2d6b33")); d.point((5, 4), fill=rgb("#6dbd66"))
@@ -603,7 +612,7 @@ OBJECTS = {
     "desk": lambda: obj_desk(False), "stream_desk": lambda: obj_desk(True, True), "desk_12": obj_desk_long,
     "book": obj_book, "phone": obj_phone, "restaurant_table": obj_table, "bench": obj_bench,
     "fishing_spot": obj_fishing_spot, "shop_counter": obj_counter, "sofa": obj_sofa, "cook": obj_stove,
-    "sink": obj_sink, "toilet": obj_toilet, "well": obj_well, "tree": obj_tree,
+    "sink": obj_sink, "toilet": obj_toilet, "well": obj_well, "tree": obj_tree, "game_console": obj_game_console,
 }
 
 def main():

@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import Overlay from '../systems/Overlay'
 import ThoughtBar from '../systems/ThoughtBar'
 import InfoPanel from '../systems/InfoPanel'
+import GameWindow from '../systems/GameWindow'
 import { useGameStore } from '../../store/gameStore'
 import { EventBus } from '../EventBus'
 import type { SpectateParams } from '../../spectate/params'
@@ -20,6 +21,7 @@ export default class UIScene extends Phaser.Scene {
   private statsText: Phaser.GameObjects.Text | null = null
   private thought: ThoughtBar | null = null
   private panel: InfoPanel | null = null
+  private gameWin: GameWindow | null = null
   private zoneText: Phaser.GameObjects.Text | null = null
   private zoneTween: Phaser.Tweens.Tween | null = null
   private onZone = ({ label }: { label: string }) => {
@@ -53,6 +55,10 @@ export default class UIScene extends Phaser.Scene {
     if (this.mode === 'spectate' && (this.params?.panel ?? true)) {
       this.panel = new InfoPanel(this, { follow: this.params?.follow ?? null, side: safe === 'bl' ? 'right' : 'left' })
     }
+    if (this.mode === 'spectate' && this.params?.follow) {
+      // E15：时钟下方（safe=tr 时放左侧）
+      this.gameWin = new GameWindow(this, { follow: this.params.follow, side: safe === 'tr' ? 'left' : 'right', topOffset: 56 })
+    }
     if (this.mode === 'spectate' && (this.params?.thought ?? true)) {
       // 安全区：右下被占 → 字幕靠左；左下被占 → 靠右
       const align = safe === 'br' ? 'center' : safe === 'bl' ? 'left' : 'center'
@@ -75,6 +81,7 @@ export default class UIScene extends Phaser.Scene {
       this.overlay.destroy()
       this.thought?.destroy()
       this.panel?.destroy()
+      this.gameWin?.destroy()
     })
   }
 
@@ -83,6 +90,7 @@ export default class UIScene extends Phaser.Scene {
     this.overlay.update(s.worldState)
     this.thought?.update(time, dt)
     this.panel?.update()
+    this.gameWin?.update()
     const showBadge = this.mode === 'spectate' ? (this.params?.hud ?? true) : false
     this.overlay.setBadge(showBadge && s.connection === 'offline' ? '后端连接中断，重连中…' : null)
   }
