@@ -52,6 +52,28 @@ def _bfs_path(start_x: int, start_y: int, goal_x: int, goal_y: int) -> list[tupl
     return []
 
 
+def _bfs_path_to_any(start_x: int, start_y: int, goals: set[tuple[int, int]]) -> list[tuple[int, int]] | None:
+    """BFS 到 goals 中最近的一格，返回路径（不含起点，含终点）；已在 goals 内返回 []；不可达返回 None。"""
+    if (start_x, start_y) in goals:
+        return []
+    queue: deque = deque([(start_x, start_y)])
+    parent: dict[tuple[int, int], tuple[int, int] | None] = {(start_x, start_y): None}
+    while queue:
+        x, y = queue.popleft()
+        for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
+            n = (x + dx, y + dy)
+            if n in parent or not is_tile_walkable(*n):
+                continue
+            parent[n] = (x, y)
+            if n in goals:
+                path = [n]
+                while parent[path[-1]] != (start_x, start_y):
+                    path.append(parent[path[-1]])
+                return list(reversed(path))
+            queue.append(n)
+    return None
+
+
 def _compute_facing(current: dict, target_x: int, target_y: int) -> str:
     dx = target_x - current["x"]
     dy = target_y - current["y"]
@@ -299,12 +321,11 @@ async def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
         return ActionResponse(success=False, type="move_to_area", reason="no_walkable_tiles")
 
     pos    = player["position"]
-    target = min(walkable, key=lambda t: abs(t["x"] - pos["x"]) + abs(t["y"] - pos["y"]))
-    goal_x, goal_y = target["x"], target["y"]
-
-    path = _bfs_path(pos["x"], pos["y"], goal_x, goal_y)
-    if not path and (pos["x"] != goal_x or pos["y"] != goal_y):
+    # §3.14：按 BFS 实际路程取最近的可达格（跨 sector 走门），而不是曼哈顿最近（可能隔着墙）
+    path = _bfs_path_to_any(pos["x"], pos["y"], {(t["x"], t["y"]) for t in walkable})
+    if path is None:
         return ActionResponse(success=False, type="move_to_area", reason="no_path")
+    goal_x, goal_y = path[-1] if path else (pos["x"], pos["y"])
 
     interval = _get_move_interval(entity_id)
     prev_x, prev_y = pos["x"], pos["y"]

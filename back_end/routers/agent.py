@@ -78,50 +78,45 @@ def perceive(
     facing = player["facing"]
     px, py = pos["x"], pos["y"]
 
-    # ── 1. Sector 语义树（含所在 sector 内全部 arenas 及其 objects）────────
+    # ── 1. 整个 world 的语义树（§3.14：所有 sector → arenas → objects，current 标 sector 与 arena）──
     zone  = get_zone_at(px, py)
     names = _find_in_cognitive_map(zone["world"], zone["sector"], zone["arena"])
     cmap  = get_cognitive_map()
 
-    # 从 cognitive map 中找到当前 sector 的完整 arena 列表
-    sector_arenas_meta: list[dict] = []
-    if zone["sector"]:
-        for _w in cmap.get("worlds", []):
-            if _w["id"] != zone["world"]:
-                continue
-            for _s in _w.get("sectors", []):
-                if _s["id"] != zone["sector"]:
-                    continue
-                sector_arenas_meta = _s.get("arenas", [])
-                break
-            break
+    def _obj_brief(o: dict) -> dict:
+        d = {"id": o["id"], "name": o["name"], "type": o["type"], "interactable": o["interactable"],
+             "currentUsers": o["currentUsers"]}
+        if o.get("maxUsers") is not None:
+            d["maxUsers"] = o["maxUsers"]
+        if o.get("advertise"):
+            d["advertise"] = o["advertise"]
+        return d
 
-    # 为每个 arena 填充其 objects，并标记当前所在 arena
-    arena_list: list[dict] = []
-    for am in sector_arenas_meta:
-        aid  = am["id"]
-        objs = [
-            {"id": o["id"], "name": o["name"], "interactable": o["interactable"]}
-            for o in get_objects_in_arena(aid)
-        ]
-        arena_list.append({
-            "id":      aid,
-            "name":    am["name"],
-            "current": aid == zone["arena"],   # 标记当前所在场所
-            "objects": objs,
-        })
+    worlds_out: list[dict] = []
+    current_sector_node = None
+    for _w in cmap.get("worlds", []):
+        sectors_out: list[dict] = []
+        for _s in _w.get("sectors", []):
+            arenas_out = []
+            for am in _s.get("arenas", []):
+                arenas_out.append({
+                    "id":      am["id"],
+                    "name":    am["name"],
+                    "current": am["id"] == zone["arena"] and _s["id"] == zone["sector"],
+                    "objects": [_obj_brief(o) for o in get_objects_in_arena(am["id"])],
+                })
+            node = {"id": _s["id"], "name": _s["name"], "current": _s["id"] == zone["sector"], "arenas": arenas_out}
+            sectors_out.append(node)
+            if node["current"]:
+                current_sector_node = node
+        worlds_out.append({"id": _w["id"], "name": _w["name"], "current": _w["id"] == zone["world"], "sectors": sectors_out})
 
-    sector_node = {
-        **_named(names["sector"], zone["sector"]),
-        "arenas": arena_list,
-    } if zone["sector"] else None
-
-    world_node = {
-        **_named(names["world"], zone["world"]),
-        "sector": sector_node,
-    } if zone["world"] else None
-
-    arena_tree = world_node
+    # 兼容旧形状：arena_tree = 所在 world 节点，带 sector（当前 sector）与 sectors（全部）
+    my_world = next((w for w in worlds_out if w["current"]), worlds_out[0] if worlds_out else None)
+    if my_world is not None:
+        arena_tree = {**my_world, "sector": current_sector_node}
+    else:
+        arena_tree = None
 
     # ── 2. 视野 tile 列表 ─────────────────────────────────────────────────
     vision_tiles = []
@@ -163,6 +158,8 @@ def perceive(
 
     return {
         "arena_tree":      arena_tree,
+        "current":         {"world": zone["world"], "sector": zone["sector"], "arena": zone["arena"],
+                            "sector_name": (names["sector"] or {}).get("name"), "arena_name": (names["arena"] or {}).get("name")},
         "vision_tiles":    vision_tiles,
         "front_object":    front_object,
         "players_in_view": players_in_view,

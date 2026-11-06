@@ -267,13 +267,34 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
     return copy.deepcopy(player)
 
 
+def _position_valid(x: int, y: int) -> bool:
+    """可走且落在某个 arena 内（§3.14：换地图后旧坐标可能在墙里或在任何 arena 之外）。"""
+    return is_tile_walkable(x, y) and _ZONE_LOOKUP.get((x, y), {}).get("arena") is not None
+
+
+def _ensure_valid_position(player: dict) -> bool:
+    """坐标非法 → 落回出生点并离开正在用的物品。返回是否重置。"""
+    pos = player["position"]
+    if _position_valid(pos["x"], pos["y"]):
+        return False
+    start = _META["player_start"]
+    player["position"] = {"x": start["x"], "y": start["y"]}
+    player["facing"] = start["facing"]
+    if player.get("usingObjectId") is not None and player["id"] in _players:
+        leave_object(player["id"])
+    player["state"] = "idle" if player.get("state") in ("using", "walking", "walking_over") else player.get("state", "idle")
+    player["stateLabel"] = None
+    return True
+
+
 def rejoin_player(player_id: str) -> dict | None:
-    """B6：supervisor 重拉后用同一 player_id 续接。不存在返回 None。"""
+    """B6：supervisor 重拉后用同一 player_id 续接。不存在返回 None。坐标非法落回出生点（§3.14）。"""
     with STATE_LOCK:
         player = _players.get(player_id)
         if player is None:
             return None
         player["online"] = True
+        _ensure_valid_position(player)
         _last_seen[player_id] = time.time()
         return copy.deepcopy(player)
 
@@ -823,6 +844,8 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
             player = row["player"]
             _ensure_player_fields(player)
             _players[pid] = player
+            if _ensure_valid_position(player):            # 换地图后旧坐标非法 → 出生点
+                row["use_start_time"] = None
             _pending_messages[pid] = row.get("pending_message")
             _use_start_times[pid]  = row.get("use_start_time")
             _last_seen[pid] = now if grace_last_seen else (row.get("last_seen") or now)
