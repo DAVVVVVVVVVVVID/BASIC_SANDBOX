@@ -85,6 +85,7 @@ def _state_view(p: dict) -> dict:
         "last_tick_ts": p.get("last_tick_ts"),
         "recent_uses":  get_recent_uses(p["id"]),
         "recent_events": get_recent_events(p["id"]),     # §3.11 A2：最近 /effects 推送的 event 记录
+        "game":          p.get("game"),                   # B18
     }
 
 
@@ -157,6 +158,56 @@ def admin_metrics():
         "ws_clients": ws_clients,
         "rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),
     }
+
+
+@router.get("/admin/export")
+def admin_export(date: str, kinds: str = "actions,chat,state"):
+    """
+    W6 任务 1：一次性给出当日沙盒数据集（供 A 的 dataset_export.py 拉）。
+    返回 {schema, date, town, map_version, seed, generated_at, actions[], chat[], state[], manifest{counts, files}}。
+    actions / chat / state 分别来自 data/actions|chat|state/<date>.jsonl（只读，行序即文件序）。
+    """
+    import re
+    from game import chat_log, state_log
+    from game.action_log import read_log as read_actions, _actions_dir
+    from game.world_state import TOWN, MAP_VERSION, SANDBOX_SEED
+    from game.time_state import game_now_iso
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+    want = {k.strip() for k in kinds.split(",") if k.strip()}
+    out: dict = {"schema": "sandbox-0.1", "date": date, "town": TOWN, "map_version": MAP_VERSION, "seed": SANDBOX_SEED,
+                 "generated_at": game_now_iso(), "manifest": {"counts": {}, "files": {}}}
+    def _read_day(dirpath, parse):
+        fp = dirpath / f"{date}.jsonl"
+        rows = []
+        if fp.exists():
+            for raw in fp.read_text(encoding="utf-8").splitlines():
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    rows.append(parse(raw))
+                except Exception:
+                    continue
+        return rows, fp
+    import json as _json
+    from game.paths import data_dir
+    sources = {"actions": _actions_dir(), "chat": data_dir() / "chat", "state": data_dir() / "state"}
+    backfilled = 0
+    for kind in ("actions", "chat", "state"):
+        if kind not in want:
+            continue
+        rows, fp = _read_day(sources[kind], _json.loads)
+        for r in rows:                         # W6 之前写的行没有数据集字段：按当前配置回填并标记
+            if not {"town", "map_version", "seed"} <= set(r):
+                r.setdefault("town", TOWN); r.setdefault("map_version", MAP_VERSION); r.setdefault("seed", SANDBOX_SEED)
+                r["backfilled"] = True; backfilled += 1
+        out[kind] = rows
+        out["manifest"]["counts"][kind] = len(rows)
+        out["manifest"]["files"][kind] = {"path": str(fp), "exists": fp.exists(),
+                                          "bytes": fp.stat().st_size if fp.exists() else 0}
+    out["manifest"]["backfilled_rows"] = backfilled
+    return out
 
 
 @router.get("/admin/self-sync")

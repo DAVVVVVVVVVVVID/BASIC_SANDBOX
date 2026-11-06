@@ -165,7 +165,16 @@ def perceive(
         "players_in_view": players_in_view,
         "needs":           needs,
         "phone":           get_phone_feed(entity_id),   # B10：最近一次刷手机的 digest（无则 null）
+        "game":            _game_view(entity_id),       # B18：游戏机局内状态（无则 null）
     }
+
+
+def _game_view(entity_id: str) -> dict | None:
+    from game import external_effects
+    p = _players.get(entity_id)
+    if p is None or not p.get("game"):
+        return None
+    return external_effects.game_refresh(p)
 
 
 @router.get("/arena-tiles")

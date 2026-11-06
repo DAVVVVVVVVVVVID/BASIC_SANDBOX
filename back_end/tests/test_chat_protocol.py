@@ -99,8 +99,15 @@ def _make_room(client, a, b):
     return client.get(f"/chat/request/{rid}").json()["chat_room_id"]
 
 
+def _join_agent(client, name):
+    pid = client.post("/player/join", json={"name": name, "controller": "agent", "profile": {"agent_id": name}}).json()["playerId"]
+    place(pid, 6, 9, "down")
+    return pid
+
+
 def test_chat_cooldown_after_exit(client):
-    a = join(client, "a"); b = join(client, "b"); c = join(client, "c")
+    # W6 任务 4：human 发起无冷却，所以这里用 agent 验证冷却
+    a = _join_agent(client, "a"); b = _join_agent(client, "b"); c = _join_agent(client, "c")
     room = _make_room(client, a, b)
     assert client.post("/chat/exit", json={"entity_id": a, "chat_room_id": room}).json() == {"room_closed": False}
     # a 刚退出：本人 60 s 冷却
@@ -123,7 +130,7 @@ def test_chat_cooldown_after_exit(client):
 
 
 def test_room_limit_closes_room_and_frees_players(client):
-    a = join(client, "a"); b = join(client, "b")
+    a = _join_agent(client, "a"); b = _join_agent(client, "b")
     room = _make_room(client, a, b)                              # 已有 2 条（招呼 + 回复）
     last = None
     for i in range(chat_state.MAX_MESSAGES - 2):

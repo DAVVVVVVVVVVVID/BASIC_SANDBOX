@@ -54,7 +54,10 @@ BASIC_SANDBOX/
 │   │   ├── soak.py            # 稳定性复现 / 负载（--agents --ws）
 │   │   ├── verify_ws.py       # /ws/world 推送对账
 │   │   ├── run_town.sh        # 一机多镇：起一个独立实例
-│   │   └── gen_map.py         # 地图生成器（阿蝉家 + 小镇 + 餐馆）
+│   │   ├── multi_soak.py      # 一机多实例空跑（tick 抖动 / RSS）
+│   │   ├── dataset_fetch.py   # /admin/export 拉取 + 行数对账
+│   │   ├── verify_game.py     # 游戏机对 D brain 联调
+│   │   └── gen_map.py         # 地图生成器（阿蝉家 + 小镇 + 餐馆；--variant m1c）
 │   ├── tests/                 # pytest（uv run pytest）
 │   ├── data/                  # 运行时生成：sandbox.db 检查点、actions/*.jsonl（不进 git）
 │   ├── models/
@@ -69,6 +72,8 @@ BASIC_SANDBOX/
 │       ├── self_sync.py       # 自我层同步：GET /self/state 种入、30 游戏秒批量 POST /self/state/delta
 │       ├── external_effects.py # external effect：feed（手机）/ live（直播台）调自我层
 │       ├── needs.py           # 需求值分档文字（perceive 的 needs）
+│       ├── chat_log.py        # 聊天 append-only JSONL
+│       ├── state_log.py       # 七变量快照 JSONL（每 30 游戏秒）
 │       ├── paths.py           # 数据目录（SANDBOX_DATA_DIR）
 │       ├── object_types.py    # 从 object_types.json 加载 Object 类型
 │       ├── object_types.json  # ← MAP_EDITOR 导出，Object 类型定义
@@ -155,6 +160,7 @@ BASIC_SANDBOX/
 - **external**：`phone`（use 拉自我层 `/self/feed` 摘要进 perceive 的 `phone`）与 `stream_desk`（use 开播 / leave 下播，期间按 live 速率衰减）
 - 数值为**每游戏小时尺度**：睡 8 h energy ≈ +200，一顿饭 fullness +40，一本书 fun +60（见 api-spec §5）
 - **社交物品**（W4）：餐馆四人桌（`max_users` 4）、广场长椅（2 人）、码头钓位、杂货店柜台；NPC 家各有 fridge
+- **游戏机**（B18，W6）：`game_console`，use 向 D 的 brain（`GAME_URL`，默认 8110）开一局、leave 结束；局内状态在 `player.game` / perceive 的 `game`；brain 不可达 → `game_unavailable`
 
 ### 实时推送与多实例
 
@@ -167,7 +173,9 @@ BASIC_SANDBOX/
 
 - `actions/YYYY-MM-DD.jsonl`：每次 `POST /action` 一行（`GET /history/log` 回放）
 - `chat/YYYY-MM-DD.jsonl`：每条聊天消息一行 + 房间开 / 关 / 退出 / 上限 / 邀请过期一行（`GET /history/chat` 回放），与 `/ws/world` 的 `chat` 推送同源
+- `state/YYYY-MM-DD.jsonl`：每个 player 每 30 游戏秒一行七变量快照（W6）
 - `sandbox.db`：SQLite 检查点（当前状态，非历史）
+- 每行带 `town / map_version / seed`；`GET /admin/export?date=` 一次给出当日三类 + manifest（供总控 `dataset_export.py`）；`scripts/dataset_fetch.py` 对账
 
 ### 需求值与自我层
 
@@ -301,6 +309,10 @@ uv run python scripts/soak.py --minutes 30 --rounds 3                         # 
 uv run python scripts/soak.py --minutes 30 --rounds 1 --agents 6 --ws 1       # 负载：6 名 agent + 1 个 WS 订阅，记 p95 / tick / RSS
 uv run python scripts/verify_ws.py --seconds 60                               # /ws/world 推送与轮询对账
 uv run python scripts/verify_freeform.py --self-url http://127.0.0.1:8100     # B12 对自我层真实裁决 3 条（会调用模型）
+uv run python scripts/verify_game.py --game-url http://127.0.0.1:8110          # B18 对 D 的 brain 真实联调一局
+uv run python scripts/dataset_fetch.py --base http://127.0.0.1:8000 --date 2026-11-06 --data-dir run/data/sandbox   # 数据集导出对账
+uv run python scripts/multi_soak.py --instances 8 --minutes 30 --map-dir game/maps/m1c   # 一机 8 实例空跑，tick 抖动与 RSS
+uv run python scripts/gen_map.py --variant m1c --out game/maps/m1c             # NPC 8 个版本地图（SANDBOX_MAP_DIR 指过去）
 uv run python scripts/gen_map.py                                              # 重新生成地图
 ```
 

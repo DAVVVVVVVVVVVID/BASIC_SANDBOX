@@ -632,5 +632,60 @@
     },
     "success_message": "你买了点零食，顺便和老板聊了两句。",
     "failure_message": "柜台没人。"
+  },
+  "game_console": {
+    "prototype": "continuous",
+    "name": "游戏机",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": true,
+    "description": "一台接着小电视的游戏机，装着《饥荒》。坐下就能开一局。",
+    "effects": [
+      {
+        "type": "external",
+        "key": "game"
+      },
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": 0.008333
+      },
+      {
+        "type": "buff",
+        "key": "mood_regen",
+        "value": 0.001111
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.001667
+      },
+      {
+        "type": "buff",
+        "key": "social_regen",
+        "value": -0.000556
+      },
+      {
+        "type": "tag",
+        "key": "gaming"
+      }
+    ],
+    "advertise": {
+      "fun": 85,
+      "mood": 20
+    },
+    "max_users": 1,
+    "use_state_label": "{entity} 玩游戏中",
+    "max_duration": 7200,
+    "success_message": "你打开游戏机，屏幕亮了起来。",
+    "failure_message": "游戏机现在用不了。",
+    "leave_message": "你关掉游戏机，这一局结束了。"
   }
 }

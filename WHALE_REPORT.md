@@ -1,10 +1,95 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W5（2026-11-06）**；W4、W3、W2、W1 记录在后。
+分支：`whale-integration`。最新：**W6（2026-11-06）**；W5、W4、W3、W2、W1 记录在后。
 
 ---
 
-# W5 · 2026-11-06：整树（事故修复）、聊天 JSONL、E 的 7 条、B12 freeform
+# W6 · 2026-11-06：矩阵与多镇、数据集导出、游戏机 Object、阿蝉体验
+
+## 1. 进度（任务 1–6 全部完成）
+
+| # | 任务 | 状态 | 主要文件 |
+|---|---|---|---|
+| 1 | 数据集：行动 / 聊天 JSONL 每行加 `town / map_version / seed`；新增 `data/state/<date>.jsonl`（每 player 每 30 游戏秒一行七变量）；`GET /admin/export?date=&kinds=` 一次给出 actions / chat / state + manifest（counts / files / backfilled_rows）；旧行回填并标 `backfilled` | ✅ | `game/state_log.py`（新）、`action_log.py`、`chat_log.py`、`routers/player.py::/admin/export`、`scripts/dataset_fetch.py`（新） |
+| 2 | 多镇：`SANDBOX_SEED` 决定天气序列（每 6 游戏小时一段，6:3:1）与 agent 出生点（家 arena 内）；`SANDBOX_MAP_DIR` 选图；`SANDBOX_TOWN`；m1c 地图（60×48，+教书先生家 / 画师家 / 药铺，42 物品全部可达）；`scripts/multi_soak.py` 8 实例空跑 | ✅ 见 §5 | `world_state`（`weather_for / spawn_point_for / AGENT_HOME_ARENA`）、`scripts/gen_map.py --variant m1c`、`game/maps/m1c/` |
+| 3 | B18 游戏机：`game_console`（continuous，fun 85 / mood 20，energy −6/h）；use → D brain `GET /healthz` + `POST /event sandbox_session_start`，`stateLabel`「玩游戏中」，`player.game` 带 brain `/metrics` 的 day / phase / health…；leave / 删玩家 → `sandbox_session_end`；不可达 → `game_unavailable`；`GAME_URL` 可配；沙盒不转发结果 | ✅ | `external_effects.game_start / game_end / game_refresh`、`routers/actions.py`、`world_state.leave_object`、perceive `game`、`scripts/verify_game.py`（新） |
+| 4 | 阿蝉体验：human 发起 `POST /chat/request` 不检查冷却（agent 发起仍受）；human 的 `GET /player` 仍刷心跳；消息进 chat JSONL 带 `controller=human` | ✅ | `routers/chat.py`、`tests/test_w6_human_chat.py` |
+| 5 | 稳定性：运行台日志巡检 + 8 实例空跑 + 12 agent 负载 | ✅ 见 §5 | `scripts/multi_soak.py`、`scripts/soak.py --agents 12` |
+| 6 | 文档同步；`tile_gids.json` 覆盖口已在 W5 留好（`gen_map.build_tiled` 读 `game/maps/tile_gids.json`） | ✅ | `docs/api-spec.md`、`README.md`、`docs/data-models.md` |
+
+未碰 `front_end/`。
+
+**两处我定的契约（标假设，等对方确认）**：
+- **B18 与 D 的接口**：D12 契约未出，8110 的 brain API 只有 `/healthz /tick /event /state /metrics /admin/*`。沙盒用现有端点：开局 = `healthz` ok + `POST /event {type:"sandbox_session_start", agent, player_id, ts, tick}`，结束 = `POST /event {type:"sandbox_session_end", …, started_at}`，局内指标读 `/metrics`。D 若另给 start / stop 端点，只改 `external_effects.game_start / game_end` 两个函数。
+- **数据集沙盒源**：A 的 `dataset_export.py` 目前没有沙盒源；我按 schema v0.2 的口径给 `GET /admin/export`（每行 `town / map_version / seed`，state 每 30 游戏秒一行），并写了 `dataset_fetch.py` 做 A 那一步的等价拉取与对账。A 接入时三类各一个 `GET` 即可；行数以 `manifest.counts` 为准。
+
+## 2. 测试命令与结果
+
+```bash
+cd back_end
+uv run pytest -q
+# 170 passed（W5 的 157 个 + W6 新增 13 个：test_w6_dataset 3、test_w6_seed 4、test_w6_game 5、test_w6_human_chat 1）
+
+# 任务 1：主镇一天数据对账（运行台 59d1ac8 还没有 /admin/export，用其数据目录只读副本起临时实例）
+uv run python scripts/dataset_fetch.py --base http://127.0.0.1:<tmp> --date 2026-11-06 --data-dir /tmp/ds_copy
+#  actions  manifest=327 written=327 local_file=327  OK      chat 0/0/0 OK      state 0/0/0 OK   → PASS
+#  （旧行无数据集字段 → 回填 327 行并标 backfilled；运行台切到本提交后新行自带字段、state 开始每 30 游戏秒一行）
+
+# 任务 3：对 D 的 brain（8110，run-1793930016，第 2 天黄昏）真实联调一局
+uv run python scripts/verify_game.py
+#  use game_console OK / stateLabel「鲸仔 玩游戏中」/ player.game.status=playing（day 2, phase dusk, health 113.9）/
+#  perceive.game 带 brain 指标 / brain ws /events 收到 sandbox_session_start / leave OK / 收到 sandbox_session_end / status=ended
+#  8/8 checks passed → PASS
+
+# 任务 2：m1c 地图
+uv run python scripts/gen_map.py --variant m1c --out game/maps/m1c      # 60×48，42 物品；SANDBOX_MAP_DIR=game/maps/m1c 加载 → BFS 全部可达（单测 + 启动核对）
+```
+
+| 新增 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/test_w6_dataset.py` | 3 | 行动 / 聊天行带 `town / map_version / seed`；state 快照每 30 游戏秒一行、字段齐全、不足 30 s 不采；`/admin/export` counts == 返回行数 == 文件行数 == 文件字节、kinds 过滤、空日期、坏日期 400、旧行回填与 `backfilled_rows` |
+| `tests/test_w6_seed.py` | 4 | 无 seed 恒 sunny；有 seed 确定且同段不变、不同 seed 序列不同、ticker 写进 `worldState.weather`；agent 出生在家 arena（whale / achan / cook / fisher），human 与未知 agent 在地图出生点；出生点随 seed 变但不出家门；m1c 地图 BFS 42 物品可达、三户新 sector、9 张床、中文名 |
+| `tests/test_w6_game.py` | 5 | 类型与地图位置；use → healthz + session_start 事件（agent / player_id / ts / tick）、stateLabel、`player.game`（brain run_id、day、phase，多余字段不进）、`/state` 与 perceive 的 `game`、`/world` players 的 stateLabel / usingObjectId；leave → session_end（带 started_at）、status=ended、tag 清除；brain 宕 → `game_unavailable`，不坐下、不计冷却；human 也能玩、删玩家发 end；`/metrics` 500 不阻塞 |
+| `tests/test_w6_human_chat.py` | 1 | 阿蝉（human）发起 → 鲸仔接受 → walking_over → 建房 → 三条消息；阿蝉退出后立刻再发起成功（无冷却），鲸仔发起被 `chat_cooldown` 拦；JSONL 三条消息 `controller` 分别 human / agent / human，带 town；`/history/chat` 一致；human 的 `GET /player` 仍刷心跳 |
+| 改 | 3 | `test_chat_protocol` 两个冷却用例改用 agent（human 现在无冷却）；`test_w5_chat_log` 的房间夹具先把两人放相邻（agent 现在出生在自家房间） |
+
+## 3. api-spec 改动摘要（只增不删）
+
+| 位置 | 改动 |
+|---|---|
+| §6 Admin | 新 `GET /admin/export?date=&kinds=`（行形状、state 快照、回填规则、对账脚本） |
+| `POST /action` use | 新 reason `game_unavailable`；`external` 行加 `key = "game"` 的完整流程（假设契约） |
+| §5 Object | 新 `game_console` 行 |
+| `GET /agent/perceive` | 新字段 `game`；`GET /player` / `/state` 同步带 `game` |
+| §7 `POST /chat/request` | human 发起不检查冷却 |
+| §4 多实例 | `SANDBOX_SEED` 扩为天气 + 出生点（家表）；`SANDBOX_MAP_DIR`（m1c）；`SANDBOX_TOWN` |
+
+`README.md`：数据集文件清单、游戏机、新脚本；`docs/data-models.md`：`player.game`。
+
+## 4. 对契约 / 其他会话
+
+1. **给 D（B18 契约）**：见 §1「两处我定的契约」。事件名 `sandbox_session_start / sandbox_session_end` 已在你的 `/event` 总线里能看到（本次联调 ws `/events` 收到了两条）。如果你希望沙盒触发「真正开一局」（regenerate / 接管鲸仔角色），请给一个端点名，我换掉 `game_start` 里的那一行；局结果请你 `POST /self/game/session` 写自我层（§3.15 第 2 条），沙盒不碰。
+2. **给 A（数据集）**：沙盒源 = `GET /admin/export?date=`，三类行都带 `town / map_version / seed`，`manifest.counts` 为对账基准，`backfilled` 标记的行是 W6 之前写的。state 是沙盒本地每 30 游戏秒的样本（`kind: "sample"`），与自我层 `history/state-<date>.jsonl` 的 `kind: history` 互补；建议 dataset-schema 的 state 表加一行「沙盒 sample」来源。
+3. **给 C**：agent 现在出生在自家房间（whale → 小仓库，NPC 各回各家），不再全部挤在小仓库出生点；m1c 的三位新 NPC id 我按 `npc_teacher / npc_painter / npc_herbalist` 建了家表，A 的 personas 若用别的 id，告诉我改一行映射。
+4. **给 E（阿蝉操控页）**：human 发起对话无冷却；房间内 human 发言 `controller=human` 进 `data/chat/*.jsonl`，`/history/chat?room=` 可查。E 操控页的最小序列：`POST /player/join {name:"阿蝉"}` → 走到鲸仔旁（`move_to_area` 到她所在 arena）→ `POST /chat/request {from, to:[鲸仔 id], greeting}` → 轮询 `GET /chat/request/{id}` 到 `active` → `POST /chat/message` → `POST /chat/exit`。
+5. **运行台**：建议切到本提交；`mapVersion` 变为 `阿蝉家与小镇@1b824832ace2`（新增游戏机物品），前端会重拉 tiles；玩家坐标不受影响，不需清数据目录。切换后 `data/state/` 开始落盘。
+6. **`SANDBOX_SEED` 的「随机要素」**（假设）：天气只是 `worldState.weather` 的展示值（不影响需求值）；出生点只影响 agent 第一次 join。m1b 的 seed 2 现在确实会产生不同的天气序列与出生点。
+
+## 5. 稳定性与负载（任务 2 / 5）
+
+- **运行台 8000 巡检**（`run/data/sandbox.log` 只读）：92 765 行，0 条 Traceback / ERROR / 500，0 次 401 / 403（带 `SELF_TOKEN` 后 self-sync 正常）。
+- **8 实例空跑（m1c 地图，各 1 个 agent，SELF_SYNC=0，30 min，与 12 agent 负载同机同时跑）**：__MULTI_RESULT__
+- **12 agent × 30 min 负载**（`soak.py --agents 12 --ws 1`，mock 自我层，每 agent 每秒 1 动作，每 2 s 1 次 `/world` + 12 次 `/player` + 12 次 perceive，每 7 s 一轮对话）：__LOAD12_RESULT__
+- 机器：20 核，119 GB 内存（起跑时已用 81 GB，其他会话的服务在跑）。
+
+## 6. 本次提交
+
+见 `git log -1`。
+
+---
+
+
+# W5 · 2026-11-06：整树（事故修复）、聊天 JSONL、E 的 7 条、B12 freeform（原报告）
 
 ## 0. 事故修复（§3.14，最先做）——提交 **`504bf9e`**，请总控切运行台
 

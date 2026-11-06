@@ -107,6 +107,83 @@ def live_stop(player: dict, game_iso: str) -> None:
         threading.Thread(target=_live_stop_send, args=(agent, game_iso), name="live-stop", daemon=True).start()
 
 
+# ── B18 游戏机：D 的 brain API（假设契约，D12 未出；地址 GAME_URL，默认 http://127.0.0.1:8110） ─────────
+# use  → GET {GAME_URL}/healthz 必须 ok，再 POST {GAME_URL}/event {type:"sandbox_session_start", agent, player_id, ts}
+# leave → POST {GAME_URL}/event {type:"sandbox_session_end", ...}（后台发送，不可失败）
+# 局内状态：GET {GAME_URL}/metrics 的 run_id / day / phase / health / hunger / sanity 进 player["game"]（perceive 的 game 字段）
+# 结果由 D 自己 POST /self/game/session 写自我层，沙盒不转发。
+import os as _os
+GAME_URL = _os.environ.get("GAME_URL", "http://127.0.0.1:8110").rstrip("/")
+GAME_TIMEOUT = 3.0
+GAME_TRANSPORT = None          # 测试注入 httpx.MockTransport（假 D）
+GAME_FIELDS = ("run_id", "ticks", "day", "phase", "health", "hunger", "sanity", "deaths")
+
+
+def _game_client() -> httpx.Client:
+    return httpx.Client(base_url=GAME_URL, timeout=GAME_TIMEOUT, transport=GAME_TRANSPORT)
+
+
+def _game_metrics(c: httpx.Client) -> dict:
+    try:
+        r = c.get("/metrics")
+        r.raise_for_status()
+        m = r.json()
+        return {k: m.get(k) for k in GAME_FIELDS if k in m}
+    except Exception:
+        return {}
+
+
+def game_start(player: dict, game_iso: str) -> dict:
+    """返回 {"ok": bool, "game": {...}, "error"?}。"""
+    try:
+        with _game_client() as c:
+            h = c.get("/healthz")
+            h.raise_for_status()
+            hj = h.json()
+            if not hj.get("ok", True):
+                return {"ok": False, "error": "brain_not_ok"}
+            ev = {"type": "sandbox_session_start", "agent": player.get("agent_id") or player.get("name"),
+                  "player_id": player["id"], "ts": game_iso, "tick": hj.get("ticks", 0)}
+            r = c.post("/event", json=ev)
+            r.raise_for_status()
+            game = {"status": "playing", "started_at": game_iso, "brain_run_id": hj.get("run_id"), **_game_metrics(c)}
+            return {"ok": True, "game": game}
+    except Exception as e:
+        log.warning("game.start failed: %s", e)
+        return {"ok": False, "error": str(e)}
+
+
+def _game_end_send(ev: dict) -> None:
+    try:
+        with _game_client() as c:
+            c.post("/event", json=ev).raise_for_status()
+    except Exception as e:
+        log.warning("game.end failed: %s", e)
+
+
+def game_end(player: dict, game_iso: str) -> None:
+    """结束一局：不可失败，后台发送（SYNC_STOP=True 同步，测试用）。"""
+    ev = {"type": "sandbox_session_end", "agent": player.get("agent_id") or player.get("name"),
+          "player_id": player["id"], "ts": game_iso, "started_at": (player.get("game") or {}).get("started_at")}
+    if SYNC_STOP:
+        _game_end_send(ev)
+    else:
+        threading.Thread(target=_game_end_send, args=(ev,), name="game-end", daemon=True).start()
+
+
+def game_refresh(player: dict) -> dict | None:
+    """局中刷新 D 的 metrics（perceive 时调用，3 s 超时；失败保留旧值）。"""
+    g = player.get("game")
+    if not g or g.get("status") != "playing":
+        return g
+    try:
+        with _game_client() as c:
+            g.update(_game_metrics(c))
+    except Exception:
+        pass
+    return g
+
+
 # ── B12 freeform：自我层裁决 ──────────────────────────────────────────────────
 
 ADJUDICATE_TIMEOUT = 15.0     # 模型调用，比 feed/live 的 3 s 长

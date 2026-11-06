@@ -29,7 +29,7 @@
     "##.ffffffff.ffffff.ffffff.##FF##.affff.ffff.##########bbbbbb",
     "##.ffffffffffffffffffffff.##FF##.fffff.ffff.##########bbbbbb",
     "##.ffffffff.ffffff.ffffff.##FF##.fffff.ffff.##########bbbbbb",
-    "##.ffffffff.ffffff.ffffff.##FF##.ffffffffff.##########bbbbbb",
+    "##.fffffffa.ffffff.ffffff.##FF##.ffffffffff.##########bbbbbb",
     "##.ffffffff.ffffff.afffff.##FF##.fffff.ffff.##########bbbbbb",
     "##.afffffff.fffffa.afffff.##FF##.fffff.ffff.##########bbbbbb",
     "##.ffffffff.ffffff.ffffff.##FF##.fffff.fffa.##########bbbbbb",
@@ -70,7 +70,10 @@
       "D": "grocer_house",
       "E": "fisher_house",
       "F": "regular_house",
-      "G": "restaurant"
+      "G": "restaurant",
+      "H": "teacher_house",
+      "I": "painter_house",
+      "J": "herbalist_house"
     },
     "arena": {
       "A": "grass",
@@ -90,7 +93,11 @@
       "j": "regular_bedroom",
       "k": "regular_bath",
       "r": "dining",
-      "s": "rest_kitchen"
+      "s": "rest_kitchen",
+      "t": "teacher_room",
+      "u": "painter_room",
+      "v": "herbalist_room",
+      "w": "herb_shop"
     }
   },
   "zone_names": {
@@ -104,7 +111,10 @@
       "grocer_house": "杂货商家",
       "fisher_house": "渔夫小屋",
       "regular_house": "常客家",
-      "restaurant": "餐馆"
+      "restaurant": "餐馆",
+      "teacher_house": "教书先生家",
+      "painter_house": "画师家",
+      "herbalist_house": "药铺"
     },
     "arena": {
       "grass": "草地",
@@ -124,7 +134,11 @@
       "regular_bedroom": "常客的卧室",
       "regular_bath": "常客的浴室",
       "dining": "餐馆大堂",
-      "rest_kitchen": "餐馆后厨"
+      "rest_kitchen": "餐馆后厨",
+      "teacher_room": "教书先生的书房",
+      "painter_room": "画师的画室",
+      "herbalist_room": "药铺老板的卧室",
+      "herb_shop": "药铺柜台"
     }
   },
   "world_map": [

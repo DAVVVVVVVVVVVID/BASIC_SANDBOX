@@ -40,6 +40,14 @@
     }
   },
   {
+    "id": "game_console_whale",
+    "type": "game_console",
+    "position": {
+      "x": 10,
+      "y": 11
+    }
+  },
+  {
     "id": "bed_achan",
     "type": "bed_21",
     "position": {

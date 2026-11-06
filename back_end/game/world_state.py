@@ -11,7 +11,9 @@ from game.buff_tick import set_var, add_var, add_closeness, NEED_VARS, DECAY_BUF
 from game.time_state import now_real, game_now_ts
 
 # ── 从 JSON 加载地图数据 ──────────────────────────────────────────────────────
-_MAP_DIR = Path(__file__).parent / "maps"
+# SANDBOX_MAP_DIR：地图目录（默认 game/maps；m1c 用 game/maps/m1c），一机多镇可各用一张图
+_MAP_DIR = Path(os.environ.get("SANDBOX_MAP_DIR") or (Path(__file__).parent / "maps"))
+TOWN: str = os.environ.get("SANDBOX_TOWN", "main")      # 数据集每行带的镇名（towns.yaml 的 key）
 
 with open(_MAP_DIR / "map.json", encoding="utf-8") as _f:
     _MAP_DATA = json.load(_f)
@@ -174,6 +176,51 @@ STATE_LOCK = threading.RLock()
 SANDBOX_SEED: int | None = int(os.environ["SANDBOX_SEED"]) if os.environ.get("SANDBOX_SEED", "").strip() else None
 _id_rng = random.Random(SANDBOX_SEED) if SANDBOX_SEED is not None else None
 
+# SEED 决定的地图随机要素（W6 任务 2，假设）：
+# - 天气序列：每 6 游戏小时一段，由 (seed, 游戏日, 段) 决定；seed 为 None 时恒 sunny（与旧行为一致）
+# - NPC 出生点：controller=agent 的玩家出生在其「家」arena 内由 (seed, agent_id) 决定的可走格；seed 为 None 时取该 arena 第一个可走格
+WEATHER_SLOT_HOURS = 6
+WEATHER_WEIGHTS = (("sunny", 6), ("cloudy", 3), ("rain", 1))
+AGENT_HOME_ARENA = {"whale": "storage", "achan": "achan_room", "npc_cook": "cook_bedroom", "npc_grocer": "grocer_bedroom",
+                    "npc_fisher": "fisher_hut", "npc_regular": "regular_bedroom",
+                    "npc_teacher": "teacher_room", "npc_painter": "painter_room", "npc_herbalist": "herbalist_room"}
+
+
+def weather_for(game_ts: float) -> str:
+    """按 seed 与游戏时刻决定天气（确定性）。"""
+    if SANDBOX_SEED is None:
+        return "sunny"
+    from game.time_state import GAME_TZ
+    from datetime import datetime
+    dt = datetime.fromtimestamp(game_ts, GAME_TZ)
+    slot = dt.hour // WEATHER_SLOT_HOURS
+    rng = random.Random(f"{SANDBOX_SEED}:{dt.date().isoformat()}:{slot}")
+    names = [w for w, _ in WEATHER_WEIGHTS]; weights = [n for _, n in WEATHER_WEIGHTS]
+    return rng.choices(names, weights=weights, k=1)[0]
+
+
+def update_weather(game_ts: float) -> str:
+    global _WEATHER
+    _WEATHER = weather_for(game_ts)
+    return _WEATHER
+
+
+def spawn_point_for(agent_id: str | None) -> dict:
+    """agent 的出生点：家 arena 内的可走格（seed 决定哪一格）；没有家 / 不是 agent → 地图出生点。"""
+    start = _META["player_start"]
+    arena = AGENT_HOME_ARENA.get(agent_id or "")
+    if arena is None:
+        return {"x": start["x"], "y": start["y"], "facing": start["facing"]}
+    tiles = [t for t in get_walkable_tiles_in_area("arena", arena) if get_object_at(t["x"], t["y"]) is None]
+    if not tiles:
+        return {"x": start["x"], "y": start["y"], "facing": start["facing"]}
+    tiles.sort(key=lambda t: (t["y"], t["x"]))
+    if SANDBOX_SEED is None:
+        t = tiles[0]
+    else:
+        t = random.Random(f"{SANDBOX_SEED}:spawn:{agent_id}").choice(tiles)
+    return {"x": t["x"], "y": t["y"], "facing": "down"}
+
 # 七变量初值（ARCHITECTURE §3.1 B3 / 报告 §4.3 基线）
 INITIAL_FULLNESS = 70.0
 INITIAL_ENERGY   = 100.0
@@ -277,6 +324,8 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
         player_id = f"{safe}_{uuid.uuid4().hex[:6]}"
     player = _make_player(player_id, name, controller, profile)
     if player["controller"] == "agent":
+        sp = spawn_point_for(player.get("agent_id"))
+        player["position"] = {"x": sp["x"], "y": sp["y"]}; player["facing"] = sp["facing"]
         from game import self_sync
         self_sync.register(player_id, game_now_ts())
         self_sync.seed_player(player, game_now_ts())
@@ -671,6 +720,12 @@ def leave_object(entity_id: str) -> dict | None:
         from game import external_effects
         from game.time_state import game_now_iso
         external_effects.live_stop(player, game_now_iso())
+    if obj and "game" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
+        from game import external_effects
+        from game.time_state import game_now_iso
+        external_effects.game_end(player, game_now_iso())        # B18：结束一局
+        g = player.get("game") or {}
+        player["game"] = {**g, "status": "ended", "ended_at": game_now_iso()}
 
     player["state"]         = "idle"
     player["stateLabel"]    = None
@@ -838,6 +893,10 @@ def _run_buff_tick_all(delta: float) -> None:
             run_tick(player, delta, game_ts=gts)
             _check_auto_leave(player_id)
         self_sync.on_tick(gts, _players)
+        update_weather(gts)
+        from game import state_log
+        from game.time_state import game_now_iso
+        state_log.on_tick(gts, game_now_iso(), _players)
 
 
 # ── 持久化：导出 / 回填（B2） ─────────────────────────────────────────────────

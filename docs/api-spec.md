@@ -654,6 +654,7 @@
 | `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message` |
 | `feed_unavailable` | **B10** 手机（`external: feed`）拉自我层 `GET /self/feed` 失败（不可达 / 超时 3 s）。`result.message` 为「手机没信号…」，`result.phone.status = "no_signal"`；物品仍算使用过（有冷却），其余 instant 效果已结算 |
 | `live_unavailable` | **B11** 直播台（`external: live`）向自我层 `POST /self/live/start` 失败，**或使用者是人类玩家（没有 `agent_id`，§3.11 B4：阿蝉不能替她开播）**。不进入物品、不计冷却，`result.error` 为错误摘要 |
+| `game_unavailable` | **B18（W6）** 游戏机（`external: game`）向 D 的 brain `GET {GAME_URL}/healthz` / `POST /event` 失败（不可达 / 超时 3 s / ok=false）。不进入物品、不计冷却，`result.error` 为错误摘要 |
 
 **手机 use 成功时** `result` 多两个字段：`message` = digest 文字（「手机上有 N 条新动态：…」/「手机上没有新消息。」），`phone` = 与 `GET /agent/perceive` 的 `phone` 相同的 digest 对象。
 | `use_disabled` | 当前无法使用对象（buff 限制）|
@@ -711,7 +712,7 @@
 - 每 5 s 以及进程正常关停时，后端把全部运行时状态写入 SQLite 检查点 `data/sandbox.db`（players、object 使用状态、时间锚点、chat 请求与房间、`meta.last_tick_ts`）。启动时若有检查点则回填，并按停机时长补算一次 tick（`dt ≤ 8 游戏小时`，running=false 时不补）。`kill -9` 最多丢最后 5 s 的变化。
 - 停机补算分段（§3.7 裁定 5）：前 4 游戏小时全量（物品 buff + 衰减）；4–8 h 只补 social / fun / mood / closeness 的衰减，fullness / energy 不再扣（她离线等于在睡，假设）。
 - 数据目录默认 `back_end/data/`，环境变量 `SANDBOX_DATA_DIR` 可改。
-- **多实例（W4）**：一机多镇时每个实例用不同端口 + 不同 `SANDBOX_DATA_DIR`（检查点 `sandbox.db`、`actions/*.jsonl`、pid 文件都在该目录内，进程间没有共享全局文件；日志走 stdout 或 `run_town.sh --log`）。`back_end/scripts/run_town.sh --port 8010 --data run/data/m2a [--self-url http://127.0.0.1:8310] [--cors ...]` 一键起一个镇，端口被占直接拒绝。CORS 白名单走环境变量 `SANDBOX_CORS_ORIGINS`（逗号分隔，默认 `http://localhost:5173,http://127.0.0.1:5173`）。**`SANDBOX_SEED`（W5）**：沙盒目前没有随机游戏逻辑，种子只决定 player id 后缀的生成器（相同 join 顺序 → 相同 id，便于多镇对照；未设置用 uuid），`GET /admin/metrics.seed` 可查。`run_town.sh` 的 `--tz / --seed / --env K=V` 与总控 townctl 传的 `SANDBOX_TZ` / `sandbox_env` 一一对应。
+- **多实例（W4）**：一机多镇时每个实例用不同端口 + 不同 `SANDBOX_DATA_DIR`（检查点 `sandbox.db`、`actions/*.jsonl`、pid 文件都在该目录内，进程间没有共享全局文件；日志走 stdout 或 `run_town.sh --log`）。`back_end/scripts/run_town.sh --port 8010 --data run/data/m2a [--self-url http://127.0.0.1:8310] [--cors ...]` 一键起一个镇，端口被占直接拒绝。CORS 白名单走环境变量 `SANDBOX_CORS_ORIGINS`（逗号分隔，默认 `http://localhost:5173,http://127.0.0.1:5173`）。**`SANDBOX_SEED`（W5 / W6）**：决定 ① player id 后缀生成器 ② **天气序列**（每 6 游戏小时一段，由 (seed, 游戏日, 段) 确定，sunny:cloudy:rain = 6:3:1，假设；未设置恒 `sunny`）③ **agent 出生点**（`controller=agent` 出生在其家 arena 内由 (seed, agent_id) 选的可走格；未设置取该 arena 第一个可走格；家表 `AGENT_HOME_ARENA`：whale→storage、achan→achan_room、npc_cook→cook_bedroom、npc_grocer→grocer_bedroom、npc_fisher→fisher_hut、npc_regular→regular_bedroom、npc_teacher→teacher_room、npc_painter→painter_room、npc_herbalist→herbalist_room；不在表里 → 地图出生点）。human 始终在地图出生点。`GET /admin/metrics.seed` 可查。**`SANDBOX_MAP_DIR`（W6）**：地图目录，默认 `game/maps`；`game/maps/m1c` 是「NPC 8 个」版本（60×48，+教书先生家 / 画师家 / 药铺，42 个物品，`scripts/gen_map.py --variant m1c`）。**`SANDBOX_TOWN`**：数据集每行的 `town`（towns.yaml 的 key，默认 `main`）。`run_town.sh` 的 `--tz / --seed / --env K=V` 与总控 townctl 传的 `SANDBOX_TZ` / `sandbox_env` 一一对应。
 - 实时推送见 §8 `GET /ws/world`。
 
 ### 与自我层同步（§2.5）
@@ -827,6 +828,7 @@
 - `vision_tiles`：以实体当前位置为中心，边长 `vision_size`（偶数自动取奇）的正方形内所有合法 tile，超出地图边界的 tile 不返回
 - `front_object`：正前方一格的 object 信息，无 object 时为 `null`
 - `players_in_view`（**B13**）：视野正方形内的其他 player
+- `game`（**B18，W6**）：游戏机局内状态 `{status: "playing" | "ended", started_at, ended_at?, brain_run_id, run_id, ticks, day, phase, health, hunger, sanity, deaths}`，没玩过为 `null`；`playing` 时每次 perceive 向 brain `GET /metrics` 刷新一次（3 s 超时，失败保留旧值）。`GET /player/{id}` 与 `/state` 也带 `game`
 - `phone`（**B10**）：最近一次刷手机的信息流摘要，没刷过为 `null`：`{"status": "ok" | "no_signal", "items": [{"ts", "topic", "sentiment", "is_question", "is_song_request", "summary", "injection"}], "digest_ts", "fetched_at", "for"}`。只有自我层 Quarantine 后的 digest 字段，**不含 id / source / author / 原文**（沙盒侧再做一次白名单过滤）
 - `needs`（**B13**）：**只给分档文字，不给数值**（报告 §4.3）。阈值 low 25 / critical 15 / emergency 10；文案与自我层 `state.py` 的 `LABELS` 同源（沿用 mood.py `label()`）。`<var>` 未越阈值为 `"还好"`；`mood` < 35 为「有点委屈…」、> 75 为「开心」；`lines` 是越过阈值的全部文字（含 emotion_tags），`hard` 是 `<var><15` 的硬约束；`closeness` 对视野内 player 分档，形状固定为 **`{entity_id: {"name", "tier"}}`**（§3.11 第 9 条；tier ≥70 很亲近 / ≥40 熟悉 / ≥15 认识 / 其余 陌生，阈值为假设，整个 `needs` 块里没有任何数值）；`recent_uses` 同 `GET /player/{id}/state`
 
@@ -976,7 +978,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `buff` | continuous | 进入时创建，离开/计时结束时移除 | 见上方 Buff 结构；mode 可为 `persistent` 或 `timed` |
 | `instant_effect` | instant / continuous | 进入时一次性结算，不进 buff 列表 | `key` 为七变量之一（`fullness` / `energy` / `social` / `fun` / `mood`；`hp` 视为 `fullness`），`value` 为变化量，结果 clamp 到 0–100 |
 | `tag` | continuous | 进入时加入，离开时移除 | 纯标记字符串，不参与运算 |
-| `external` | instant / continuous | use 时调自我层 | **B10 / B11** `key = "feed"`：`GET {SELF_URL}/self/feed?for=<agent_id>&n=8`，结果进 `result.phone` 与 perceive 的 `phone`；`key = "live"`：use → `POST /self/live/start`（失败则 use 失败 `live_unavailable`），leave → `POST /self/live/stop`（后台发送、不可失败），使用期间 `player.scene = "live"`。没有 `agent_id` 的人类玩家：feed 用 player id 查；**live 直接 `live_unavailable`**（§3.11 B4） |
+| `external` | instant / continuous | use 时调自我层 | **B10 / B11** `key = "feed"`：`GET {SELF_URL}/self/feed?for=<agent_id>&n=8`，结果进 `result.phone` 与 perceive 的 `phone`；`key = "live"`：use → `POST /self/live/start`（失败则 use 失败 `live_unavailable`），leave → `POST /self/live/stop`（后台发送、不可失败），使用期间 `player.scene = "live"`。没有 `agent_id` 的人类玩家：feed 用 player id 查；**live 直接 `live_unavailable`**（§3.11 B4）。**`key = "game"`（B18，W6，契约为假设——D12 未出）**：use → `GET {GAME_URL}/healthz` 须 ok，再 `POST {GAME_URL}/event {type:"sandbox_session_start", agent, player_id, ts, tick}`；成功后 `player.game = {status:"playing", started_at, brain_run_id, run_id, ticks, day, phase, health, hunger, sanity, deaths}`（后几项取自 brain `GET /metrics`，perceive 时刷新）；leave / 自动离开 / 删玩家 → `POST /event {type:"sandbox_session_end", agent, player_id, ts, started_at}`（后台、不可失败），`player.game.status = "ended"`。局的结果由 D 自己 `POST /self/game/session` 写自我层，沙盒不转发。`GAME_URL` 默认 `http://127.0.0.1:8110`。human 也能玩（agent 名用 player name） |
 
 > instant 原型的 `effects` 中，`buff` 只允许 `timed` mode 与一次性 key（`<var>_delta` / `emotion_tag` / `closeness_delta`）；`persistent` buff 和 `tag` 被忽略（没有 leave 时机）。
 
@@ -1002,6 +1004,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `bench` | continuous，**`max_users` 2** | **W4** energy +6/h、fun +6/h、social +6/h；fullness −1/h；tag `resting` | fun 20、social 25、energy 15 | 1 h |
 | `fishing_spot` | continuous，`max_users` 1 | **W4** fun +18/h、mood +4/h；energy −3/h、fullness −2/h；tag `fishing` | fun 35、mood 15 | 2 h |
 | `shop_counter` | instant | **W4** fullness +15、social +6；energy −1 | fullness 25、social 15 | — |
+| `game_console` | continuous，`max_users` 1 | **B18（W6）** `external: game`；fun +30/h、mood +4/h；energy −6/h、social −2/h；`no_move`、tag `gaming`；`stateLabel`「{entity} 玩游戏中」 | fun 85、mood 20 | 2 h（假设） |
 
 所有 continuous 类型都带 `max_users`（`GET /world` 的 `maxUsers`）；社交物品靠多人同用产生「在同一处」的 `players_in_view`。地图上：餐馆（sector `restaurant`：`dining` 两张四人桌 + `rest_kitchen` fridge）、广场两条长椅、码头两个钓位、杂货店柜台（替代原 desk），四个 NPC 家各有 fridge；共 30 个物品，全部从出生点 BFS 可达。
 
@@ -1083,6 +1086,35 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
   "tick_gap_ms": { "p50": 200.4, "p95": 201.3, "max": 214.6 },
   "running": true, "players": 6, "ws_clients": 1, "rss_mb": 68.2 }
 ```
+
+---
+
+### GET /admin/export
+
+**W6 任务 1（数据集 schema v0.2 的沙盒源）**：一次性给出当日 actions / chat / state 与 manifest，供总控 `dataset_export.py` 拉。只读。
+
+**Query：** `date=YYYY-MM-DD`（必填，400 校验）、`kinds=actions,chat,state`（默认全部）。
+
+```json
+{ "schema": "sandbox-0.1", "date": "2026-11-06", "town": "main", "map_version": "阿蝉家与小镇@1b824832ace2", "seed": null,
+  "generated_at": "2026-11-06T10:15:12+08:00",
+  "actions": [ { ...GET /history/log 的行... , "town": "main", "map_version": "...", "seed": null } ],
+  "chat":    [ { ...GET /history/chat 的行... } ],
+  "state":   [ { "kind": "sample", "ts": "...", "game_time": "...", "town": "main", "map_version": "...", "seed": null,
+                 "player_id": "鲸仔_a1b2c3", "agent_id": "whale", "controller": "agent", "scene": "sandbox",
+                 "vars": { "fullness": 62.0, "energy": 71.5, "social": 48.0, "fun": 35.0, "mood": 68.0 },
+                 "emotion_tags": ["smug"], "closeness": { "achan": 72.0 }, "online": true, "position": {"x": 6, "y": 9}, "using": null } ],
+  "manifest": { "counts": { "actions": 327, "chat": 0, "state": 0 },
+                "files": { "actions": { "path": ".../data/actions/2026-11-06.jsonl", "exists": true, "bytes": 123456 }, ... },
+                "backfilled_rows": 327 } }
+```
+
+| 项 | 说明 |
+|---|---|
+| 行来源 | `data/actions/<date>.jsonl`、`data/chat/<date>.jsonl`、`data/state/<date>.jsonl`，行序即文件序；`manifest.counts` 与文件行数一致 |
+| 每行新增字段 | **W6** `town`（环境变量 `SANDBOX_TOWN`，默认 `main`）、`map_version`、`seed`。W6 之前写的旧行没有这三项，导出时按当前配置回填并加 `"backfilled": true`，`manifest.backfilled_rows` 计数 |
+| `state` | **W6** 每个 player 每 30 游戏秒一行（与自我层 delta 同节拍），由后台 ticker 写 `data/state/<date>.jsonl`，`kind: "sample"` |
+| 对账脚本 | `cd back_end && uv run python scripts/dataset_fetch.py --base http://127.0.0.1:8000 --date 2026-11-06 --data-dir run/data/sandbox` 写出 `<out>/<town>/<date>/{actions,chat,state}.jsonl + manifest.json` 并校验 写出行数 == manifest == 本地文件行数 |
 
 ---
 
@@ -1254,7 +1286,7 @@ POST /chat/request ──(cooldown?)──▶ {success:false, reason:"chat_coold
 { "request_id": "abc123", "success": true }
 ```
 
-**冷却中（B9 ③）：** 发起方或任一受邀方在退出对话后 60 s 内，或这对人在 15 s 内刚聊过：
+**冷却中（B9 ③）：** 发起方或任一受邀方在退出对话后 60 s 内，或这对人在 15 s 内刚聊过（**W6 任务 4：发起方是 `controller=human` 时不检查冷却**——作者 / 阿蝉随时可以找她说话；agent 发起仍受约束）：
 ```json
 { "request_id": null, "success": false, "reason": "chat_cooldown", "cooldown_remaining": 42.5 }
 ```

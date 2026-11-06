@@ -47,6 +47,15 @@ def _game_time_and_controller(entity_id: str) -> tuple[str | None, str]:
     return game_time, controller
 
 
+def _dataset_fields() -> dict:
+    """数据集 schema v0.2：每行带 town / map_version / seed（W6 任务 1）。"""
+    try:
+        from game.world_state import TOWN, MAP_VERSION, SANDBOX_SEED
+        return {"town": TOWN, "map_version": MAP_VERSION, "seed": SANDBOX_SEED}
+    except Exception:
+        return {"town": None, "map_version": None, "seed": None}
+
+
 def append_log(
     entity_id: str,
     action_type: str,
@@ -67,6 +76,7 @@ def append_log(
         "label":      label,
         "game_time":  game_time,
         "controller": controller,
+        **_dataset_fields(),
     }
     line = json.dumps(entry, ensure_ascii=False)
     with _LOCK:

@@ -18,6 +18,7 @@ def _lines():
 
 
 def _room(client, a, b):
+    place(a, 6, 9, "down"); place(b, 7, 9, "down")          # 相邻（agent 现在出生在自家房间）
     rid = client.post("/chat/request", json={"from_entity_id": a, "to_entity_ids": [b], "greeting": "hi"}).json()["request_id"]
     client.post("/chat/respond", json={"entity_id": b, "request_id": rid, "accept": True, "message": "yo"})
     chat_state.tick()

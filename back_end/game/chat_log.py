@@ -34,9 +34,17 @@ def _game_time() -> str | None:
         return None
 
 
+def _dataset_fields() -> dict:
+    try:
+        from game.world_state import TOWN, MAP_VERSION, SANDBOX_SEED
+        return {"town": TOWN, "map_version": MAP_VERSION, "seed": SANDBOX_SEED}
+    except Exception:
+        return {"town": None, "map_version": None, "seed": None}
+
+
 def _write(entry: dict) -> dict:
     now = datetime.now()
-    entry = {"ts": now.isoformat(timespec="milliseconds"), "game_time": _game_time(), **entry}
+    entry = {"ts": now.isoformat(timespec="milliseconds"), "game_time": _game_time(), **_dataset_fields(), **entry}
     line = json.dumps(entry, ensure_ascii=False)
     with _LOCK:
         with open(_dir() / f"{now.date().isoformat()}.jsonl", "a", encoding="utf-8") as f:

@@ -221,6 +221,15 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
                 result={"message": obj.get("failureMessage"), "objectId": obj["id"], "error": live.get("error")},
             )
 
+    if "game" in ext:                                       # B18 游戏机：先问 D 的 brain 开一局，失败就不坐下
+        g = external_effects.game_start(_players.get(entity_id, player), game_now_iso())
+        if not g["ok"]:
+            return ActionResponse(
+                success=False, type="use", reason="game_unavailable",
+                result={"message": obj.get("failureMessage"), "objectId": obj["id"], "error": g.get("error")},
+            )
+        _players[entity_id]["game"] = g["game"]
+
     enter_object(obj["id"], entity_id)
     record_object_use(entity_id, obj["id"])
     updated = get_player(entity_id)

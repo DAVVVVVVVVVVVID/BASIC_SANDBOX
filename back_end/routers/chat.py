@@ -64,7 +64,9 @@ def post_chat_request(body: ChatRequestBody):
     """向一个或多个 Player 发起对话邀请，返回 request_id。"""
     if not body.to_entity_ids:
         raise HTTPException(status_code=400, detail="to_entity_ids cannot be empty")
-    remaining = chat_state.chat_cooldown_remaining(body.from_entity_id, body.to_entity_ids)   # B9 ③
+    from_player = _players_dict.get(body.from_entity_id, {})
+    # B9 ③；W6 任务 4：human（作者 / 阿蝉）发起不受冷却约束（受邀 agent 的冷却也不拦人类的邀请）
+    remaining = 0.0 if from_player.get("controller") == "human" else chat_state.chat_cooldown_remaining(body.from_entity_id, body.to_entity_ids)
     if remaining > 0:
         return {"request_id": None, "success": False, "reason": "chat_cooldown",
                 "cooldown_remaining": round(remaining, 1)}

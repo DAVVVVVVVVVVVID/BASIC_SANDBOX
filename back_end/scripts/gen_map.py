@@ -3,6 +3,7 @@
 B16：生成「阿蝉家 + 小镇」地图（MAP_EDITOR 不在本机，按其导出格式直接生成 map.json / objects.json）。
 
   cd back_end && uv run python scripts/gen_map.py [--out game/maps] [--print]
+  cd back_end && uv run python scripts/gen_map.py --variant m1c --out game/maps/m1c     # NPC 8 个版本（SANDBOX_MAP_DIR 指过去）
 
 布局（60 × 40，左上原点）：
   阿蝉家（sector achan_house）：小仓库（鲸仔住，bed/desk/book/phone/stream_desk）、阿蝉房间（bed_21/book）、厨房（fridge/desk_12）
@@ -15,7 +16,9 @@ import argparse
 import json
 from pathlib import Path
 
-W, H = 60, 40
+import sys as _sys
+VARIANT = "m1c" if "--variant" in _sys.argv and _sys.argv[_sys.argv.index("--variant") + 1] == "m1c" else "main"
+W, H = 60, (48 if VARIANT == "m1c" else 40)
 TILE_CHARS = {"#": "grass", ".": "wall", "f": "floor", "F": "grass1", "a": "object", "b": "water"}
 
 # E⑤：tiled 渲染层。tileset 沿用前端现有的 Sunnyside（E6 换素材时只改这张表）。gid 取自旧 50×50 地图各类型最常见的图块
@@ -32,7 +35,7 @@ sector = [["A"] * W for _ in range(H)]
 arena  = [["A"] * W for _ in range(H)]
 
 SECTORS = {"A": "outside", "B": "achan_house", "C": "cook_house", "D": "grocer_house", "E": "fisher_house", "F": "regular_house",
-           "G": "restaurant"}
+           "G": "restaurant", "H": "teacher_house", "I": "painter_house", "J": "herbalist_house"}
 ARENAS = {
     "A": "grass", "K": "road", "S": "square", "P": "park", "L": "water", "M": "dock",
     "a": "storage", "b": "achan_room", "c": "kitchen",
@@ -41,22 +44,26 @@ ARENAS = {
     "i": "fisher_hut",
     "j": "regular_bedroom", "k": "regular_bath",
     "r": "dining", "s": "rest_kitchen",
+    "t": "teacher_room", "u": "painter_room", "v": "herbalist_room", "w": "herb_shop",
 }
 ZONE_NAMES = {
     "world": {"town": "鲸仔小镇"},
     "sector": {"outside": "小镇", "achan_house": "阿蝉家", "cook_house": "厨子家", "grocer_house": "杂货商家",
-               "fisher_house": "渔夫小屋", "regular_house": "常客家", "restaurant": "餐馆"},
+               "fisher_house": "渔夫小屋", "regular_house": "常客家", "restaurant": "餐馆",
+               "teacher_house": "教书先生家", "painter_house": "画师家", "herbalist_house": "药铺"},
     "arena": {"grass": "草地", "road": "街道", "square": "广场", "park": "公园", "water": "河", "dock": "码头",
               "storage": "小仓库", "achan_room": "阿蝉房间", "kitchen": "厨房",
               "cook_bedroom": "厨子的卧室", "cook_kitchen": "厨子的厨房",
               "grocer_shop": "杂货店", "grocer_bedroom": "杂货商的卧室",
               "fisher_hut": "渔夫的小屋", "regular_bedroom": "常客的卧室", "regular_bath": "常客的浴室",
-              "dining": "餐馆大堂", "rest_kitchen": "餐馆后厨"},
+              "dining": "餐馆大堂", "rest_kitchen": "餐馆后厨",
+              "teacher_room": "教书先生的书房", "painter_room": "画师的画室", "herbalist_room": "药铺老板的卧室", "herb_shop": "药铺柜台"},
 }
 objects: list[dict] = []
 SIZES = {"bed": (1, 2), "bed_21": (2, 1), "bath": (1, 2), "fridge": (1, 1), "desk": (1, 1), "desk_12": (1, 2),
          "book": (1, 1), "phone": (1, 1), "stream_desk": (1, 1),
-         "restaurant_table": (2, 1), "bench": (2, 1), "fishing_spot": (1, 1), "shop_counter": (1, 1)}
+         "restaurant_table": (2, 1), "bench": (2, 1), "fishing_spot": (1, 1), "shop_counter": (1, 1),
+         "game_console": (1, 1)}
 
 
 def fill(x0, y0, x1, y1, ch=None, sec=None, ar=None):
@@ -96,10 +103,10 @@ def obj(oid, typ, x, y):
 
 
 # ── 小镇：河与码头（右侧）、街道、广场、公园 ───────────────────────────────────
-fill(54, 0, 59, 39, "b", "A", "L")                       # 河
+fill(54, 0, 59, H - 1, "b", "A", "L")                    # 河
 fill(50, 16, 53, 19, "f", "A", "M")                      # 码头（木板用 floor）
 fill(0, 19, 53, 20, "F", "A", "K")                       # 东西向主街
-fill(28, 0, 29, 39, "F", "A", "K")                       # 南北向主街
+fill(28, 0, 29, H - 1, "F", "A", "K")                    # 南北向主街（m1c 延到底）
 fill(30, 21, 41, 30, "F", "A", "S")                      # 广场
 fill(2, 23, 14, 36, "#", "A", "P")                       # 公园
 # 给走廊 / 街道留下 arena：没标的草地保持 A
@@ -117,6 +124,7 @@ obj("desk_whale",        "desk",        10, 3)           # 站 (9,3) 朝 right
 obj("book_whale",        "book",        10, 5)
 obj("phone_whale",       "phone",       10, 7)
 obj("stream_desk_whale", "stream_desk", 3, 13)           # 站 (4,13) 朝 left
+obj("game_console_whale", "game_console", 10, 11)        # B18：站 (9,11) 朝 right
 # 阿蝉房间
 obj("bed_achan",  "bed_21", 13, 3)                       # 站 (13,4)/(14,4) 朝 up
 obj("book_achan", "book",   17, 13)
@@ -166,6 +174,17 @@ obj("bench_square_2", "bench", 38, 25)
 obj("fishing_spot_1", "fishing_spot", 53, 17)            # 站 (52,17) 朝 right
 obj("fishing_spot_2", "fishing_spot", 53, 19)
 
+# ── m1c：NPC 8 个 —— 南侧新街 (y 40-41) 与三户 ─────────────────────────────────
+if VARIANT == "m1c":
+    fill(0, 40, 53, 41, "F", "A", "K")                                    # 南街
+    house(2, 42, 13, 47, "H", rooms=[(3, 43, 12, 46, "t")], doors=[(7, 42)])
+    obj("bed_teacher", "bed", 3, 43); obj("desk_teacher", "desk", 12, 43); obj("book_teacher", "book", 12, 46); obj("fridge_teacher", "fridge", 3, 46)
+    house(15, 42, 26, 47, "I", rooms=[(16, 43, 25, 46, "u")], doors=[(20, 42)])
+    obj("bed_painter", "bed_21", 16, 43); obj("desk_painter", "desk_12", 25, 43); obj("fridge_painter", "fridge", 16, 46); obj("book_painter", "book", 25, 46)
+    house(31, 42, 44, 47, "J", rooms=[(32, 43, 37, 46, "w"), (39, 43, 43, 46, "v")], doors=[(34, 42)])
+    wall_line(38, 43, 38, 46, door_at=(38, 45))
+    obj("counter_herb", "shop_counter", 37, 43); obj("bed_herbalist", "bed", 43, 43); obj("fridge_herbalist", "fridge", 39, 46)
+
 PLAYER_START = {"x": 6, "y": 9, "facing": "down"}        # 小仓库中央
 
 
@@ -184,7 +203,7 @@ def build_tiled():
 
 def build():
     return {
-        "meta": {"name": "阿蝉家与小镇", "width": W, "height": H, "player_start": PLAYER_START},
+        "meta": {"name": "阿蝉家与小镇" + ("·m1c（NPC 8）" if VARIANT == "m1c" else ""), "width": W, "height": H, "player_start": PLAYER_START},
         "tile_chars": TILE_CHARS,
         "tiles": ["".join(r) for r in tiles],
         "zone_chars": {"world": {"A": "town"}, "sector": SECTORS, "arena": ARENAS},
@@ -201,6 +220,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(Path(__file__).resolve().parent.parent / "game" / "maps"))
     ap.add_argument("--print", action="store_true")
+    ap.add_argument("--variant", default="main", choices=["main", "m1c"], help="m1c：再加 3 户 NPC（教书先生 / 画师 / 药铺），地图 60×48")
     args = ap.parse_args()
     out = Path(args.out)
     data = build()

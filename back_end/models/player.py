@@ -46,3 +46,5 @@ class Player(BaseModel):
     canUse: bool = True
     moveSpeed: float = 1.0
     pendingMessage: Optional[str] = None
+    game: Optional[dict] = None                 # B18：游戏机局内状态
+    pos_seq: int = 0
