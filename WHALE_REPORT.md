@@ -1,10 +1,102 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W3（2026-11-06）**；W2、W1 记录在后。
+分支：`whale-integration`。最新：**W4（2026-11-06）**；W3、W2、W1 记录在后。
 
 ---
 
-# W3 · 2026-11-06：手机与直播台、对话协议、地图与数值尺度
+# W4 · 2026-11-06：契约小修、WebSocket 推送、多实例与社交物品
+
+## 1. 进度（W4 任务 1–6 全部完成）
+
+| # | 编号 | 任务 | 状态 | 主要文件 |
+|---|---|---|---|---|
+| 1 | §3.11 小修 | ① `GET /world` 的 `players[]` 加 `agent_id` ② `perceive.needs.closeness` 固定为 `{entity_id: {name, tier}}`（实现本来就是这个形状，补了「整块无数值」的断言与 spec 措辞）③ 人类玩家用直播台 → `live_unavailable` ④ CORS 白名单走 `SANDBOX_CORS_ORIGINS` ⑤ `/effects` 接受并记录 `event`（响应回显；`GET /player/{id}/state` 多 `recent_events` 最近 50 条） | ✅ 五处各有单测 | `world_state.get_all_players_snapshot / apply_effects_to_player`、`external_effects.live_start`、`main.py`、`routers/player.py`、`tests/test_w4_contract.py` |
+| 2 | B17 | `GET /ws/world` 只读 WebSocket：连接发 snapshot（与 `GET /world` 走同一响应模型，逐字段一致），之后 ≤ 10 Hz 推 `patch`（`worldState` 变化键 / `players.upsert+remove` / `objects` 的 currentUsers+userList / `chat` 新消息与房间事件），空闲 5 s heartbeat；客户端消息一律忽略 | ✅ | `routers/ws.py`（新）、`main.py` lifespan、`scripts/verify_ws.py`（新）、`tests/test_ws.py` |
+| 3 | 多实例 | 梳理共享状态：数据目录（检查点 / JSONL / pid）全在 `SANDBOX_DATA_DIR`，日志 stdout 或文件，端口 / self-url / CORS 均参数化，无共享全局文件；`scripts/run_town.sh --port 8010 --data run/data/m2a [--self-url] [--log] [--cors] [--no-sync]`，端口被占直接拒绝 | ✅ | `scripts/run_town.sh`（新） |
+| 4 | B16 续 | 新类型 `restaurant_table`（4 人）、`bench`（2 人）、`fishing_spot`、`shop_counter`（instant）；所有 continuous 类型显式 `max_users`；地图加餐馆（sector `restaurant`：大堂两张四人桌 + 后厨 fridge）、广场两条长椅、码头两个钓位、杂货店柜台替代 desk、四个 NPC 家各一台 fridge → 30 个物品 | ✅ | `game/object_types.json`、`scripts/gen_map.py`、`tests/test_w3_objects.py::test_every_object_reachable_from_spawn`（30 个全部 BFS 可达） |
+| 5 | 负载 | `soak.py --agents 6 --ws 1`：6 名 agent 玩家（whale + 5 NPC id）+ 1 个 `/ws/world` 订阅 × 30 min；记 `/world` / `/action` / `perceive` 的 p50/p95/p99、tick 耗时与间隔分位（新 `GET /admin/metrics`）、RSS | ✅ 见 §5 | `scripts/soak.py`、`routers/player.py::/admin/metrics`、`game/ticker.py::metrics` |
+| 6 | B14 | 文档同步；W3 §5 的 `__SOAK_RESULT__` 占位在 9ce80cf 已补齐（交接写时还没提交） | ✅ | `docs/api-spec.md`（新 §8 WebSocket、`/admin/metrics`、小修五处、新物品表、多实例段）、`README.md`、`docs/data-models.md` |
+
+未碰 `front_end/`。B12 freeform 留 W6。
+
+## 2. 测试命令与结果
+
+```bash
+cd back_end
+uv run pytest -q
+# 131 passed（W3 的 120 个 + W4 新增 11 个：test_w4_contract 6、test_ws 5）
+
+uv run python scripts/verify_restart.py          # 新地图 30 物品
+# 15/15 checks passed
+# 两个实例并行（随机端口 + 各自临时 SANDBOX_DATA_DIR）：A 15/15、B 15/15，互不干扰
+
+uv run python scripts/verify_ws.py --seconds 60
+# snapshot: 2400 tiles, 30 objects, 2 players
+# 44 checks, 0 mismatches, 141 patches / 141 messages, 9 chat items → PASS
+#  （两名玩家随机 move/turn/use/leave + 聊天 + 切倍率；每秒把叠加后的本地模型与 GET /world 比：players 全字段、objects 使用状态、
+#    worldState 的 date/period/running/speed/weather，time 差 ≤ 2 s）
+
+scripts/run_town.sh --port <p1> --data /tmp/town_a --no-sync
+scripts/run_town.sh --port <p2> --data /tmp/town_b --no-sync
+# 两镇各自 join + checkpoint → /tmp/town_a/sandbox.db、/tmp/town_b/sandbox.db 各一份；再用 <p1> 起第三个被拒绝「port already in use」
+```
+
+| 新增 / 修改 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/test_w4_contract.py` | 6 | ① `players[]` 的 `agent_id`（agent 有、human 为 null）② `needs.closeness == {id: {name, tier}}` 且递归无数值 ③ 人类玩家 use 直播台 → `live_unavailable`（SELF_SYNC 关 / 开都一样）④ `SANDBOX_CORS_ORIGINS` 重载后生效、默认值含 5173、预检对白名单外的 Origin 不回 allow-origin ⑤ `/effects` 回显 `event`、`/state.recent_events` 记录 `{event, source, n_effects}`、不带 event 兼容 |
+| `tests/test_ws.py` | 5 | snapshot 与 `GET /world` 的 tiles / objects / players 逐字段相等；patch 跟随 join（upsert 字段集）、move（position）、use（objects currentUsers/userList）、聊天（招呼 + 回复、第三句、player_exit 事件、from_name、participants）、leave（remove）；客户端发写入被忽略且连接存活；worldState patch 只带变化键、`/time/speed` 推 speed；双客户端都收到、`/admin/metrics.ws_clients` 计数 |
+| `tests/test_external_effects.py` | 改 1 | 人类玩家直播台从「只本地切 scene」改为 `live_unavailable` |
+| `tests/test_w3_objects.py` | 改 1 | 每小时尺度上限放到 40/h（餐馆桌子 fullness +40/h） |
+
+## 3. api-spec 改动摘要（只增不删）
+
+| 位置 | 改动 |
+|---|---|
+| `GET /world` | `players[]` 加 `agent_id` |
+| `POST /player/{id}/effects` | 请求加 `event`，响应回显；`source: "self"` 不计入 delta 的说明挪到字段表 |
+| `GET /player/{id}/state` | 加 `recent_events` |
+| `POST /action` use | `live_unavailable` 加「人类玩家」情形；`external` 行的人类玩家兜底改写 |
+| `GET /agent/perceive` | `needs.closeness` 形状定稿 `{entity_id: {name, tier}}`，整块无数值 |
+| §4 | 多实例段（端口 / `SANDBOX_DATA_DIR` / `run_town.sh` / `SANDBOX_CORS_ORIGINS`） |
+| §5 Object | 新四类型行；「所有 continuous 带 `max_users`」；地图物品清单 |
+| §6 Admin | 新 `GET /admin/metrics` |
+| **新 §8** | `GET /ws/world`：snapshot / patch / heartbeat 形状与字段表、对账脚本 |
+
+`README.md`：社交物品、实时推送与多实例段、新脚本、`ws.py`。`docs/data-models.md`：`max_users`。
+
+## 4. 对契约的建议 / 给其他会话
+
+1. **给 E（B17 字段）**：`patch.players.upsert` 元素与 `GET /world` 的 `players[]` 完全同形状（含 `agent_id`），`remove` 只给 id；`objects` 只推 `currentUsers` / `userList`（静态字段看 snapshot）；`chat` 只推连接之后的新消息，历史走 `GET /chat/room/{id}`。如需 `pendingMessage` / `stateLabel` 之类 player 私有字段进推送，说一声，我加到 `upsert` 里（`stateLabel` 目前不在 `players[]`，加它是一行）。
+2. **给 E**：`worldState.time` 每秒变一次会产生每秒一个 patch；若前端自己走时钟，可忽略只含 `time` 的 patch。另一个选项是我加 query `?fields=players,objects,chat` 过滤，E 需要再说。
+3. **给 A（§3.11 A2）**：`event` 已接受并记录；对账读 `GET /player/{id}/state.recent_events`（最近 50 条，含 `game_time`）。
+4. **给总控**：8001 当前被另一个 python 进程（pid 519261）占着，不是我的；我的自测改用临时端口。请在端口登记里确认归属。
+5. **多实例的自我层映射**（假设）：每镇一个自我层（8300+10k），`run_town.sh --self-url` 指过去即可；同一个自我层若被两镇共用，同名 `agent_id` 会互相覆盖状态——契约里没写，建议 §3.10 明确「一镇一自我层」。
+6. **social 物品的「同桌」语义**：现在只是多人可同用 + perceive 的 `players_in_view`；C 如需「同桌的人」列表，可从 `GET /world` 的 `objects[].userList` 取，不另加接口。
+7. **运行台 8000 建议切到 `4d6a931`**（本节代码提交）：含 `players[].agent_id`（A1 等着）、`/ws/world`（E9 等着）、新物品。地图在 4369ee5 基础上只加物品，玩家坐标不受影响，**不需要清数据目录**。
+
+## 5. 负载（任务 5）
+
+- 配置：6 名 agent 玩家（agent_id = whale / achan / npc_cook / npc_grocer / npc_fisher / npc_regular，mock 自我层）+ 1 个 `/ws/world` 订阅；每名玩家每秒 1 个随机动作（move 50% / turn 15% / use 15% / leave 10% / effects 10%），每 2 s 1 次 `GET /world` + 6 次 `GET /player` + 6 次 perceive，每 7 s 一轮对话邀请，每 10 s 检查点 + 指标采样，每 5 min 切倍率（1 / 10 / 60）；30 分钟。
+- 冒烟（30 s）：`/world` p95 8.1 ms、perceive p95 3.5 ms、`/action` p50 301 ms（= move 自带的 300 ms 节拍，不是服务端开销）、tick 间隔 p95 201 ms、tick 耗时 max 14.7 ms、RSS 65 MB。
+- **30 min 结果**：30 分钟、13 260 次 HTTP 请求 + 15 685 条 WS 推送，0 次请求错误，0 次进程退出，日志 0 条异常；RSS 64.9 → 峰值 82.7 → 结束 80.5 MB（前 5 分钟爬升后平稳，无泄漏迹象）。原始数据 `back_end/scripts/load_w4_6agents_2026-11-06.log`。
+
+| 指标 | n | p50 | p95 | p99 | max |
+|---|---|---|---|---|---|
+| `GET /world`（2400 tiles + 30 objects 全量，含模型序列化） | 501 | 8.5 ms | **14.5 ms** | 25.2 ms | 31.7 ms |
+| `GET /agent/perceive`（vision 5） | 3006 | 2.6 ms | **3.8 ms** | 4.4 ms | 10.0 ms |
+| `POST /action` move（含服务端 300 ms 节拍 sleep） | 2955 | 301.5 ms | **302.8 ms** | 307.8 ms | 318.3 ms → 去掉节拍后服务端开销 p95 ≈ 3 ms |
+| tick 间隔（目标 200 ms；100 次采样的 p95） | — | 201.3 ms（中位） | 202.0 ms（最大） | — | 230.2 ms |
+| tick 耗时 | — | 0.31 ms（p95 中位） | 0.94 ms（p95 最大） | — | 30.6 ms（检查点落盘那一帧） |
+- **瓶颈判断**：6 玩家满配远未到瓶颈：CPU 侧每 tick < 1 ms，200 ms 周期的抖动 ≤ 2%（最差一帧 230 ms 是每 5 s 的 SQLite 检查点同步写，`synchronous=FULL`，占 30 ms）。最贵的单次请求是 `GET /world`：2400 个 tile 每次全量序列化，p95 14.5 ms——这就是 B17 存在的理由，前端改走 `/ws/world` 后这条路径只剩旁观者偶尔的首屏。按线性外推，同一进程跑到 ~30 名玩家仍能保持 tick 抖动 < 10%；再往上先出问题的会是 `GET /world` 的 JSON 体积（约 400 KB）而非 tick。可做但本周没做的优化：① `GET /world` 加 `?fields=` 只回 players/objects；② 检查点改 `synchronous=NORMAL`（WAL 下仍安全）把那一帧的 30 ms 压到 < 5 ms；③ `/ws/world` 的 snapshot 复用预序列化的 tiles 字节。都不影响契约。
+
+## 6. 本次提交
+
+W4 代码：`4d6a931`；本报告与负载日志：见 `git log -1`。运行台 8000 建议切到 `whale-integration` 最新提交（不需清数据目录）。
+
+---
+
+
+# W3 · 2026-11-06：手机与直播台、对话协议、地图与数值尺度（原报告）
 
 ## 1. 进度（W3 任务 1–7 全部完成）
 
