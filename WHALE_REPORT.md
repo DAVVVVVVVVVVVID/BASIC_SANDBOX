@@ -94,7 +94,7 @@ uv run python scripts/gen_map.py --variant m1c --out game/maps/m1c      # 60×48
 
 ## 6. 本次提交
 
-见 `git log -1`。
+W6 代码：`ce97491`；本报告与两份压测日志：`08f35c8` 及之后。运行台建议切到最新提交（`mapVersion` 变为 `阿蝉家与小镇@1b824832ace2`，不需清数据目录）。
 
 ---
 
