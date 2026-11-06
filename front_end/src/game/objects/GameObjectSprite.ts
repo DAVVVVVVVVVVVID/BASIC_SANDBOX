@@ -4,9 +4,21 @@ import { tileToPixel, TILE_SIZE } from '../map/TileMap'
 
 const COLOR_OBJECT = 0x8b6b3e
 const TYPE_ICON: [RegExp, string][] = [
-  [/bed/i, '🛏'], [/desk|stream/i, '🖥'], [/book/i, '📚'], [/phone/i, '📱'], [/fridge|cook|stove/i, '🧊'],
+  [/stream/i, '📺'], [/phone/i, '📱'], [/fishing/i, '🎣'], [/restaurant|table/i, '🍽'], [/shop|counter/i, '🛒'],
+  [/bed/i, '🛏'], [/desk/i, '🖥'], [/book/i, '📚'], [/fridge|cook|stove/i, '🧊'],
   [/bath|shower/i, '🛁'], [/toilet/i, '🚽'], [/sink/i, '🚰'], [/sofa/i, '🛋'], [/tree/i, '🌳'], [/well/i, '🪣'],
 ]
+
+/**
+ * 后端给 B16 新物品借用了旧图当占位（fridge→tree、phone→book、stream_desk/shop_counter/restaurant_table→desk、fishing_spot→well），
+ * 直播画面上会误导观众，而且 tree.png 是一块白。借用的占位图一律改画带图标和名字的色块，等 E6 的正式美术。
+ */
+function isBorrowedSprite(obj: GameObject): boolean {
+  if (!obj.sprite) return false
+  const base = obj.type.toLowerCase().split('_')[0]
+  const sp = obj.sprite.toLowerCase()
+  return sp !== base && !obj.type.toLowerCase().startsWith(sp)
+}
 
 function tooltipLabel(obj: GameObject): string {
   const usage = `${obj.currentUsers}/${obj.maxUsers}`
@@ -30,7 +42,7 @@ export default class GameObjectSprite {
     const imgW = cols * TILE_SIZE
     const imgH = rows * TILE_SIZE
 
-    const spriteKey = obj.sprite ? `obj_${obj.sprite}` : null
+    const spriteKey = obj.sprite && !isBorrowedSprite(obj) ? `obj_${obj.sprite}` : null
     let hit: Phaser.GameObjects.GameObject
     if (spriteKey && scene.textures.exists(spriteKey)) {
       const img = scene.add.image(px + imgW / 2, py + imgH / 2, spriteKey)
