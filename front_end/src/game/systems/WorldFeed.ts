@@ -38,7 +38,7 @@ export function applyWorldSnapshot(world: WorldData) {
   const s = useGameStore.getState()
   s.setWorldState(world.worldState)
   s.setObjects(world.objects)
-  if (world.tiles && world.tiles.length > 0 && mapKey(world) !== s.mapSig) s.setMap(world.tiles, world.tiled, mapKey(world))
+  if (world.tiles && world.tiles.length > 0 && mapKey(world) !== s.mapSig) s.setMap(world.tiles, world.tiled, mapKey(world), { edges: world.edges, floors: world.floors, access: world.access, arenas: world.arenas })
   s.setPlayers(world.players ?? [])
   s.setConnection('online')
 }

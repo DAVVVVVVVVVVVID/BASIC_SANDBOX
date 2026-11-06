@@ -41,7 +41,7 @@ export default function SpectateApp() {
           if (cancelled) return
           const s = useGameStore.getState()
           s.setWorldState(worldData.worldState)
-          s.setMap(worldData.tiles, worldData.tiled, worldData.worldState?.mapVersion)
+          s.setMap(worldData.tiles, worldData.tiled, worldData.worldState?.mapVersion, { edges: worldData.edges, floors: worldData.floors, access: worldData.access, arenas: worldData.arenas })
           s.setObjects(worldData.objects)
           s.setPlayers(worldData.players ?? [])
           s.setConnection('online')

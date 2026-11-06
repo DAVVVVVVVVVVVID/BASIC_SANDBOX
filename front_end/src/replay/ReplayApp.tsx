@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { loadReplay, approximateTrack, loadRecapLines, ReplayData, PosSample, RecapLine } from './data'
 import { zoneLabel } from '../game/map/zones'
+import { arenaBBox, isIndoor } from '../game/map/mapv2'
 import type { Tile } from '../types'
 
 /**
@@ -157,6 +158,19 @@ export default function ReplayApp() {
       cur = p
     }
     g.stroke()
+    // W7 取景：她在室内时屋外压暗（回放页不推近，整图保持可读）
+    if (cur && (q.get('scene') ?? 'follow') === 'follow') {
+      const zt0 = tileIndex.current.get(`${cur.pos.x},${cur.pos.y}`)
+      if (isIndoor(zt0)) {
+        const bb = arenaBBox(d.tiles, zt0!.sector)
+        if (bb) {
+          g.fillStyle = 'rgba(7,8,18,0.55)'
+          const X0 = mx + bb.x0 * cell, Y0 = my + bb.y0 * cell, X1 = mx + (bb.x1 + 1) * cell, Y1 = my + (bb.y1 + 1) * cell
+          const MW = mapW * cell, MH = mapH * cell
+          g.fillRect(mx, my, MW, Y0 - my); g.fillRect(mx, Y1, MW, my + MH - Y1); g.fillRect(mx, Y0, X0 - mx, Y1 - Y0); g.fillRect(X1, Y0, mx + MW - X1, Y1 - Y0)
+        }
+      }
+    }
     if (cur) {
       const px = mx + (cur.pos.x + 0.5) * cell, py = my + (cur.pos.y + 0.5) * cell
       g.fillStyle = '#1a1a19'; g.beginPath(); g.arc(px, py, cell * 0.9, 0, Math.PI * 2); g.fill()

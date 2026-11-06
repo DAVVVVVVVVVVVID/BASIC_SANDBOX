@@ -12,6 +12,7 @@ import { resolveFollowTarget } from '../systems/TickSystem'
 import type { SpectateParams } from '../../spectate/params'
 import { preloadGenAssets, createGenAnimations, charKeyFor } from '../assets'
 import { buildTileIndex, zoneLabel } from '../map/zones'
+import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
 
 export interface SceneInitData {
   mode: 'play' | 'spectate'
@@ -102,6 +103,9 @@ export default class GameScene extends Phaser.Scene {
   private playerName: string | null = null
 
   private tileMap!: TileMap
+  private focus!: SceneFocus
+  private focusZoom: number | null = null
+  private lastFocusIndoor = false
   private self: PlayerSprite | null = null
   private others: Map<string, OtherPlayerSprite> = new Map()
   private objectSprites: GameObjectSprite[] = []
@@ -213,6 +217,11 @@ export default class GameScene extends Phaser.Scene {
       const n = this.inputSystem?.walkToAdjacent({ x, y }) ?? 0
       EventBus.emit('walk-to-result', { steps: n })
     })
+    this.on('action-event', (msg: { entity?: string; action?: string; success?: boolean; reason?: string | null; object?: string | null }) => {
+      if (msg.reason && /lock/i.test(msg.reason) && msg.entity) {
+        useGameStore.getState().pushBubble(msg.entity, '咚咚咚……门锁着呢', 4000)
+      }
+    })
     this.on('chat-message', ({ entityId, content }: { entityId: string; content: string }) => {
       useGameStore.getState().pushBubble(entityId, content)
     })
@@ -243,6 +252,7 @@ export default class GameScene extends Phaser.Scene {
     this.others.forEach(s => s.destroy())
     this.others.clear()
     this.self?.destroy()
+    this.focus?.destroy()
     this.tileMap?.destroy()
   }
 
@@ -267,6 +277,9 @@ export default class GameScene extends Phaser.Scene {
     this.tileMap = new TileMap(this, world.tiles, world.tiled)
     this.tileMap.render()
     this.tileIndex = buildTileIndex(world.tiles)
+    if (!this.focus) this.focus = new SceneFocus(this, { enabled: (this.params?.scene ?? 'follow') === 'follow', baseZoom: () => this.mode === 'spectate' ? this.followZoom : this.currentZoom, snap: snapZoom })
+    const extras = useGameStore.getState().mapExtras
+    this.focus.setMap({ tiles: world.tiles, edges: world.edges ?? extras.edges, floors: world.floors ?? extras.floors, access: world.access ?? extras.access, arenas: world.arenas ?? extras.arenas }, Math.round(this.mapPx.w / TILE_SIZE) || 1, Math.round(this.mapPx.h / TILE_SIZE) || 1)
     const { w, h } = mapSize(world.tiles, world.tiled)
     this.mapPx = { w: w * TILE_SIZE, h: h * TILE_SIZE }
     for (const obj of world.objects) this.objectSprites.push(new GameObjectSprite(this, obj))
@@ -451,23 +464,34 @@ export default class GameScene extends Phaser.Scene {
     const cam = this.cameras.main
     if (wantFollow && this.camMode !== 'follow') {
       this.camMode = 'follow'
+      this.focusZoom = this.followZoom
       cam.zoomTo(this.followZoom, 700, 'Sine.easeInOut', true)
     } else if (!wantFollow && this.camMode !== 'pan') {
       this.camMode = 'pan'
+      this.focusZoom = null
       cam.zoomTo(this.panZoom, 900, 'Sine.easeInOut', true)
     }
 
     let tx = this.mapPx.w / 2, ty = this.mapPx.h / 2
+    let focusTile: Position | null = null
     if (this.camMode === 'follow') {
       const s = this.targetId ? this.others.get(this.targetId) : null
-      if (s) this.lastTargetPx = s.getPixelPosition()
+      if (s) { this.lastTargetPx = s.getPixelPosition(); focusTile = s.getTile() }
       // 目标刚消失的宽限期里停在它最后的位置，不要先滑向地图中心
       if (this.lastTargetPx) { tx = this.lastTargetPx.x; ty = this.lastTargetPx.y }
+    }
+    // W7 取景：进屋推近 + 屋外压暗
+    const fr = this.focus.update(focusTile, dt, useGameStore.getState().worldState)
+    if (this.camMode === 'follow') {
+      const want = fr.indoor && fr.zoom ? fr.zoom : this.followZoom
+      if (want !== this.focusZoom) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
+      if (fr.indoor !== this.lastFocusIndoor) { this.lastFocusIndoor = fr.indoor; EventBus.emit('focus-changed', { indoor: fr.indoor, label: fr.label }) }
     }
     const k = 1 - Math.exp(-dt / CAMERA_LERP_MS)
     this.camX += (tx - this.camX) * k
     this.camY += (ty - this.camY) * k
-    this.centerClamped(this.camX, this.camY)
+    const c = fr.indoor ? this.focus.clampCenter(this.camX, this.camY, cam.zoom) : { x: this.camX, y: this.camY }
+    this.centerClamped(c.x, c.y)
     void playerVars
   }
 
@@ -489,6 +513,7 @@ export default class GameScene extends Phaser.Scene {
       this.inputSystem?.update(time)
       this.self?.update(time, dt, speed)
       const p = this.self!.getPixelPosition()
+      this.focus.update(this.self!.getTile(), dt, store.worldState)
       this.centerClamped(p.x, p.y)
     } else {
       this.updateSpectateCamera(time, dt)
@@ -520,7 +545,8 @@ export default class GameScene extends Phaser.Scene {
     const focus = this.mode === 'play' ? this.self?.getTile() : (this.targetId ? this.others.get(this.targetId)?.getTile() : null)
     if (focus) {
       const t = this.tileIndex.get(`${focus.x},${focus.y}`)
-      const z = zoneLabel(t)
+      const fl = this.focus?.hasV2 ? this.focus.floorOf(t) : 1
+      const z = zoneLabel(t) + (fl > 1 ? ` · ${fl}F` : '')
       if (z && z !== this.lastZone) { this.lastZone = z; EventBus.emit('zone-changed', { label: z, sector: t?.sector, arena: t?.arena }) }
     }
 

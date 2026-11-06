@@ -74,6 +74,7 @@ export default class ThoughtBar {
 
   private setThought(thought: string, needs: string[]) {
     let t = thought.replace(/\s+/g, ' ').trim()
+    if (t.startsWith('→')) t = ''   // 纯工具调用（→ finish / → move_to_tile）不是「念头」，不上屏
     if (!t) { this.full = ''; this.shown = 0; return }
     if ([...t].length > MAX_CHARS) t = [...t].slice(0, MAX_CHARS - 1).join('') + '…'
     this.full = t

@@ -20,6 +20,8 @@ export interface SpectateParams {
   layout: 'live' | 'full' | null
   /** 多镇（E14）：town 名 → 代理前缀 /t/<town>/api；缺省主镇 */
   town: string | null
+  /** 取景（W7）：follow = 进屋推近 + 屋外压暗（默认）；world = 一直看整个世界 */
+  scene: 'follow' | 'world'
 }
 
 export function parseSpectateParams(search = window.location.search): SpectateParams {
@@ -54,6 +56,7 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
     art:    q.get('art') === 'v2' ? 'v2' : 'v1',
     layout,
     town,
+    scene:  q.get('scene') === 'world' ? 'world' : 'follow',
   }
 }
 

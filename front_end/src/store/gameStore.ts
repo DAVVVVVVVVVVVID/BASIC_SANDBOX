@@ -21,6 +21,8 @@ interface GameStore {
   actionLog: ActionLogEntry[]
   tiles: Tile[]
   tiled: TiledRenderData | null
+  /** 地图 v2 附加字段（edges / floors / access / arenas），随 setMap 更新 */
+  mapExtras: Pick<import('../types').WorldData, 'edges' | 'floors' | 'access' | 'arenas'>
   /** tiles / tiled 内容变化时 +1（后端换地图、重启），GameScene 据此重建背景 */
   mapVersion: number
   /** 最近一次 setMap 的签名（TickSystem.mapSignature），避免启动后第一轮轮询重复重建 */
@@ -45,7 +47,7 @@ interface GameStore {
   setWorldState: (ws: WorldState) => void
   setActionLog: (log: ActionLogEntry[]) => void
   setTiles: (tiles: Tile[]) => void
-  setMap: (tiles: Tile[], tiled: TiledRenderData | null | undefined, sig?: string) => void
+  setMap: (tiles: Tile[], tiled: TiledRenderData | null | undefined, sig?: string, extras?: Pick<import('../types').WorldData, 'edges' | 'floors' | 'access' | 'arenas'>) => void
   /** 初始 fetch 之后调用：记下签名（不 +1 版本） */
   setMapSeen: (world: { tiles: Tile[]; tiled?: TiledRenderData | null }) => void
   setObjects: (objects: GameObject[]) => void
@@ -72,6 +74,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   actionLog: [],
   tiles: [],
   tiled: null,
+  mapExtras: {},
   mapVersion: 0,
   mapSig: '',
   objects: [],
@@ -89,7 +92,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setWorldState: (worldState) => set({ worldState }),
   setActionLog: (actionLog) => set({ actionLog }),
   setTiles: (tiles) => set({ tiles }),
-  setMap: (tiles, tiled, sig) => set((s) => ({ tiles, tiled: tiled ?? null, mapVersion: s.mapVersion + 1, mapSig: sig ?? mapSignature({ tiles, tiled }) })),
+  setMap: (tiles, tiled, sig, extras) => set((s) => ({ tiles, tiled: tiled ?? null, mapVersion: s.mapVersion + 1, mapSig: sig ?? mapSignature({ tiles, tiled }), mapExtras: extras ?? {} })),
   setMapSeen: (world) => set({ mapSig: (world as { worldState?: { mapVersion?: string } }).worldState?.mapVersion ?? mapSignature(world) }),
   setObjects: (objects) => set({ objects }),
   setMyPlayerId: (myPlayerId) => set({ myPlayerId }),

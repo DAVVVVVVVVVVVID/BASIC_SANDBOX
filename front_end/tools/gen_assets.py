@@ -602,6 +602,22 @@ def obj_game_console():
     d.rectangle([8, 10, 8, 10], fill=rgb("#2b2f3a"))                 # 线
     return img
 
+def obj_stairs():
+    img, d = new_obj(1, 1)
+    box(d, 1, 1, 14, 14, "#8a6a4a")
+    for i, y in enumerate(range(2, 14, 3)):
+        d.rectangle([2 + i, y, 13 - i, y + 1], fill=rgb("#c9a673")); d.line([2 + i, y + 2, 13 - i, y + 2], fill=rgb("#6b4e34"))
+    d.polygon([(7, 1), (10, 4), (4, 4)], fill=rgb("#f2c14e"))  # 向上箭头
+    return img
+
+def obj_door_closed():
+    img, d = new_obj(1, 1)
+    box(d, 2, 0, 13, 15, "#9a6a3e")
+    d.rectangle([4, 2, 11, 7], fill=rgb("#b07a4a")); d.rectangle([4, 9, 11, 14], fill=rgb("#b07a4a"))
+    d.point((11, 8), fill=rgb("#f2c14e")); d.point((10, 8), fill=rgb("#f2c14e"))  # 门把
+    d.rectangle([6, 4, 9, 5], fill=rgb("#e74c3c"))  # 小红牌：锁
+    return img
+
 def obj_tree():
     img, d = new_obj(1, 1)
     d.rectangle([7, 10, 8, 15], fill=rgb("#7a4e2d")); d.ellipse([2, 1, 13, 11], fill=rgb("#3f8544"), outline=rgb("#2d6b33")); d.point((5, 4), fill=rgb("#6dbd66"))
@@ -612,7 +628,7 @@ OBJECTS = {
     "desk": lambda: obj_desk(False), "stream_desk": lambda: obj_desk(True, True), "desk_12": obj_desk_long,
     "book": obj_book, "phone": obj_phone, "restaurant_table": obj_table, "bench": obj_bench,
     "fishing_spot": obj_fishing_spot, "shop_counter": obj_counter, "sofa": obj_sofa, "cook": obj_stove,
-    "sink": obj_sink, "toilet": obj_toilet, "well": obj_well, "tree": obj_tree, "game_console": obj_game_console,
+    "sink": obj_sink, "toilet": obj_toilet, "well": obj_well, "tree": obj_tree, "game_console": obj_game_console, "stairs": obj_stairs, "door_closed": obj_door_closed,
 }
 
 def main():

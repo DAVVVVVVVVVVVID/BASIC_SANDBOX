@@ -12,6 +12,8 @@ export interface Tile {
   world:    string | null
   sector:   string | null
   arena:    string | null
+  /** v2：楼层（缺省 1） */
+  floor?: number
 }
 
 export interface Effect {
@@ -106,6 +108,11 @@ export interface WorldData {
   worldState: WorldState
   players: OtherPlayer[]
   tiled?: TiledRenderData
+  /** 地图格式 v2（B W9，字段名未冻结）：由 game/map/mapv2.ts 宽容解析 */
+  edges?: unknown[]
+  floors?: unknown
+  access?: unknown
+  arenas?: unknown[]
 }
 
 export type Facing = 'up' | 'down' | 'left' | 'right'

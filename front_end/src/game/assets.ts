@@ -32,7 +32,7 @@ export function resolveCharKey(k: CharKey): CharKey {
 
 export const OBJ_KEYS = [
   'bed', 'bed_21', 'bath', 'fridge', 'desk', 'stream_desk', 'desk_12', 'book', 'phone', 'restaurant_table',
-  'bench', 'fishing_spot', 'shop_counter', 'sofa', 'cook', 'sink', 'toilet', 'well', 'tree', 'game_console',
+  'bench', 'fishing_spot', 'shop_counter', 'sofa', 'cook', 'sink', 'toilet', 'well', 'tree', 'game_console', 'stairs', 'door_closed',
 ] as const
 
 export const objTextureKey = (type: string) => `objgen_${type}`

@@ -59,13 +59,13 @@ export default class UIScene extends Phaser.Scene {
       // E15：时钟下方（safe=tr 时放左侧）
       this.gameWin = new GameWindow(this, { follow: this.params.follow, side: safe === 'tr' ? 'left' : 'right', topOffset: 56 })
     }
-    if (this.mode === 'spectate' && (this.params?.thought ?? true)) {
+    // 字幕只属于观察服务对应的 agent（鲸仔）：跟随别人（阿蝉 / NPC）时不显示她的念头
+    const follow = this.params?.follow ?? null
+    const followIsWhale = !follow || /鲸|whale/i.test(follow)
+    if (this.mode === 'spectate' && (this.params?.thought ?? true) && followIsWhale) {
       // 安全区：右下被占 → 字幕靠左；左下被占 → 靠右
       const align = safe === 'br' ? 'center' : safe === 'bl' ? 'left' : 'center'
-      // follow 可能是 player id（鲸仔_ddba81）或 agent_id（whale），字幕前缀统一显示名字
-      const raw = this.params?.follow ?? '鲸仔'
-      const name = /^[a-z0-9_-]+$/i.test(raw) ? '鲸仔' : raw.replace(/_[0-9a-f]{6}$/i, '')
-      this.thought = new ThoughtBar(this, { name, align })
+      this.thought = new ThoughtBar(this, { name: '鲸仔', align })
     }
     if (this.params?.stats) {
       // 左上（时钟在右上、字幕在底部）；safe=tl 时挪到左下
