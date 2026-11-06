@@ -78,8 +78,18 @@ uv run python scripts/gen_map.py --variant m1c --out game/maps/m1c      # 60×48
 ## 5. 稳定性与负载（任务 2 / 5）
 
 - **运行台 8000 巡检**（`run/data/sandbox.log` 只读）：92 765 行，0 条 Traceback / ERROR / 500，0 次 401 / 403（带 `SELF_TOKEN` 后 self-sync 正常）。
-- **8 实例空跑（m1c 地图，各 1 个 agent，SELF_SYNC=0，30 min，与 12 agent 负载同机同时跑）**：__MULTI_RESULT__
-- **12 agent × 30 min 负载**（`soak.py --agents 12 --ws 1`，mock 自我层，每 agent 每秒 1 动作，每 2 s 1 次 `/world` + 12 次 `/player` + 12 次 perceive，每 7 s 一轮对话）：__LOAD12_RESULT__
+- **8 实例空跑（m1c 地图，各 1 个 agent，SELF_SYNC=0，30 min，与 12 agent 负载同机同时跑）**：**通过**：8 个实例 × 60 次采样，tick 间隔 p95 中位 201.5–201.6 ms、最大 202.0 ms（目标 200 ms，抖动 ≤ 1%，判据 ≤ 210 ms），单帧最差 216 ms；tick 耗时 p95 ≤ 0.5 ms；每实例 RSS 58.5 MB 全程不变（8 实例合计约 470 MB）；0 次请求错误、0 次退出。日志 `back_end/scripts/multi8_m1c_2026-11-06.log`。结论：一机 8 镇只受内存与端口约束，tick 本身没有竞争。
+- **12 agent × 30 min 负载**（`soak.py --agents 12 --ws 1`，mock 自我层，每 agent 每秒 1 动作，每 2 s 1 次 `/world` + 12 次 `/player` + 12 次 perceive，每 7 s 一轮对话）：30 分钟、18 073 次 HTTP + 23 464 条 WS 推送，0 错误、0 退出；RSS 66 → 峰值 89 → 结束 84 MB。日志 `back_end/scripts/load_w6_12agents_2026-11-06.log`。
+
+| 指标 | n | p50 | p95 | p99 | max |
+|---|---|---|---|---|---|
+| `GET /world`（全量，2400 tiles + 31 objects + tiled 两层） | 358 | 10.5 ms | **18.2 ms** | 23.0 ms | 35.3 ms |
+| `GET /agent/perceive`（整树 + vision 5） | 4296 | 3.5 ms | **4.8 ms** | 5.4 ms | 51.4 ms |
+| `POST /action` move（含 300 ms 节拍） | 4196 | 301.5 ms | **302.8 ms** | 305.6 ms | 319.1 ms（服务端开销 p95 ≈ 3 ms） |
+| tick 间隔（71 次采样的 p95） | — | 202.3 ms（中位） | 203.0 ms（最大） | — | 236.0 ms |
+| tick 耗时 | — | 1.4 ms（p95 中位） | 2.1 ms（p95 最大） | — | 35.6 ms（检查点那一帧） |
+
+对比 W4 的 6 agent：`/world` p95 14.5 → 18.2 ms（tiled 层使 JSON 多了约 60 KB），perceive p95 3.8 → 4.8 ms（整树），tick 耗时 p95 0.3 → 1.4 ms（12 人 + state 快照 + 天气）。12 agent 的 m1c 满配仍远未到瓶颈，抖动 ≤ 1.5%。两项同机同时跑，互相是对方的背景负载。
 - 机器：20 核，119 GB 内存（起跑时已用 81 GB，其他会话的服务在跑）。
 
 ## 6. 本次提交
