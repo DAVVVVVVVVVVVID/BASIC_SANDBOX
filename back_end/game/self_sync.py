@@ -161,6 +161,13 @@ def seed_player(player: dict, game_ts: float) -> bool:
         _pending[player["id"]] = {}
         _last_sync_game_ts[player["id"]] = game_ts
     stats["seeded"] += 1
+    try:
+        from game import external_log
+        external_log.log("self_seed", player["id"], agent=agent, vars={v: player[v] for v in VARS},
+                         closeness=dict(player.get("closeness") or {}), mood_base=player.get("mood_base"),
+                         scene=player.get("scene"), emotion_tags=[t["key"] for t in tags])
+    except Exception:
+        pass
     return True
 
 
@@ -246,6 +253,11 @@ def _apply_correction(player_id: str, drift: dict[str, float]) -> None:
         for v, d in drift.items():
             if abs(d) > 1e-9:
                 add_var(p, v, d, track=False)
+        try:
+            from game import external_log
+            external_log.log("self_snap", player_id, drift={k: round(x, 4) for k, x in drift.items()})
+        except Exception:
+            pass
     stats["resyncs"] += 1
     log.info("self-sync snap %s: %s", player_id, {k: round(x, 3) for k, x in drift.items()})
 

@@ -38,7 +38,9 @@ def _dynamic_state() -> dict:
     with world_state.STATE_LOCK:
         ws_ = get_time_state(); ws_["weather"] = world_state._WEATHER
         players = {p["id"]: p for p in world_state.get_all_players_snapshot()}
-        objects = {o["id"]: {"id": o["id"], "currentUsers": o["currentUsers"], "userList": list(o["userList"])}
+        gts = world_state.game_now_ts()
+        objects = {o["id"]: {"id": o["id"], "currentUsers": o["currentUsers"], "userList": list(o["userList"]),
+                             "open": world_state.open_state(o, gts)[0]}
                    for o in world_state._OBJECTS}
     return {"worldState": ws_, "players": players, "objects": objects}
 

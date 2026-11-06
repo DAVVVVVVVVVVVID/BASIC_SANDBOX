@@ -60,6 +60,7 @@ def _build_objects(raw: list[dict]) -> list[dict]:
             "description":    t["description"],
             "effects":        t["effects"],
             "advertise":      t.get("advertise"),       # B5：Sims 式广告值 {var: 0–100}
+            "openHours":      t.get("open_hours"),      # B20：营业时间 [[start, end], ...]，None = 全天
             "successMessage": t["success_message"],
             "failureMessage": t["failure_message"],
             "currentUsers":   0,
@@ -425,12 +426,15 @@ def get_world() -> dict:
     world_state = get_time_state()
     world_state["weather"] = _WEATHER
     world_state["mapVersion"] = MAP_VERSION         # E③
+    world_state["town"] = TOWN                      # W7 E：多镇代理
+    gts = game_now_ts()
     return {
         "tiles":      _TILES,
-        "objects":    _OBJECTS,
+        "objects":    [_object_view(o, gts) for o in _OBJECTS],
         "worldState": world_state,
         "players":    get_all_players_snapshot(),
         "tiled":      _MAP_DATA.get("tiled"),
+        "zone_names": _MAP_DATA.get("zone_names", {}),   # W7 E：区域中文名，只读
     }
 
 
@@ -463,6 +467,55 @@ def get_all_players_snapshot() -> list[dict]:
         }
         for p in _players.values()
     ]
+
+
+# ── B20：作息与营业时间 ───────────────────────────────────────────────────────
+
+def _hm(s: str) -> int:
+    h, m = s.split(":"); return int(h) * 60 + int(m)
+
+
+def open_state(obj: dict, game_ts: float | None = None) -> tuple[bool, str | None]:
+    """返回 (是否营业, 下次开门 "HH:MM" 或 None)。没有 openHours 的物品恒开。"""
+    hours = obj.get("openHours")
+    if not hours:
+        return True, None
+    from datetime import datetime
+    from game.time_state import GAME_TZ
+    ts = game_ts if game_ts is not None else game_now_ts()
+    dt = datetime.fromtimestamp(ts, GAME_TZ)
+    now_m = dt.hour * 60 + dt.minute
+    spans = sorted((_hm(a), _hm(b)) for a, b in hours)
+    for a, b in spans:
+        if a <= now_m < b:
+            return True, None
+    nxt = next((a for a, _ in spans if a > now_m), spans[0][0])
+    return False, f"{nxt // 60:02d}:{nxt % 60:02d}"
+
+
+def _object_view(obj: dict, game_ts: float) -> dict:
+    """GET /world 的物品视图：加 open / opensAt，关门时 advertise 全 0。"""
+    is_open, opens_at = open_state(obj, game_ts)
+    view = dict(obj)
+    view["open"] = is_open
+    view["opensAt"] = opens_at
+    if not is_open and obj.get("advertise"):
+        view["advertise"] = {k: 0 for k in obj["advertise"]}
+    return view
+
+
+def _kick_closed_objects() -> None:
+    """营业结束：还在用的 player 自动离开（ticker 调）。"""
+    gts = game_now_ts()
+    for o in _OBJECTS:
+        if not o.get("openHours") or not o["userList"]:
+            continue
+        if open_state(o, gts)[0]:
+            continue
+        for pid in list(o["userList"]):
+            left = leave_object(pid)
+            if left and pid in _pending_messages:
+                _pending_messages[pid] = left.get("leaveMessage") or "营业结束了。"
 
 
 # ── B5：冷却与使用计数 ────────────────────────────────────────────────────────
@@ -690,6 +743,8 @@ def apply_effects_to_player(entity_id: str, effects: list[dict], scene: str | No
         buf.append({"event": event, "source": source, "scene": scene, "n_effects": len(effects), "game_time": game_now_iso()})
         if len(buf) > _RECENT_EVENTS_MAX:
             del buf[: len(buf) - _RECENT_EVENTS_MAX]
+        from game import external_log
+        external_log.log("effects_push", entity_id, source=source, event=event, scene=scene, effects=effects)
         # §3.9 第 4 条：自我层回推（source="self"）的变化不再上报，否则会被加两遍
         summary = apply_effects(player, effects, source=source, scene=scene, track=(source != "self"))
         return {"summary": summary, "player": copy.deepcopy(player)}
@@ -894,6 +949,7 @@ def _run_buff_tick_all(delta: float) -> None:
             _check_auto_leave(player_id)
         self_sync.on_tick(gts, _players)
         update_weather(gts)
+        _kick_closed_objects()
         from game import state_log
         from game.time_state import game_now_iso
         state_log.on_tick(gts, game_now_iso(), _players)

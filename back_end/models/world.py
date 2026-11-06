@@ -38,7 +38,10 @@ class GameObject(BaseModel):
     interactable: bool
     description: str
     effects: List[Effect]
-    advertise: Optional[dict[str, float]] = None   # B5：广告值 {fullness|energy|social|fun|mood: 0–100}
+    advertise: Optional[dict[str, float]] = None   # B5：广告值 {fullness|energy|social|fun|mood: 0–100}（关门时全 0）
+    open: Optional[bool] = None                     # B20：当前是否营业（无营业时间的物品恒 true）
+    opensAt: Optional[str] = None                   # B20：关门时下次开门 "HH:MM"，开门时 null
+    openHours: Optional[List[List[str]]] = None     # B20：[["11:00","14:00"],["17:00","21:00"]]
     successMessage: Optional[str] = None
     failureMessage: Optional[str] = None
     currentUsers: int
@@ -58,6 +61,7 @@ class WorldState(BaseModel):
     speed: float
     weather: Literal["sunny", "cloudy", "rain"]
     mapVersion: Optional[str] = None     # E③：地图静态内容指纹
+    town: Optional[str] = None           # W7 E：镇名（SANDBOX_TOWN）
 
 
 class WorldEvent(BaseModel):
@@ -87,3 +91,4 @@ class WorldData(BaseModel):
     worldState: Optional[WorldState] = None
     players: Optional[List[OtherPlayer]] = None
     tiled: Optional[Any] = None
+    zone_names: Optional[dict] = None    # W7 E：{world:{id:name}, sector:{...}, arena:{...}}

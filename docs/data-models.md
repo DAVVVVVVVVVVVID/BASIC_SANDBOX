@@ -123,6 +123,10 @@ type ContinuousObject = {
 
 全部物品改为每游戏小时尺度：一次正常使用的恢复量 ≈ 该变量一日衰减量（bed +25 energy/h × 8 h ≈ 200；fridge +40 fullness ≈ 日衰减 / 3 餐；book +60 fun ≈ 日衰减 / 4 次）。表见 api-spec §5。
 
+### 营业时间（B20，W7）
+
+Object 类型可带 `open_hours: [["HH:MM","HH:MM"], ...]`（游戏时间）。运行时每个物品视图带 `open / opensAt / openHours`，关门时 `advertise` 全 0，use 返回 `closed`，到点自动请出使用者。
+
 ### 游戏机（B18，W6）
 
 `player.game`：`{status: "playing" | "ended", started_at, ended_at?, brain_run_id, run_id, ticks, day, phase, health, hunger, sanity, deaths}`，由 `game_console` 的 use / leave 维护；指标来自 D 的 brain `GET /metrics`。

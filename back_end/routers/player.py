@@ -161,7 +161,7 @@ def admin_metrics():
 
 
 @router.get("/admin/export")
-def admin_export(date: str, kinds: str = "actions,chat,state"):
+def admin_export(date: str, kinds: str = "actions,chat,state,external"):
     """
     W6 任务 1：一次性给出当日沙盒数据集（供 A 的 dataset_export.py 拉）。
     返回 {schema, date, town, map_version, seed, generated_at, actions[], chat[], state[], manifest{counts, files}}。
@@ -192,9 +192,9 @@ def admin_export(date: str, kinds: str = "actions,chat,state"):
         return rows, fp
     import json as _json
     from game.paths import data_dir
-    sources = {"actions": _actions_dir(), "chat": data_dir() / "chat", "state": data_dir() / "state"}
+    sources = {"actions": _actions_dir(), "chat": data_dir() / "chat", "state": data_dir() / "state", "external": data_dir() / "external"}
     backfilled = 0
-    for kind in ("actions", "chat", "state"):
+    for kind in ("actions", "chat", "state", "external"):
         if kind not in want:
             continue
         rows, fp = _read_day(sources[kind], _json.loads)

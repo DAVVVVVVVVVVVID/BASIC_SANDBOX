@@ -478,7 +478,17 @@
     "max_duration": 2700,
     "success_message": "你在餐馆坐下，点了今天的例菜。",
     "failure_message": "这桌坐满了。",
-    "leave_message": "吃完了，你离开了餐馆。"
+    "leave_message": "吃完了，你离开了餐馆。",
+    "open_hours": [
+      [
+        "11:00",
+        "14:00"
+      ],
+      [
+        "17:00",
+        "21:00"
+      ]
+    ]
   },
   "bench": {
     "prototype": "continuous",
@@ -597,7 +607,13 @@
     "max_duration": 7200,
     "success_message": "你甩出鱼竿，等鱼上钩。",
     "failure_message": "这个钓位有人了。",
-    "leave_message": "你收起鱼竿。"
+    "leave_message": "你收起鱼竿。",
+    "open_hours": [
+      [
+        "06:00",
+        "20:00"
+      ]
+    ]
   },
   "shop_counter": {
     "prototype": "instant",
@@ -631,7 +647,13 @@
       "social": 15
     },
     "success_message": "你买了点零食，顺便和老板聊了两句。",
-    "failure_message": "柜台没人。"
+    "failure_message": "柜台没人。",
+    "open_hours": [
+      [
+        "09:00",
+        "20:00"
+      ]
+    ]
   },
   "game_console": {
     "prototype": "continuous",

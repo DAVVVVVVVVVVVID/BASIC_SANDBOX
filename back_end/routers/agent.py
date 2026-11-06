@@ -83,13 +83,15 @@ def perceive(
     names = _find_in_cognitive_map(zone["world"], zone["sector"], zone["arena"])
     cmap  = get_cognitive_map()
 
+    from game.world_state import open_state
     def _obj_brief(o: dict) -> dict:
+        is_open, opens_at = open_state(o)
         d = {"id": o["id"], "name": o["name"], "type": o["type"], "interactable": o["interactable"],
-             "currentUsers": o["currentUsers"]}
+             "currentUsers": o["currentUsers"], "open": is_open, "opensAt": opens_at}
         if o.get("maxUsers") is not None:
             d["maxUsers"] = o["maxUsers"]
         if o.get("advertise"):
-            d["advertise"] = o["advertise"]
+            d["advertise"] = o["advertise"] if is_open else {k: 0 for k in o["advertise"]}
         return d
 
     worlds_out: list[dict] = []

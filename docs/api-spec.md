@@ -50,6 +50,9 @@
 | `running` | 是否推进。默认 `true`（环境变量 `SANDBOX_TIME_RUNNING=0` 可改） |
 | `speed` | 倍率，默认 `1.0`（与现实 1:1），下限 1.0 |
 | `mapVersion` | **W5 E③** 地图静态内容指纹（名字@sha1 前 12 位，含 tiles 类型 / 可走与物品 id / 类型 / 位置）；变了才需要重拉 `tiles` / `tiled` |
+| `town` | **W7 E** 镇名（`SANDBOX_TOWN`，towns.yaml 的 key），多镇代理用 |
+
+**顶层新增（W7 E）：** `zone_names`：`{world: {id: 名}, sector: {...}, arena: {...}}`，地图区域中文名（只读，`?fields=zone_names` 可单取）。`tiled` 的 tileset 现为 E 交付的自制 CC0 地砖 `gen/tiles.png`（`game/maps/tile_gids.json` 覆盖 gid 与 `_tileset`）。
 
 **瘦身（W5 E③）：** `GET /world?fields=players,objects,worldState` 只回这些顶层键（可选值：`tiles` / `objects` / `worldState` / `players` / `tiled`），形状与全量相同（同一响应模型）；全量约 300 KB，`players,objects,worldState` 约 10 KB。`tiled`（**E⑤**）现在非空：`{tilesets: [Sunnyside 信息], layers: [ground, structures]}`，gid 映射为假设值，见 `scripts/gen_map.py` 的 `TILE_GIDS`（可用 `game/maps/tile_gids.json` 覆盖）。
 
@@ -655,6 +658,7 @@
 | `feed_unavailable` | **B10** 手机（`external: feed`）拉自我层 `GET /self/feed` 失败（不可达 / 超时 3 s）。`result.message` 为「手机没信号…」，`result.phone.status = "no_signal"`；物品仍算使用过（有冷却），其余 instant 效果已结算 |
 | `live_unavailable` | **B11** 直播台（`external: live`）向自我层 `POST /self/live/start` 失败，**或使用者是人类玩家（没有 `agent_id`，§3.11 B4：阿蝉不能替她开播）**。不进入物品、不计冷却，`result.error` 为错误摘要 |
 | `game_unavailable` | **B18（W6）** 游戏机（`external: game`）向 D 的 brain `GET {GAME_URL}/healthz` / `POST /event` 失败（不可达 / 超时 3 s / ok=false）。不进入物品、不计冷却，`result.error` 为错误摘要 |
+| `closed` | **B20（W7）** 物品不在营业时间（按游戏时间）。`result` 含 `opens_at`（下次开门 `"HH:MM"`）、`openHours`、`objectId`、`message`。不计冷却。营业中途关门时还在用的玩家被自动请出（`pendingMessage` = `leaveMessage`） |
 
 **手机 use 成功时** `result` 多两个字段：`message` = digest 文字（「手机上有 N 条新动态：…」/「手机上没有新消息。」），`phone` = 与 `GET /agent/perceive` 的 `phone` 相同的 digest 对象。
 | `use_disabled` | 当前无法使用对象（buff 限制）|
@@ -1006,7 +1010,9 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `shop_counter` | instant | **W4** fullness +15、social +6；energy −1 | fullness 25、social 15 | — |
 | `game_console` | continuous，`max_users` 1 | **B18（W6）** `external: game`；fun +30/h、mood +4/h；energy −6/h、social −2/h；`no_move`、tag `gaming`；`stateLabel`「{entity} 玩游戏中」 | fun 85、mood 20 | 2 h（假设） |
 
-所有 continuous 类型都带 `max_users`（`GET /world` 的 `maxUsers`）；社交物品靠多人同用产生「在同一处」的 `players_in_view`。地图上：餐馆（sector `restaurant`：`dining` 两张四人桌 + `rest_kitchen` fridge）、广场两条长椅、码头两个钓位、杂货店柜台（替代原 desk），四个 NPC 家各有 fridge；共 30 个物品，全部从出生点 BFS 可达。
+所有 continuous 类型都带 `max_users`（`GET /world` 的 `maxUsers`）；社交物品靠多人同用产生「在同一处」的 `players_in_view`。
+
+**营业时间（B20，W7）：** `object_types.json` 的 `open_hours: [["HH:MM","HH:MM"], ...]`（游戏时间，Asia/Shanghai）。餐馆桌子 `11:00–14:00 / 17:00–21:00`，杂货店柜台 `09:00–20:00`，码头钓位 `06:00–20:00`（「日出后」，假设）；其他物品全天。`GET /world` 与 perceive 的每个物品带 `open`（bool）、`opensAt`（关门时 `"HH:MM"`，开门时 `null`）、`openHours`；**关门时 `advertise` 全部为 0**（`GET /world`、perceive 一致，让规划器的软偏好自然变成「等开门」）。`/ws/world` 的 `objects` 推送带 `open`。地图上：餐馆（sector `restaurant`：`dining` 两张四人桌 + `rest_kitchen` fridge）、广场两条长椅、码头两个钓位、杂货店柜台（替代原 desk），四个 NPC 家各有 fridge；共 30 个物品，全部从出生点 BFS 可达。
 
 ### Object 原型
 
@@ -1114,6 +1120,9 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | 行来源 | `data/actions/<date>.jsonl`、`data/chat/<date>.jsonl`、`data/state/<date>.jsonl`，行序即文件序；`manifest.counts` 与文件行数一致 |
 | 每行新增字段 | **W6** `town`（环境变量 `SANDBOX_TOWN`，默认 `main`）、`map_version`、`seed`。W6 之前写的旧行没有这三项，导出时按当前配置回填并加 `"backfilled": true`，`manifest.backfilled_rows` 计数 |
 | `state` | **W6** 每个 player 每 30 游戏秒一行（与自我层 delta 同节拍），由后台 ticker 写 `data/state/<date>.jsonl`，`kind: "sample"` |
+| `external` | **W7 B19** `data/external/<date>.jsonl`：外部效果与不确定性输入——`self_seed`（种入的七变量）、`self_snap`（纠偏差值）、`effects_push`（`/effects` 完整载荷）、`adjudication`（freeform 裁决结果）、`feed` / `live` / `game`（外部调用结果）、`nondeterministic`（`time_speed / time_toggle / time_reset`）。每行带 `ts / game_time / town / map_version / seed / entity`。`kinds` 默认含它 |
+
+**可复现回放（B19）：** `cd back_end && uv run python scripts/replay.py --date 2026-11-06 --town main --data-dir run/data/sandbox`：从每个 player 当日第一条 state 行起步，按游戏时间把 actions 与 external 合成时间线，事件之间以 1 游戏秒步进跑同一套 tick（外部调用按日志打桩，不打网络），末态与 state 最后一行逐变量作差（阈值 0.5），并列出窗口内的 nondeterministic 输入与「重放结果与日志 success 不一致」的动作。注意：用 `place()` 之类不进日志的改动无法回放；回放只覆盖有 state 行的时间窗。
 | 对账脚本 | `cd back_end && uv run python scripts/dataset_fetch.py --base http://127.0.0.1:8000 --date 2026-11-06 --data-dir run/data/sandbox` 写出 `<out>/<town>/<date>/{actions,chat,state}.jsonl + manifest.json` 并校验 写出行数 == manifest == 本地文件行数 |
 
 ---
@@ -1168,7 +1177,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 ```json
 { "type": "action", "ts": "...", "entity": "鲸仔_a1b2c3", "action": "use", "object": "fridge_kitchen", "success": true, "reason": null }
 ```
-`object` 为该动作涉及的物品 id（use / leave / interact），其他动作为 `null`；move 成功时另带 `position`。前端可据此播一次性动画。
+`object` 为该动作涉及的物品 id（use / leave / interact），其他动作为 `null`，**W7 另带 `object_type`**（如 `fridge`）；move 成功时另带 `position`。前端可据此播一次性动画。
 
 `chat` 事件的 `kind: "message"` 带 `from_name`（E④，已实现）。
 

@@ -52,7 +52,8 @@ def test_world_fields_and_map_version(client):
 def test_map_has_tiled_layers(client):
     w = client.get("/world").json()
     t = w["tiled"]
-    assert t["tilesets"][0]["imageSource"] == "SunnysideWorld_Tileset_V0.1.png"
+    assert t["tilesets"][0]["imageSource"] == "gen/tiles.png"          # W7：E 交付的 tile_gids.json 的 _tileset
+    assert t["tilesets"][0]["name"] == "whale_gen_tiles" and set(t["layers"][0]["data"]) <= {1, 7, 9, 11, 18}
     assert [l["name"] for l in t["layers"]] == ["ground", "structures"]
     assert all(len(l["data"]) == 60 * 40 and l["width"] == 60 and l["height"] == 40 for l in t["layers"])
     assert all(g > 0 for g in t["layers"][0]["data"])

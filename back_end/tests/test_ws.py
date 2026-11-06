@@ -56,7 +56,7 @@ def test_patches_follow_player_object_and_chat_changes(live):
         place(a, *BED_STAND)
         assert action(live, a, "use")["success"]
         p = _recv(ws, "patch", pred=lambda m: any(o["id"] == BED_ID for o in m.get("objects", [])))
-        assert next(o for o in p["objects"] if o["id"] == BED_ID) == {"id": BED_ID, "currentUsers": 1, "userList": [a]}
+        assert next(o for o in p["objects"] if o["id"] == BED_ID) == {"id": BED_ID, "currentUsers": 1, "userList": [a], "open": True}
         # 聊天 → chat 推送（含招呼与回复），事件也推
         rid = live.post("/chat/request", json={"from_entity_id": b, "to_entity_ids": [a], "greeting": "hi"}).json()["request_id"]
         place(b, *BED_STAND)

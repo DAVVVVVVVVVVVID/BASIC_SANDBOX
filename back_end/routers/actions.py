@@ -7,9 +7,9 @@ from game.world_state import (
     get_player, is_tile_walkable, update_player_position, update_player_facing,
     get_object_at, enter_object, leave_object, apply_instant_object,
     get_walkable_tiles_in_area, object_cooldown_remaining, record_object_use,
-    set_phone_feed, _players,
+    set_phone_feed, open_state, _players,
 )
-from game import external_effects
+from game import external_effects, external_log
 from game.time_state import game_now_iso
 from game.action_log import append_log
 
@@ -173,6 +173,15 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
             result={"message": obj.get("failureMessage")},
         )
 
+    # B20：营业时间
+    is_open, opens_at = open_state(obj)
+    if not is_open:
+        return ActionResponse(
+            success=False, type="use", reason="closed",
+            result={"message": f"{obj['name']}还没开门，{opens_at} 开。", "objectId": obj["id"], "opens_at": opens_at,
+                    "openHours": obj.get("openHours")},
+        )
+
     # B5：同一物品 30 游戏分钟冷却
     remaining = object_cooldown_remaining(entity_id, obj["id"])
     if remaining > 0:
@@ -193,6 +202,7 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
         if "feed" in ext:                                   # B10 手机：拉自我层信息流摘要
             digest = external_effects.fetch_feed(_players.get(entity_id, player), game_now_iso())
             set_phone_feed(entity_id, digest)
+            external_log.log("feed", entity_id, object=obj["id"], status=digest["status"], items=len(digest.get("items") or []))
             text = external_effects.feed_text(digest)
             result["message"] = text
             result["phone"] = digest
@@ -215,6 +225,7 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
 
     if "live" in ext:                                       # B11 直播台：先开播，失败就不坐下
         live = external_effects.live_start(_players.get(entity_id, player), game_now_iso())
+        external_log.log("live", entity_id, object=obj["id"], action="start", ok=live["ok"], error=live.get("error"))
         if not live["ok"]:
             return ActionResponse(
                 success=False, type="use", reason="live_unavailable",
@@ -223,6 +234,7 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
 
     if "game" in ext:                                       # B18 游戏机：先问 D 的 brain 开一局，失败就不坐下
         g = external_effects.game_start(_players.get(entity_id, player), game_now_iso())
+        external_log.log("game", entity_id, object=obj["id"], action="start", ok=g["ok"], error=g.get("error"), game=g.get("game"))
         if not g["ok"]:
             return ActionResponse(
                 success=False, type="use", reason="game_unavailable",
@@ -391,6 +403,8 @@ def handle_freeform(entity_id: str, payload: dict) -> ActionResponse:
     res = external_effects.adjudicate(player, text, target, payload.get("context"))
     narration = str(res.get("narration") or "")
     effects = res.get("effects") or []
+    external_log.log("adjudication", entity_id, text=text, target=target, success=bool(res.get("success")),
+                     reason=res.get("reason"), effects=effects, narration=narration)
     applied_self = applied_target = 0
     skipped = int(res.get("skipped") or 0)
     if res.get("success") or effects:
@@ -451,8 +465,14 @@ async def dispatch(body: ActionRequest):
     try:
         from routers.ws import hub
         res = result.result or {}
-        hub.push_action(body.entityId, body.action.type, result.success, obj=res.get("objectId"), reason=result.reason,
-                        extra={"position": res.get("position")} if res.get("position") else None)
+        extra = {}
+        if res.get("position"):
+            extra["position"] = res.get("position")
+        if res.get("objectId"):
+            from game.world_state import get_object_by_id
+            o = get_object_by_id(res["objectId"])
+            extra["object_type"] = o["type"] if o else None               # E：前端不必再按 id 查
+        hub.push_action(body.entityId, body.action.type, result.success, obj=res.get("objectId"), reason=result.reason, extra=extra or None)
     except Exception:
         pass
 

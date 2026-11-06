@@ -190,13 +190,17 @@ PLAYER_START = {"x": 6, "y": 9, "facing": "down"}        # 小仓库中央
 
 def build_tiled():
     gids = dict(TILE_GIDS)
+    tileset = dict(TILESET)
     override = Path(__file__).resolve().parent.parent / "game" / "maps" / "tile_gids.json"
-    if override.exists():
-        gids.update(json.loads(override.read_text(encoding="utf-8")))
+    if override.exists():                      # E 交付：顶层键覆盖 gid，_tileset 覆盖 tileset（W7）
+        ov = json.loads(override.read_text(encoding="utf-8"))
+        gids.update({k: v for k, v in ov.items() if not k.startswith("_") and isinstance(v, int)})
+        if isinstance(ov.get("_tileset"), dict):
+            tileset.update(ov["_tileset"])
     ground = [gids.get(TILE_CHARS[ch], gids["grass"]) for row in tiles for ch in row]
     # 第二层：墙 / 水再压一层同 gid（给前端区分「有东西」的层级；物品本身由前端按 objects 画）
     deco = [gids["wall"] if TILE_CHARS[ch] == "wall" else (gids["water"] if TILE_CHARS[ch] == "water" else 0) for row in tiles for ch in row]
-    return {"tilesets": [TILESET],
+    return {"tilesets": [tileset],
             "layers": [{"id": 1, "name": "ground", "width": W, "height": H, "data": ground},
                        {"id": 2, "name": "structures", "width": W, "height": H, "data": deco}]}
 

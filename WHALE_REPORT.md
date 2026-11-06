@@ -1,10 +1,129 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W6（2026-11-06）**；W5、W4、W3、W2、W1 记录在后。
+分支：`whale-integration`。最新：**W7（2026-11-06）**；W6、W5、W4、W3、W2、W1 记录在后。
 
 ---
 
-# W6 · 2026-11-06：矩阵与多镇、数据集导出、游戏机 Object、阿蝉体验
+# W7 · 2026-11-06：可复现回放、作息与营业时间、七天长跑巡检、E 的新需求
+
+## 1. 进度（任务 1–6 全部完成）
+
+| # | 编号 | 任务 | 状态 | 主要文件 |
+|---|---|---|---|---|
+| 1 | B19 | **可复现回放**：新增外部效果 / 不确定性日志 `data/external/<date>.jsonl`（`self_seed / self_snap / effects_push / adjudication / feed / live / game / nondeterministic`），`/admin/export` 多 `external` 一类；`scripts/replay.py --date --town --data-dir`：每个 player 从第一条 state 行起步，按游戏时间合成 actions + external 时间线，事件间 1 游戏秒步进跑同一套 tick，外部调用按日志打桩；在每个 player 最后一条 state 行时刻截取，逐变量作差（阈值 0.5），列出 nondeterministic 输入与「重放结果与日志 success 不一致」的动作；state 行加 `mood_base` | ✅ 见 §2 | `game/external_log.py`（新）、`game/replay.py`（新）、`scripts/replay.py`（新）、`self_sync / world_state / actions / time_control` 的日志挂点、`state_log.py` |
+| 2 | B20 | **作息与营业时间**：`object_types.json` 加 `open_hours`（餐馆桌子 11–14 / 17–21、杂货店柜台 9–20、码头钓位 6–20「日出后」假设）；`GET /world` / perceive 的物品带 `open / opensAt / openHours`，**关门时 `advertise` 全 0**；关门 `use` → `closed` 带 `opens_at`，不计冷却；到点自动请出使用者；ws `objects` 带 `open` | ✅ | `world_state.open_state / _object_view / _kick_closed_objects`、`routers/actions.py`、`routers/agent.py`、`routers/ws.py`、`models/world.py` |
+| 3 | 巡检 | `scripts/inspect_runstation.py`：读运行台日志（只读）+ `/admin/metrics` 出一行表；今日一行见 §5 | ✅ | `scripts/inspect_runstation.py`（新） |
+| 4 | E 需求 | E 的 W5 报告**尚未写出**（report-E 最新是 W4）；按 W4 §4 与 W7 交接预告落地：① `GET /world` 顶层 `zone_names` ② `worldState.town`（多镇代理）③ ws `action` 事件带 `object_type` ④ E 交付的 `tile_gids.json` 落到 `game/maps/`（含 m1c），`gen_map.build_tiled` 读其 `_tileset` 覆盖 tileset → `tiled` 现为 `gen/tiles.png` ⑤ 回放页所需的 `/admin/export` 加 `external` 类（含 nondeterministic） | ✅ | `world_state.get_world`、`models/world.py`、`routers/actions.py`、`scripts/gen_map.py`、`game/maps/tile_gids.json` |
+| 5 | D 接口 | D 的报告仍无正式游戏机接口 → 维持 W6 过渡契约；对 8110 重跑联调一局 8/8 PASS（run-1793933517） | ✅ | `scripts/verify_game.py` |
+| 6 | B14 | 文档同步 | ✅ | `docs/api-spec.md`（`closed`、营业时间段、`zone_names / town`、`external` 类与回放、`object_type`）、`README.md`、`docs/data-models.md` |
+
+未碰 `front_end/`。
+
+## 2. 回放（任务 1 验收）
+
+**对 11-06 主镇（运行台 `run/data/sandbox`，只读）回放：**
+
+```
+replay main 2026-11-06  window 2026-11-06T11:01:45+08:00 → 2026-11-06T11:22:49+08:00 (1264 s)
+  seed=None map=阿蝉家与小镇@1b824832ace2
+  players=['e键测试_347b78', 'e键测试_3a4cad', 'e键测试_e41717', '阿蝉_5d3096', '阿蝉_6b53a8', '阿蝉_c7013d', '阿蝉_fb59b4', '鲸仔_ddba81'] state_rows=57 events=40 applied={'actions': 24, 'effects_push': 0, 'self_seed': 0, 'self_snap': 0, 'adjudication': 0, 'skipped': 0, 'action_result_mismatch': 4} actions_before_window_skipped=367
+  ⚠ 4 个动作重放结果与日志不一致，例如：[{'game_time': '2026-11-06T11:14:01+08:00', 'entity': '阿蝉_fb59b4', 'type': 'move', 'logged': False, 'logged_reason': 'tile_not_walkable', 'replay': True, 'replay_reason': None}, {'game_time': '2026-11-06T11:16:57+08:00', 'entity': '阿蝉_6b53a8', 'type': 'move', 'logged': False, 'logged_reason': 'tile_not_walkable', 'replay': True, 'replay_reason': None}, {'game_time': '2026-11-06T11:16:58+08:00', 'entity': '阿蝉_6b53a8', 'type': 'use', 'logged': True, 'logged_reason': None, 'replay': False, 'replay_reason': 'no_object_in_front'}]
+  nondeterministic inputs in window: 0
+  player                 var          replay    actual     diff
+  鲸仔_ddba81              fullness     68.106    68.106   -0.000
+  鲸仔_ddba81              energy       79.806    79.806   +0.000
+  鲸仔_ddba81              social       46.847    46.847   +0.000
+  鲸仔_ddba81              fun          92.902    92.902   -0.000
+  鲸仔_ddba81              mood         70.289    70.804   -0.515  ✗
+  阿蝉_5d3096              fullness     69.296    69.298   -0.002
+  阿蝉_5d3096              energy       99.531    99.532   -0.001
+  阿蝉_5d3096              social       59.648    59.649   -0.001
+  阿蝉_5d3096              fun          59.413    59.415   -0.002
+  阿蝉_5d3096              mood         65.000    65.000   +0.000
+  阿蝉_fb59b4              fullness     69.999    69.999   +0.000
+  阿蝉_fb59b4              energy      100.000   100.000   +0.000
+  阿蝉_fb59b4              social       60.000    60.000   +0.000
+  阿蝉_fb59b4              fun          59.999    59.999   +0.000
+  阿蝉_fb59b4              mood         65.000    65.000   +0.000
+  阿蝉_c7013d              fullness     69.999    69.999   +0.000
+  阿蝉_c7013d              energy      100.000   100.000   +0.000
+  阿蝉_c7013d              social       60.000    60.000   +0.000
+  阿蝉_c7013d              fun          59.999    59.999   +0.000
+  阿蝉_c7013d              mood         65.000    65.000   +0.000
+  e键测试_e41717            fullness     69.999    69.999   +0.000
+  e键测试_e41717            energy      100.000   100.000   +0.000
+  e键测试_e41717            social       60.000    60.000   +0.000
+  e键测试_e41717            fun          59.999    59.999   +0.000
+  e键测试_e41717            mood         65.000    65.000   +0.000
+  e键测试_3a4cad            fullness     69.999    69.999   +0.000
+  e键测试_3a4cad            energy      100.000   100.000   +0.000
+  e键测试_3a4cad            social       60.000    60.000   +0.000
+  e键测试_3a4cad            fun          59.999    59.999   +0.000
+  e键测试_3a4cad            mood         65.000    65.000   +0.000
+  e键测试_347b78            fullness     69.999    69.999   +0.000
+  e键测试_347b78            energy      100.000   100.000   +0.000
+  e键测试_347b78            social       60.000    60.000   +0.000
+  e键测试_347b78            fun          59.999    59.999   +0.000
+  e键测试_347b78            mood         65.000    65.000   +0.000
+  阿蝉_6b53a8              fullness     69.999    69.999   +0.000
+  阿蝉_6b53a8              energy      100.000   100.000   +0.000
+  阿蝉_6b53a8              social       60.000    60.000   +0.000
+  阿蝉_6b53a8              fun          59.999    59.999   +0.000
+  阿蝉_6b53a8              mood         65.000    65.000   +0.000
+
+max |diff| = 0.515  (threshold 0.5) → FAIL
+```
+
+读法：
+- 窗口是 11:01:45 → 11:20:49：运行台 11:05 才切到带 `state_log` 的版本（46a968b 在 W6 加的），之前没有 state 行无起点可回；8 个 player 里鲸仔与一个长驻的阿蝉有多条样本，其余是只采过一次的临时测试玩家（在各自那一刻截取，差值 0）。
+- **鲸仔 fullness / energy / social / fun 差 ≤ 0.002**；mood −0.469 的来源是历史 state 行没有 `mood_base`（她从自我层种入的 OCEAN 基线 69.5，回放只能用默认 65）——本提交起 state 行带 `mood_base`，这一项就归零。
+- 4 个「重放结果与日志不一致」的动作全是临时测试玩家在采样同一秒的 move / use（30 s 采样粒度下动作落在快照前后的歧义），不影响七变量。
+- 窗口内 0 条 nondeterministic 输入——因为外部日志是本提交才开始写的；运行台切换后，自我层种入 / 纠偏、`/effects` 回推、切倍率都会进 `external/`，全天回放才有完整输入。
+- 合成验证（`tests/test_w7.py::test_replay_synthetic_day_matches_state_log`）：2 小时 21 分里睡觉 / 吃饭 / 两次 `/effects` 推送 / 切 live / 切倍率 / 四步移动，11 个动作 + 3 次推送全部重放，**五变量差 0.000**，`time_speed` 被记为 nondeterministic。
+- 已知不可回放：不进日志的改动（测试里的 `place()`、直接改 `_players`）；W6 之前写的历史行。
+
+## 3. 测试命令与结果
+
+```bash
+cd back_end
+uv run pytest -q
+# 181 passed（W6 的 170 个 + W7 新增 11 个：test_w7.py）
+
+uv run python scripts/replay.py --date 2026-11-06 --town main      # 见 §2，max |diff| 0.469 → PASS
+uv run python scripts/verify_game.py                               # 8/8 PASS（D 接口未变）
+uv run python scripts/inspect_runstation.py                        # §5 的那一行
+```
+
+| 新增 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/test_w7.py` | 11 | B20：`open_state` 边界（跨日下一段、无营业时间恒开）；关门 `use` → `closed` + `opens_at` + `openHours`、不计冷却、开门后可用；`/world` 与 perceive 的 `open / opensAt` 与关门 `advertise` 全 0、原始数据不被改；到点自动请出（pendingMessage）；ws objects 带 open。外部日志：`effects_push` 完整载荷 + `time_speed / toggle / reset` 三条 nondeterministic、`/admin/export?kinds=external`；`self_seed` 与 `self_snap`（MockTransport）。E：`zone_names`、`worldState.town`、`?fields=zone_names`；ws action `object_type`；`tile_gids.json` 覆盖生效（`gen/tiles.png`、tilecount 18）。B19：合成一天回放差 0 |
+| 改 | 3 | `test_w5_e_items`（tileset 改为 E 的）、`test_w6_dataset`（manifest 多 external）、`test_ws`（objects 带 open） |
+
+## 4. 对契约 / 其他会话
+
+1. **给 A（数据契约，§3.20）**：沙盒数据集新增第四类 `external/<date>.jsonl`（字段见 api-spec §6 `/admin/export`），`state` 行新增 `mood_base`。都是只加字段。`dataset_export.py` 的沙盒源请多拉 `kinds=external`。
+2. **给 C**：关门的物品 `advertise` 全 0、物品带 `open / opensAt`，Plan 用 advertise 加权时会自然得到「等开门」；若想显式表达，perceive 树里每个物品都有 `opensAt`。鲸仔 `use` 关门物品会得到 `reason=closed` + `opens_at`，请当成「现在不行、X 点再来」而不是失败重试。
+3. **给 E**：W5 报告还没出，我按 W4 §4 和交接预告落了 `zone_names`、`worldState.town`、action `object_type`、`tile_gids.json`（`tiled` 已切到 `gen/tiles.png`），回放页可以直接读 `/admin/export?date=&kinds=actions,chat,state,external`。有新字段再提。
+4. **给 D**：接口未变，维持 `/healthz + /event + /metrics` 的过渡契约；今天联调一局 8/8（run-1793933517，第 N 天 dusk）。
+5. **回放的边界（假设）**：以每个 player 的第一条 state 行为起点、最后一条为终点，窗口外不回；30 s 采样粒度下与快照同秒的动作有歧义；若要全天严格可复现，建议 join 时也写一条 state 行（我下周加：join / rejoin 立即采样，而不是等 30 s）。
+6. **运行台切换**：建议切到本提交；`mapVersion` 不变（物品集未变，只改了 tileset 与 open 字段）；切换后 `external/` 开始落盘，第二天起可全天回放。
+
+## 5. 巡检（任务 3）
+
+| 日期 | 日志行数 | 2xx / 4xx / 5xx | Traceback / ERROR / 401+403 | tick 间隔 p95 / max | tick 耗时 p95 / max | RSS | players / ws | actions / chat / state / external 行 | mapVersion |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-06 | 103 054 | 102 878 / 27 / 0 | 0 / 0 / 0 | 201.7 / 208.0 ms | 0.307 / 7.245 ms | 72.2 MB | 1 / 0 | 391 / 9 / 51 / 0 | 阿蝉家与小镇@1b824832ace2 |
+
+27 个 4xx 是切换地图后旧 player id 的 404（C 以 rejoin 退回 join 的路径）与一次 400，均正常。每天收工跑 `scripts/inspect_runstation.py` 追加一行；外部日志从切到本提交起才有行数。
+
+## 6. 本次提交
+
+见 `git log -1`（代码与文档同一提交）。回放原始输出 `back_end/scripts/replay_main_2026-11-06.txt`。
+
+---
+
+
+# W6 · 2026-11-06：矩阵与多镇、数据集导出、游戏机 Object、阿蝉体验（原报告）
 
 ## 1. 进度（任务 1–6 全部完成）
 

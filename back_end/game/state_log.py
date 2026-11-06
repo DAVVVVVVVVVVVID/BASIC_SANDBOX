@@ -32,6 +32,7 @@ def _row(player: dict, game_iso: str) -> dict:
         "town": TOWN, "map_version": MAP_VERSION, "seed": SANDBOX_SEED,
         "player_id": player["id"], "agent_id": player.get("agent_id"), "controller": player.get("controller", "human"),
         "scene": player.get("scene", "sandbox"),
+        "mood_base": round(float(player.get("mood_base", 65.0)), 3),            # W7：回放需要
         "vars": {k: round(float(player.get(k, 0.0)), 3) for k in ("fullness", "energy", "social", "fun", "mood")},
         "emotion_tags": [t["key"] for t in player.get("emotion_tags", [])],
         "closeness": {k: round(float(v), 3) for k, v in (player.get("closeness") or {}).items()},

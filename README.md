@@ -57,6 +57,8 @@ BASIC_SANDBOX/
 │   │   ├── multi_soak.py      # 一机多实例空跑（tick 抖动 / RSS）
 │   │   ├── dataset_fetch.py   # /admin/export 拉取 + 行数对账
 │   │   ├── verify_game.py     # 游戏机对 D brain 联调
+│   │   ├── replay.py          # B19 可复现回放
+│   │   ├── inspect_runstation.py # 每日巡检行
 │   │   └── gen_map.py         # 地图生成器（阿蝉家 + 小镇 + 餐馆；--variant m1c）
 │   ├── tests/                 # pytest（uv run pytest）
 │   ├── data/                  # 运行时生成：sandbox.db 检查点、actions/*.jsonl（不进 git）
@@ -74,6 +76,8 @@ BASIC_SANDBOX/
 │       ├── needs.py           # 需求值分档文字（perceive 的 needs）
 │       ├── chat_log.py        # 聊天 append-only JSONL
 │       ├── state_log.py       # 七变量快照 JSONL（每 30 游戏秒）
+│       ├── external_log.py    # 外部效果 / 不确定性 JSONL（回放输入）
+│       ├── replay.py          # 回放引擎
 │       ├── paths.py           # 数据目录（SANDBOX_DATA_DIR）
 │       ├── object_types.py    # 从 object_types.json 加载 Object 类型
 │       ├── object_types.json  # ← MAP_EDITOR 导出，Object 类型定义
@@ -161,6 +165,7 @@ BASIC_SANDBOX/
 - 数值为**每游戏小时尺度**：睡 8 h energy ≈ +200，一顿饭 fullness +40，一本书 fun +60（见 api-spec §5）
 - **社交物品**（W4）：餐馆四人桌（`max_users` 4）、广场长椅（2 人）、码头钓位、杂货店柜台；NPC 家各有 fridge
 - **游戏机**（B18，W6）：`game_console`，use 向 D 的 brain（`GAME_URL`，默认 8110）开一局、leave 结束；局内状态在 `player.game` / perceive 的 `game`；brain 不可达 → `game_unavailable`
+- **营业时间**（B20，W7）：餐馆 11–14 / 17–21、杂货店 9–20、码头 6–20（游戏时间）；关门时 use 返回 `closed` 带 `opens_at`，`advertise` 为 0，到点自动请出
 
 ### 实时推送与多实例
 
@@ -175,7 +180,9 @@ BASIC_SANDBOX/
 - `chat/YYYY-MM-DD.jsonl`：每条聊天消息一行 + 房间开 / 关 / 退出 / 上限 / 邀请过期一行（`GET /history/chat` 回放），与 `/ws/world` 的 `chat` 推送同源
 - `state/YYYY-MM-DD.jsonl`：每个 player 每 30 游戏秒一行七变量快照（W6）
 - `sandbox.db`：SQLite 检查点（当前状态，非历史）
-- 每行带 `town / map_version / seed`；`GET /admin/export?date=` 一次给出当日三类 + manifest（供总控 `dataset_export.py`）；`scripts/dataset_fetch.py` 对账
+- `external/YYYY-MM-DD.jsonl`：外部效果与不确定性输入（自我层种入 / 纠偏、`/effects` 推送、freeform 裁决、feed / live / game 调用结果、切倍率）（W7）
+- 每行带 `town / map_version / seed`；`GET /admin/export?date=` 一次给出当日四类 + manifest（供总控 `dataset_export.py`）；`scripts/dataset_fetch.py` 对账
+- **可复现回放**（B19）：`scripts/replay.py --date --town --data-dir` 从 seed + actions + external 重放一天，末态与 state 最后一行差 < 0.5
 
 ### 需求值与自我层
 
@@ -313,6 +320,8 @@ uv run python scripts/verify_game.py --game-url http://127.0.0.1:8110          #
 uv run python scripts/dataset_fetch.py --base http://127.0.0.1:8000 --date 2026-11-06 --data-dir run/data/sandbox   # 数据集导出对账
 uv run python scripts/multi_soak.py --instances 8 --minutes 30 --map-dir game/maps/m1c   # 一机 8 实例空跑，tick 抖动与 RSS
 uv run python scripts/gen_map.py --variant m1c --out game/maps/m1c             # NPC 8 个版本地图（SANDBOX_MAP_DIR 指过去）
+uv run python scripts/replay.py --date 2026-11-06 --town main                   # B19 可复现回放 + 差值表
+uv run python scripts/inspect_runstation.py                                    # 运行台每日巡检行（只读日志 + /admin/metrics）
 uv run python scripts/gen_map.py                                              # 重新生成地图
 ```
 
