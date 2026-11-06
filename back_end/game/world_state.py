@@ -294,6 +294,7 @@ def remove_player(player_id: str) -> None:
         _last_used.pop(player_id, None)
         _use_history.pop(player_id, None)
         _phone_feed.pop(player_id, None)
+        _recent_events.pop(player_id, None)
     from game import self_sync
     self_sync.unregister(player_id)
 
@@ -356,6 +357,7 @@ def get_all_players_snapshot() -> list[dict]:
             "state":    p["state"],
             "controller": p.get("controller", "human"),
             "online":     p.get("online", True),
+            "agent_id":   p.get("agent_id"),          # §3.11 A1：自我层 agent↔player 映射
         }
         for p in _players.values()
     ]
@@ -564,12 +566,26 @@ def apply_effects(
     return {"applied": applied, "skipped": skipped}
 
 
-def apply_effects_to_player(entity_id: str, effects: list[dict], scene: str | None, source: str = "effects") -> dict | None:
-    """B13：POST /player/{id}/effects 入口。返回 player 副本或 None。"""
+_RECENT_EVENTS_MAX = 50
+_recent_events: dict[str, list[dict]] = {}     # entity -> 最近 /effects 推送（event / source / 时间）
+
+
+def get_recent_events(entity_id: str) -> list[dict]:
+    return list(_recent_events.get(entity_id, []))
+
+
+def apply_effects_to_player(entity_id: str, effects: list[dict], scene: str | None,
+                            source: str = "effects", event: str | None = None) -> dict | None:
+    """B13：POST /player/{id}/effects 入口。返回 player 副本或 None。event（§3.11 A2）只记录，供两边日志对账。"""
     with STATE_LOCK:
         player = _players.get(entity_id)
         if player is None:
             return None
+        from game.time_state import game_now_iso
+        buf = _recent_events.setdefault(entity_id, [])
+        buf.append({"event": event, "source": source, "scene": scene, "n_effects": len(effects), "game_time": game_now_iso()})
+        if len(buf) > _RECENT_EVENTS_MAX:
+            del buf[: len(buf) - _RECENT_EVENTS_MAX]
         # §3.9 第 4 条：自我层回推（source="self"）的变化不再上报，否则会被加两遍
         summary = apply_effects(player, effects, source=source, scene=scene, track=(source != "self"))
         return {"summary": summary, "player": copy.deepcopy(player)}
@@ -829,7 +845,7 @@ def _reset_for_tests() -> None:
     """清空全部运行时状态（测试用）。"""
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
-        _last_used.clear(); _use_history.clear(); _phone_feed.clear()
+        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear()
         for o in _OBJECTS:
             o["currentUsers"] = 0
             o["userList"] = []

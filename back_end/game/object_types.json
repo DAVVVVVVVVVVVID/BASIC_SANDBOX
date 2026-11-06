@@ -419,5 +419,218 @@
     "success_message": "直播开始了。",
     "failure_message": "直播台现在用不了。",
     "leave_message": "直播结束，你关掉了摄像头。"
+  },
+  "restaurant_table": {
+    "prototype": "continuous",
+    "name": "餐馆桌子",
+    "size": [
+      2,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": true,
+    "description": "餐馆里的四人桌，坐下就有人端菜上来，也最容易碰到熟人。",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "fullness_regen",
+        "value": 0.011111
+      },
+      {
+        "type": "buff",
+        "key": "social_regen",
+        "value": 0.004444
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": 0.001111
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.000556
+      },
+      {
+        "type": "tag",
+        "key": "dining"
+      }
+    ],
+    "advertise": {
+      "fullness": 55,
+      "social": 45,
+      "fun": 10
+    },
+    "max_users": 4,
+    "use_state_label": "{entity} 正在餐馆吃饭",
+    "max_duration": 2700,
+    "success_message": "你在餐馆坐下，点了今天的例菜。",
+    "failure_message": "这桌坐满了。",
+    "leave_message": "吃完了，你离开了餐馆。"
+  },
+  "bench": {
+    "prototype": "continuous",
+    "name": "长椅",
+    "size": [
+      2,
+      1
+    ],
+    "sprite": "sofa",
+    "interactable": true,
+    "description": "广场上的木长椅，能坐两个人，看人来人往。",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": 0.001667
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": 0.001667
+      },
+      {
+        "type": "buff",
+        "key": "social_regen",
+        "value": 0.001667
+      },
+      {
+        "type": "buff",
+        "key": "fullness_regen",
+        "value": -0.000278
+      },
+      {
+        "type": "tag",
+        "key": "resting"
+      }
+    ],
+    "advertise": {
+      "fun": 20,
+      "social": 25,
+      "energy": 15
+    },
+    "max_users": 2,
+    "use_state_label": "{entity} 坐在长椅上",
+    "max_duration": 3600,
+    "success_message": "你在长椅上坐下来。",
+    "failure_message": "长椅坐满了。",
+    "leave_message": "你从长椅上站起来。"
+  },
+  "fishing_spot": {
+    "prototype": "continuous",
+    "name": "钓位",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "well",
+    "interactable": true,
+    "description": "码头边的钓位，鱼竿已经架好了。",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": 0.005
+      },
+      {
+        "type": "buff",
+        "key": "mood_regen",
+        "value": 0.001111
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.000833
+      },
+      {
+        "type": "buff",
+        "key": "fullness_regen",
+        "value": -0.000556
+      },
+      {
+        "type": "tag",
+        "key": "fishing"
+      }
+    ],
+    "advertise": {
+      "fun": 35,
+      "mood": 15
+    },
+    "max_users": 1,
+    "use_state_label": "{entity} 正在钓鱼",
+    "max_duration": 7200,
+    "success_message": "你甩出鱼竿，等鱼上钩。",
+    "failure_message": "这个钓位有人了。",
+    "leave_message": "你收起鱼竿。"
+  },
+  "shop_counter": {
+    "prototype": "instant",
+    "name": "杂货店柜台",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": true,
+    "description": "杂货店的柜台，能买到零食和日用品，老板爱聊两句。",
+    "effects": [
+      {
+        "type": "instant_effect",
+        "key": "fullness",
+        "value": 15
+      },
+      {
+        "type": "instant_effect",
+        "key": "social",
+        "value": 6
+      },
+      {
+        "type": "instant_effect",
+        "key": "energy",
+        "value": -1
+      }
+    ],
+    "advertise": {
+      "fullness": 25,
+      "social": 15
+    },
+    "success_message": "你买了点零食，顺便和老板聊了两句。",
+    "failure_message": "柜台没人。"
   }
 }

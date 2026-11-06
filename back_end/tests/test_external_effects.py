@@ -148,14 +148,15 @@ def test_stream_desk_live_decay_rates_apply(client, fake_self, fake_clock):
     assert p["social"] == pytest.approx(50 - 0.12 * 60 + 20 / 60, abs=0.01)
 
 
-def test_stream_desk_human_local_only(client, fake_self):
+def test_stream_desk_human_live_unavailable(client, fake_self):
+    """§3.11 B4：阿蝉（人类）不能替她开播。"""
     pid = join(client, "h")
     place(pid, *STREAM_STAND)
-    assert action(client, pid, "use")["success"]
+    res = action(client, pid, "use")
+    assert res["success"] is False and res["reason"] == "live_unavailable"
+    assert "no_agent_id" in res["result"]["error"]
     assert fake_self.live_calls == []                                     # 没有 agent_id 不打自我层
-    assert world_state._players[pid]["scene"] == "live"
-    action(client, pid, "leave")
-    assert world_state._players[pid]["scene"] == "sandbox"
+    assert world_state._players[pid]["scene"] == "sandbox" and world_state._players[pid]["usingObjectId"] is None
 
 
 def test_remove_player_while_streaming_sends_stop(client, fake_self):

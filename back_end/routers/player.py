@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from game.world_state import (
     create_player, remove_player, get_player, touch_player, rejoin_player,
     get_player_buffs, clear_player_buffs, force_reset_player_state,
-    apply_effects_to_player, get_recent_uses, _players,
+    apply_effects_to_player, get_recent_uses, get_recent_events, _players,
 )
 
 router = APIRouter()
@@ -24,6 +24,7 @@ class EffectsRequest(BaseModel):
     effects: list[dict]                  # 与 object_types.json 同格式
     scene: Optional[str] = None          # "sandbox" | "live"，非空时切换衰减场景
     source: str = "effects"
+    event: Optional[str] = None          # §3.11 A2：事件名（如 viewer_praised），只记录供对账
 
 
 @router.post("/player/join")
@@ -73,6 +74,7 @@ def _state_view(p: dict) -> dict:
         "agent_id":     p.get("agent_id"),
         "last_tick_ts": p.get("last_tick_ts"),
         "recent_uses":  get_recent_uses(p["id"]),
+        "recent_events": get_recent_events(p["id"]),     # §3.11 A2：最近 /effects 推送的 event 记录
     }
 
 
@@ -90,10 +92,10 @@ def post_player_effects(player_id: str, body: EffectsRequest):
     """B13 ③：推送与 object_types.json 同格式的 effect 列表（直播服务经自我层推「观众进入 +12 social」等）。"""
     if body.scene is not None and body.scene not in ("sandbox", "live"):
         raise HTTPException(status_code=400, detail="scene must be 'sandbox' or 'live'")
-    res = apply_effects_to_player(player_id, body.effects, body.scene, source=body.source)
+    res = apply_effects_to_player(player_id, body.effects, body.scene, source=body.source, event=body.event)
     if res is None:
         raise HTTPException(status_code=404, detail=f"player not found: {player_id}")
-    return {"ok": True, **res["summary"], "state": _state_view(res["player"])}
+    return {"ok": True, **res["summary"], "event": body.event, "state": _state_view(res["player"])}
 
 
 # ── 管理接口 ──────────────────────────────────────────────────────────────────
@@ -123,6 +125,25 @@ def admin_checkpoint():
     """立即写一份 SQLite 检查点（B2），返回摘要。"""
     from game.persistence import save_checkpoint
     return {"ok": True, **save_checkpoint()}
+
+
+@router.get("/admin/metrics")
+def admin_metrics():
+    """运行指标：tick 耗时 / 间隔分位、玩家数、WebSocket 订阅数、进程 RSS（负载测试用）。"""
+    import resource
+    from game import ticker
+    from game.world_state import _players
+    try:
+        from routers.ws import hub
+        ws_clients = hub.client_count()
+    except Exception:
+        ws_clients = 0
+    return {
+        **ticker.metrics(),
+        "players": len(_players),
+        "ws_clients": ws_clients,
+        "rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),
+    }
 
 
 @router.get("/admin/self-sync")

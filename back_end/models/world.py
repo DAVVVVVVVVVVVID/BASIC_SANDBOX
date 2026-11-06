@@ -73,6 +73,7 @@ class OtherPlayer(BaseModel):
     state: str
     controller: Optional[str] = None   # B6
     online: Optional[bool] = None      # B6
+    agent_id: Optional[str] = None     # §3.11 A1
 
 
 class WorldData(BaseModel):

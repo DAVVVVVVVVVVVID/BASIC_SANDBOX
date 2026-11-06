@@ -61,6 +61,7 @@
 | `id` / `name` / `position` / `facing` / `state` | 不变 |
 | `controller` | **B6** `"human"` \| `"agent"` |
 | `online` | **B6** agent 10 s 无心跳为 `false`（身体仍在原地、仍参与 tick）；human 无心跳直接从列表消失 |
+| `agent_id` | **W4（§3.11 A1）** 自我层 agent id（join 时 `profile.agent_id`），human 为 `null`；自我层据此做 agent↔player 映射 |
 
 ---
 
@@ -173,6 +174,7 @@
 | 字段 | 说明 |
 |------|------|
 | `recent_uses` | **B5** 6 游戏小时内各物品的使用次数（供 novelty 折减） |
+| `recent_events` | **W4** 最近 50 条 `POST /player/{id}/effects` 的 `{event, source, scene, n_effects, game_time}` |
 
 ---
 
@@ -199,9 +201,10 @@
 |------|------|
 | `effects[]` | 见 §5「Object Effect」。支持 `instant_effect`、`buff`（任意 handler key，含 `<var>_regen` / `<var>_delta` / `emotion_tag` / `closeness_delta`）、`tag`，以及简写 `{"type":"<var>_delta"}` / `{"type":"closeness_delta"}` / `{"type":"emotion_tag"}`。不认识的 key 计入 `skipped` |
 | `scene` | 可选 `"sandbox"` \| `"live"`，非空即切换该 player 的衰减场景；其他值 400 |
-| `source` | 可选，写进 buff 的 `source`，默认 `"effects"` |
+| `source` | 可选，写进 buff 的 `source`，默认 `"effects"`。**`"self"`（自我层回推）时变化不计入 vars_delta** |
+| `event` | **W4（§3.11 A2）** 可选事件名（如 `viewer_praised`），只记录不参与运算；出现在响应与 `GET /player/{id}/state` 的 `recent_events`（最近 50 条 `{event, source, scene, n_effects, game_time}`）供两边日志对账 |
 
-**响应：** `{ "ok": true, "applied": 6, "skipped": 0, "state": { ...与 GET /player/{id}/state 相同... } }`；player 不存在 404。
+**响应：** `{ "ok": true, "applied": 6, "skipped": 0, "event": "viewer_praised", "state": { ...与 GET /player/{id}/state 相同... } }`；player 不存在 404。
 
 ---
 
@@ -588,7 +591,7 @@
 | `object_full` | 对象已满（仅 continuous），`result.message` 为对象的 `failureMessage` |
 | `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message` |
 | `feed_unavailable` | **B10** 手机（`external: feed`）拉自我层 `GET /self/feed` 失败（不可达 / 超时 3 s）。`result.message` 为「手机没信号…」，`result.phone.status = "no_signal"`；物品仍算使用过（有冷却），其余 instant 效果已结算 |
-| `live_unavailable` | **B11** 直播台（`external: live`）向自我层 `POST /self/live/start` 失败。不进入物品、不计冷却，`result.error` 为错误摘要 |
+| `live_unavailable` | **B11** 直播台（`external: live`）向自我层 `POST /self/live/start` 失败，**或使用者是人类玩家（没有 `agent_id`，§3.11 B4：阿蝉不能替她开播）**。不进入物品、不计冷却，`result.error` 为错误摘要 |
 
 **手机 use 成功时** `result` 多两个字段：`message` = digest 文字（「手机上有 N 条新动态：…」/「手机上没有新消息。」），`phone` = 与 `GET /agent/perceive` 的 `phone` 相同的 digest 对象。
 | `use_disabled` | 当前无法使用对象（buff 限制）|
@@ -646,7 +649,8 @@
 - 每 5 s 以及进程正常关停时，后端把全部运行时状态写入 SQLite 检查点 `data/sandbox.db`（players、object 使用状态、时间锚点、chat 请求与房间、`meta.last_tick_ts`）。启动时若有检查点则回填，并按停机时长补算一次 tick（`dt ≤ 8 游戏小时`，running=false 时不补）。`kill -9` 最多丢最后 5 s 的变化。
 - 停机补算分段（§3.7 裁定 5）：前 4 游戏小时全量（物品 buff + 衰减）；4–8 h 只补 social / fun / mood / closeness 的衰减，fullness / energy 不再扣（她离线等于在睡，假设）。
 - 数据目录默认 `back_end/data/`，环境变量 `SANDBOX_DATA_DIR` 可改。
-- 未来可升级为 WebSocket 实时推送。
+- **多实例（W4）**：一机多镇时每个实例用不同端口 + 不同 `SANDBOX_DATA_DIR`（检查点 `sandbox.db`、`actions/*.jsonl`、pid 文件都在该目录内，进程间没有共享全局文件；日志走 stdout 或 `run_town.sh --log`）。`back_end/scripts/run_town.sh --port 8010 --data run/data/m2a [--self-url http://127.0.0.1:8310] [--cors ...]` 一键起一个镇，端口被占直接拒绝。CORS 白名单走环境变量 `SANDBOX_CORS_ORIGINS`（逗号分隔，默认 `http://localhost:5173,http://127.0.0.1:5173`）。
+- 实时推送见 §8 `GET /ws/world`。
 
 ### 与自我层同步（§2.5）
 
@@ -761,7 +765,7 @@
 - `front_object`：正前方一格的 object 信息，无 object 时为 `null`
 - `players_in_view`（**B13**）：视野正方形内的其他 player
 - `phone`（**B10**）：最近一次刷手机的信息流摘要，没刷过为 `null`：`{"status": "ok" | "no_signal", "items": [{"ts", "topic", "sentiment", "is_question", "is_song_request", "summary", "injection"}], "digest_ts", "fetched_at", "for"}`。只有自我层 Quarantine 后的 digest 字段，**不含 id / source / author / 原文**（沙盒侧再做一次白名单过滤）
-- `needs`（**B13**）：**只给分档文字，不给数值**（报告 §4.3）。阈值 low 25 / critical 15 / emergency 10；文案与自我层 `state.py` 的 `LABELS` 同源（沿用 mood.py `label()`）。`<var>` 未越阈值为 `"还好"`；`mood` < 35 为「有点委屈…」、> 75 为「开心」；`lines` 是越过阈值的全部文字（含 emotion_tags），`hard` 是 `<var><15` 的硬约束；`closeness` 对视野内 player 分档（≥70 很亲近 / ≥40 熟悉 / ≥15 认识 / 其余 陌生，阈值为假设）；`recent_uses` 同 `GET /player/{id}/state`
+- `needs`（**B13**）：**只给分档文字，不给数值**（报告 §4.3）。阈值 low 25 / critical 15 / emergency 10；文案与自我层 `state.py` 的 `LABELS` 同源（沿用 mood.py `label()`）。`<var>` 未越阈值为 `"还好"`；`mood` < 35 为「有点委屈…」、> 75 为「开心」；`lines` 是越过阈值的全部文字（含 emotion_tags），`hard` 是 `<var><15` 的硬约束；`closeness` 对视野内 player 分档，形状固定为 **`{entity_id: {"name", "tier"}}`**（§3.11 第 9 条；tier ≥70 很亲近 / ≥40 熟悉 / ≥15 认识 / 其余 陌生，阈值为假设，整个 `needs` 块里没有任何数值）；`recent_uses` 同 `GET /player/{id}/state`
 
 ---
 
@@ -909,7 +913,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `buff` | continuous | 进入时创建，离开/计时结束时移除 | 见上方 Buff 结构；mode 可为 `persistent` 或 `timed` |
 | `instant_effect` | instant / continuous | 进入时一次性结算，不进 buff 列表 | `key` 为七变量之一（`fullness` / `energy` / `social` / `fun` / `mood`；`hp` 视为 `fullness`），`value` 为变化量，结果 clamp 到 0–100 |
 | `tag` | continuous | 进入时加入，离开时移除 | 纯标记字符串，不参与运算 |
-| `external` | instant / continuous | use 时调自我层 | **B10 / B11** `key = "feed"`：`GET {SELF_URL}/self/feed?for=<agent_id>&n=8`，结果进 `result.phone` 与 perceive 的 `phone`；`key = "live"`：use → `POST /self/live/start`（失败则 use 失败 `live_unavailable`），leave → `POST /self/live/stop`（后台发送、不可失败），使用期间 `player.scene = "live"`。没有 `agent_id` 的人类玩家：feed 用 player id 查，live 只做本地 scene 切换、不打自我层（假设） |
+| `external` | instant / continuous | use 时调自我层 | **B10 / B11** `key = "feed"`：`GET {SELF_URL}/self/feed?for=<agent_id>&n=8`，结果进 `result.phone` 与 perceive 的 `phone`；`key = "live"`：use → `POST /self/live/start`（失败则 use 失败 `live_unavailable`），leave → `POST /self/live/stop`（后台发送、不可失败），使用期间 `player.scene = "live"`。没有 `agent_id` 的人类玩家：feed 用 player id 查；**live 直接 `live_unavailable`**（§3.11 B4） |
 
 > instant 原型的 `effects` 中，`buff` 只允许 `timed` mode 与一次性 key（`<var>_delta` / `emotion_tag` / `closeness_delta`）；`persistent` buff 和 `tag` 被忽略（没有 leave 时机）。
 
@@ -931,6 +935,12 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `book` | instant | fun +60（≈ 日衰减 / 4 次）；energy −2 | fun 40 | — |
 | `phone` | instant | `external: feed`；fun +15、social +5；energy −2 | fun 10、social 3 | — |
 | `stream_desk` | continuous | `external: live`；social +20/h、fun +8/h；energy −6/h、fullness −3/h；`no_move`、tag `streaming` | social 70、fun 40 | 3 h（假设） |
+| `restaurant_table` | continuous，**`max_users` 4** | **W4 B16 续** fullness +40/h、social +16/h、fun +4/h；energy −2/h；tag `dining` | fullness 55、social 45、fun 10 | 45 min |
+| `bench` | continuous，**`max_users` 2** | **W4** energy +6/h、fun +6/h、social +6/h；fullness −1/h；tag `resting` | fun 20、social 25、energy 15 | 1 h |
+| `fishing_spot` | continuous，`max_users` 1 | **W4** fun +18/h、mood +4/h；energy −3/h、fullness −2/h；tag `fishing` | fun 35、mood 15 | 2 h |
+| `shop_counter` | instant | **W4** fullness +15、social +6；energy −1 | fullness 25、social 15 | — |
+
+所有 continuous 类型都带 `max_users`（`GET /world` 的 `maxUsers`）；社交物品靠多人同用产生「在同一处」的 `players_in_view`。地图上：餐馆（sector `restaurant`：`dining` 两张四人桌 + `rest_kitchen` fridge）、广场两条长椅、码头两个钓位、杂货店柜台（替代原 desk），四个 NPC 家各有 fridge；共 30 个物品，全部从出生点 BFS 可达。
 
 ### Object 原型
 
@@ -1000,6 +1010,19 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 ---
 
+### GET /admin/metrics
+
+**W4** 运行指标（负载测试用）：最近 600 次 tick 的耗时 / 间隔分位、玩家数、WebSocket 订阅数、进程 RSS。
+
+```json
+{ "tick_count": 9000, "interval_target_ms": 200.0,
+  "tick_duration_ms": { "p50": 0.1, "p95": 0.2, "max": 14.7 },
+  "tick_gap_ms": { "p50": 200.4, "p95": 201.3, "max": 214.6 },
+  "running": true, "players": 6, "ws_clients": 1, "rss_mb": 68.2 }
+```
+
+---
+
 ### GET /admin/self-sync
 
 自我层同步状态（联调用）。
@@ -1009,6 +1032,45 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
   "drift_max": 0.023, "drift_last": { "fullness": 0.001, "energy": 0.0, "social": -0.002, "fun": 0.0, "mood": 0.0 },
   "last_error": null, "last_ok_ts": 1762440180.2, "pending": { "鲸仔_a1b2c3": { "energy": 0.4 } }, "queue": 0 }
 ```
+
+---
+
+## 8. WebSocket 推送（B17，W4）
+
+### GET /ws/world
+
+只读 WebSocket。连接后先发全量，之后 **≤ 10 Hz** 推送变化；字段与 `GET /world` 同名、同形状（经同一个响应模型序列化）。客户端发来的任何消息都被忽略，不接受写操作；写仍走 `POST /action`。
+
+**连接时（全量）：**
+```json
+{ "type": "snapshot", "ts": "2026-11-06T21:03:00+08:00",
+  "tiles": [...], "objects": [...], "worldState": {...}, "players": [...], "tiled": null }
+```
+
+**之后（增量，只带变化的部分，每项可选）：**
+```json
+{ "type": "patch", "ts": "2026-11-06T21:03:00+08:00",
+  "worldState": { "time": "21:03:00", "period": "dusk" },
+  "players": { "upsert": [ { "id": "鲸仔_a1b2c3", "name": "鲸仔", "position": {"x": 6, "y": 9}, "facing": "down",
+                             "state": "walking_over", "controller": "agent", "online": true, "agent_id": "whale" } ],
+               "remove": [ "human_9f8e7d" ] },
+  "objects": [ { "id": "bed_whale", "currentUsers": 1, "userList": ["鲸仔_a1b2c3"] } ],
+  "chat": [ { "chat_room_id": "def456", "participants": ["鲸仔_a1b2c3", "achan_1a2b3c"], "kind": "message", "seq": 3,
+              "from_entity_id": "achan_1a2b3c", "from_name": "阿蝉", "content": "晚饭吃什么", "timestamp": "..." },
+            { "chat_room_id": "def456", "participants": [...], "kind": "event", "seq": 4, "type": "player_exit",
+              "from_entity_id": "achan_1a2b3c", "timestamp": "..." } ] }
+```
+
+| 字段 | 说明 |
+|---|---|
+| `worldState` | 只含变化的键（`time` 每秒变、`period` / `date` / `running` / `speed` / `weather` 偶尔变） |
+| `players.upsert` | 变化了的 player，元素与 `GET /world` 的 `players[]` 同形状（含 `controller` / `online` / `agent_id`）；新 join 的也在这里 |
+| `players.remove` | 消失的 player id（leave / 心跳超时） |
+| `objects` | `currentUsers` / `userList` 变化了的物品；静态字段（位置、effects、advertise）看 snapshot |
+| `chat` | 连接之后新产生的聊天消息（`kind: "message"`）与房间事件（`kind: "event"`：`player_exit` / `room_limit`），按 `seq` 升序，给前端气泡用。连接前的历史不重放，要历史走 `GET /chat/room/{id}` |
+
+空闲 5 s 没有变化时发 `{"type": "heartbeat", "ts": ...}`。多个客户端共享同一份 diff 计算；没有订阅者时不计算。
+对账：`cd back_end && uv run python scripts/verify_ws.py --seconds 60`（订阅并叠加 patch，与每秒轮询 `GET /world` 比较，W4 实测 44 次比较 0 不一致）。
 
 ---
 

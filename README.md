@@ -45,13 +45,16 @@ BASIC_SANDBOX/
 │   │   ├── agent.py           # Agent 感知与导航接口（/agent/...）
 │   │   ├── events.py          # GET /events
 │   │   ├── history.py         # GET /history，GET /history/log（JSONL 全量）
+│   │   ├── ws.py              # GET /ws/world 只读推送（B17）
 │   │   └── time_control.py    # POST /time/toggle|speed|reset
 │   ├── scripts/
 │   │   ├── verify_restart.py  # kill -9 后重启续跑验证脚本
 │   │   ├── verify_self_sync.py # 与自我层 delta 同步联调脚本
 │   │   ├── verify_external.py # 手机 / 直播台对自我层联调
-│   │   ├── soak.py            # 稳定性复现
-│   │   └── gen_map.py         # 地图生成器（阿蝉家 + 小镇）
+│   │   ├── soak.py            # 稳定性复现 / 负载（--agents --ws）
+│   │   ├── verify_ws.py       # /ws/world 推送对账
+│   │   ├── run_town.sh        # 一机多镇：起一个独立实例
+│   │   └── gen_map.py         # 地图生成器（阿蝉家 + 小镇 + 餐馆）
 │   ├── tests/                 # pytest（uv run pytest）
 │   ├── data/                  # 运行时生成：sandbox.db 检查点、actions/*.jsonl（不进 git）
 │   ├── models/
@@ -151,6 +154,13 @@ BASIC_SANDBOX/
 - **advertise**：每种 Object 的广告值 `{var: 0–100}`，随 `GET /world` 下发给规划器；每个物品至少一项成本；同一物品 30 游戏分钟冷却
 - **external**：`phone`（use 拉自我层 `/self/feed` 摘要进 perceive 的 `phone`）与 `stream_desk`（use 开播 / leave 下播，期间按 live 速率衰减）
 - 数值为**每游戏小时尺度**：睡 8 h energy ≈ +200，一顿饭 fullness +40，一本书 fun +60（见 api-spec §5）
+- **社交物品**（W4）：餐馆四人桌（`max_users` 4）、广场长椅（2 人）、码头钓位、杂货店柜台；NPC 家各有 fridge
+
+### 实时推送与多实例
+
+- `GET /ws/world`：只读 WebSocket，连接发全量，之后 ≤ 10 Hz 推 world / players / objects / chat 的变化（字段与 `GET /world` 同名），给前端用；写仍走 `POST /action`
+- 一机多镇：`back_end/scripts/run_town.sh --port 8010 --data run/data/m2a`，每个实例独立端口 + 独立 `SANDBOX_DATA_DIR`，无共享文件；`SANDBOX_CORS_ORIGINS` 配前端来源
+- `GET /admin/metrics`：tick 耗时 / 间隔分位、玩家数、WS 订阅数、RSS
 
 ### 需求值与自我层
 
@@ -245,6 +255,7 @@ POST /action
 | `POST /admin/player/force-reset` | 离开当前对象并清除所有 buff / tag，状态归 idle |
 | `POST /admin/checkpoint` | 立即写一份 SQLite 检查点 |
 | `GET /admin/self-sync` | 自我层同步状态（发送 / 失败 / drift / 待发） |
+| `GET /admin/metrics` | tick 耗时 / 间隔分位、玩家数、WS 订阅数、RSS |
 
 > 当 Agent 循环意外中断导致玩家被 `no_move` / `no_interact` / `no_use` buff 卡住时，调用 `force-reset` 即可恢复。
 
@@ -278,6 +289,8 @@ uv run python scripts/verify_self_sync.py --self-url http://127.0.0.1:8100   # �
 uv run python scripts/verify_self_sync.py --mock                             # 没有自我层时用内置参考实现自测
 uv run python scripts/verify_external.py --self-url http://127.0.0.1:8100     # B10 手机 / B11 直播台对自我层联调（自测沙盒起 8001）
 uv run python scripts/soak.py --minutes 30 --rounds 3                         # 稳定性：长时间驱动，监控进程是否意外退出
+uv run python scripts/soak.py --minutes 30 --rounds 1 --agents 6 --ws 1       # 负载：6 名 agent + 1 个 WS 订阅，记 p95 / tick / RSS
+uv run python scripts/verify_ws.py --seconds 60                               # /ws/world 推送与轮询对账
 uv run python scripts/gen_map.py                                              # 重新生成地图
 ```
 

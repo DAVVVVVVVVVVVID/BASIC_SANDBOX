@@ -24,11 +24,24 @@ _last_real: float | None = None
 _last_checkpoint: float = 0.0
 _task: asyncio.Task | None = None
 _tick_count = 0
+# 指标：最近 N 次 tick 的耗时与间隔（毫秒），供 GET /admin/metrics
+_METRICS_N = 600
+_durations_ms: list[float] = []
+_gaps_ms: list[float] = []
+_last_tick_wall: float | None = None
 
 
 def tick_once(now_real: float | None = None, *, checkpoint: bool = True) -> float:
     """执行一次 tick，返回本次 game_delta_ms。可注入 now_real（测试）。"""
     global _last_real, _last_checkpoint, _tick_count
+    global _last_tick_wall
+    t_start = time.perf_counter()
+    wall = time.time()
+    if _last_tick_wall is not None:
+        _gaps_ms.append((wall - _last_tick_wall) * 1000.0)
+        if len(_gaps_ms) > _METRICS_N:
+            del _gaps_ms[: len(_gaps_ms) - _METRICS_N]
+    _last_tick_wall = wall
     now = now_real if now_real is not None else time_state.now_real()
     if _last_real is None:
         _last_real = now
@@ -49,7 +62,30 @@ def tick_once(now_real: float | None = None, *, checkpoint: bool = True) -> floa
         except Exception:        # 检查点失败不能把 tick 拖死
             log.exception("checkpoint failed")
         _last_checkpoint = now
+    _durations_ms.append((time.perf_counter() - t_start) * 1000.0)
+    if len(_durations_ms) > _METRICS_N:
+        del _durations_ms[: len(_durations_ms) - _METRICS_N]
     return game_delta_ms
+
+
+def _pct(xs: list[float], q: float) -> float:
+    if not xs:
+        return 0.0
+    s = sorted(xs)
+    return s[min(len(s) - 1, int(round(q * (len(s) - 1))))]
+
+
+def metrics() -> dict:
+    """tick 耗时 / 间隔统计（最近 600 次 ≈ 2 分钟）。"""
+    return {
+        "tick_count": _tick_count,
+        "interval_target_ms": TICK_INTERVAL * 1000.0,
+        "tick_duration_ms": {"p50": round(_pct(_durations_ms, 0.5), 3), "p95": round(_pct(_durations_ms, 0.95), 3),
+                             "max": round(max(_durations_ms), 3) if _durations_ms else 0.0},
+        "tick_gap_ms": {"p50": round(_pct(_gaps_ms, 0.5), 1), "p95": round(_pct(_gaps_ms, 0.95), 1),
+                        "max": round(max(_gaps_ms), 1) if _gaps_ms else 0.0},
+        "running": is_running(),
+    }
 
 
 async def _loop() -> None:
@@ -89,7 +125,9 @@ def is_running() -> bool:
 
 
 def _reset_for_tests() -> None:
-    global _last_real, _last_checkpoint, _tick_count
+    global _last_real, _last_checkpoint, _tick_count, _last_tick_wall
     _last_real = None
     _last_checkpoint = 0.0
     _tick_count = 0
+    _last_tick_wall = None
+    _durations_ms.clear(); _gaps_ms.clear()

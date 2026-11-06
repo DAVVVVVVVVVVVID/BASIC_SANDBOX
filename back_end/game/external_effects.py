@@ -68,10 +68,13 @@ def fetch_feed(player: dict, game_iso: str) -> dict:
 
 
 def live_start(player: dict, game_iso: str) -> dict:
-    """返回 {"ok": bool, "error"?: str, "resp"?: dict}。没有 agent_id（人类玩家）只做本地切换。"""
+    """返回 {"ok": bool, "error"?: str, "resp"?: dict}。
+    没有 agent_id（人类玩家）→ 失败（§3.11 B4：阿蝉不能替她开播）；SELF_SYNC 关闭 → 失败。"""
     agent = _agent_for(player)
-    if not agent or not self_sync.enabled():
-        return {"ok": True, "local_only": True}
+    if not agent:
+        return {"ok": False, "error": "no_agent_id: only agent players can stream"}
+    if not self_sync.enabled():
+        return {"ok": False, "error": "self_sync_disabled"}
     try:
         with self_sync._client() as c:
             r = c.post("/self/live/start", json={"agent": agent, "ts": game_iso})

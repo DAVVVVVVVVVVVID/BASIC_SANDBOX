@@ -23,7 +23,8 @@ world  = [["A"] * W for _ in range(H)]
 sector = [["A"] * W for _ in range(H)]
 arena  = [["A"] * W for _ in range(H)]
 
-SECTORS = {"A": "outside", "B": "achan_house", "C": "cook_house", "D": "grocer_house", "E": "fisher_house", "F": "regular_house"}
+SECTORS = {"A": "outside", "B": "achan_house", "C": "cook_house", "D": "grocer_house", "E": "fisher_house", "F": "regular_house",
+           "G": "restaurant"}
 ARENAS = {
     "A": "grass", "K": "road", "S": "square", "P": "park", "L": "water", "M": "dock",
     "a": "storage", "b": "achan_room", "c": "kitchen",
@@ -31,20 +32,23 @@ ARENAS = {
     "g": "grocer_shop", "h": "grocer_bedroom",
     "i": "fisher_hut",
     "j": "regular_bedroom", "k": "regular_bath",
+    "r": "dining", "s": "rest_kitchen",
 }
 ZONE_NAMES = {
     "world": {"town": "鲸仔小镇"},
     "sector": {"outside": "小镇", "achan_house": "阿蝉家", "cook_house": "厨子家", "grocer_house": "杂货商家",
-               "fisher_house": "渔夫小屋", "regular_house": "常客家"},
+               "fisher_house": "渔夫小屋", "regular_house": "常客家", "restaurant": "餐馆"},
     "arena": {"grass": "草地", "road": "街道", "square": "广场", "park": "公园", "water": "河", "dock": "码头",
               "storage": "小仓库", "achan_room": "阿蝉房间", "kitchen": "厨房",
               "cook_bedroom": "厨子的卧室", "cook_kitchen": "厨子的厨房",
               "grocer_shop": "杂货店", "grocer_bedroom": "杂货商的卧室",
-              "fisher_hut": "渔夫的小屋", "regular_bedroom": "常客的卧室", "regular_bath": "常客的浴室"},
+              "fisher_hut": "渔夫的小屋", "regular_bedroom": "常客的卧室", "regular_bath": "常客的浴室",
+              "dining": "餐馆大堂", "rest_kitchen": "餐馆后厨"},
 }
 objects: list[dict] = []
 SIZES = {"bed": (1, 2), "bed_21": (2, 1), "bath": (1, 2), "fridge": (1, 1), "desk": (1, 1), "desk_12": (1, 2),
-         "book": (1, 1), "phone": (1, 1), "stream_desk": (1, 1)}
+         "book": (1, 1), "phone": (1, 1), "stream_desk": (1, 1),
+         "restaurant_table": (2, 1), "bench": (2, 1), "fishing_spot": (1, 1), "shop_counter": (1, 1)}
 
 
 def fill(x0, y0, x1, y1, ch=None, sec=None, ar=None):
@@ -122,21 +126,37 @@ obj("desk_cook",   "desk",   42, 14)
 # ── 杂货商家（sector D，街南、西侧）(16,23)-(27,33) ────────────────────────────
 house(16, 23, 27, 33, "D", rooms=[(17, 24, 26, 27, "g"), (17, 29, 26, 32, "h")], doors=[(21, 23)])
 wall_line(17, 28, 26, 28, door_at=(21, 28))
-obj("desk_grocer", "desk",   26, 24)                    # 柜台
+obj("counter_grocer", "shop_counter", 26, 24)          # 柜台（instant：买零食）
+obj("fridge_grocer",  "fridge",       17, 24)
 obj("bed_grocer",  "bed",    17, 30)
 obj("book_grocer", "book",   26, 32)
 
 # ── 渔夫小屋（sector E，码头边）(44, 22)-(52, 28) ──────────────────────────────
 house(44, 22, 52, 28, "E", rooms=[(45, 23, 51, 27, "i")], doors=[(48, 22)])
-obj("bed_fisher",  "bed_21", 45, 23)
-obj("book_fisher", "book",   51, 27)
+obj("bed_fisher",    "bed_21", 45, 23)
+obj("book_fisher",   "book",   51, 27)
+obj("fridge_fisher", "fridge", 51, 23)
 
 # ── 常客家（sector F，街南、东侧）(30, 32)-(43, 39) ────────────────────────────
 house(30, 32, 43, 38, "F", rooms=[(31, 33, 37, 37, "j"), (39, 33, 42, 37, "k")], doors=[(34, 32)])
 wall_line(38, 33, 38, 37, door_at=(38, 35))
-obj("bed_regular",  "bed",  31, 33)
-obj("desk_regular", "desk", 37, 37)
-obj("bath_regular", "bath", 42, 33)
+obj("bed_regular",    "bed",    31, 33)
+obj("desk_regular",   "desk",   37, 37)
+obj("bath_regular",   "bath",   42, 33)
+obj("fridge_regular", "fridge", 31, 37)
+
+# ── 餐馆（sector G，码头南）(44, 30)-(53, 38)：大堂两张四人桌 + 后厨 ───────────
+house(44, 30, 53, 38, "G", rooms=[(45, 31, 52, 35, "r"), (45, 37, 52, 37, "s")], doors=[(48, 30)])
+wall_line(45, 36, 52, 36, door_at=(48, 36))
+obj("table_rest_1", "restaurant_table", 46, 32)          # 站 (46,33)/(47,33) 朝 up 或 (46,31)/(47,31) 朝 down
+obj("table_rest_2", "restaurant_table", 50, 32)
+obj("fridge_rest",  "fridge", 52, 37)
+
+# ── 广场长椅、码头钓位 ─────────────────────────────────────────────────────────
+obj("bench_square_1", "bench", 32, 25)
+obj("bench_square_2", "bench", 38, 25)
+obj("fishing_spot_1", "fishing_spot", 53, 17)            # 站 (52,17) 朝 right
+obj("fishing_spot_2", "fishing_spot", 53, 19)
 
 PLAYER_START = {"x": 6, "y": 9, "facing": "down"}        # 小仓库中央
 

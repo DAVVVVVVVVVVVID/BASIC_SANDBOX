@@ -123,6 +123,10 @@ type ContinuousObject = {
 
 全部物品改为每游戏小时尺度：一次正常使用的恢复量 ≈ 该变量一日衰减量（bed +25 energy/h × 8 h ≈ 200；fridge +40 fullness ≈ 日衰减 / 3 餐；book +60 fun ≈ 日衰减 / 4 次）。表见 api-spec §5。
 
+### 多人物品（max_users，W4）
+
+continuous 物品都带 `max_users`（`GET /world` 的 `maxUsers`）：餐馆桌子 4、长椅 2、其余 1。满员时 use 返回 `object_full`。
+
 ### 广告值（advertise，B5）
 
 每个 Object 类型可带 `advertise: { fullness?: number, energy?: number, social?: number, fun?: number, mood?: number }`（0–100），表示它「宣称」能满足哪些需求，供规划器软偏好打分；随 `GET /world` 下发。每个类型至少有一项负向效果作为成本（如 fridge `fun −2`、bed `fun_regen −0.05`）。同一实体对同一物品 30 游戏分钟内再次 use 返回 `object_cooldown`。

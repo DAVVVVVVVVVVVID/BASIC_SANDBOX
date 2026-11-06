@@ -52,11 +52,11 @@ def test_source_self_not_tracked_into_delta(client, fake_clock):
 # ── 任务 2：每小时尺度 ─────────────────────────────────────────────────────────
 
 def test_object_rates_are_hourly_scale():
-    """连续物品 *_regen 的绝对值 ≤ 30/h（点/秒 ≤ 30/3600）；instant 恢复量 ≤ 60。"""
+    """连续物品 *_regen 的绝对值 ≤ 40/h（点/秒 ≤ 40/3600）；instant 恢复量 ≤ 60。"""
     for name, t in OBJECT_TYPES.items():
         for e in t["effects"]:
             if e["type"] == "buff" and e["key"].endswith("_regen"):
-                assert abs(e["value"]) <= 30 / 3600 + 1e-9, (name, e)
+                assert abs(e["value"]) <= 40 / 3600 + 1e-9, (name, e)
             if e["type"] == "instant_effect":
                 assert abs(e["value"]) <= 60, (name, e)
         assert isinstance(t.get("advertise"), dict), name

@@ -1,9 +1,10 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import world, player, actions, events, history, time_control, agent, chat
+from routers import world, player, actions, events, history, time_control, agent, chat, ws
 from game import persistence, ticker, time_state, self_sync
 
 log = logging.getLogger("sandbox")
@@ -25,11 +26,13 @@ async def lifespan(app: FastAPI):
         log.info("no checkpoint; fresh world at %s", time_state.game_now_iso())
     ticker.start()
     self_sync.start()             # 自我层 delta 同步线程（SELF_SYNC=0 关闭）
+    ws.hub.start()                # B17：/ws/world 推送
     try:
         yield
     finally:
         # 关停：停 ticker，写最后一份检查点
         await ticker.stop()
+        await ws.hub.stop()
         self_sync.stop()
         try:
             persistence.save_checkpoint()
@@ -41,7 +44,8 @@ app = FastAPI(title="Town Game API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[o.strip() for o in os.environ.get(
+        "SANDBOX_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()],   # §3.11 B 小修 ④
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -54,3 +58,4 @@ app.include_router(history.router)
 app.include_router(time_control.router)
 app.include_router(agent.router)
 app.include_router(chat.router)
+app.include_router(ws.router)

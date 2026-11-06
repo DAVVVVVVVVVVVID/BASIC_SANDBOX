@@ -96,10 +96,18 @@
     }
   },
   {
-    "id": "desk_grocer",
-    "type": "desk",
+    "id": "counter_grocer",
+    "type": "shop_counter",
     "position": {
       "x": 26,
+      "y": 24
+    }
+  },
+  {
+    "id": "fridge_grocer",
+    "type": "fridge",
+    "position": {
+      "x": 17,
       "y": 24
     }
   },
@@ -136,6 +144,14 @@
     }
   },
   {
+    "id": "fridge_fisher",
+    "type": "fridge",
+    "position": {
+      "x": 51,
+      "y": 23
+    }
+  },
+  {
     "id": "bed_regular",
     "type": "bed",
     "position": {
@@ -157,6 +173,70 @@
     "position": {
       "x": 42,
       "y": 33
+    }
+  },
+  {
+    "id": "fridge_regular",
+    "type": "fridge",
+    "position": {
+      "x": 31,
+      "y": 37
+    }
+  },
+  {
+    "id": "table_rest_1",
+    "type": "restaurant_table",
+    "position": {
+      "x": 46,
+      "y": 32
+    }
+  },
+  {
+    "id": "table_rest_2",
+    "type": "restaurant_table",
+    "position": {
+      "x": 50,
+      "y": 32
+    }
+  },
+  {
+    "id": "fridge_rest",
+    "type": "fridge",
+    "position": {
+      "x": 52,
+      "y": 37
+    }
+  },
+  {
+    "id": "bench_square_1",
+    "type": "bench",
+    "position": {
+      "x": 32,
+      "y": 25
+    }
+  },
+  {
+    "id": "bench_square_2",
+    "type": "bench",
+    "position": {
+      "x": 38,
+      "y": 25
+    }
+  },
+  {
+    "id": "fishing_spot_1",
+    "type": "fishing_spot",
+    "position": {
+      "x": 53,
+      "y": 17
+    }
+  },
+  {
+    "id": "fishing_spot_2",
+    "type": "fishing_spot",
+    "position": {
+      "x": 53,
+      "y": 19
     }
   }
 ]
