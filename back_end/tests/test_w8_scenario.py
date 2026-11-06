@@ -125,10 +125,10 @@ def test_chat_ops_bypass_cooldown(client, bench):
 
 def test_remove_clear_cooldowns_and_unknown_op(client, bench, fake_clock):
     pid = join(client, "w")
-    place(pid, 3, 5, "up"); assert action(client, pid, "use")["success"]; action(client, pid, "leave")
-    assert world_state.object_cooldown_remaining(pid, BED_ID) > 0
+    place(pid, 10, 4, "up"); assert action(client, pid, "use")["success"]; action(client, pid, "leave")   # desk_whale（床类无冷却）
+    assert world_state.object_cooldown_remaining(pid, "desk_whale") > 0
     assert _run(client, [{"op": "clear_cooldowns", "player": pid}])["ok"]
-    assert world_state.object_cooldown_remaining(pid, BED_ID) == 0.0
+    assert world_state.object_cooldown_remaining(pid, "desk_whale") == 0.0
     r = _run(client, [{"op": "remove", "player": pid}])
     assert r["ok"] and pid not in world_state._players
     r = _run(client, [{"op": "fly"}])

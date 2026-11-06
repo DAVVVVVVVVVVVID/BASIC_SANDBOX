@@ -46,7 +46,8 @@
     "advertise": {
       "energy": 80,
       "fun": 0
-    }
+    },
+    "cooldown_s": 0
   },
   "bath": {
     "prototype": "continuous",
@@ -243,7 +244,8 @@
     "advertise": {
       "energy": 70,
       "fun": 0
-    }
+    },
+    "cooldown_s": 0
   },
   "book": {
     "prototype": "instant",

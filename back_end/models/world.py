@@ -79,6 +79,7 @@ class OtherPlayer(BaseModel):
     controller: Optional[str] = None   # B6
     online: Optional[bool] = None      # B6
     agent_id: Optional[str] = None     # §3.11 A1
+    away: Optional[bool] = None        # W8 Q0e：human 120 s 无输入
     stateLabel: Optional[str] = None   # E①
     usingObjectId: Optional[str] = None  # E①
     tags: List[str] = []               # E①

@@ -149,6 +149,8 @@ def perceive(
     for pid, other in _players.items():
         if pid == entity_id:
             continue
+        if other.get("away") or not other.get("online", True):      # W8 Q0e：away / 离线不算在场
+            continue
         ox, oy = other["position"]["x"], other["position"]["y"]
         if abs(ox - px) <= half and abs(oy - py) <= half:
             players_in_view.append({"id": pid, "name": other.get("name", pid),

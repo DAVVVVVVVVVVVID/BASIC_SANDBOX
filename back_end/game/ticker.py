@@ -52,6 +52,8 @@ def tick_once(now_real: float | None = None, *, checkpoint: bool = True) -> floa
     if game_delta_ms > 0:
         world_state._run_buff_tick_all(game_delta_ms)
     world_state._cleanup_stale_players()
+    with world_state.STATE_LOCK:
+        world_state._update_away()         # W8 Q0e：按墙钟，每 tick 都算（不依赖 game_delta）
     from game import chat_state
     chat_state.tick()                      # B9：邀请超时、walking_over 建房
     _tick_count += 1

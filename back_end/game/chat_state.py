@@ -490,6 +490,8 @@ def get_nearby_players(entity_id: str, players: dict, zone_lookup: dict) -> list
     for pid, p in players.items():
         if pid == entity_id:
             continue
+        if p.get("away") or not p.get("online", True):            # W8 Q0e：away / 离线不算在场
+            continue
         ppos = p["position"]
         p_arena = zone_lookup.get((ppos["x"], ppos["y"]), {}).get("arena")
         if p_arena == my_arena:

@@ -68,6 +68,7 @@
 | `controller` | **B6** `"human"` \| `"agent"` |
 | `online` | **B6** agent 10 s 无心跳为 `false`（身体仍在原地、仍参与 tick）；human 无心跳直接从列表消失 |
 | `agent_id` | **W4（§3.11 A1）** 自我层 agent id（join 时 `profile.agent_id`），human 为 `null`；自我层据此做 agent↔player 映射 |
+| `away` | **W8 Q0e** human 连续 120 s 无输入（动作 / `GET /player` / `POST heartbeat` / 聊天请求、响应、发言）→ `true`，任一输入即清；agent 恒 `false`。away 的人**不算在场**：perceive 的 `players_in_view` / `needs.closeness` 与 `GET /chat/nearby` 不列出，`POST /chat/request` 邀请到 away 的人返回 `{success:false, reason:"target_away", away:[ids]}`。`/ws/world` 的 `players.upsert` 同步带 |
 | `stateLabel` / `usingObjectId` / `tags` | **W5 E①** 与 `GET /player` 同义；前端叠加层（睡觉 / 吃饭 / 直播中）直接读，不必反查 userList |
 | `pos_seq` | **W5 E⑥** 位置单调序号：每次坐标实际变化 +1（转向不变），重启后保留；客户端预测校正用它排乱序 |
 
@@ -122,6 +123,7 @@
 | `closeness` | `{ entity_id: 0–100 }` 亲密度。来源：`closeness_delta` 效果；每游戏日 −1 |
 | `controller` | `"human"` \| `"agent"`，由 `POST /player/join` 的 `controller` 决定 |
 | `online` | **B6** 心跳状态。human 10 s 无心跳被删除；agent 只标 `false`，`GET /player/{id}` 或 `POST /player/rejoin` 恢复 `true` |
+| `away` | **W8 Q0e** 见 `GET /world` 的 `players[]` 字段表 |
 | `scene` | **B4** `"sandbox"` \| `"live"`，决定衰减速率；由 `POST /player/{id}/effects` 的 `scene` 切换（B11 直播台接入后由 use/leave 切） |
 | `agent_id` | controller=agent 时对接自我层的 agent id（`profile.agent_id`，缺省取 name 的 slug，假设）；human 为 `null` |
 | `last_tick_ts` | 上次 buff tick 的**游戏时刻**，ISO 8601 含时区（§3.7 裁定 3），如 `"2026-11-06T21:03:00+08:00"`；供自我层 catch_up 对账 |
@@ -655,7 +657,7 @@
 | `no_object_in_front` | 正前方没有对象 |
 | `not_interactable` | 对象不可交互，`result.message` 为对象的 `failureMessage` |
 | `object_full` | 对象已满（仅 continuous），`result.message` 为对象的 `failureMessage` |
-| `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message` |
+| `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message`。**W8 Q0e：床类（`bed` / `bed_21`）无冷却**（类型级 `cooldown_s: 0`），其余仍 30 分钟 |
 | `feed_unavailable` | **B10** 手机（`external: feed`）拉自我层 `GET /self/feed` 失败（不可达 / 超时 3 s）。`result.message` 为「手机没信号…」，`result.phone.status = "no_signal"`；物品仍算使用过（有冷却），其余 instant 效果已结算 |
 | `live_unavailable` | **B11** 直播台（`external: live`）向自我层 `POST /self/live/start` 失败，**或使用者是人类玩家（没有 `agent_id`，§3.11 B4：阿蝉不能替她开播）**。不进入物品、不计冷却，`result.error` 为错误摘要 |
 | `game_unavailable` | **B18（W6）** 游戏机（`external: game`）向 D 的 brain `GET {GAME_URL}/healthz` / `POST /event` 失败（不可达 / 超时 3 s / ok=false）。不进入物品、不计冷却，`result.error` 为错误摘要 |
@@ -1333,6 +1335,8 @@ POST /chat/request ──(cooldown?)──▶ {success:false, reason:"chat_coold
 ```json
 { "request_id": "abc123", "success": true }
 ```
+
+**受邀方 away / 离线（W8 Q0e）：** `{ "request_id": null, "success": false, "reason": "target_away", "away": ["<id>"] }`（先于冷却判断）。
 
 **冷却中（B9 ③）：** 发起方或任一受邀方在退出对话后 60 s 内，或这对人在 15 s 内刚聊过（**W6 任务 4：发起方是 `controller=human` 时不检查冷却**——作者 / 阿蝉随时可以找她说话；agent 发起仍受约束）：
 ```json

@@ -35,6 +35,7 @@ class Player(BaseModel):
     closeness: Dict[str, float] = {}            # entity_id -> 0–100
     controller: Literal["human", "agent"] = "human"
     online: bool = True                         # B6：agent 10 s 无心跳标 False，不删除
+    away: bool = False                          # W8 Q0e：human 120 s 无输入；agent 恒 False
     scene: Literal["sandbox", "live"] = "sandbox"   # B4：衰减速率按 scene
     agent_id: Optional[str] = None              # 自我层 agent id（controller=agent 时）
     last_tick_ts: str = ""                      # 上次 tick 的游戏时刻，ISO 8601（§3.7 裁定 3）

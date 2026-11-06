@@ -458,6 +458,8 @@ async def dispatch(body: ActionRequest):
     handler = _HANDLERS.get(body.action.type)
     if handler is None:
         raise HTTPException(status_code=400, detail=f"unknown action type: {body.action.type}")
+    from game.world_state import mark_input
+    mark_input(body.entityId)                                   # W8 Q0e：任何动作都是输入
 
     if asyncio.iscoroutinefunction(handler):
         result = await handler(body.entityId, body.action.payload)

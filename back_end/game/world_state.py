@@ -165,7 +165,9 @@ _phone_feed: dict[str, dict] = {}
 # B5：物品使用记录（游戏秒）
 _last_used:   dict[str, dict[str, float]]        = {}   # entity -> {obj_id: game_ts}
 _use_history: dict[str, list[tuple[float, str]]] = {}   # entity -> [(game_ts, obj_id), ...]
-OBJECT_COOLDOWN_S  = 30 * 60.0       # 同一物品 30 游戏分钟冷却
+OBJECT_COOLDOWN_S  = 30 * 60.0       # 同一物品 30 游戏分钟冷却（类型可用 cooldown_s 覆盖；床类为 0，W8 Q0e）
+AWAY_AFTER_S       = 120.0           # W8 Q0e：人类玩家 120 s 无输入标 away（agent 永不 away）
+_last_input: dict[str, float] = {}   # entity -> 最近一次「输入」（动作 / 心跳 / 聊天）的墙钟
 RECENT_USES_WINDOW_S = 6 * 3600.0    # 6 游戏小时内使用次数（novelty 折减用）
 
 # 后台 ticker（事件循环线程）与 FastAPI 同步路由（线程池）会并发访问以上字典，
@@ -274,6 +276,7 @@ def _make_player(
         "closeness":     {},
         "controller":    controller,
         "online":        True,                       # B6：agent 10 s 无心跳只标 False，不删除
+        "away":          False,                      # W8 Q0e：human 120 s 无输入 → True；agent 恒 False
         "scene":         "sandbox",                  # B4：衰减速率按 scene 切换（sandbox | live）
         "agent_id":      _agent_id_for(name, profile) if controller == "agent" else None,
         "last_tick_ts":  _iso_game_now(),
@@ -298,7 +301,7 @@ def _ensure_player_fields(player: dict) -> None:
     defaults = _make_player(player["id"], player.get("name", player["id"]),
                             controller=player.get("controller", "human"))
     for k in ("fullness", "energy", "social", "fun", "mood", "mood_base", "emotion_tags",
-              "closeness", "controller", "online", "scene", "agent_id", "last_tick_ts", "pos_seq"):
+              "closeness", "controller", "online", "away", "scene", "agent_id", "last_tick_ts", "pos_seq"):
         if k not in player:
             player[k] = player.get("hp", defaults[k]) if k == "fullness" else defaults[k]
     if not isinstance(player["last_tick_ts"], str):          # W1 的 float → ISO
@@ -337,6 +340,7 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
         _last_seen[player_id]        = time.time()
         _last_used.setdefault(player_id, {})
         _use_history.setdefault(player_id, [])
+        _last_input[player_id] = time.time()
     from game import state_log
     state_log.sample_now(player, "join")            # Q1：回放起点，消除 30 s 粒度歧义
     return copy.deepcopy(player)
@@ -391,6 +395,7 @@ def remove_player(player_id: str) -> None:
         _last_seen.pop(player_id, None)
         _last_used.pop(player_id, None)
         _use_history.pop(player_id, None)
+        _last_input.pop(player_id, None)
         _phone_feed.pop(player_id, None)
         _recent_events.pop(player_id, None)
     from game import self_sync
@@ -406,7 +411,34 @@ def touch_player(player_id: str, human_only: bool = False) -> bool:
         return False
     _last_seen[player_id] = time.time()
     p["online"] = True
+    mark_input(player_id)
     return True
+
+
+def mark_input(player_id: str) -> None:
+    """W8 Q0e：记录一次人类输入（动作 / 心跳 / 聊天），清 away。"""
+    p = _players.get(player_id)
+    if p is None:
+        return
+    _last_input[player_id] = time.time()
+    if p.get("away"):
+        p["away"] = False
+
+
+def _update_away() -> None:
+    """ticker 调：human 超过 AWAY_AFTER_S 无输入 → away=True。"""
+    now = time.time()
+    for pid, p in _players.items():
+        if p.get("controller") == "agent":
+            p["away"] = False
+            continue
+        last = _last_input.get(pid)
+        p["away"] = bool(last is not None and now - last > AWAY_AFTER_S)
+
+
+def is_present(player: dict) -> bool:
+    """在场 = 在线且没 away（perceive / nearby / 邀请用）。"""
+    return bool(player.get("online", True)) and not player.get("away", False)
 
 
 def _cleanup_stale_players() -> None:
@@ -463,6 +495,7 @@ def get_all_players_snapshot() -> list[dict]:
             "state":    p["state"],
             "controller": p.get("controller", "human"),
             "online":     p.get("online", True),
+            "away":       p.get("away", False),       # W8 Q0e
             "agent_id":   p.get("agent_id"),          # §3.11 A1：自我层 agent↔player 映射
             "stateLabel":    p.get("stateLabel"),      # E①
             "usingObjectId": p.get("usingObjectId"),   # E①
@@ -524,12 +557,20 @@ def _kick_closed_objects() -> None:
 
 # ── B5：冷却与使用计数 ────────────────────────────────────────────────────────
 
+def object_cooldown_s(obj: dict) -> float:
+    """类型级冷却：object_types.json 的 cooldown_s，缺省 OBJECT_COOLDOWN_S；床类为 0（W8 Q0e）。"""
+    t = OBJECT_TYPES.get(obj.get("type"), {})
+    return float(t.get("cooldown_s", OBJECT_COOLDOWN_S))
+
+
 def object_cooldown_remaining(entity_id: str, obj_id: str) -> float:
-    """同一物品 30 游戏分钟冷却：返回剩余游戏秒，0 表示可用。"""
+    """同一物品冷却（默认 30 游戏分钟，床类 0）：返回剩余游戏秒，0 表示可用。"""
     last = _last_used.get(entity_id, {}).get(obj_id)
     if last is None:
         return 0.0
-    return max(0.0, OBJECT_COOLDOWN_S - (game_now_ts() - last))
+    obj = get_object_by_id(obj_id)
+    cd = object_cooldown_s(obj) if obj else OBJECT_COOLDOWN_S
+    return max(0.0, cd - (game_now_ts() - last))
 
 
 def record_object_use(entity_id: str, obj_id: str) -> None:
@@ -1008,6 +1049,7 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
             _use_start_times[pid]  = row.get("use_start_time")
             _last_seen[pid] = now if grace_last_seen else (row.get("last_seen") or now)
             _last_used[pid] = {k: float(v) for k, v in (row.get("last_used") or {}).items()}
+            _last_input[pid] = now
             _use_history[pid] = [(float(t), o) for t, o in (row.get("use_history") or [])]
             if player.get("controller") == "agent":
                 self_sync.register(pid, game_now_ts())
@@ -1029,7 +1071,7 @@ def _reset_for_tests() -> None:
     """清空全部运行时状态（测试用）。"""
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
-        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear()
+        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear()
         for o in _OBJECTS:
             o["currentUsers"] = 0
             o["userList"] = []

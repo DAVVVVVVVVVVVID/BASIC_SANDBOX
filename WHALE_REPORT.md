@@ -55,7 +55,7 @@ max |diff| = 0.003  (threshold 0.5) → PASS
 ## 4. 测试与提交
 
 ```bash
-cd back_end && uv run pytest -q      # 243 passed（W7 的 181 + Q1 5 + Q0 24 + Q0b 10 + Q0c 22 + 回放同步点 1）
+cd back_end && uv run pytest -q      # 247 passed（W7 的 181 + Q1 5 + Q0 24 + Q0b 10 + Q0c 22 + Q0e 4 + 回放同步点 1）
 uv run python scripts/replay.py --date 2026-11-06 --town main      # max |diff| 0.003 → PASS（跨重启）
 uv run python scripts/inspect_runstation.py                        # §1 那一行
 ```
@@ -92,6 +92,12 @@ uv run python scripts/inspect_runstation.py                        # §1 那一�
 ## 5e. Q0d state 行加 tags（插队，同日）
 
 - `data/state/*.jsonl` 每行新增 `tags`（玩家当前 buff 标签：`sleeping / fishing / streaming / gaming / dining / resting / working / taking_bath / reading`），S02 看 `sleeping`、S07 看 `streaming`。数据契约只加字段；`/admin/export` 的 state 同步带。单测 1 例（use 床 → 下一样本 `["sleeping"]`，leave 后为空）。提交号见下。
+
+## 5f. Q0e 人类 away 与床类无冷却（插队，11-07）
+
+- **away**：human 连续 120 s 无输入（动作 / `GET /player` / `POST heartbeat` / 聊天请求、响应、发言）→ `away=true`，任一输入即清；agent 恒 false。按墙钟在每个 tick 更新（不依赖 game_delta）。away 的人不算在场：perceive 的 `players_in_view` / `needs.closeness`、`GET /chat/nearby` 不列出；邀请到 away 的人 → `reason=target_away`（先于冷却判断）。`GET /world` / `GET /player` / ws `players.upsert` 都带 `away`。回填后 `last_input` 置为现在（给 120 s 窗口）。
+- **床类无冷却**：`object_types.json` 新增类型级 `cooldown_s`（缺省 1800；`bed` / `bed_21` 为 0），`object_cooldown_remaining` 按类型取；其余物品不变。三个老冷却测试改用桌子。
+- 其余世界设定改动等 v1.0 定稿。单测 `tests/test_w8_q0e_away.py` 4 例（119 s 不 away / 121 s away / 三种输入清 away / agent 永不 away；away 不在 perceive、nearby，邀请 `target_away`，发邀请本身是输入；ws upsert 带 away；床立刻可再用而钓位仍冷却）。提交号见下。
 
 ## 6. 小队列余项
 

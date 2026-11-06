@@ -64,7 +64,12 @@ def post_chat_request(body: ChatRequestBody):
     """向一个或多个 Player 发起对话邀请，返回 request_id。"""
     if not body.to_entity_ids:
         raise HTTPException(status_code=400, detail="to_entity_ids cannot be empty")
+    from game.world_state import mark_input, is_present
+    mark_input(body.from_entity_id)
     from_player = _players_dict.get(body.from_entity_id, {})
+    away = [t for t in body.to_entity_ids if t in _players_dict and not is_present(_players_dict[t])]
+    if away:                                                    # W8 Q0e：away / 离线的人不接受邀请
+        return {"request_id": None, "success": False, "reason": "target_away", "away": away}
     # B9 ③；W6 任务 4：human（作者 / 阿蝉）发起不受冷却约束（受邀 agent 的冷却也不拦人类的邀请）
     remaining = 0.0 if from_player.get("controller") == "human" else chat_state.chat_cooldown_remaining(body.from_entity_id, body.to_entity_ids)
     if remaining > 0:
@@ -119,6 +124,8 @@ def respond(body: ChatRespondBody):
       - "waiting"      — 接受，但多人邀请还有人未响应
       - "walking_over" — 接受，双方走向 target_arena_id，相邻或 30 s 后建房（轮询 GET /chat/request/{id}）
     """
+    from game.world_state import mark_input
+    mark_input(body.entity_id)
     players = dict(_players_dict)
     result = chat_state.respond_to_request(
         entity_id=body.entity_id,
@@ -149,6 +156,8 @@ def get_room(chat_room_id: str, entity_id: str = "", since_seq: int = 0):
 @router.post("/message")
 def post_message(body: ChatMessageBody):
     """在聊天室中发送一条消息。"""
+    from game.world_state import mark_input
+    mark_input(body.entity_id)
     result = chat_state.post_message(
         entity_id=body.entity_id,
         room_id=body.chat_room_id,

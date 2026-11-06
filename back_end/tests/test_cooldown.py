@@ -3,7 +3,7 @@ import pytest
 
 from game import world_state
 from game.object_types import OBJECT_TYPES
-from tests.conftest import BED_ID, BED_STAND, BED_STAND2, join, action, place
+from tests.conftest import BED_ID, BED_STAND, BED_STAND2, DESK_ID, DESK_STAND, join, action, place
 
 
 def test_object_types_have_advertise_and_cost_and_no_hp():
@@ -24,17 +24,18 @@ def test_world_sends_advertise(client):
 
 
 def test_cooldown_blocks_reuse_then_expires(client, fake_clock):
+    """W8 Q0e 起床类无冷却，用桌子验 30 min 冷却。"""
     pid = join(client)
-    place(pid, *BED_STAND)
+    place(pid, *DESK_STAND)
     assert action(client, pid, "use")["success"]
     assert action(client, pid, "leave")["success"]
     res = action(client, pid, "use")
     assert res["success"] is False and res["reason"] == "object_cooldown"
-    assert res["result"]["objectId"] == BED_ID
+    assert res["result"]["objectId"] == DESK_ID
     assert 1790 <= res["result"]["cooldownRemaining"] <= 1800
     fake_clock.advance(1801)                      # speed 1：1801 游戏秒后解锁
     assert action(client, pid, "use")["success"]
-    assert world_state.get_recent_uses(pid) == {BED_ID: 2}
+    assert world_state.get_recent_uses(pid) == {DESK_ID: 2}
 
 
 def test_cooldown_is_per_object_and_per_player(client, fake_clock):
@@ -77,10 +78,10 @@ def test_instant_object_applies_cost_and_cooldown(client, fake_clock):
 def test_cooldown_survives_checkpoint(client, fake_clock):
     from game import persistence, chat_state, time_state, ticker
     pid = join(client)
-    place(pid, *BED_STAND)
+    place(pid, *DESK_STAND)
     assert action(client, pid, "use")["success"]
     persistence.save_checkpoint()
     world_state._reset_for_tests(); chat_state._reset_for_tests()
     persistence.load_checkpoint()
-    assert world_state.object_cooldown_remaining(pid, BED_ID) > 1700
-    assert world_state.get_recent_uses(pid) == {BED_ID: 1}
+    assert world_state.object_cooldown_remaining(pid, DESK_ID) > 1700
+    assert world_state.get_recent_uses(pid) == {DESK_ID: 1}
