@@ -1,0 +1,42 @@
+{
+  "image": "gen/tiles.png",
+  "tile": 16,
+  "columns": 8,
+  "count": 18,
+  "index": {
+    "grass": 0,
+    "grass_flower": 1,
+    "grass_park": 2,
+    "road": 3,
+    "square": 4,
+    "dock": 5,
+    "floor_wood": 6,
+    "floor_tile": 7,
+    "wall_top": 8,
+    "wall_face": 9,
+    "water0": 10,
+    "water1": 11,
+    "water2": 12,
+    "water3": 13,
+    "carpet": 14,
+    "shop_floor": 15,
+    "door": 16,
+    "grass_dark": 17
+  },
+  "rules": {
+    "type": {
+      "grass": "grass|grass_flower（按格哈希 12% 开花）",
+      "grass1": "grass_dark",
+      "road": "road",
+      "water": "water0..3 动画 2 fps",
+      "wall": "下方非墙 → wall_face，否则 wall_top",
+      "floor/object": "按 arena：kitchen/bath/rest_kitchen → floor_tile；dining → carpet；grocer_shop → shop_floor；其余 floor_wood"
+    },
+    "arena": {
+      "park": "grass_park",
+      "square": "square",
+      "dock": "dock",
+      "road": "road"
+    }
+  }
+}

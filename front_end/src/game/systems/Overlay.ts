@@ -56,8 +56,10 @@ export default class Overlay {
   private lastWeather: Weather | null = null
   private w: number
   private h: number
+  private clockSide: 'left' | 'right'
 
-  constructor(private scene: Phaser.Scene, opts: { clock: boolean }) {
+  constructor(private scene: Phaser.Scene, opts: { clock: boolean; clockSide?: 'left' | 'right' }) {
+    this.clockSide = opts.clockSide ?? 'right'
     const cam = scene.cameras.main
     this.w = cam.width
     this.h = cam.height
@@ -76,12 +78,12 @@ export default class Overlay {
     }
 
     if (opts.clock) {
-      this.clock = scene.add.text(this.w - 16, 12, '', {
+      this.clock = scene.add.text(this.clockSide === 'right' ? this.w - 16 : 16, 12, '', {
         fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
         fontSize: '20px',
         color: '#ffffff',
         stroke: '#000000', strokeThickness: 4,
-      }).setOrigin(1, 0).setScrollFactor(0).setDepth(10002).setResolution(2)
+      }).setOrigin(this.clockSide === 'right' ? 1 : 0, 0).setScrollFactor(0).setDepth(10002).setResolution(2)
     }
 
     scene.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this)
@@ -92,7 +94,7 @@ export default class Overlay {
     this.w = cam.width
     this.h = cam.height
     this.tint.setSize(this.w, this.h)
-    this.clock?.setPosition(this.w - 16, 12)
+    this.clock?.setPosition(this.clockSide === 'right' ? this.w - 16 : 16, 12)
     this.badge?.setPosition(this.w / 2, 12)
     if (this.rain) {
       // 尺寸变了就重建雨幕，避免处理 emitZone 类型差异

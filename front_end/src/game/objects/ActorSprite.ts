@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { Position, Facing, NeedVars, NEED_KEYS } from '../../types'
 import { tileCenter, TILE_SIZE } from '../map/TileMap'
+import { CharKey, charTextureKey } from '../assets'
 
 const SCALE = 4
 const BASE_STEP_MS = 300            // 一格基准用时（与 InputSystem 一致）
@@ -40,6 +41,7 @@ export const NEED_LABELS: Record<keyof NeedVars, string> = {
 
 export interface ActorOptions {
   name: string
+  charKey: CharKey
   isSelf?: boolean
   showArrow?: boolean
 }
@@ -73,6 +75,8 @@ export default class ActorSprite {
   private facingLocked = false
   readonly name: string
   readonly isSelf: boolean
+  private charKey: CharKey
+  private hasGen: boolean
 
   constructor(scene: Phaser.Scene, position: Position, facing: Facing, opts: ActorOptions) {
     this.scene  = scene
@@ -80,14 +84,15 @@ export default class ActorSprite {
     this.tile   = { ...position }
     this.name   = opts.name
     this.isSelf = !!opts.isSelf
+    this.charKey = opts.charKey
+    this.hasGen = scene.textures.exists(charTextureKey(opts.charKey))
 
     const { x, y } = tileCenter(position.x, position.y)
-    this.sprite = scene.add.sprite(x, y, 'player_idle')
+    this.sprite = scene.add.sprite(x, y, this.hasGen ? charTextureKey(opts.charKey) : 'player_idle')
       .setScale(SCALE)
       .setOrigin(0.5, 0.5)
       .setDepth(y)
-    this.sprite.play('idle')
-    this.sprite.setFlipX(facing === 'left')
+    this.playAnim(false)
 
     if (opts.showArrow) {
       this.arrow = scene.add.graphics().setDepth(y + 1)
@@ -154,18 +159,25 @@ export default class ActorSprite {
   setFacing(facing: Facing) {
     if (this.facing === facing) return
     this.facing = facing
-    this.sprite.setFlipX(facing === 'left')
+    this.playAnim(this.moving)
     this.redrawArrow()
+  }
+
+  /** 自制四向表：<key>_walk_<dir> / <key>_idle_<dir>；没有自制表时退回旧的 walk / idle + 翻转 */
+  private playAnim(moving: boolean) {
+    if (this.hasGen) {
+      this.sprite.setFlipX(false)
+      this.sprite.play(`${this.charKey}_${moving ? 'walk' : 'idle'}_${this.facing}`, true)
+    } else {
+      this.sprite.setFlipX(this.facing === 'left')
+      this.sprite.play(moving ? 'walk' : 'idle', true)
+    }
   }
 
   private setMoving(m: boolean) {
     if (m === this.moving) return
     this.moving = m
-    if (m) {
-      this.sprite.play('walk', true)
-    } else {
-      this.sprite.play('idle', true)
-    }
+    this.playAnim(m)
   }
 
   /** 每帧调用。speedMul = 玩家 moveSpeed（1.0 = 300 ms/格） */

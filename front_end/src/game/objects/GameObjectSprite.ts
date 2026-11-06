@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { GameObject } from '../../types'
 import { tileToPixel, TILE_SIZE } from '../map/TileMap'
+import { objTextureKey } from '../assets'
 
 const COLOR_OBJECT = 0x8b6b3e
 const TYPE_ICON: [RegExp, string][] = [
@@ -42,7 +43,10 @@ export default class GameObjectSprite {
     const imgW = cols * TILE_SIZE
     const imgH = rows * TILE_SIZE
 
-    const spriteKey = obj.sprite && !isBorrowedSprite(obj) ? `obj_${obj.sprite}` : null
+    // 优先自制图（按物品类型；bed_21 这类直接有同名图），其次后端给的旧图，借用占位图不用
+    const genKey = scene.textures.exists(objTextureKey(obj.type)) ? objTextureKey(obj.type)
+      : scene.textures.exists(objTextureKey(obj.type.replace(/_\d+$/, ''))) ? objTextureKey(obj.type.replace(/_\d+$/, '')) : null
+    const spriteKey = genKey ?? (obj.sprite && !isBorrowedSprite(obj) ? `obj_${obj.sprite}` : null)
     let hit: Phaser.GameObjects.GameObject
     if (spriteKey && scene.textures.exists(spriteKey)) {
       const img = scene.add.image(px + imgW / 2, py + imgH / 2, spriteKey)

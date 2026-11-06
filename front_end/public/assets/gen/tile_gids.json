@@ -1,0 +1,41 @@
+{
+  "grass": 1,
+  "grass1": 18,
+  "wall": 9,
+  "floor": 7,
+  "object": 7,
+  "water": 11,
+  "_tileset": {
+    "name": "whale_gen_tiles",
+    "firstgid": 1,
+    "tilewidth": 16,
+    "tileheight": 16,
+    "tilecount": 18,
+    "columns": 8,
+    "imageSource": "gen/tiles.png",
+    "imageWidth": 128,
+    "imageHeight": 48,
+    "margin": 0,
+    "spacing": 0
+  },
+  "_arena_gids": {
+    "park": 3,
+    "square": 5,
+    "dock": 6,
+    "road": 4,
+    "kitchen": 8,
+    "regular_bath": 8,
+    "cook_kitchen": 8,
+    "rest_kitchen": 8,
+    "dining": 15,
+    "grocer_shop": 16
+  },
+  "_wall_face": 10,
+  "_water_frames": [
+    11,
+    12,
+    13,
+    14
+  ],
+  "_note": "自制 CC0 地砖（front_end/tools/gen_assets.py）。顶层键是 B 的 TILE_GIDS 覆盖；_ 开头的是给前端/人的说明。"
+}

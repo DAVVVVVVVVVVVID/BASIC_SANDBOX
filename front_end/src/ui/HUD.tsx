@@ -3,6 +3,7 @@ import { useGameStore } from '../store/gameStore'
 import type { Buff } from '../types'
 import { NEED_KEYS } from '../types'
 import { NEED_LABELS } from '../game/objects/ActorSprite'
+import { zoneLabel as zoneName } from '../game/map/zones'
 
 const NEED_CSS: Record<string, string> = {
   fullness: '#f6ad55', energy: '#63b3ed', social: '#b794f4', fun: '#68d391', mood: '#fbd38d',
@@ -93,8 +94,7 @@ export default function HUD() {
   const emotionTags = player.emotion_tags ?? []
 
   const currentTile = tiles.find(t => t.x === position.x && t.y === position.y)
-  const zoneParts = [currentTile?.world, currentTile?.sector, currentTile?.arena].filter(Boolean)
-  const zoneLabel = zoneParts.length > 0 ? zoneParts.join(' / ') : '—'
+  const zoneLabel = zoneName(currentTile) || '—'
 
   const stateDisplay = stateLabel ?? state
 

@@ -1,17 +1,21 @@
 import { useEffect, useRef } from 'react'
 import { useGameStore } from '../store/gameStore'
+import { sectorName } from '../game/map/zones'
 
 const TILE_COLORS: Record<string, string> = {
   grass:          '#4a7c59',
+  grass1:         '#3f6f4c',
   wall:           '#5c3d2e',
   floor:          '#c8a96e',
   floor_occupied: '#9e7c4a',
+  object:         '#b08a5a',
+  water:          '#3d7fc4',
 }
 const UNKNOWN_COLOR  = '#888888'
 const PLAYER_COLOR   = '#63b3ed'
 const OTHER_COLOR    = '#f6ad55'
-const MINIMAP_MAX_W  = 180
-const MINIMAP_MAX_H  = 140
+const MINIMAP_MAX_W  = 240
+const MINIMAP_MAX_H  = 160
 const BORDER_RADIUS  = 6
 const PADDING        = 8
 
@@ -43,6 +47,22 @@ export default function Minimap() {
     for (const t of tiles) {
       ctx.fillStyle = TILE_COLORS[t.type] ?? UNKNOWN_COLOR
       ctx.fillRect(t.x * cell, t.y * cell, cell, cell)
+    }
+
+    // 区域名：每个室内 sector 的质心
+    const cent = new Map<string, { sx: number; sy: number; n: number }>()
+    for (const t of tiles) {
+      if (!t.sector || t.sector === 'outside') continue
+      const c = cent.get(t.sector) ?? { sx: 0, sy: 0, n: 0 }
+      c.sx += t.x; c.sy += t.y; c.n++
+      cent.set(t.sector, c)
+    }
+    ctx.font = `${Math.max(8, cell * 2.2)}px system-ui, sans-serif`
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    for (const [sec, c] of cent) {
+      const x = (c.sx / c.n + 0.5) * cell, y = (c.sy / c.n + 0.5) * cell
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.strokeText(sectorName(sec), x, y)
+      ctx.fillStyle = '#ffffff'; ctx.fillText(sectorName(sec), x, y)
     }
 
     for (const op of players) {

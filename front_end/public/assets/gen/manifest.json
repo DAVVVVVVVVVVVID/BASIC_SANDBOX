@@ -1,0 +1,34 @@
+{
+  "tiles": "tiles.png",
+  "chars": [
+    "achan",
+    "cook",
+    "fisher",
+    "grocer",
+    "regular",
+    "villager",
+    "whale"
+  ],
+  "objects": [
+    "bath",
+    "bed",
+    "bed_21",
+    "bench",
+    "book",
+    "cook",
+    "desk",
+    "desk_12",
+    "fishing_spot",
+    "fridge",
+    "phone",
+    "restaurant_table",
+    "shop_counter",
+    "sink",
+    "sofa",
+    "stream_desk",
+    "toilet",
+    "tree",
+    "well"
+  ],
+  "license": "CC0-1.0（本仓库自制，tools/gen_assets.py 生成）"
+}

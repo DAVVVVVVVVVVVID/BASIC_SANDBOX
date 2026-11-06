@@ -8,6 +8,10 @@ export interface SpectateParams {
   bg: 'dark' | 'transparent'
   stats: boolean        // 画布内帧率
   bars: 'target' | 'all' | 'none'
+  /** 直播画面里被 Live2D 等占住的角（如 br=右下），叠加层避开它 */
+  safe: 'br' | 'bl' | 'tr' | 'tl' | null
+  /** 思考字幕（E8），默认开；C 的 8002 没起时静默 */
+  thought: boolean
 }
 
 export function parseSpectateParams(search = window.location.search): SpectateParams {
@@ -21,6 +25,7 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
   const zoom = num('zoom')
   const panzoom = num('panzoom')
   const bars = q.get('bars')
+  const safe = q.get('safe')
   return {
     follow: q.get('follow') || null,
     hud:    flag('hud', true),
@@ -30,6 +35,8 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
     bg:     q.get('bg') === 'transparent' ? 'transparent' : 'dark',
     stats:  flag('stats', false),
     bars:   bars === 'all' || bars === 'none' ? bars : 'target',
+    safe:   safe === 'br' || safe === 'bl' || safe === 'tr' || safe === 'tl' ? safe : null,
+    thought: flag('thought', true),
   }
 }
 

@@ -10,6 +10,8 @@ import { sendAction } from '../../api/world'
 import { useGameStore } from '../../store/gameStore'
 import { resolveFollowTarget } from '../systems/TickSystem'
 import type { SpectateParams } from '../../spectate/params'
+import { preloadGenAssets, createGenAnimations, charKeyFor } from '../assets'
+import { buildTileIndex, zoneLabel } from '../map/zones'
 
 export interface SceneInitData {
   mode: 'play' | 'spectate'
@@ -121,6 +123,8 @@ export default class GameScene extends Phaser.Scene {
 
   // 统计
   private statsAt = 0
+  private tileIndex = new Map<string, import('../../types').Tile>()
+  private lastZone = ''
   private lastUiScale = 0
   private lastPrune = 0
 
@@ -139,9 +143,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   preload() {
+    preloadGenAssets(this)
     preloadTileAssets(this, this.worldData.tiled)
-    this.load.spritesheet('player_walk', 'assets/sprites/player_walk.png', { frameWidth: 96, frameHeight: 64 })
-    this.load.spritesheet('player_idle', 'assets/sprites/player_idle.png', { frameWidth: 96, frameHeight: 64 })
     for (const obj of this.worldData.objects) {
       if (obj.sprite && !this.textures.exists(`obj_${obj.sprite}`)) {
         this.load.image(`obj_${obj.sprite}`, `assets/sprites/${obj.sprite}.png`)
@@ -149,17 +152,8 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  private createAnimations() {
-    if (!this.anims.exists('walk')) {
-      this.anims.create({ key: 'walk', frames: this.anims.generateFrameNumbers('player_walk', { start: 0, end: 7 }), frameRate: 10, repeat: -1 })
-    }
-    if (!this.anims.exists('idle')) {
-      this.anims.create({ key: 'idle', frames: this.anims.generateFrameNumbers('player_idle', { start: 0, end: 8 }), frameRate: 6, repeat: -1 })
-    }
-  }
-
   create() {
-    this.createAnimations()
+    createGenAnimations(this)
     this.buildMap(this.worldData)
 
     const cam = this.cameras.main
@@ -266,6 +260,7 @@ export default class GameScene extends Phaser.Scene {
     this.objectSprites = []
     this.tileMap = new TileMap(this, world.tiles, world.tiled)
     this.tileMap.render()
+    this.tileIndex = buildTileIndex(world.tiles)
     const { w, h } = mapSize(world.tiles, world.tiled)
     this.mapPx = { w: w * TILE_SIZE, h: h * TILE_SIZE }
     for (const obj of world.objects) this.objectSprites.push(new GameObjectSprite(this, obj))
@@ -280,7 +275,8 @@ export default class GameScene extends Phaser.Scene {
   // ── 自己 ─────────────────────────────────────────────────────────────────────
 
   private createSelf(player: Player) {
-    this.self = new PlayerSprite(this, player.position, player.facing, this.playerName ?? player.profile?.name ?? player.id)
+    const selfName = this.playerName ?? player.profile?.name ?? player.id
+    this.self = new PlayerSprite(this, player.position, player.facing, selfName, charKeyFor(selfName, 'human'))
     this.inputSystem = new InputSystem(
       this,
       player.id,
@@ -320,7 +316,7 @@ export default class GameScene extends Phaser.Scene {
       seen.add(op.id)
       let s = this.others.get(op.id)
       if (!s) {
-        s = new OtherPlayerSprite(this, op.position, op.facing, op.name)
+        s = new OtherPlayerSprite(this, op.position, op.facing, op.name, charKeyFor(op.name, op.controller))
         this.others.set(op.id, s)
       } else {
         const end = s.getPathEnd()
@@ -510,6 +506,14 @@ export default class GameScene extends Phaser.Scene {
       for (const [id, s] of this.others) s.setBubble(byId.get(id) ?? null)
       if (this.self && this.myPlayerId) this.self.setBubble(byId.get(this.myPlayerId) ?? null)
       this.hadBubbles = bubbles.length > 0
+    }
+
+    // 区域名（跟随目标 / 自己所在格）
+    const focus = this.mode === 'play' ? this.self?.getTile() : (this.targetId ? this.others.get(this.targetId)?.getTile() : null)
+    if (focus) {
+      const t = this.tileIndex.get(`${focus.x},${focus.y}`)
+      const z = zoneLabel(t)
+      if (z && z !== this.lastZone) { this.lastZone = z; EventBus.emit('zone-changed', { label: z, sector: t?.sector, arena: t?.arena }) }
     }
 
     if (time - this.statsAt > 1000) {

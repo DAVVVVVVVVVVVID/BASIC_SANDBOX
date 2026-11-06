@@ -6,10 +6,14 @@ import react from '@vitejs/plugin-react'
 //   VITE_API_BASE      前端请求前缀，默认 `/api`（改成 http://host:8000 可绕过代理直连）
 //   VITE_PROXY_TARGET  代理目标，默认 http://127.0.0.1:8000
 //   VITE_PORT          开发端口，默认 5173（运行台）；自测用 `npm run dev -- --port 5174`
+//   VITE_OBSERVE_BASE  思考字幕请求前缀，默认 `/observe`（E8）
+//   VITE_OBSERVE_TARGET C 的只读观察面板，默认 http://127.0.0.1:8002（路径不改写：/observe/latest 原样转发）
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const apiBase = (env.VITE_API_BASE || '/api').replace(/\/$/, '')
   const target = env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000'
+  const observeBase = (env.VITE_OBSERVE_BASE || '/observe').replace(/\/$/, '')
+  const observeTarget = env.VITE_OBSERVE_TARGET || 'http://127.0.0.1:8002'
   const proxy = apiBase.startsWith('/')
     ? {
         [apiBase]: {
@@ -18,6 +22,7 @@ export default defineConfig(({ mode }) => {
           ws: true,
           rewrite: (p: string) => p.replace(new RegExp(`^${apiBase}`), '') || '/',
         },
+        ...(observeBase.startsWith('/') ? { [observeBase]: { target: observeTarget, changeOrigin: true } } : {}),
       }
     : undefined
 

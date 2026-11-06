@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { Tile, Position, TiledRenderData, TiledTilesetInfo } from '../../types'
+import { GEN_TILES_KEY, GEN_TILE_COLS, TILE_INDEX, TileName, WATER_FRAMES } from '../assets'
 
 /**
  * 一格的屏幕像素数。源图块为 16 px，96 = 16 × 6，相机 zoom 取 1/6 的整数倍时屏幕上是整数像素缩放。
@@ -53,9 +54,9 @@ function getGidRect(gid: number, ts: TiledTilesetInfo) {
 export function preloadTileAssets(scene: Phaser.Scene, tiledData?: TiledRenderData) {
   if (!tiledData) return
   for (const ts of tiledData.tilesets) {
-    if (!scene.textures.exists(ts.imageSource)) {
-      scene.load.image(ts.imageSource, `assets/tilesets/${ts.imageSource}`)
-    }
+    // 第三方 tileset（Sunnyside）已移出仓库（许可不允许再分发，见 WHALE_REPORT E6a）；只认 gen/ 下的自制图
+    if (!ts.imageSource.startsWith('gen/')) continue
+    if (!scene.textures.exists(ts.imageSource)) scene.load.image(ts.imageSource, `assets/${ts.imageSource}`)
   }
 }
 
@@ -82,10 +83,99 @@ export default class TileMap {
   ) {}
 
   render() {
-    if (this.tiledData && this.tiledData.layers.length > 0) {
+    const own = this.tiledData?.tilesets?.[0]?.imageSource === 'gen/tiles.png'
+    if (this.tiledData && this.tiledData.layers.length > 0 && own) {
+      // B 的 tiled 层已经按我们的 tile_gids.json 导出：直接按 gid 画
       this.renderTiledLayers()
+    } else if (this.scene.textures.exists(GEN_TILES_KEY)) {
+      // 默认：按 tile 类型 + 区域用自制地砖画（B 的 tiled 现在仍指向 Sunnyside 且 gid 是假设值，不采用）
+      this.renderGenerated()
     } else {
       this.renderFallbackTiles()
+    }
+  }
+
+  /** 类型 / 区域 → 自制地砖索引 */
+  static pickTile(t: Tile, below: Tile | undefined): TileName {
+    const arena = t.arena ?? ''
+    // 室外按区域优先：街道 / 广场 / 码头 / 公园（后端用 grass1 标街道，类型本身不区分）
+    if (t.type !== 'water' && t.type !== 'wall') {
+      if (arena === 'road') return 'road'
+      if (arena === 'square') return 'square'
+      if (arena === 'dock') return 'dock'
+      if (arena === 'park') return (((t.x * 73856093) ^ (t.y * 19349663)) >>> 0) % 100 < 10 ? 'grass_flower' : 'grass_park'
+    }
+    switch (t.type) {
+      case 'water': return 'water0'
+      case 'wall': return below && below.type !== 'wall' ? 'wall_face' : 'wall_top'
+      case 'grass1': return 'grass_dark'
+      case 'grass':
+        return (((t.x * 73856093) ^ (t.y * 19349663)) >>> 0) % 100 < 6 ? 'grass_flower' : 'grass'
+      case 'floor':
+      case 'object':
+      case 'floor_occupied':
+        if (/kitchen|bath/.test(arena)) return 'floor_tile'
+        if (arena === 'dining') return 'carpet'
+        if (arena === 'grocer_shop') return 'shop_floor'
+        if (arena === 'dock') return 'dock'
+        if (arena === 'road') return 'road'
+        if (arena === 'square') return 'square'
+        return 'floor_wood'
+      default:
+        if (arena === 'road') return 'road'
+        if (arena === 'square') return 'square'
+        return 'grass'
+    }
+  }
+
+  private renderGenerated() {
+    const { w: mapW, h: mapH } = mapSize(this.tiles)
+    const byKey = new Map<string, Tile>()
+    for (const t of this.tiles) byKey.set(`${t.x},${t.y}`, t)
+    const tex = this.scene.textures.get(GEN_TILES_KEY)
+    const src = tex.getSourceImage() as HTMLImageElement | HTMLCanvasElement
+    const scale = TILE_SIZE / SOURCE_TILE
+    const stamp = Date.now().toString(36)
+    const waterTiles: Tile[] = []
+
+    for (let cy = 0; cy < mapH; cy += CHUNK_TILES) {
+      for (let cx = 0; cx < mapW; cx += CHUNK_TILES) {
+        const cw = Math.min(CHUNK_TILES, mapW - cx)
+        const ch = Math.min(CHUNK_TILES, mapH - cy)
+        const canvas = document.createElement('canvas')
+        canvas.width  = cw * SOURCE_TILE
+        canvas.height = ch * SOURCE_TILE
+        const ctx = canvas.getContext('2d')!
+        ctx.imageSmoothingEnabled = false
+        let drew = false
+        for (let ty = 0; ty < ch; ty++) {
+          for (let tx = 0; tx < cw; tx++) {
+            const t = byKey.get(`${cx + tx},${cy + ty}`)
+            if (!t) continue
+            if (t.type === 'water') { waterTiles.push(t); continue }   // 水单独做动画精灵
+            const name = TileMap.pickTile(t, byKey.get(`${t.x},${t.y + 1}`))
+            const idx = TILE_INDEX[name]
+            const sx = (idx % GEN_TILE_COLS) * SOURCE_TILE
+            const sy = Math.floor(idx / GEN_TILE_COLS) * SOURCE_TILE
+            ctx.drawImage(src, sx, sy, SOURCE_TILE, SOURCE_TILE, tx * SOURCE_TILE, ty * SOURCE_TILE, SOURCE_TILE, SOURCE_TILE)
+            drew = true
+          }
+        }
+        if (!drew) continue
+        const key = `gen_bg_${stamp}_${cx}_${cy}`
+        this.scene.textures.addCanvas(key, canvas)
+        this.textureKeys.push(key)
+        this.images.push(this.scene.add.image(cx * TILE_SIZE, cy * TILE_SIZE, key).setOrigin(0, 0).setScale(scale).setDepth(0))
+      }
+    }
+    for (const t of waterTiles) {
+      const spr = this.scene.add.sprite(t.x * TILE_SIZE, t.y * TILE_SIZE, GEN_TILES_KEY, WATER_FRAMES[0]).setOrigin(0, 0).setScale(scale).setDepth(0)
+      if (this.scene.anims.exists('gen_water')) {
+        spr.play('gen_water')
+        // 按列错相位，像流水
+        spr.anims.setProgress(((t.x + t.y) % 4) / 4)
+      }
+      this.images.push(spr)
     }
   }
 
