@@ -14,11 +14,20 @@
 | 3 | E7 | 完成 | 自制 18 格地砖集 `gen/tiles.png`：草（三种 + 小花）、公园草丛、街道碎石、广场石板、码头木板、室内木地板、厨房/浴室瓷砖、餐馆红毯、杂货店地面、砖墙顶/墙面、水 4 帧动画、门。渲染规则按 **tile 类型 + arena**（街道/广场/码头/公园按区域；室内按厨房/浴室/餐馆/杂货店分地板；墙按下方是否为墙分顶/面）；水面 240 格用动画精灵按位置错相位流动。**区域名**：进入新区域顶部淡入「阿蝉家 · 小仓库」（2.5 s），小地图画出 7 个 sector 的中文名，HUD 位置列改中文。B 的 `tiled` 现在指向 Sunnyside 且 gid 是假设值（画出来是蓝色地板和一排蘑菇），所以前端**只在 `tilesets[0].imageSource === "gen/tiles.png"` 时采用 `tiled` 按 gid 画**，否则按类型画——B 落地 6b 后两条路出图一致 |
 | 4 | E8 | 完成 | `ThoughtBar`：Vite 代理 `/observe` → `VITE_OBSERVE_TARGET`（默认 `http://127.0.0.1:8002`，路径不改写），每 2 s `GET /observe/latest`，画布底部「鲸仔正在想：…」打字机、≤ 40 字、最后一次变化 8 s 后淡出，`needs_lines` 前两条作第二行小字。**只读 `thought` / `needs_lines` / `ts` 三个字段**，其余（含将来任何 raw / danmaku）在 `api/observe.ts` 里显式丢弃；用 mock 服务放了一个 `raw_danmaku` 字段验证 DOM 与画布都没出现（`thought.png`）。8002 没起时静默（退避到 30 s），不显示任何提示。C 的 8002 本次会话期间未运行，**运行台联调待 C 起服务** |
 | 5 | E9 | 完成 | `WorldFeed`：首选 `GET /ws/world`（经 Vite 代理 `ws: true`），处理 `snapshot` / `patch`（worldState 增量、players upsert/remove、objects 使用状态、`chat` → 气泡、`action` → 事件总线）、`heartbeat`；15 s 无消息视为死连接。**断线立刻退回** `GET /world?fields=players,objects,worldState` 500 ms 轮询（实测 82 ms），ws 按 2→30 s 退避重连，snapshot 一到就停轮询；`mapVersion` 变了重拉一次全量。对账：ws 状态与 `GET /world` 位置一致（§3） |
-| 6 | 直播机验收 | 部分 | 主播本机 144 Hz 显示器实测 **144 fps**（上一轮报告）。本轮新增 `&safe=br|bl|tr|tl` 安全区参数（字幕 / 统计 / 时钟避开被 Live2D 占住的角）。**观感反馈待主播在直播机看过新素材后给**：zoom（默认 2/3）、字号、字幕位置都可按反馈调 |
+| 6 | 直播机验收 | 完成 | 主播本机 144 Hz 显示器实测 **144 fps**。**11-06 主播在直播机看 5173 后的三条反馈**（原话见 §2.1）：① 当时鲸仔没在行动，看不出具体内容；② 希望专门做一个游戏式 UI 放基础信息，名字可以同时留在头顶；③ 优先调整：鲸仔 / 阿蝉形象更像 Live2D、地砖 / 房子颜色更柔和。**本轮已做**：②→ 左下角游戏式信息面板（名字、区域、正在做什么、七变量条，`&panel=0` 关；头顶名字牌保留，跟随目标头顶不再重复画小条）；③ 后半→ 草 / 墙 / 水 / 红毯 / 木地板整体降饱和（`panel_follow.png`）。**下周第一项**：③ 前半，逐像素重画鲸仔 / 阿蝉 16×24 帧向 Live2D 形象靠（或接主播手绘帧）。① 是 agent 当时空闲，运行台 5173 切到新提交后可用 `&stats=1` 配合看 B 的行动日志 |
 | 6b | tiled gid | 完成（待 B 落地） | `front_end/public/assets/gen/tile_gids.json`（内容见 §4.1）：顶层键就是 B `gen_map.py` 的 `TILE_GIDS` 覆盖格式；`_tileset` 是我这张图的 Tiled 描述，请 B 把 `TILESET` 常量换成它（或改成从同一文件读）。B 切过去之后 `tiled` 非 null 且前端按 gid 画，与按类型画的结果相同 |
 | 7 | 报告 | 本文 | — |
 
 ## 2. E6a 许可原文与结论
+
+### 2.1 主播反馈原话（2026-11-06，直播机看 5173 = `d0afc9f`）
+
+- 「鲸仔没有在行动，我看不到具体内容」
+- 「最好专门做一个 UI 放基础信息，类似游戏一样。名字可同时以定在头上」
+- 优先调整：「鲸仔 / 阿蝉形象更像 Live2D」「地砖 / 房子颜色更柔和」
+
+处理见 §1 第 6 行。
+
 
 来源：https://danieldiggle.itch.io/sunnyside （作者 danieldiggle，Name your own price，2026-11-06 抓取）。
 
@@ -106,15 +115,15 @@
 
 - **git 历史重写**：Sunnyside 文件仍在历史里（见 §2），是否 `git filter-repo` 由总控定；做之前请通知 B / C，所有分支提交号会变。
 - **C 的 8002 未运行**：E8 只在 mock 上验证；C 起 `ui_server --observe` 后请总控在运行台 5173 的 `/spectate` 看一眼字幕（预期 2 s 内出现）。
-- **主播观感反馈未收到**：新素材是程序化像素画，精细度有限；若主播希望更接近 Live2D 形象，下周可以在生成器里逐像素改鲸仔 / 阿蝉的 16×24 帧，或接受主播提供的手绘帧（同样放 `gen/`）。
+- **形象向 Live2D 靠**（主播反馈③）：程序化像素画精细度有限，下周在生成器里逐像素改鲸仔 / 阿蝉的 16×24 帧，或接主播提供的手绘帧（同样放 `gen/`）；请主播给一张 Live2D 立绘参考。
 - 运行台 5173 现为 `d0afc9f`，**没有**本周内容（素材 / ws / 字幕）；请总控切到本报告之后的最新提交并 `npm run build && npm run preview`。
 
 ## 6. 提交号与运行方式
 
 | 项 | 值 |
 |---|---|
-| 代码 | `whale-frontend` @ `c4b2836`（基于 B 的 `59d1ac8`）；总控起 5173 请用分支最新提交 |
-| 新增参数 | `/spectate?...&safe=br`（安全区，字幕靠左）、`&thought=0`（关字幕）、`&panzoom=0.34`（全景 2/6 更大） |
+| 代码 | `whale-frontend` @ `4c821f7`（基于 B 的 `59d1ac8`）；总控起 5173 请用分支最新提交 |
+| 新增参数 | `/spectate?...&safe=br`（安全区）、`&thought=0`（关字幕）、`&panel=0`（关信息面板）、`&panzoom=0.34`（全景 2/6 更大） |
 | 新增环境变量 | `VITE_OBSERVE_BASE`（默认 `/observe`）、`VITE_OBSERVE_TARGET`（默认 `http://127.0.0.1:8002`） |
 | 素材再生成 | `cd front_end && python3 tools/gen_assets.py`（只依赖 Pillow） |
 | 文件 | 新增 `tools/gen_assets.py`、`public/assets/gen/*`（30 个文件）、`src/game/assets.ts`、`src/game/map/zones.ts`、`src/game/systems/{WorldFeed,ThoughtBar}.ts`、`src/api/observe.ts`；修改 `TileMap`、`ActorSprite`、`GameObjectSprite`、`GameScene`、`UIScene`、`Overlay`、`TickSystem`、`store`、`types`、`HUD`、`Minimap`、`vite.config.ts`、`params.ts`；删除 `public/assets/tilesets/*`、`sprites/player_*.png` |
