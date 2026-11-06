@@ -40,12 +40,15 @@ def test_every_continuous_object_is_covered():
 
 
 @pytest.mark.parametrize("obj_id", sorted(STANDS))
-def test_use_then_leave_always_succeeds(client, obj_id):
+def test_use_then_leave_always_succeeds(client, fake_clock, obj_id):
     pid = _agent(client)
     place(pid, *STANDS[obj_id])
     res = action(client, pid, "use")
     assert res["success"], (obj_id, res)
-    ticker.tick_once(checkpoint=False)                           # no_use / no_move 生效后
+    _tick(fake_clock)                                            # no_use / no_move 生效后
+    from game.object_types import OBJECT_TYPES
+    has_no_use = any(e.get("key") == "no_use" for e in OBJECT_TYPES[world_state.get_object_by_id(obj_id)["type"]]["effects"])
+    assert world_state._players[pid]["canUse"] is (not has_no_use)   # 带 no_use 的物品确实在挡 use，leave 仍要放行
     p = world_state._players[pid]
     assert p["usingObjectId"] == obj_id
     res = action(client, pid, "leave")
@@ -53,7 +56,13 @@ def test_use_then_leave_always_succeeds(client, obj_id):
     assert p["usingObjectId"] is None and world_state.get_object_by_id(obj_id)["currentUsers"] == 0
 
 
-def test_leave_while_in_chat_succeeds(client):
+def _tick(fake_clock, n=2):
+    """跑出真实的 tick（第一次只建基线）。"""
+    for _ in range(n):
+        fake_clock.advance(0.2); ticker.tick_once(checkpoint=False)
+
+
+def test_leave_while_in_chat_succeeds(client, fake_clock):
     """钓位 no_move + 对话 chat_active：11-06 的死锁组合。"""
     a = _agent(client); b = join(client, "阿蝉")
     place(a, 52, 19, "right"); place(b, 51, 19, "right")
@@ -63,16 +72,16 @@ def test_leave_while_in_chat_succeeds(client):
     assert client.get(f"/chat/request/{rid}").json()["status"] == "active"
     p = world_state._players[a]
     assert any(x["key"] == "chat_active" for x in p["buffs"])
-    ticker.tick_once(checkpoint=False)                           # 线上每 200 ms 一个 tick 会复位 canUse（chat_active 没有 handler）
+    _tick(fake_clock)                                            # 线上每 200 ms 一个 tick 会复位 canUse（chat_active 没有 handler）
     assert action(client, a, "use")["success"]                   # 对话中 use 钓位（当天就是这样）
-    ticker.tick_once(checkpoint=False)
+    _tick(fake_clock)
     assert action(client, a, "move", {"direction": "left"})["reason"] == "move_disabled"   # 钓鱼不能走：预期
     res = action(client, a, "leave")                              # 但必须能离开
     assert res["success"] and res["result"]["objectId"] == "fishing_spot_2"
     assert p["usingObjectId"] is None
 
 
-def test_leave_after_restart_succeeds(client):
+def test_leave_after_restart_succeeds(client, fake_clock):
     pid = _agent(client)
     place(pid, 52, 19, "right")
     assert action(client, pid, "use")["success"]
@@ -81,17 +90,18 @@ def test_leave_after_restart_succeeds(client):
     persistence.load_checkpoint()
     p = world_state._players[pid]
     assert p["usingObjectId"] == "fishing_spot_2" and any(b["key"] == "no_use" for b in p["buffs"])
-    ticker.tick_once(checkpoint=False)
+    _tick(fake_clock)
+    assert p["canUse"] is False
     res = action(client, pid, "leave")
     assert res["success"] and p["usingObjectId"] is None
 
 
-def test_reuse_same_object_then_leave(client):
+def test_reuse_same_object_then_leave(client, fake_clock):
     pid = _agent(client)
     place(pid, 52, 19, "right")
     assert action(client, pid, "use")["success"]
-    ticker.tick_once(checkpoint=False)
-    res2 = action(client, pid, "use")                             # 对正在用的物品再次 use
+    _tick(fake_clock)
+    res2 = action(client, pid, "use")                             # 对正在用的物品再次 use（no_use 生效时会被挡；不影响 leave）
     obj = world_state.get_object_by_id("fishing_spot_2")
     assert obj["currentUsers"] == 1 and obj["userList"].count(pid) == 1   # 不重复计数
     res = action(client, pid, "leave")

@@ -73,7 +73,7 @@ uv run python scripts/inspect_runstation.py                        # §1 那一�
 - **根因**（与交接单的 `no_use` 诊断略有出入）：`handle_leave` 唯一的拦截是 `chat_active`（对话中返回 `use_disabled`），`no_use` 并不挡 leave。死锁组合是：钓位 / 长椅 / 浴缸带 `no_move`（挡 move），同时她在对话里（`chat_active` 挡 leave）——对话不结束就两头都走不了；`chat_active` 没有 tick handler，`canUse` 每 tick 复位，所以对话中 `use` 钓位能成功（12:02 / 12:17 / 12:32 三次正是如此），然后被锁。重启不是诱因，但回填会把 `chat_active` 原样带回来。
 - **修法**：① `leave` 对正在使用的物品永远放行，失败只剩 `not_using_any_object` / `player_not_found`；② 检查点回填后 `chat_active` 与活跃房间对账（没房间的清掉、有房间的补上）。
 - **单测** `tests/test_w8_q0_leave.py`（24 例）：地图上 **19 个 continuous 物品逐个 use → tick → leave 必须成功**（覆盖所有 no_use / no_move 物品）；对话中 use 钓位 → move 仍 `move_disabled`（预期）但 leave 成功；use → 重启回填 → leave 成功；对同一物品再次 use 不重复计数 → leave 成功；回填清掉无房间的 `chat_active`。
-- 行为契约：api-spec `leave` 小节已注明。提交号见 §4（本轮第 2 次提交）。
+- 行为契约：api-spec `leave` 小节已注明。提交：`3ec0fe1`（修复 + 单测）与其后一提交（单测时序修正），**请总控切到最新提交**；旧实例上被卡住的人仍可用 `POST /admin/player/force-reset` 解开。
 
 ## 6. 小队列余项
 
