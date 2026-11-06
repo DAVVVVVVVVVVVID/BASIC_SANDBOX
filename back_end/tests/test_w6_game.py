@@ -61,7 +61,7 @@ def test_use_starts_session_and_leave_ends(client, brain):
     assert res["success"] and res["result"]["objectId"] == CONSOLE_ID
     assert res["result"]["stateLabel"] == "鲸仔 玩游戏中"
     p = client.get(f"/player/{pid}").json()
-    assert p["state"] == "using" and "gaming" in p["tags"] and p["canMove"] is True   # tick 前 canMove 尚未置 False
+    assert p["state"] == "using" and "gaming" in p["tags"] and p["canMove"] is False  # W8 Q0c：no_move 立刻生效
     g = p["game"]
     assert g["status"] == "playing" and g["brain_run_id"] == "run-7" and g["day"] == 3 and g["phase"] == "day" and "extra" not in g
     assert brain.events == [{"type": "sandbox_session_start", "agent": "whale", "player_id": pid, "ts": g["started_at"], "tick": 1234}]

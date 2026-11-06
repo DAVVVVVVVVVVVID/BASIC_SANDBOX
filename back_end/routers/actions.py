@@ -270,6 +270,7 @@ def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
     if obj is None:
         return ActionResponse(success=False, type="leave", reason="not_using_any_object")
 
+    p = _players.get(entity_id) or {}
     return ActionResponse(
         success=True,
         type="leave",
@@ -279,6 +280,8 @@ def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
             "objectId":     obj["id"],
             "currentUsers": obj["currentUsers"],
             "maxUsers":     obj["maxUsers"],
+            "canMove":      p.get("canMove", True),      # Q0c：离开后立刻可动（无其他 no_move 来源时为 true）
+            "canUse":       p.get("canUse", True),
         },
     )
 

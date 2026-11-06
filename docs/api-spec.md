@@ -669,6 +669,8 @@
 ### leave
 
 > **Q0（W8）：离开正在使用的物品永远放行。** `no_use` / `no_move` / 对话中的 `chat_active` 只约束「去用别的物品」与移动，不再挡 `leave`（此前 `chat_active` 会让 `leave` 返回 `use_disabled`，与钓位 / 长椅 / 浴缸的 `no_move` 组合成死锁）。失败只剩 `not_using_any_object` 与 `player_not_found`。检查点回填时若 `chat_active` 没有对应的活跃房间会被清掉。
+>
+> **Q0c（W8）：控制标志同步生效。** `canMove / canInteract / canUse / moveSpeed` 在 use、leave、`/effects` 推送、admin 清 buff / force-reset 之后**立刻**按当前 buff 重算，不再等下一个 200 ms tick。所以 leave 成功后同一秒内 move 即可成功（此前四段寻路在 leave 后第一步都 `move_disabled`）；use 带 `no_move` 的物品后立刻 move 即返回 `move_disabled`。leave 响应 `result` 多 `canMove`、`canUse` 两个字段（离开后的实际值；若还有别的 `no_move` 来源，如对话或 `/effects` 推的 timed buff，则为 false）。
 
 退出当前正在使用的对象，从 `userList` 移除，玩家状态恢复 `idle`。
 

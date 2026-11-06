@@ -7,7 +7,7 @@ import time
 import uuid
 from pathlib import Path
 from game.object_types import OBJECT_TYPES
-from game.buff_tick import set_var, add_var, add_closeness, NEED_VARS, DECAY_BUFF, mood_baseline as _mood_baseline
+from game.buff_tick import set_var, add_var, add_closeness, NEED_VARS, DECAY_BUFF, mood_baseline as _mood_baseline, apply_control_flags
 from game.time_state import now_real, game_now_ts
 
 # ── 从 JSON 加载地图数据 ──────────────────────────────────────────────────────
@@ -622,6 +622,7 @@ def enter_object(obj_id: str, entity_id: str) -> None:
 
     # continuous 物品：buff（persistent 到 leave 为止 / timed）、tag、以及进入时的一次性 instant_effect
     apply_effects(player, obj["effects"], source=obj_id)
+    apply_control_flags(player)           # Q0c：no_move 等立刻生效，不等下一 tick
     if "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
         player["scene"] = "live"          # B11：直播中按 live 速率衰减
 
@@ -751,6 +752,7 @@ def apply_effects_to_player(entity_id: str, effects: list[dict], scene: str | No
         external_log.log("effects_push", entity_id, source=source, event=event, scene=scene, effects=effects)
         # §3.9 第 4 条：自我层回推（source="self"）的变化不再上报，否则会被加两遍
         summary = apply_effects(player, effects, source=source, scene=scene, track=(source != "self"))
+        apply_control_flags(player)
         return {"summary": summary, "player": copy.deepcopy(player)}
 
 
@@ -770,6 +772,7 @@ def leave_object(entity_id: str) -> dict | None:
         b for b in player["buffs"]
         if not (b["mode"] == "persistent" and b["source"] == obj_id)
     ]
+    apply_control_flags(player)           # Q0c：leave 同一秒内即可 move（基线里四段寻路都卡在这）
     if obj:
         obj_tags = {e["key"] for e in obj["effects"] if e["type"] == "tag"}
         player["tags"] = [t for t in player["tags"] if t not in obj_tags]
@@ -897,6 +900,7 @@ def clear_player_buffs(player_id: str) -> int:
     kept = [b for b in player["buffs"] if b.get("source") == "decay"]
     count = len(player["buffs"]) - len(kept)
     player["buffs"] = kept
+    apply_control_flags(player)
     return count
 
 
@@ -913,6 +917,7 @@ def force_reset_player_state(entity_id: str) -> dict:
     kept = [b for b in player["buffs"] if b.get("source") == "decay"]
     cleared_buffs = len(player["buffs"]) - len(kept)
     player["buffs"]         = kept
+    apply_control_flags(player)
     player["tags"]          = []
     player["state"]         = "idle"
     player["stateLabel"]    = None

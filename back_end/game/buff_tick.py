@@ -220,6 +220,21 @@ EFFECT_HANDLERS: dict = {
 }
 
 
+CONTROL_KEYS = ("no_move", "no_interact", "no_use", "move_speed")
+
+
+def apply_control_flags(player: dict) -> None:
+    """Q0c：buff 增删后立刻重算 canMove / canInteract / canUse / moveSpeed（不等下一个 tick）。
+    只跑控制类 handler，不动需求值、不扣计时。"""
+    player["canMove"] = True
+    player["canInteract"] = True
+    player["canUse"] = True
+    player["moveSpeed"] = 1.0
+    for b in player.get("buffs", []):
+        if b.get("key") in CONTROL_KEYS:
+            EFFECT_HANDLERS[b["key"]](player, b, 0.0)
+
+
 def _expire_timed(items: list[dict], delta: float) -> list[dict]:
     surviving = []
     for b in items:
