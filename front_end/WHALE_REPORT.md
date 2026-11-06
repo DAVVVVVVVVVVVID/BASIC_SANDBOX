@@ -9,17 +9,18 @@
 
 | # | 编号 | 状态 | 做了什么 |
 |---|---|---|---|
-| 1 | E11 | 完成（待主播选） | 主播的立绘已在 `front_end/ref/`（鲸仔 / 阿蝉正面全身 + 设定图 + Live2D 渲染）。**v2** 按正面全身图逐像素重画 16×24 四向：鲸仔——深蓝→浅蓝长卷发、白色荷叶边头饰、两侧蓝蝴蝶结与鳍耳、呆毛、白衬衫泡泡袖 + 深蓝裙 + 白围裙 + 蝴蝶结铃铛、白长袜深蓝鞋、身后鲸尾；阿蝉——白色蓬发 + 呆毛、白猫耳粉内耳、右侧两枚蓝发卡、灰蓝眼、蓝短袖衬衫罩白衬衫 + 黑领带 + 工牌、黑裤、白蓝运动鞋、白猫尾。**v1** 是 W4 按 persona 文字画的版本，保留为 `char_whale_v1 / char_achan_v1`，旁观页 `&art=v1` 可切回对比。两版并排：`report_shots/E11_whale_achan_v1_v2.png`（上：跟随画面局部放大；下：完整精灵表）。每套新增第 5 行：坐（正 / 左 / 右）与睡（侧卧盖被）帧，按 `stateLabel` 自动切（睡觉→躺，坐 / 休息 / 玩游戏 / 看书 / 吃饭 / 钓鱼 / 直播→坐）。所有角色同样有坐 / 睡帧。默认用 v2 |
+| 1 | E11 | 完成（主播选 v1） | 主播的立绘已在 `front_end/ref/`（鲸仔 / 阿蝉正面全身 + 设定图 + Live2D 渲染）。**v2** 按正面全身图逐像素重画 16×24 四向：鲸仔——深蓝→浅蓝长卷发、白色荷叶边头饰、两侧蓝蝴蝶结与鳍耳、呆毛、白衬衫泡泡袖 + 深蓝裙 + 白围裙 + 蝴蝶结铃铛、白长袜深蓝鞋、身后鲸尾；阿蝉——白色蓬发 + 呆毛、白猫耳粉内耳、右侧两枚蓝发卡、灰蓝眼、蓝短袖衬衫罩白衬衫 + 黑领带 + 工牌、黑裤、白蓝运动鞋、白猫尾。**v1** 是 W4 按 persona 文字画的版本，保留为 `char_whale_v1 / char_achan_v1`，旁观页 `&art=v1` 可切回对比。两版并排：`report_shots/E11_whale_achan_v1_v2.png`（上：跟随画面局部放大；下：完整精灵表）。每套新增第 5 行：坐（正 / 左 / 右）与睡（侧卧盖被）帧，按 `stateLabel` 自动切（睡觉→躺，坐 / 休息 / 玩游戏 / 看书 / 吃饭 / 钓鱼 / 直播→坐）。所有角色同样有坐 / 睡帧。**主播选了 v1，默认已切回 v1**，`&art=v2` 看立绘版 |
 | 2 | E12 | 完成 | 操控页（阿蝉）新增快捷区：显示鲸仔状态与坐标；「**走到她旁边**」= 客户端 BFS 到她的相邻格逐格 move（每步仍由后端裁定；无路时退回后端 `move_to_area`）；「**邀请她聊天**」一键 `POST /chat/request`（human 无冷却，B W6），等待态区分 pending / `walking_over`（「对方接受了，正在走过来」）/ `expired`；房间内打字、看她回复、退出；HUD 新增「🐳 鲸仔」块显示她的七变量**分档**（紧急 <10 / 很差 <15 / 偏低 <25 / 一般 / 不错，只读 `/player/{id}/state`）。**实测**（运行台 8000，C 的真 agent）：走到 (50,24) 与她 (51,24) 相邻 → 邀请 → **4 s 内她接受并回了一句**（「阿蝉，我今天还不错！刚在渔夫家的冰箱里吃了一顿…你呢？」）→ 阿蝉再发两句 → 退出。`data/chat/2026-11-06.jsonl` 里 `room_open`、5 条 `message`（`controller` human / agent）、`player_exit` 全在；`GET /history/chat` 一致（截图 `E12_achan_chat.jpg`）。**没做到的**：她对后两句 90 s 内没有再回复——C 的 agent 在房间里的发言由其 think 节奏决定（接受时那句是 respond 自带的 message），不是前端问题；见 §4 给 C |
 | 3 | E13 | 完成 | `/replay?town=main&date=2026-11-06[&speed=1\|8\|60\|fit][&export=1]`：只读 A 的 `data/dataset/<town>/<date>/{state,episodes,events}.jsonl` + B 的 `run/data/sandbox/{actions,chat,state}/<date>.jsonl`（Vite 只读目录中间件 `/dataset` `/sandboxdata`，白名单后缀、拒绝 `..`），地图几何取 `GET /world?fields=tiles,objects` 一次。单张 1600×900 画布：左地图 + 鲸仔位置 / 轨迹（有 state 位置样本用样本，样本开始前按 `move / move_to_area` 近似推算并标注）、右上七变量折线（固定顺序配色，图例带当前值）、「她在想」（episodes 的计划 / 想法 / 模型 / 费用）、「发生了什么」（记忆写入 / 行动 / 聊天倒序 11 条）、底部时间轴（思考与聊天刻度）；可拖动、1× / 8× / 60× / 整天压 60 s。**导出**：`MediaRecorder` 录画布 → `replay_<town>_<date>.webm`。11-06 主镇：七变量 30 点、思考 71 段、记忆 60 条、行动 372 条、聊天 5 条；导出 **60.96 s、1600×900、VP8 30 fps、8.9 MB**（`/tmp/pw/shots/replay_main_2026-11-06.webm`，中途 30 s 处正好是全天中点 09:18，截图 `E13_replay.jpg`） |
 | 4 | E14 | 完成 | `?town=m2a` → 前端 API 前缀改为 `/t/m2a/api`（含 ws），Vite 读 `run/towns.yaml` 的 `towns.<name>.k` 生成代理表（端口 8000+10k；`VITE_TOWNS_YAML` 可改），前端只传镇名、浏览器不直连后端。信息面板名字行带 `[m2a]`。实测 `http://127.0.0.1:5174/spectate?town=m2a&follow=鲸仔` → `transport=ws`、`online`，m2a 的鲸仔当时离线所以全景（截图 `E14_town_m2a.jpg`）。矩阵格名（M2a）在 towns.yaml 里有但前端拿不到，见 §4 |
 | 5 | E15 | 完成（联调通过） | 跟随目标 `/state.game.status === "playing"`（或 tag `gaming` / stateLabel 玩游戏中）时右上出小窗：第几天 / 时段 / 生命 / 饥饿 / 理智 / 死亡 / 局 id，并从 `/gameruns/<run_id>/` 取最新 `.gif/.png`（D 的 `tools/replay.py` 产物）。**联调一局**：以阿蝉走到 `game_console_whale`(10,11) 旁按 E → 后端 `stateLabel`「阿蝉 玩游戏中」、`game = {status: playing, run_id: run-1793933517, day 3, phase day, health 150, hunger 70.5, sanity 137.6}` → 旁观页小窗如实显示（截图 `E15_game_window.jpg`）→ 按 Q 离开 → `game` 清空。该局 D 的 runs 目录里还没有 GIF，小窗只显示指标。新增 `game_console` 物品图 |
-| 6 | E16 | 完成（待主播确认） | `&layout=live`：右下留 Live2D 安全区（= `safe=br`，字幕底中、信息面板左下、时钟右上、游戏机小窗右上时钟下）；`&layout=full`：全屏默认。配色按 W4 反馈已柔和化，本周没再改。截图 `E16_layout_live.jpg` / `E16_layout_full.jpg`。**主播确认见 §2** |
+| 6 | E16 | 完成（主播已确认） | `&layout=live`：右下留 Live2D 安全区（= `safe=br`，字幕底中、信息面板左下、时钟右上、游戏机小窗右上时钟下）；`&layout=full`：全屏默认。配色按 W4 反馈已柔和化，本周没再改。截图 `E16_layout_live.jpg` / `E16_layout_full.jpg`。**主播确认见 §2** |
 | 7 | 报告 | 本文 | — |
 
-## 2. 主播确认（E16 / E11）
+## 2. 主播确认（E16 / E11，2026-11-06）
 
-【待填：本次会话结束前向主播确认，答复写在这里】
+- **E16 OBS 布局**：主播看过 `E16_layout_live.jpg` / `E16_layout_full.jpg` 后答复「**两种都可以**」。直播姬浏览器源用 `…/spectate?follow=鲸仔&hud=0&layout=live`，全屏回放 / 展示用 `&layout=full`。
+- **E11 形象**：主播在 v1（persona 文字版）与 v2（按立绘重画）之间选了 **v1**。已把默认改回 v1（`art=v1` 不用再写），v2 保留为 `&art=v2` 随时可看；两版精灵表都在 `public/assets/gen/`。
 
 ## 3. 测试与结果
 

@@ -22,8 +22,8 @@ export const CHAR_FRAME = { w: 16, h: 24 }
 export const CHAR_ROWS: Record<'down' | 'left' | 'right' | 'up', number> = { down: 0, left: 1, right: 2, up: 3 }
 export const POSE_ROW = 4
 
-/** `?art=v1` 时鲸仔 / 阿蝉用 persona 文字版形象 */
-let artVersion: 'v1' | 'v2' = 'v2'
+/** 形象版本：主播 11-06 选了 v1（persona 文字版）为默认；`?art=v2` 看立绘版 */
+let artVersion: 'v1' | 'v2' = 'v1'
 export function setArtVersion(v: 'v1' | 'v2') { artVersion = v }
 export function resolveCharKey(k: CharKey): CharKey {
   if (artVersion === 'v1' && (k === 'whale' || k === 'achan')) return `${k}_v1` as CharKey
