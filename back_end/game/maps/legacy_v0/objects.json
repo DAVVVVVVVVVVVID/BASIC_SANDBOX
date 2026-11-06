@@ -1,0 +1,250 @@
+[
+  {
+    "id": "bed_whale",
+    "type": "bed",
+    "position": {
+      "x": 3,
+      "y": 3
+    }
+  },
+  {
+    "id": "desk_whale",
+    "type": "desk",
+    "position": {
+      "x": 10,
+      "y": 3
+    }
+  },
+  {
+    "id": "book_whale",
+    "type": "book",
+    "position": {
+      "x": 10,
+      "y": 5
+    }
+  },
+  {
+    "id": "phone_whale",
+    "type": "phone",
+    "position": {
+      "x": 10,
+      "y": 7
+    }
+  },
+  {
+    "id": "stream_desk_whale",
+    "type": "stream_desk",
+    "position": {
+      "x": 3,
+      "y": 13
+    }
+  },
+  {
+    "id": "game_console_whale",
+    "type": "game_console",
+    "position": {
+      "x": 10,
+      "y": 11
+    }
+  },
+  {
+    "id": "bed_achan",
+    "type": "bed_21",
+    "position": {
+      "x": 13,
+      "y": 3
+    }
+  },
+  {
+    "id": "book_achan",
+    "type": "book",
+    "position": {
+      "x": 17,
+      "y": 13
+    }
+  },
+  {
+    "id": "fridge_kitchen",
+    "type": "fridge",
+    "position": {
+      "x": 24,
+      "y": 3
+    }
+  },
+  {
+    "id": "desk_kitchen",
+    "type": "desk_12",
+    "position": {
+      "x": 19,
+      "y": 12
+    }
+  },
+  {
+    "id": "bed_cook",
+    "type": "bed",
+    "position": {
+      "x": 33,
+      "y": 7
+    }
+  },
+  {
+    "id": "fridge_cook",
+    "type": "fridge",
+    "position": {
+      "x": 42,
+      "y": 7
+    }
+  },
+  {
+    "id": "desk_cook",
+    "type": "desk",
+    "position": {
+      "x": 42,
+      "y": 14
+    }
+  },
+  {
+    "id": "counter_grocer",
+    "type": "shop_counter",
+    "position": {
+      "x": 26,
+      "y": 24
+    }
+  },
+  {
+    "id": "fridge_grocer",
+    "type": "fridge",
+    "position": {
+      "x": 17,
+      "y": 24
+    }
+  },
+  {
+    "id": "bed_grocer",
+    "type": "bed",
+    "position": {
+      "x": 17,
+      "y": 30
+    }
+  },
+  {
+    "id": "book_grocer",
+    "type": "book",
+    "position": {
+      "x": 26,
+      "y": 32
+    }
+  },
+  {
+    "id": "bed_fisher",
+    "type": "bed_21",
+    "position": {
+      "x": 45,
+      "y": 23
+    }
+  },
+  {
+    "id": "book_fisher",
+    "type": "book",
+    "position": {
+      "x": 51,
+      "y": 27
+    }
+  },
+  {
+    "id": "fridge_fisher",
+    "type": "fridge",
+    "position": {
+      "x": 51,
+      "y": 23
+    }
+  },
+  {
+    "id": "bed_regular",
+    "type": "bed",
+    "position": {
+      "x": 31,
+      "y": 33
+    }
+  },
+  {
+    "id": "desk_regular",
+    "type": "desk",
+    "position": {
+      "x": 37,
+      "y": 37
+    }
+  },
+  {
+    "id": "bath_regular",
+    "type": "bath",
+    "position": {
+      "x": 42,
+      "y": 33
+    }
+  },
+  {
+    "id": "fridge_regular",
+    "type": "fridge",
+    "position": {
+      "x": 31,
+      "y": 37
+    }
+  },
+  {
+    "id": "table_rest_1",
+    "type": "restaurant_table",
+    "position": {
+      "x": 46,
+      "y": 32
+    }
+  },
+  {
+    "id": "table_rest_2",
+    "type": "restaurant_table",
+    "position": {
+      "x": 50,
+      "y": 32
+    }
+  },
+  {
+    "id": "fridge_rest",
+    "type": "fridge",
+    "position": {
+      "x": 52,
+      "y": 37
+    }
+  },
+  {
+    "id": "bench_square_1",
+    "type": "bench",
+    "position": {
+      "x": 32,
+      "y": 25
+    }
+  },
+  {
+    "id": "bench_square_2",
+    "type": "bench",
+    "position": {
+      "x": 38,
+      "y": 25
+    }
+  },
+  {
+    "id": "fishing_spot_1",
+    "type": "fishing_spot",
+    "position": {
+      "x": 53,
+      "y": 17
+    }
+  },
+  {
+    "id": "fishing_spot_2",
+    "type": "fishing_spot",
+    "position": {
+      "x": 53,
+      "y": 19
+    }
+  }
+]

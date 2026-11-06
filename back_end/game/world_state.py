@@ -693,13 +693,14 @@ def arena_block(arena: str | None, mover: dict | None, game_ts: float) -> tuple[
         return None
     locked_spans = acc.get("locked")
     if locked_spans == "always" or locked_spans is True:
-        return ("locked", None) if not _allowed(acc.get("allow_when_locked"), mover, owners) else None
+        ok = bool(acc.get("allow_when_locked")) and _allowed(acc.get("allow_when_locked"), mover, owners)
+        return None if ok else ("locked", None)
     if not locked_spans:
         return None
     in_locked, _ = _hours_state(locked_spans, game_ts)
     if not in_locked:
         return None
-    if _allowed(acc.get("allow_when_locked"), mover, owners):
+    if acc.get("allow_when_locked") and _allowed(acc.get("allow_when_locked"), mover, owners):   # 空 = 锁定时谁也不能进（owner 除外）
         return None
     # 解锁时刻 = 当前锁定段的结束
     from datetime import datetime

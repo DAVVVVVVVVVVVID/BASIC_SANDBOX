@@ -104,6 +104,7 @@ def perceive(
                 arenas_out.append({
                     "id":      am["id"],
                     "name":    am["name"],
+                    "floor":   am.get("floor", 1),                 # W9：楼层
                     "current": am["id"] == zone["arena"] and _s["id"] == zone["sector"],
                     "objects": [_obj_brief(o) for o in get_objects_in_arena(am["id"])],
                 })

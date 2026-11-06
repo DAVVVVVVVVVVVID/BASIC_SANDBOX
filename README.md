@@ -59,7 +59,8 @@ BASIC_SANDBOX/
 │   │   ├── verify_game.py     # 游戏机对 D brain 联调
 │   │   ├── replay.py          # B19 可复现回放
 │   │   ├── inspect_runstation.py # 每日巡检行
-│   │   └── gen_map.py         # 地图生成器（阿蝉家 + 小镇 + 餐馆；--variant m1c）
+│   │   ├── gen_map.py         # v0 地图生成器（阿蝉家 + 小镇 + 餐馆；--variant m1c）
+│   │   └── gen_map_v1.py      # 世界 v1.0 草图（地图格式 v2）
 │   ├── tests/                 # pytest（uv run pytest）
 │   ├── data/                  # 运行时生成：sandbox.db 检查点、actions/*.jsonl（不进 git）
 │   ├── models/
@@ -128,7 +129,9 @@ BASIC_SANDBOX/
 
 地图采用四级层级：`world → sector → arena → tile`。每个 tile 有坐标 `(x, y)` 和可行走标志，最多放置一个 Object。坐标系以左上角为原点，x 向右递增，y 向下递增。
 
-当前地图「阿蝉家与小镇」（60 × 40）由 `back_end/scripts/gen_map.py` 生成（MAP_EDITOR 不在本机，按其导出格式直出；旧 50 × 50 地图在 `game/maps/legacy_50x50/`）：阿蝉家（小仓库 = 鲸仔房间：bed / desk / book / phone / stream_desk；阿蝉房间；厨房 fridge）、四个 NPC 家（厨子、杂货商、渔夫、常客，对应 whale-self `personas/`）、街道、广场、公园、码头与河。出生点在小仓库。改地图：改脚本常量后重新运行 `uv run python scripts/gen_map.py`。
+**地图格式 v2（W9）**：`map.json` 可带 `format: 2`、`edges[]`（门 / 校门 / 楼梯，含 `open_hours` / `allow`）、`floors`、`access`（owner / 锁定时段）、`homes`；寻路走边，锁门返回 `locked` / `closed` 带 `opens_at`。世界 v1.0 草图在 `game/maps/v1/`（`scripts/gen_map_v1.py`，64×48，按 `docs/world-bible/02-map.md`）；主镇仍用 v0（`game/maps/`，副本在 `legacy_v0/`）。
+
+当前主镇地图「阿蝉家与小镇」（60 × 40）由 `back_end/scripts/gen_map.py` 生成（MAP_EDITOR 不在本机，按其导出格式直出；旧 50 × 50 地图在 `game/maps/legacy_50x50/`）：阿蝉家（小仓库 = 鲸仔房间：bed / desk / book / phone / stream_desk；阿蝉房间；厨房 fridge）、四个 NPC 家（厨子、杂货商、渔夫、常客，对应 whale-self `personas/`）、街道、广场、公园、码头与河。出生点在小仓库。改地图：改脚本常量后重新运行 `uv run python scripts/gen_map.py`。
 
 ### 时间系统
 
@@ -321,6 +324,8 @@ uv run python scripts/verify_game.py --game-url http://127.0.0.1:8110          #
 uv run python scripts/dataset_fetch.py --base http://127.0.0.1:8000 --date 2026-11-06 --data-dir run/data/sandbox   # 数据集导出对账
 uv run python scripts/multi_soak.py --instances 8 --minutes 30 --map-dir game/maps/m1c   # 一机 8 实例空跑，tick 抖动与 RSS
 uv run python scripts/gen_map.py --variant m1c --out game/maps/m1c             # NPC 8 个版本地图（SANDBOX_MAP_DIR 指过去）
+uv run python scripts/gen_map_v1.py                                            # 世界 v1.0 草图（地图 v2：edges / floors / access）→ game/maps/v1
+scripts/run_town.sh --port 8091 --data <dir> --map game/maps/v1 --no-sync --scenario   # 起草图镇供 E 渲染
 uv run python scripts/replay.py --date 2026-11-06 --town main                   # B19 可复现回放 + 差值表
 uv run python scripts/inspect_runstation.py                                    # 运行台每日巡检行（只读日志 + /admin/metrics）
 uv run python scripts/gen_map.py                                              # 重新生成地图

@@ -1,10 +1,61 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W8 维护节奏 · 第 1 轮（2026-11-06）**；W7–W1 记录在后。
+分支：`whale-integration`。最新：**W9 世界 v1.0 地图原型（2026-11-07）**；W8、W7–W1 记录在后。
 
 ---
 
-# W8 · 维护节奏 · 2026-11-06 第 1 轮
+# W9 · 2026-11-07：世界 v1.0 地图原型（连接边、楼层、锁门）
+
+## 0. 第 0 项（A 的导出核对）——提交 `9c201b1`
+
+`GET /admin/export` 的 state 旧行没有 `tags`（Q0d 只改了 `state_log` 新写的行）：导出现在按**规范字段集**回填（`EXPORT_FIELDS`：actions 13 项、chat 6 项公共 + message/event 自有、state 19 项、external 7 项公共），缺的按默认值补（`tags: []`、`facing: null`、`mood_base: null`、`objectId: null`…）并标 `backfilled`；`manifest.fields` 回显字段集。与 `docs/dataset-schema.md` 的 `sandbox_*` 行一致（state 的 `kind` 现有 `sample | join | rejoin | restore | scenario` 五值，请 A 把 schema 的「`kind: sample`」改写为枚举）。
+
+## 1. 进度（任务 1–4 全部完成）
+
+| # | 任务 | 状态 | 主要文件 |
+|---|---|---|---|
+| 1 | **地图格式 v2**：`map.json` 加 `format`、`edges[]`（door / gate / stairs，`a`/`b` 两端格，`open_hours`、`allow`、`owner`）、`floors`、`access`（owner / `locked` 时段或 `"always"` / `allow_when_locked`）、`homes`；`world_state.load_map()` 可切图（原地更新容器）；BFS 走 edges（楼梯 = 非相邻邻接），每步跨场所查边与 access；`move` / `move_n` / `move_to_area` / 新别名 `go_to` 被挡时返回 `locked` / `closed` 带 `opens_at`（忽略门禁能到才算门禁，否则 `no_path`）；`GET /world` 新顶层 `map`；perceive 的 arena 带 `floor` | ✅ | `game/world_state.py`（`load_map / neighbors / bfs_path / crossing_block / arena_block / edge_block / first_block_on_path`）、`routers/actions.py`、`models/world.py` |
+| 2 | **v1.0 草图** `scripts/gen_map_v1.py` → `game/maps/v1/`：64×48，按 02-map 的相邻关系：鲸鱼大学（教学楼 / 图书馆 / 音乐楼，校门 06–23）、老渔夫家、码头（钓位×2、渔船、卖鱼摊）与河、东西主街 + 南北街 + 两条小巷、合租房 1F（鲸仔房 / 客厅 / 厨房）与 **2F 阿蝉房**（画在画布左下，楼梯边连客厅；09:00–18:30 锁、owner 阿蝉）、公园（树、长椅、小路）、广场（长椅×3、喷泉、公告栏）、餐厅（四人桌×2、吧台、后厨冰箱；门 11–14 / 17–21 朝广场）、杂货店（柜台、货架；门 09–20）、小千家、店主们的家（两间 + 共用厨房；NPC 家常锁 owner-only）；52 个物品按 03-objects 3.1 位置，类型沿用旧表或 **占位类型**（`pc / pc_desk / stove / sofa_tv / bar / fish_stall / notice_board / pc_music / reading_desk / classroom_desk` 克隆旧表数值，`tree / shelf / boat / fountain / piano` 为装饰，全部标 `placeholder: true`，数值不改）；出生点鲸仔房间，`homes` 给 6 个 agent id | ✅ | `scripts/gen_map_v1.py`、`game/maps/v1/{map,objects,tile_types,tile_gids}.json`、`game/object_types.json` |
+| 3 | 草图镇起在 **8091**：`run_town.sh --port 8091 --data run/data/bench_v1/sandbox --map game/maps/v1 --no-sync --scenario`（新加 `--map`），`SANDBOX_TOWN=bench_v1`，mapVersion `鲸鱼大学城·v1.0 草图@6bf958223cd6`，`/world?fields=map` 可见 12 边 / floors / access；E 可直接渲染 | ✅ 运行中 | `scripts/run_town.sh` |
+| 4 | 旧图保留 `game/maps/legacy_v0/`；默认目录 `game/maps/` 仍是 v0，主镇不切 | ✅ | — |
+
+未做（按交接）：物品数值、背包、金币、QQ。
+
+## 2. 测试命令与结果
+
+```bash
+cd back_end
+uv run pytest -q
+# 256 passed（W8 的 247 + 第 0 项 1 + v2 地图 8）
+
+uv run python scripts/gen_map_v1.py          # 64x48, format 2, 52 objects, 12 edges, 8 access rules, floors={'achan_room': 2}
+```
+
+| 新增 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/test_w6_dataset.py` +1 | 1 | 第 0 项：旧 state 行回填 `tags / facing / mood_base` 并标 backfilled；每行字段集齐全；`manifest.fields` |
+| `tests/test_w9_map_v2.py` | 8 | v1 图 format 2、`/world.map` 的 edges / floors / access、perceive arena 带 floor、8 个 sector；6 个 agent 出生在各自的家、human 出生鲸仔房；**52 个物品从鲸仔房间出发全部可达（含 2F，经楼梯边）**；**阿蝉房 10:00 鲸仔 `move_to_area` / `go_to` → `locked` + `opens_at 18:30`，阿蝉本人能进，19:00 鲸仔能上楼再下楼**；单步 `move` 进渔夫家门 → `locked`（owner 可进，常锁 `opens_at null`）；校门 23:30 → `closed` + `06:00`，图书馆 08:30 → `closed` + `09:00`，音乐楼 8 点开；餐厅门 15:00 → `closed` + `17:00`、12:00 可进；河 `no_walkable_tiles`；legacy v0 图 format 1 行为不变 |
+
+## 3. api-spec 改动摘要（只增不删）
+
+`GET /world` 新顶层 `map`（edges / floors / access 字段表）；行为类型新 `go_to` 别名；`move` / `move_n` / `move_to_area` 新 reason `locked` / `closed` 带 `opens_at`；perceive arena 节点新 `floor`；`/admin/export` 规范字段集；v1.0 草图说明。`README.md`、`docs/data-models.md` 同步。
+
+## 4. 对契约 / 其他会话
+
+1. **给 E（渲染草图）**：8091 已起，`GET /world` 全量含 `tiled`（E 的 gid 表）、`zone_names`、`map.edges`（门 / 校门 / 楼梯两端坐标）、`map.floors`（`achan_room` = 2，画在 x2–9 / y36–41 的独立框里，按区域取景时当成另一层）、`map.access`（锁门表现：`locked` 时段可画门闩）。想换布局改 `gen_map_v1.py` 的坐标常量即可，欢迎直接提坐标。
+2. **给 C（导航 V2）**：寻路已走边；`move_to_area` / `go_to` 返回 `locked / closed + opens_at` 时请当「现在不行、X 点再来」；2.5 的「初始空间树只含合租房三间 + 四个名字」是感知过滤，perceive 仍给整树（C 侧裁）。NPC id 我按 `npc_fisher / npc_xiaoqian / npc_rest_owner / npc_grocer` 建了 `homes`，A 的 persona id 定稿后告诉我改一行。
+3. **给 A**：state 行 `kind` 五值枚举（见 §0）；`/admin/export` 的 state 旧行 `tags` 已回填为 `[]`（真实标签不可追溯，只保证字段齐全）。
+4. **假设**（02-map 没写死的）：校门 06:00–23:00；码头栈道不设门（全天）；NPC 家「熟人可敲门」未做，先 owner-only 常锁；合租房大门不锁；楼梯边无时段；2F 画在画布左下角；餐厅后厨 / 渔夫厨房等内门不设边。
+5. **运行台**：主镇不切（默认图仍 v0）；本提交对 v0 行为的唯一变化是 `/world` 多 `map` 字段与 `go_to` 别名，其余路径不变。
+
+## 5. 本次提交
+
+第 0 项 + v2 底层：`9c201b1`；草图、测试、8091、文档：见 `git log -1`。
+
+---
+
+
+# W8 · 维护节奏 · 2026-11-06 第 1 轮（原报告）
 
 ## 1. 巡检（每天一轮第 1 步）
 

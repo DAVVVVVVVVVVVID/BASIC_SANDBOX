@@ -52,7 +52,26 @@
 | `mapVersion` | **W5 E③** 地图静态内容指纹（名字@sha1 前 12 位，含 tiles 类型 / 可走与物品 id / 类型 / 位置）；变了才需要重拉 `tiles` / `tiled` |
 | `town` | **W7 E** 镇名（`SANDBOX_TOWN`，towns.yaml 的 key），多镇代理用 |
 
-**顶层新增（W7 E）：** `zone_names`：`{world: {id: 名}, sector: {...}, arena: {...}}`，地图区域中文名（只读，`?fields=zone_names` 可单取）。`tiled` 的 tileset 现为 E 交付的自制 CC0 地砖 `gen/tiles.png`（`game/maps/tile_gids.json` 覆盖 gid 与 `_tileset`）。
+**顶层新增（W7 E）：** `zone_names`：`{world: {id: 名}, sector: {...}, arena: {...}}`，地图区域中文名（只读，`?fields=zone_names` 可单取）。
+
+**顶层新增（W9 地图 v2）：** `map`：`{format: 1|2, edges: [...], floors: {arena: 2}, access: {arena: {...}}}`（legacy v0 图为 `format 1`、三者为空）。perceive 的 `arena_tree.sectors[].arenas[]` 带 `floor`。
+
+| `map.edges[]` 字段 | 说明 |
+|---|---|
+| `id`, `kind`, `name` | `kind`: `door`（相邻两格之间）/ `gate` / `stairs`（非相邻两格，跨楼层） |
+| `a`, `b` | `{arena, x, y}` 两端格子；门 / 路口的 a、b 四邻相邻；楼梯任意 |
+| `open_hours` | `[["HH:MM","HH:MM"], ...]` 游戏时间；不在时段内 → `closed` |
+| `allow` / `owner` | `allow` 为谁能过（agent_id / name / id，或 `"owner"` 配合 `owner[]`）；为空 = 所有人；不在名单 → `locked` |
+
+| `map.access[arena]` 字段 | 说明 |
+|---|---|
+| `owner[]` | 场所主人，任何时候都能进 |
+| `locked` | `[["09:00","18:30"]]` 锁定时段，或 `"always"` 常锁 |
+| `allow_when_locked[]` | 锁定时段还能进的人（owner 之外）；**为空 = 锁定时谁也不能进** |
+
+`floors`：`{arena: 楼层}`，缺省 1；2F 画在画布另一处，只靠 `stairs` 边相连。`homes`（map.json，不下发）：`{agent_id: arena}` 决定 agent 出生点（覆盖代码里的 `AGENT_HOME_ARENA`）。
+
+**v1.0 草图**（`game/maps/v1/`，`scripts/gen_map_v1.py`，按 `docs/world-bible/02-map.md`）：64×48，8 个 sector（小镇 / 鲸鱼大学 / 老渔夫家 / 合租房 / 餐厅 / 杂货店 / 小千家 / 店主们的家）、26 个 arena、52 个物品、12 条边、8 条访问规则（阿蝉房 09:00–18:30 锁、四户 NPC 家常锁 owner-only）。物品按 `03-objects.md` 3.1 位置摆，类型沿用旧表或占位类型（`placeholder: true`，数值不改）。`run_town.sh --map game/maps/v1` 起；旧图在 `game/maps/legacy_v0/`（默认目录仍是 v0，主镇不切）。`tiled` 的 tileset 现为 E 交付的自制 CC0 地砖 `gen/tiles.png`（`game/maps/tile_gids.json` 覆盖 gid 与 `_tileset`）。
 
 **瘦身（W5 E③）：** `GET /world?fields=players,objects,worldState` 只回这些顶层键（可选值：`tiles` / `objects` / `worldState` / `players` / `tiled`），形状与全量相同（同一响应模型）；全量约 300 KB，`players,objects,worldState` 约 10 KB。`tiled`（**E⑤**）现在非空：`{tilesets: [Sunnyside 信息], layers: [ground, structures]}`，gid 映射为假设值，见 `scripts/gen_map.py` 的 `TILE_GIDS`（可用 `game/maps/tile_gids.json` 覆盖）。
 
@@ -394,6 +413,9 @@
 | `use` | 进入使用正前方对象，加入 userList | `{}` | `E` |
 | `leave` | 退出当前正在使用的对象 | `{}` | `Q` |
 | `freeform` | **B12（W5）** 自然语言动作，由自我层 `POST /self/adjudicate` 裁决后把效果落到 player | `{ text, target?, context? }` | agent |
+| `go_to` | **W9** `move_to_area` 的别名：`{ area_id | target, area_type?="arena" }`，响应 `type: "go_to"`，其余同 move_to_area | agent |
+
+**地图 v2 的寻路与门禁（W9）：** `move` / `move_n` / `move_to_area` / `go_to` 都按 `map.edges` 走（楼梯是非相邻邻接），每一步跨场所时检查该边的 `open_hours` / `allow` 与目标场所的 `access`。被挡时：`move` 返回 `reason: "closed"`（门不在开放时段，`result.opens_at`）或 `"locked"`（访问规则，`result.opens_at` 为解锁时刻或 `null` = 常锁）；`move_n` 在该步停下；`move_to_area` / `go_to` 若忽略门禁能到而带门禁不能到，返回 `locked` / `closed` + `opens_at`，否则 `no_path`。
 
 ---
 

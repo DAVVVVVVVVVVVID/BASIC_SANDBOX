@@ -123,6 +123,10 @@ type ContinuousObject = {
 
 全部物品改为每游戏小时尺度：一次正常使用的恢复量 ≈ 该变量一日衰减量（bed +25 energy/h × 8 h ≈ 200；fridge +40 fullness ≈ 日衰减 / 3 餐；book +60 fun ≈ 日衰减 / 4 次）。表见 api-spec §5。
 
+### 地图格式 v2（W9）
+
+`map.json` 在 v1 基础上加：`format: 2`；`edges[]`：`{id, kind: door|gate|stairs, name, a:{arena,x,y}, b:{arena,x,y}, open_hours?, allow?, owner?}`；`floors: {arena: n}`；`access: {arena: {owner[], locked: [[..]]|"always", allow_when_locked[]}}`；`homes: {agent_id: arena}`。寻路邻接 = 四邻可走格 + 楼梯边；跨场所时按边与 access 判 `closed` / `locked`。
+
 ### 营业时间（B20，W7）
 
 Object 类型可带 `open_hours: [["HH:MM","HH:MM"], ...]`（游戏时间）。运行时每个物品视图带 `open / opensAt / openHours`，关门时 `advertise` 全 0，use 返回 `closed`，到点自动请出使用者。
