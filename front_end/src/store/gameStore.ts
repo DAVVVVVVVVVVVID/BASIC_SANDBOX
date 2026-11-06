@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type {
   Player, WorldState, ActionLogEntry, Tile, OtherPlayer, GameObject,
-  PlayerStateVars, ChatBubble, ConnectionStatus, TiledRenderData,
+  PlayerStateVars, ChatBubble, ConnectionStatus, TiledRenderData, Transport,
 } from '../types'
 
 export type AppMode = 'play' | 'spectate'
@@ -33,6 +33,8 @@ interface GameStore {
   playerVars: Record<string, PlayerStateVars>
   bubbles: ChatBubble[]
   connection: ConnectionStatus
+  /** 当前数据通道：ws 推送 / 轮询 / 还没连上 */
+  transport: Transport
   /** 连续失败次数，用于 UI 显示与退避 */
   failures: number
   /** 后端 /world 快照时间（performance.now），用于插值 */
@@ -43,7 +45,7 @@ interface GameStore {
   setWorldState: (ws: WorldState) => void
   setActionLog: (log: ActionLogEntry[]) => void
   setTiles: (tiles: Tile[]) => void
-  setMap: (tiles: Tile[], tiled: TiledRenderData | null | undefined) => void
+  setMap: (tiles: Tile[], tiled: TiledRenderData | null | undefined, sig?: string) => void
   /** 初始 fetch 之后调用：记下签名（不 +1 版本） */
   setMapSeen: (world: { tiles: Tile[]; tiled?: TiledRenderData | null }) => void
   setObjects: (objects: GameObject[]) => void
@@ -53,6 +55,12 @@ interface GameStore {
   pushBubble: (entityId: string, content: string, ttlMs?: number) => void
   pruneBubbles: (now: number) => void
   setConnection: (c: ConnectionStatus) => void
+  setTransport: (t: Transport) => void
+  /** ws patch：按 id 合并 players（upsert / remove） */
+  patchPlayers: (upsert: OtherPlayer[] | undefined, remove: string[] | undefined) => void
+  /** ws patch：按 id 合并 objects 的使用状态 */
+  patchObjects: (partials: Partial<GameObject>[]) => void
+  patchWorldState: (partial: Partial<WorldState>) => void
 }
 
 export const BUBBLE_TTL_MS = 8000
@@ -72,6 +80,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   playerVars: {},
   bubbles: [],
   connection: 'connecting',
+  transport: 'none',
   failures: 0,
   lastWorldAt: 0,
 
@@ -80,8 +89,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setWorldState: (worldState) => set({ worldState }),
   setActionLog: (actionLog) => set({ actionLog }),
   setTiles: (tiles) => set({ tiles }),
-  setMap: (tiles, tiled) => set((s) => ({ tiles, tiled: tiled ?? null, mapVersion: s.mapVersion + 1, mapSig: mapSignature({ tiles, tiled }) })),
-  setMapSeen: (world) => set({ mapSig: mapSignature(world) }),
+  setMap: (tiles, tiled, sig) => set((s) => ({ tiles, tiled: tiled ?? null, mapVersion: s.mapVersion + 1, mapSig: sig ?? mapSignature({ tiles, tiled }) })),
+  setMapSeen: (world) => set({ mapSig: (world as { worldState?: { mapVersion?: string } }).worldState?.mapVersion ?? mapSignature(world) }),
   setObjects: (objects) => set({ objects }),
   setMyPlayerId: (myPlayerId) => set({ myPlayerId }),
   setPlayers: (players) => set({ players, lastWorldAt: performance.now() }),
@@ -103,6 +112,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const next = cur.filter(b => b.until > now)
     if (next.length !== cur.length) set({ bubbles: next })
   },
+  setTransport: (transport) => set({ transport }),
+  patchPlayers: (upsert, remove) => set((s) => {
+    if ((!upsert || upsert.length === 0) && (!remove || remove.length === 0)) return {}
+    const byId = new Map(s.players.map(p => [p.id, p]))
+    for (const p of upsert ?? []) byId.set(p.id, { ...byId.get(p.id), ...p })
+    for (const id of remove ?? []) byId.delete(id)
+    return { players: [...byId.values()], lastWorldAt: performance.now() }
+  }),
+  patchObjects: (partials) => set((s) => {
+    if (!partials || partials.length === 0) return {}
+    const byId = new Map(partials.filter(p => p.id).map(p => [p.id as string, p]))
+    return { objects: s.objects.map(o => byId.has(o.id) ? { ...o, ...byId.get(o.id) } : o) }
+  }),
+  patchWorldState: (partial) => set((s) => ({ worldState: s.worldState ? { ...s.worldState, ...partial } : (partial as WorldState) })),
   setConnection: (connection) => set((s) => ({
     connection,
     failures: connection === 'online' ? 0 : s.failures + (connection === 'offline' ? 1 : 0),

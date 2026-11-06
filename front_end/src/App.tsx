@@ -31,7 +31,7 @@ function PlayApp() {
     try {
       const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents()])
       setWorldState(worldData.worldState)
-      setMap(worldData.tiles, worldData.tiled)
+      setMap(worldData.tiles, worldData.tiled, worldData.worldState?.mapVersion)
       setObjects(worldData.objects)
       setPlayers(worldData.players ?? [])
       initGame({ mode: 'play', worldData, events, player, myPlayerId: playerId, playerName: name })

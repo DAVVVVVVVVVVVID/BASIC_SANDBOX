@@ -48,6 +48,8 @@ export interface WorldState {
   running: boolean
   speed: number
   weather: Weather
+  /** W5：地图静态内容指纹，变了才重拉 tiles / tiled */
+  mapVersion?: string
 }
 
 export type Controller = 'human' | 'agent'
@@ -63,6 +65,12 @@ export interface OtherPlayer {
   online?: boolean
   /** W4（B 4d6a931）：自我层 agent id，human 为 null */
   agent_id?: string | null
+  /** W5（B 59d1ac8）：与 GET /player 同义，叠加层直接读 */
+  stateLabel?: string | null
+  usingObjectId?: string | null
+  tags?: string[]
+  /** W5：坐标每次实际变化 +1 */
+  pos_seq?: number
 }
 
 export interface TiledTilesetInfo {
@@ -192,3 +200,29 @@ export interface ChatBubble {
 }
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline'
+export type Transport = 'ws' | 'poll' | 'none'
+
+/** B17 /ws/world 消息 */
+export interface WsSnapshot extends WorldData { type: 'snapshot'; ts: string }
+export interface WsPatch {
+  type: 'patch'
+  ts: string
+  worldState?: Partial<WorldState>
+  players?: { upsert?: OtherPlayer[]; remove?: string[] }
+  objects?: Partial<GameObject>[]
+  chat?: WsChatEvent[]
+}
+export interface WsChatEvent {
+  chat_room_id: string
+  participants: string[]
+  kind: 'message' | 'event'
+  seq: number
+  from_entity_id?: string
+  from_name?: string
+  content?: string
+  type?: string
+  timestamp?: string
+}
+export interface WsAction { type: 'action'; ts: string; entity: string; action: string; object?: string | null; success: boolean; reason?: string | null }
+export interface WsHeartbeat { type: 'heartbeat'; ts: string }
+export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat

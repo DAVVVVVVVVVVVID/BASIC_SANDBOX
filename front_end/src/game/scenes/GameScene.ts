@@ -50,9 +50,27 @@ const USE_ICONS: [RegExp, string][] = [
   [/well/i, '🪣 打水中'],
 ]
 
-/** 从 /world 的 objects / state 推断别人正在干什么（players[] 没有 stateLabel，见报告需求） */
+const LABEL_ICON: [RegExp, string][] = [
+  [/睡|sleep/i, '💤'], [/吃|饭|eat|food/i, '🍴'], [/直播|stream/i, '📺'], [/聊|talk|chat/i, '💬'], [/洗|bath|shower/i, '🛁'],
+  [/钓|fish/i, '🎣'], [/看书|读|read|book/i, '📖'], [/手机|phone|刷/i, '📱'], [/休息|坐|rest|sit/i, '🛋'], [/工作|desk|work|写/i, '🖥'],
+]
+
+/** 后端给的 stateLabel（W5 起 players[] 自带）前面配一个图标 */
+export function iconize(label: string): string {
+  if (/^\p{Extended_Pictographic}/u.test(label)) return label
+  for (const [re, ic] of LABEL_ICON) if (re.test(label)) return `${ic} ${label}`
+  return label
+}
+
+/** 别人正在干什么：优先后端 `stateLabel` / `tags`（W5），老后端退回 objects.userList 反查推断 */
 export function deriveStateLabel(p: OtherPlayer, objects: GameObject[], tagsHint?: string[]): string | null {
   if (p.online === false) return '💤 离线'
+  const tags = (tagsHint ?? []).concat(p.tags ?? [])
+  if (tags.includes('sleeping')) return '💤 睡觉中'
+  if (tags.includes('eating'))   return '🍴 吃饭中'
+  if (tags.includes('streaming')) return '📺 直播中'
+  if (p.stateLabel) return iconize(p.stateLabel)
+  if (p.state === 'talking') return '💬 聊天中'
   const obj = objects.find(o => o.userList?.includes(p.id))
   if (obj) {
     const tags = (tagsHint ?? []).concat(obj.effects?.filter(e => e.type === 'tag').map(e => e.key) ?? [])
@@ -187,9 +205,9 @@ export default class GameScene extends Phaser.Scene {
       this.player = player
       this.inputSystem?.applyServerSnapshot(player.position, player.facing, sentAt)
       this.inputSystem?.setEnabled(true)
-      this.self?.setStateLabel(player.stateLabel ?? deriveStateLabel(
-        { id: player.id, name: player.profile?.name ?? '', position: player.position, facing: player.facing, state: player.state },
-        useGameStore.getState().objects, player.tags))
+      this.self?.setStateLabel(deriveStateLabel(
+        { id: player.id, name: player.profile?.name ?? '', position: player.position, facing: player.facing, state: player.state, stateLabel: player.stateLabel, tags: player.tags, usingObjectId: player.usingObjectId },
+        useGameStore.getState().objects))
     })
     this.on('player-rejoined', ({ player }: { playerId: string; player: Player }) => {
       this.player = player
@@ -502,6 +520,7 @@ export default class GameScene extends Phaser.Scene {
         actors: this.others.size + (this.self ? 1 : 0),
         inflight: this.inputSystem?.hasInflight() ? 1 : 0,
         connection: store.connection,
+        transport: store.transport,
         camMode: this.camMode,
         target: this.targetId,
       }

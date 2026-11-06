@@ -12,6 +12,7 @@ export default function SpectateHud({ follow }: { follow: string | null }) {
   const players = useGameStore((s) => s.players)
   const playerVars = useGameStore((s) => s.playerVars)
   const connection = useGameStore((s) => s.connection)
+  const transport = useGameStore((s) => s.transport)
   const target = resolveFollowTarget(players, follow)
   const vars = target ? playerVars[target.id] : undefined
 
@@ -27,6 +28,7 @@ export default function SpectateHud({ follow }: { follow: string | null }) {
       </div>
       <div style={{ color: connection === 'online' ? '#68d391' : '#fc8181' }}>
         {connection === 'online' ? '● 已连接' : connection === 'offline' ? '● 连接中断，重连中…' : '● 连接中'}
+        <span style={{ color: '#718096', marginLeft: 6, fontSize: 11 }}>{transport === 'ws' ? 'WebSocket 推送' : transport === 'poll' ? '轮询（ws 不可用）' : ''}</span>
       </div>
       {follow && (
         <div style={{ marginTop: 4, color: target ? (target.online === false ? '#fbd38d' : '#a0aec0') : '#fc8181' }}>

@@ -3,6 +3,8 @@ import type { Player, PlayerStateVars, WorldData, WorldEvent, ActionLogEntry, Wo
 
 export const fetchEvents  = () => apiGet<WorldEvent[]>('/events')
 export const fetchWorld   = () => apiGet<WorldData>('/world')
+/** W5 瘦身：只要动态部分（约 10 KB）；老后端忽略 query 回全量，调用方按 tiles 是否为空判断 */
+export const fetchWorldLive = () => apiGet<WorldData>('/world?fields=players,objects,worldState')
 export const fetchHistory = () => apiGet<ActionLogEntry[]>('/history')
 
 export function joinPlayer(name: string) {

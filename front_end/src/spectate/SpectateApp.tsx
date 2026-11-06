@@ -39,11 +39,10 @@ export default function SpectateApp() {
           if (cancelled) return
           const s = useGameStore.getState()
           s.setWorldState(worldData.worldState)
-          s.setMap(worldData.tiles, worldData.tiled)
+          s.setMap(worldData.tiles, worldData.tiled, worldData.worldState?.mapVersion)
           s.setObjects(worldData.objects)
           s.setPlayers(worldData.players ?? [])
           s.setConnection('online')
-          s.setMapSeen(worldData)
           gameRef.current = initGame({ mode: 'spectate', worldData, events, spectate: params })
           const game = gameRef.current
           const getTargetIds = () => {

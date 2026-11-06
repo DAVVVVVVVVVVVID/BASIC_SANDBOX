@@ -18,8 +18,8 @@ export default class UIScene extends Phaser.Scene {
   private statsText: Phaser.GameObjects.Text | null = null
   private mode: 'play' | 'spectate' = 'play'
   private params: SpectateParams | null = null
-  private onStats = (s: { fps: number; actors: number; connection: string; camMode: string; target: string | null }) => {
-    this.statsText?.setText(`${s.fps} fps · ${s.actors} actors · ${s.connection} · ${s.camMode}${s.target ? ' → ' + s.target : ''}`)
+  private onStats = (s: { fps: number; actors: number; connection: string; transport?: string; camMode: string; target: string | null }) => {
+    this.statsText?.setText(`${s.fps} fps · ${s.actors} actors · ${s.connection}/${s.transport ?? '-'} · ${s.camMode}${s.target ? ' → ' + s.target : ''}`)
   }
 
   constructor() { super({ key: 'UIScene' }) }
