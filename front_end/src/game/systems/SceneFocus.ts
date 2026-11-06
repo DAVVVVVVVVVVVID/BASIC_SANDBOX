@@ -30,6 +30,8 @@ export default class SceneFocus {
   private doorNodes: { edge: MapEdge; img: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text }[] = []
   private lastLockSig = ''
   private indoor = false
+  private labelScale = 1
+  private labels: Phaser.GameObjects.Text[] = []
 
   constructor(private scene: Phaser.Scene, private opts: { enabled: boolean; baseZoom: () => number; snap: (z: number) => number }) {
     this.dim = scene.add.graphics().setDepth(DIM_DEPTH).setAlpha(0)
@@ -45,6 +47,7 @@ export default class SceneFocus {
     this.edgeNodes = []
     for (const d of this.doorNodes) { d.img.destroy(); d.label.destroy() }
     this.doorNodes = []
+    this.labels = []
     this.lastLockSig = ''
     // 楼梯图示
     for (const e of this.v2.edges) {
@@ -53,7 +56,7 @@ export default class SceneFocus {
         const img = this.scene.add.image(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE + TILE_SIZE / 2, objTextureKey('stairs')).setDisplaySize(TILE_SIZE - 8, TILE_SIZE - 8).setDepth(2)
         const f = e.floors ? `${e.floors[0]}F↔${e.floors[1]}F` : '楼梯'
         const t = this.scene.add.text(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE - 2, f, { fontFamily: 'system-ui, sans-serif', fontSize: '12px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(3).setResolution(2)
-        this.edgeNodes.push(img, t)
+        this.edgeNodes.push(img, t); this.labels.push(t)
       }
     }
     // 门（有时段的）
@@ -67,17 +70,26 @@ export default class SceneFocus {
         const hours = e.openHours ? `开 ${e.openHours.start}–${e.openHours.end}` : locksByAccess ? `锁 ${locksByAccess.start}–${locksByAccess.end}` : ''
         const who = e.to && this.v2.access.get(e.to)?.owner ? `（${arenaName(e.to)}）` : ''
         const label = this.scene.add.text(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE - 4, `🔒 ${hours}${who}`, { fontFamily: 'system-ui, "PingFang SC", sans-serif', fontSize: '12px', color: '#ffd7d7', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(3).setResolution(2).setVisible(false)
-        this.doorNodes.push({ edge: e, img, label })
+        this.doorNodes.push({ edge: e, img, label }); this.labels.push(label)
       }
     }
   }
 
   get hasV2() { return this.v2.hasV2 }
+  /** 某 sector（可选楼层）的中心格，给 &focus= 用 */
+  sectorCenter(sector: string, floor = 1): { x: number; y: number } | null {
+    const b = arenaBBox([...this.tileIndex.values()].filter(t => this.v2.floorOf(t) === floor), sector)
+    if (!b) return null
+    return { x: Math.round((b.x0 + b.x1) / 2), y: Math.round((b.y0 + b.y1) / 2) }
+  }
   floorOf(t: Tile | null | undefined) { return this.v2.floorOf(t) }
   tileAt(x: number, y: number) { return this.tileIndex.get(`${x},${y}`) }
 
   /** 每帧：focus = 跟随目标 / 自己所在格；返回当前是否室内（给相机用） */
   update(focus: { x: number; y: number } | null, dt: number, ws: WorldState | null): { indoor: boolean; zoom: number | null; label: string } {
+    // 标签在屏幕上保持可读大小
+    const ls = Phaser.Math.Clamp(1 / this.scene.cameras.main.zoom, 1, 6)
+    if (Math.abs(ls - this.labelScale) > 1e-3) { this.labelScale = ls; for (const l of this.labels) l.setScale(ls) }
     // 门的开关状态（每秒级变化，签名变了才改）
     const time = ws?.time
     const sig = time?.slice(0, 5) ?? ''

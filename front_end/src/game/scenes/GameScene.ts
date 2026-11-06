@@ -480,8 +480,21 @@ export default class GameScene extends Phaser.Scene {
       // 目标刚消失的宽限期里停在它最后的位置，不要先滑向地图中心
       if (this.lastTargetPx) { tx = this.lastTargetPx.x; ty = this.lastTargetPx.y }
     }
+    // &focus=<sector>[:floor]：不跟人，直接取景到该场所（评审截图）
+    if (!focusTile && this.params?.focus) {
+      const c = this.focus.sectorCenter(this.params.focus.sector, this.params.focus.floor)
+      if (c) { focusTile = c; tx = c.x * TILE_SIZE + TILE_SIZE / 2; ty = c.y * TILE_SIZE + TILE_SIZE / 2 }
+    }
     // W7 取景：进屋推近 + 屋外压暗
     const fr = this.focus.update(focusTile, dt, useGameStore.getState().worldState)
+    if (this.params?.focus && !this.targetId && fr.indoor && fr.zoom) {
+      if (fr.zoom !== this.focusZoom) { this.focusZoom = fr.zoom; cam.zoomTo(fr.zoom, ZOOM_MS, 'Sine.easeInOut', true) }
+      const k0 = 1 - Math.exp(-dt / CAMERA_LERP_MS)
+      this.camX += (tx - this.camX) * k0; this.camY += (ty - this.camY) * k0
+      const c0 = this.focus.clampCenter(this.camX, this.camY, cam.zoom)
+      this.centerClamped(c0.x, c0.y)
+      return
+    }
     if (this.camMode === 'follow') {
       const want = fr.indoor && fr.zoom ? fr.zoom : this.followZoom
       if (want !== this.focusZoom) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
