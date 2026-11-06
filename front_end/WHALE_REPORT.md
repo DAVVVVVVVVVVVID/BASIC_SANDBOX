@@ -29,7 +29,7 @@
 
 | 项 | 值 |
 |---|---|
-| 代码 | `whale-frontend` @ `ddc555d`（基于 B 的 `4d6a931`）；本报告提交在其后，总控起 5173 请用含报告的最新提交 |
+| 代码 | `whale-frontend` @ `cc86a0d`（基于 B 的 `4d6a931`）；总控起 5173 请用分支最新提交 |
 | 开发 | `cd front_end && npm install && npm run dev`（默认 5173；自测 `-- --port 5174`）。**运行台建议用 `npm run build && npm run preview -- --port 5173`**（静态产物 + `/api` 代理，无 HMR 风险，见 §3.3） |
 | 产物 | `npm run build` → `dist/`；`npm run preview` 同样带 `/api` 代理 |
 | 检查 | `npm test`（tsc + eslint） |
