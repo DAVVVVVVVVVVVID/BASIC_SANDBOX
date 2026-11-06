@@ -117,7 +117,9 @@ export function resolveFollowTarget(players: OtherPlayer[], follow: string | nul
   if (byId) return byId
   const byName = players.filter(p => p.name === follow)
   if (byName.length > 0) return byName.find(p => p.online !== false) ?? byName[0]
-  // agent_id：在已拉到的 /state 里找
+  // agent_id：players[] 自带（B 4d6a931 起），老后端退回到已拉到的 /state 里找
+  const byAgent = players.find(p => p.agent_id === follow)
+  if (byAgent) return byAgent
   for (const [id, v] of Object.entries(s.playerVars)) {
     if (v.agent_id === follow) {
       const p = players.find(x => x.id === id)

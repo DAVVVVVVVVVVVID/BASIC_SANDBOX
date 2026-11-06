@@ -61,6 +61,8 @@ export interface OtherPlayer {
   state: PlayerState
   controller?: Controller
   online?: boolean
+  /** W4（B 4d6a931）：自我层 agent id，human 为 null */
+  agent_id?: string | null
 }
 
 export interface TiledTilesetInfo {
