@@ -251,6 +251,25 @@ export default class InputSystem {
     })
   }
 
+  /** 走到 target 的相邻格（E12「走到她旁边」）：客户端 BFS 规划，逐格 move 由后端裁定。返回路径长度，0 = 已相邻 / 无路 */
+  walkToAdjacent(target: Position): number {
+    const tiles = useGameStore.getState().tiles
+    const from = this.predicted()
+    if (Math.abs(from.x - target.x) + Math.abs(from.y - target.y) <= 1) return 0
+    let best: Direction[] | null = null
+    for (const d of Object.values(DELTAS)) {
+      const goal = { x: target.x + d.x, y: target.y + d.y }
+      if (!this.walkable.has(`${goal.x},${goal.y}`)) continue
+      const path = bfs(tiles, from, goal)
+      if (path.length > 0 && (!best || path.length < best.length)) best = path
+    }
+    if (!best) return 0
+    this.pathQueue = best
+    this.pathDestination = target
+    this.isFirstPathStep = true
+    return best.length
+  }
+
   update(now: number) {
     if (!this.enabled) return
     const { up, down, left, right } = this.cursors

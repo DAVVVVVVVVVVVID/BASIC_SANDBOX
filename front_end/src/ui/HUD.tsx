@@ -44,6 +44,8 @@ export default function HUD() {
   const speed   = useGameStore((s) => s.worldState?.speed ?? 1)
   const running = useGameStore((s) => s.worldState?.running ?? false)
   const tiles   = useGameStore((s) => s.tiles)
+  const players = useGameStore((s) => s.players)
+  const playerVars = useGameStore((s) => s.playerVars)
 
   // 本地维护 instant buff 的 remaining（游戏毫秒），用于平滑倒计时显示
   const [localRemaining, setLocalRemaining] = useState<Record<string, number>>({})
@@ -165,6 +167,30 @@ export default function HUD() {
           ))}
         </div>
       )}
+
+      {/* 阿蝉操控台：她的分档（只读 /state）*/}
+      {players.filter(p => p.controller === 'agent').map(p => {
+        const v = playerVars[p.id]
+        if (!v) return null
+        const band = (x: number) => x < 10 ? ['紧急', '#e53e3e'] : x < 15 ? ['很差', '#ed8936'] : x < 25 ? ['偏低', '#ecc94b'] : x < 60 ? ['一般', '#a0aec0'] : ['不错', '#68d391']
+        return (
+          <div key={p.id} style={{ marginTop: 6 }}>
+            <Divider />
+            <div style={{ color: '#90cdf4', fontWeight: 600, marginBottom: 3 }}>🐳 {p.name}{p.online === false ? '（离线）' : ''}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '2px 8px', alignItems: 'center' }}>
+              {NEED_KEYS.map(k => {
+                const [label, color] = band(v.vars[k])
+                return [
+                  <span key={k + 'l'} style={{ color: '#a0aec0' }}>{NEED_LABELS[k]} {NEED_FULL[k]}</span>,
+                  <Bar key={k + 'b'} value={v.vars[k]} max={100} color={color} />,
+                  <span key={k + 'v'} style={{ color, fontSize: 11, minWidth: 28, textAlign: 'right' }}>{label}</span>,
+                ]
+              })}
+            </div>
+            {v.emotion_tags.length > 0 && <div style={{ color: '#fbd38d', fontSize: 11, marginTop: 3 }}>{v.emotion_tags.map(t => t.key).join(' · ')}</div>}
+          </div>
+        )
+      })}
 
       {/* Buffs & Tags */}
       {(buffs.length > 0 || tags.length > 0) && (

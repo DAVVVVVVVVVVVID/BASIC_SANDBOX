@@ -13,6 +13,7 @@ import JoinScreen from './ui/JoinScreen'
 import ChatPanel from './ui/ChatPanel'
 import ConnectionBadge from './ui/ConnectionBadge'
 import SpectateApp from './spectate/SpectateApp'
+import ReplayApp from './replay/ReplayApp'
 import { isSpectateRoute } from './spectate/params'
 import type { Player } from './types'
 
@@ -73,5 +74,6 @@ function PlayApp() {
 
 export default function App() {
   if (isSpectateRoute()) return <SpectateApp />
+  if (/^\/replay\/?$/.test(window.location.pathname)) return <ReplayApp />
   return <PlayApp />
 }

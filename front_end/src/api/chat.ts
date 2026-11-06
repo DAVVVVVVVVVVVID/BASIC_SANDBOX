@@ -17,7 +17,7 @@ export interface PendingRequest {
 
 export interface RequestStatus {
   request_id: string
-  status: string          // 'pending' | 'active' | 'rejected'
+  status: string          // 'pending' | 'walking_over' | 'active' | 'rejected' | 'expired'
   chat_room_id: string | null
   accepted_ids: string[]
   rejected_ids: string[]

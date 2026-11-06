@@ -208,6 +208,10 @@ export default class GameScene extends Phaser.Scene {
       this.self?.snapTo(player.position, player.facing)
       this.inputSystem?.reset(player.position, player.facing)
     })
+    this.on('walk-to', ({ x, y }: { x: number; y: number }) => {
+      const n = this.inputSystem?.walkToAdjacent({ x, y }) ?? 0
+      EventBus.emit('walk-to-result', { steps: n })
+    })
     this.on('chat-message', ({ entityId, content }: { entityId: string; content: string }) => {
       useGameStore.getState().pushBubble(entityId, content)
     })

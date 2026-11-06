@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../store/gameStore'
 import * as chatApi from '../api/chat'
 import { EventBus } from '../game/EventBus'
+import { moveToArea } from '../api/world'
 import type { ChatMessage, ChatRoomEvent, NearbyPlayer, PendingRequest } from '../api/chat'
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
@@ -85,6 +86,10 @@ type Mode = 'idle' | 'selecting' | 'waiting' | 'in_room'
 export default function ChatPanel() {
   const myPlayerId = useGameStore((s) => s.myPlayerId)
   const myPlayer   = useGameStore((s) => s.player)
+  const players    = useGameStore((s) => s.players)
+  const tiles      = useGameStore((s) => s.tiles)
+  const whale = players.find(p => p.controller === 'agent' && /鲸/.test(p.name)) ?? players.find(p => p.controller === 'agent')
+  const [walking, setWalking] = useState(false)
 
   const [mode, setMode]             = useState<Mode>('idle')
   const [nearby, setNearby]         = useState<NearbyPlayer[]>([])
@@ -99,6 +104,7 @@ export default function ChatPanel() {
   const [toast, setToast]           = useState<string | null>(null)
   const [sending, setSending]       = useState(false)
   const [roomHidden, setRoomHidden] = useState(false)
+  const [waitStage, setWaitStage] = useState<'pending' | 'walking_over'>('pending')
 
   const sinceRef  = useRef(0)
   const roomIdRef = useRef<string | null>(null)
@@ -153,11 +159,13 @@ export default function ChatPanel() {
         if (d.status === 'active' && d.chat_room_id) {
           clearInterval(id)
           enterRoom(d.chat_room_id)
-        } else if (d.status === 'rejected') {
+        } else if (d.status === 'rejected' || d.status === 'expired') {
           clearInterval(id)
           setMode('idle')
           setWaitingId(null)
-          setToast('对方拒绝了邀请')
+          setToast(d.status === 'rejected' ? '对方拒绝了邀请' : '邀请超时（60 s 没人接受）')
+        } else if (d.status === 'walking_over') {
+          setWaitStage('walking_over')
         }
       } catch { /* ignore */ }
     }, 1500)
@@ -219,6 +227,7 @@ export default function ChatPanel() {
     try {
       const d = await chatApi.sendRequest(myId, [...selected], greeting.trim())
       setWaitingId(d.request_id)
+      setWaitStage('pending')
       setMode('waiting')
       setSelected(new Set())
       setGreeting('')
@@ -227,6 +236,39 @@ export default function ChatPanel() {
     } finally {
       setSending(false)
     }
+  }
+
+  /** 阿蝉操控台：走到鲸仔身边——客户端 BFS 到她的相邻格逐格走（每步仍由后端裁定）；没有路时退回后端 move_to_area 到她的区域 */
+  async function handleWalkToWhale() {
+    if (!whale) return
+    setWalking(true)
+    const steps = await new Promise<number>(resolve => {
+      const h = ({ steps }: { steps: number }) => { EventBus.off('walk-to-result', h); resolve(steps) }
+      EventBus.on('walk-to-result', h)
+      EventBus.emit('walk-to', { x: whale.position.x, y: whale.position.y })
+      setTimeout(() => { EventBus.off('walk-to-result', h); resolve(-1) }, 500)
+    })
+    if (steps > 0) { setToast(`出发，约 ${Math.ceil(steps * 0.3)} 秒到`); setTimeout(() => setWalking(false), steps * 300); return }
+    if (steps === 0) { setToast('已经在她旁边了'); setWalking(false); return }
+    const t = tiles.find(x => x.x === whale.position.x && x.y === whale.position.y)
+    try {
+      if (t?.arena) { const r = await moveToArea(myId, t.arena); setToast(r.success ? `没有直达路，先到 ${t.arena}` : `过不去：${r.reason ?? '未知原因'}`) }
+      else setToast('找不到她所在的区域')
+    } catch { setToast('移动失败') } finally { setWalking(false) }
+  }
+
+  /** 一键向鲸仔发起对话（human 无冷却，B W6 第 4 项）*/
+  async function handleInviteWhale() {
+    if (!whale) return
+    const g = greeting.trim() || '鲸仔，有空聊两句吗？'
+    setSending(true)
+    try {
+      const d = await chatApi.sendRequest(myId, [whale.id], g)
+      setWaitingId(d.request_id)
+      setWaitStage('pending')
+      setMode('waiting')
+      setGreeting('')
+    } catch { setToast('发起请求失败') } finally { setSending(false) }
   }
 
   async function handleRespond(accept: boolean) {
@@ -336,8 +378,31 @@ export default function ChatPanel() {
         </div>
       )}
 
+      {/* 阿蝉操控台快捷区：走到鲸仔旁 / 一键邀请（idle 时常驻，右侧小地图下方上一点）*/}
+      {mode === 'idle' && whale && (
+        <div style={{
+          position: 'fixed', top: 'calc(50% + 90px)', right: 8, width: 320,
+          background: 'rgba(15, 15, 30, 0.92)', border: '1px solid #4a5568', borderRadius: 8,
+          color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', fontSize: 12, padding: '8px 10px', zIndex: 190,
+          display: 'flex', flexDirection: 'column', gap: 6,
+        }}>
+          <div style={{ color: '#90cdf4', fontWeight: 600 }}>
+            🐳 {whale.name} · {whale.online === false ? '离线' : (whale.stateLabel ?? whale.state)}
+            <span style={{ color: '#718096', marginLeft: 6 }}>({whale.position.x}, {whale.position.y})</span>
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={handleWalkToWhale} disabled={walking} style={btn('#2b6cb0')}>{walking ? '走过去…' : '走到她旁边'}</button>
+            <button onClick={handleInviteWhale} disabled={sending || nearby.every(p => p.entity_id !== whale.id)} style={btn('#276749')}
+              title={nearby.some(p => p.entity_id === whale.id) ? '' : '要在同一个区域里才能邀请'}>
+              邀请她聊天
+            </button>
+          </div>
+          <input value={greeting} onChange={e => setGreeting(e.target.value)} placeholder="开场白（可空：鲸仔，有空聊两句吗？）" style={INPUT} />
+        </div>
+      )}
+
       {/* 小地图区域按钮：idle+附近有人 或 in_room+已隐藏 */}
-      {((mode === 'idle' && nearby.length > 0) || (mode === 'in_room' && roomHidden)) && (
+      {((mode === 'idle' && nearby.length > 0 && !whale) || (mode === 'in_room' && roomHidden)) && (
         <button
           onClick={() => mode === 'in_room' ? setRoomHidden(false) : setMode('selecting')}
           style={{
@@ -416,8 +481,8 @@ export default function ChatPanel() {
             )}
             {mode === 'waiting' && (
               <div style={{ color: '#a0aec0', textAlign: 'center', padding: '12px 0' }}>
-                <div style={{ marginBottom: 8 }}>⏳ 等待对方接受邀请…</div>
-                <div style={{ fontSize: 11, color: '#718096' }}>对方接受后将自动进入聊天室</div>
+                <div style={{ marginBottom: 8 }}>{waitStage === 'walking_over' ? '🚶 对方接受了，正在走过来…' : '⏳ 等待对方接受邀请…'}</div>
+                <div style={{ fontSize: 11, color: '#718096' }}>{waitStage === 'walking_over' ? '两人相邻后自动开房（最多 30 s）' : '对方接受后将自动进入聊天室（60 s 超时）'}</div>
               </div>
             )}
           </div>

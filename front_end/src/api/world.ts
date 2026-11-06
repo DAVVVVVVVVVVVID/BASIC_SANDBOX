@@ -45,6 +45,10 @@ export interface ActionResponse {
   }
 }
 
+/** 走到某个区域里离自己最近的可走格（后端 BFS）；阿蝉操控台「走到鲸仔旁」用 */
+export const moveToArea = (entityId: string, areaId: string) =>
+  sendAction(entityId, 'move_to_area', { area_type: 'arena', area_id: areaId }, { logLabel: `前往 ${areaId}` })
+
 export function sendAction(
   entityId: string,
   type: string,

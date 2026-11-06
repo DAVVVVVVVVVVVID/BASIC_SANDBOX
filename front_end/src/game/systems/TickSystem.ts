@@ -57,8 +57,20 @@ export function startTickSystem(playerId: string, playerName: string): TickHandl
     fn: async () => { useGameStore.getState().setActionLog(await fetchHistory()) },
   })
 
+  // 阿蝉操控台（E12）：场上 agent 的七变量（只读 /state，不刷心跳），HUD 显示她的分档
+  const agentVars = startPoller({
+    name: 'agent-vars',
+    intervalMs: 2000,
+    fn: async () => {
+      const s = useGameStore.getState()
+      const ids = s.players.filter(p => p.controller === 'agent').map(p => p.id)
+      for (const id of Object.keys(s.playerVars)) if (!ids.includes(id)) s.setPlayerVars(id, null)
+      await Promise.all(ids.map(async id => useGameStore.getState().setPlayerVars(id, await fetchPlayerState(id))))
+    },
+  })
+
   return {
-    stop: () => { world.stop(); player.stop(); history.stop() },
+    stop: () => { world.stop(); player.stop(); history.stop(); agentVars.stop() },
   }
 }
 
