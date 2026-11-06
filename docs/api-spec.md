@@ -1125,7 +1125,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | 项 | 说明 |
 |---|---|
 | 行来源 | `data/actions/<date>.jsonl`、`data/chat/<date>.jsonl`、`data/state/<date>.jsonl`，行序即文件序；`manifest.counts` 与文件行数一致 |
-| 每行新增字段 | **W6** `town`（环境变量 `SANDBOX_TOWN`，默认 `main`）、`map_version`、`seed`。W6 之前写的旧行没有这三项，导出时按当前配置回填并加 `"backfilled": true`，`manifest.backfilled_rows` 计数 |
+| 每行新增字段 | **W6** `town`（环境变量 `SANDBOX_TOWN`，默认 `main`）、`map_version`、`seed`。旧行缺字段时按下表默认值回填并加 `"backfilled": true`，`manifest.backfilled_rows` 计数 |
+| **规范字段集（W9 第 0 项）** | 导出保证每行字段齐全，`manifest.fields` 回显：`actions` = `timestamp, entityId, type, payload, success, reason, label, objectId, game_time, controller, town, map_version, seed`；`chat` = `kind, ts, game_time, town, map_version, seed` + message 行 `room_id, seq, from, from_name, to, text, controller` / event 行 `event, room_id, request_id, participants[, reason, entity]`；`state` = `kind, ts, game_time, town, map_version, seed, player_id, agent_id, controller, scene, mood_base, vars, emotion_tags, closeness, online, position, facing, using, tags`；`external` = `kind, ts, town, map_version, seed, game_time, entity` + 各 kind 自有字段。缺省回填值：`tags: []`、`facing: null`、`mood_base: null`、`objectId: null` 等 |
 | `state` | **W6** 每个 player 每 30 游戏秒一行（与自我层 delta 同节拍），由后台 ticker 写 `data/state/<date>.jsonl`，`kind: "sample"`；**W8 Q1**：join / rejoin / 检查点回填时立即各写一行（`kind: "join" | "rejoin" | "restore"`，并把 30 s 节拍对齐到此刻），每行带 `mood_base`、`facing`、**`tags`**（W8 Q0d：当前 buff 标签如 `sleeping / fishing / streaming / gaming / dining`，S02 / S07 判分读它） |
 | `external` | **W7 B19** `data/external/<date>.jsonl`：外部效果与不确定性输入——`self_seed`（种入的七变量）、`self_snap`（纠偏差值）、`effects_push`（`/effects` 完整载荷）、`adjudication`（freeform 裁决结果）、`feed` / `live` / `game`（外部调用结果）、`nondeterministic`（`time_speed / time_toggle / time_reset`）、**`scenario`（W8：验收夹具的每一步）**。每行带 `ts / game_time / town / map_version / seed / entity`。`kinds` 默认含它 |
 

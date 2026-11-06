@@ -93,3 +93,4 @@ class WorldData(BaseModel):
     players: Optional[List[OtherPlayer]] = None
     tiled: Optional[Any] = None
     zone_names: Optional[dict] = None    # W7 E：{world:{id:name}, sector:{...}, arena:{...}}
+    map: Optional[dict] = None           # W9：{format, edges[], floors{}, access{}}

@@ -15,30 +15,35 @@ from game.time_state import now_real, game_now_ts
 _MAP_DIR = Path(os.environ.get("SANDBOX_MAP_DIR") or (Path(__file__).parent / "maps"))
 TOWN: str = os.environ.get("SANDBOX_TOWN", "main")      # 数据集每行带的镇名（towns.yaml 的 key）
 
-with open(_MAP_DIR / "map.json", encoding="utf-8") as _f:
-    _MAP_DATA = json.load(_f)
-
-with open(_MAP_DIR / "objects.json", encoding="utf-8") as _f:
-    _OBJECTS_RAW: list[dict] = json.load(_f)
-
-with open(_MAP_DIR / "tile_types.json", encoding="utf-8") as _f:
-    _TILE_TYPES_RAW: dict[str, dict] = json.load(_f)
-
-_META       = _MAP_DATA["meta"]
-MAP_W: int  = _META["width"]
-MAP_H: int  = _META["height"]
-_TILE_ROWS  = _MAP_DATA["tiles"]
-_TILE_CHARS = _MAP_DATA["tile_chars"]
-_ZONE_CHARS = _MAP_DATA["zone_chars"]
-_WORLD_ROWS  = _MAP_DATA["world_map"]
-_SECTOR_ROWS = _MAP_DATA["sector_map"]
-_ARENA_ROWS  = _MAP_DATA["arena_map"]
-
-# ── TileType 定义表 ───────────────────────────────────────────────────────────
-TILE_TYPES: dict[str, dict] = {
-    name: {"walkable_default": defn["walkable"]}
-    for name, defn in _TILE_TYPES_RAW.items()
-}
+# 地图数据（load_map 原地填充：已 import 这些名字的模块不会失效）
+_MAP_DATA: dict = {}
+_OBJECTS_RAW: list[dict] = []
+_TILE_TYPES_RAW: dict[str, dict] = {}
+_META: dict = {}
+MAP_W: int = 0
+MAP_H: int = 0
+_TILE_ROWS: list[str] = []
+_TILE_CHARS: dict = {}
+_ZONE_CHARS: dict = {}
+_WORLD_ROWS: list[str] = []
+_SECTOR_ROWS: list[str] = []
+_ARENA_ROWS: list[str] = []
+TILE_TYPES: dict[str, dict] = {}
+_OBJECTS: list[dict] = []
+_ZONE_LOOKUP: dict[tuple[int, int], dict] = {}
+_TILES: list[dict] = []
+_TILE_LOOKUP: dict[tuple[int, int], dict] = {}
+MAP_VERSION: str = ""
+MAP_FORMAT: int = 1
+_EVENTS: list[dict] = []
+_WEATHER = "sunny"
+# ── 地图格式 v2（W9）：连接边 / 楼层 / 场所访问规则 ──
+_EDGES: list[dict] = []                                   # {id, kind, a:{arena,x,y}, b:{arena,x,y}, open_hours?, allow?, name?}
+_FLOORS: dict[str, int] = {}                              # arena -> floor（默认 1）
+_ACCESS: dict[str, dict] = {}                             # arena -> {owner:[...], locked:[["09:00","18:30"]], allow_when_locked:[...]}
+_EDGE_BY_PAIR: dict[frozenset, dict] = {}                 # {(x,y),(x,y)} -> edge（门 / 路口：相邻两格之间）
+_STAIRS: dict[tuple[int, int], list[tuple[tuple[int, int], dict]]] = {}   # 楼梯：非相邻邻接
+_HOMES: dict[str, str] = {}                               # agent_id -> 家 arena（map.json homes，覆盖 AGENT_HOME_ARENA）
 
 
 def _build_objects(raw: list[dict]) -> list[dict]:
@@ -74,10 +79,6 @@ def _build_objects(raw: list[dict]) -> list[dict]:
         result.append(obj)
     return result
 
-
-_OBJECTS = _build_objects(_OBJECTS_RAW)
-
-
 def _build_zone_lookup() -> dict[tuple[int, int], dict]:
     lookup: dict[tuple[int, int], dict] = {}
     world_chars  = _ZONE_CHARS["world"]
@@ -99,10 +100,6 @@ def _build_zone_lookup() -> dict[tuple[int, int], dict]:
                 lookup[(x, y)] = {"world": world, "sector": sector, "arena": arena}
 
     return lookup
-
-
-_ZONE_LOOKUP = _build_zone_lookup()
-
 
 def _generate_tiles() -> list[dict]:
     tiles = []
@@ -130,10 +127,6 @@ def _generate_tiles() -> list[dict]:
 
     return tiles
 
-
-_TILES = _generate_tiles()
-
-
 def _compute_map_version() -> str:
     """地图静态内容的指纹（tiles 类型 / 可走 + 物品 id / 类型 / 位置），前端据此决定是否重拉 tiles（E③）。"""
     import hashlib
@@ -143,13 +136,52 @@ def _compute_map_version() -> str:
     return f"{_META.get('name', 'map')}@{h.hexdigest()[:12]}"
 
 
-MAP_VERSION: str = _compute_map_version()
-_EVENTS: list[dict] = _MAP_DATA["events"]
-_WEATHER = "sunny"
+def _index_edges() -> None:
+    _EDGE_BY_PAIR.clear(); _STAIRS.clear()
+    for e in _EDGES:
+        a = (int(e["a"]["x"]), int(e["a"]["y"])); b = (int(e["b"]["x"]), int(e["b"]["y"]))
+        if abs(a[0] - b[0]) + abs(a[1] - b[1]) == 1:
+            _EDGE_BY_PAIR[frozenset((a, b))] = e
+        else:                                             # 楼梯 / 传送：非相邻
+            _STAIRS.setdefault(a, []).append((b, e))
+            _STAIRS.setdefault(b, []).append((a, e))
 
-_TILE_LOOKUP: dict[tuple[int, int], dict] = {
-    (t["x"], t["y"]): t for t in _TILES
-}
+
+def load_map(map_dir: Path | str) -> None:
+    """加载（或切换）地图目录。原地更新所有模块级容器。"""
+    global _MAP_DIR, MAP_W, MAP_H, MAP_VERSION, MAP_FORMAT
+    _MAP_DIR = Path(map_dir)
+    with open(_MAP_DIR / "map.json", encoding="utf-8") as f:
+        data = json.load(f)
+    with open(_MAP_DIR / "objects.json", encoding="utf-8") as f:
+        objs_raw = json.load(f)
+    with open(_MAP_DIR / "tile_types.json", encoding="utf-8") as f:
+        tt_raw = json.load(f)
+    _MAP_DATA.clear(); _MAP_DATA.update(data)
+    _OBJECTS_RAW[:] = objs_raw
+    _TILE_TYPES_RAW.clear(); _TILE_TYPES_RAW.update(tt_raw)
+    _META.clear(); _META.update(data["meta"])
+    MAP_W = _META["width"]; MAP_H = _META["height"]
+    MAP_FORMAT = int(data.get("format", 1))
+    _TILE_ROWS[:] = data["tiles"]
+    _TILE_CHARS.clear(); _TILE_CHARS.update(data["tile_chars"])
+    _ZONE_CHARS.clear(); _ZONE_CHARS.update(data["zone_chars"])
+    _WORLD_ROWS[:] = data["world_map"]; _SECTOR_ROWS[:] = data["sector_map"]; _ARENA_ROWS[:] = data["arena_map"]
+    TILE_TYPES.clear(); TILE_TYPES.update({name: {"walkable_default": d["walkable"]} for name, d in tt_raw.items()})
+    _OBJECTS[:] = _build_objects(objs_raw)
+    _ZONE_LOOKUP.clear(); _ZONE_LOOKUP.update(_build_zone_lookup())
+    _TILES[:] = _generate_tiles()
+    _TILE_LOOKUP.clear(); _TILE_LOOKUP.update({(t["x"], t["y"]): t for t in _TILES})
+    _EVENTS[:] = data.get("events", [])
+    _EDGES[:] = data.get("edges", [])
+    _FLOORS.clear(); _FLOORS.update({k: int(v) for k, v in (data.get("floors") or {}).items()})
+    _ACCESS.clear(); _ACCESS.update(data.get("access") or {})
+    _HOMES.clear(); _HOMES.update(data.get("homes") or {})
+    _index_edges()
+    MAP_VERSION = _compute_map_version()
+
+
+load_map(_MAP_DIR)
 
 # ── 多玩家运行时状态 ──────────────────────────────────────────────────────────
 _players:          dict[str, dict]          = {}
@@ -211,7 +243,7 @@ def update_weather(game_ts: float) -> str:
 def spawn_point_for(agent_id: str | None) -> dict:
     """agent 的出生点：家 arena 内的可走格（seed 决定哪一格）；没有家 / 不是 agent → 地图出生点。"""
     start = _META["player_start"]
-    arena = AGENT_HOME_ARENA.get(agent_id or "")
+    arena = _HOMES.get(agent_id or "") or AGENT_HOME_ARENA.get(agent_id or "")
     if arena is None:
         return {"x": start["x"], "y": start["y"], "facing": start["facing"]}
     tiles = [t for t in get_walkable_tiles_in_area("arena", arena) if get_object_at(t["x"], t["y"]) is None]
@@ -471,6 +503,7 @@ def get_world() -> dict:
         "players":    get_all_players_snapshot(),
         "tiled":      _MAP_DATA.get("tiled"),
         "zone_names": _MAP_DATA.get("zone_names", {}),   # W7 E：区域中文名，只读
+        "map": map_graph_summary(),                      # W9：v2 的 edges / floors / access（v1 地图为空）
     }
 
 
@@ -604,6 +637,159 @@ def get_recent_uses(entity_id: str) -> dict[str, int]:
 def is_tile_walkable(x: int, y: int) -> bool:
     tile = _TILE_LOOKUP.get((x, y))
     return tile is not None and tile["walkable"]
+
+
+# ── 地图 v2：边 / 楼层 / 访问规则（W9） ───────────────────────────────────────
+
+def arena_floor(arena: str | None) -> int:
+    return _FLOORS.get(arena or "", 1)
+
+
+def _hours_state(hours: list | None, game_ts: float) -> tuple[bool, str | None]:
+    """复用营业时间逻辑：返回 (在时段内, 下一次进入时段 'HH:MM')。"""
+    if not hours:
+        return True, None
+    return open_state({"openHours": hours}, game_ts)
+
+
+def _mover_ids(mover: dict | None) -> set[str]:
+    if not mover:
+        return set()
+    return {x for x in (mover.get("agent_id"), mover.get("name"), mover.get("id")) if x}
+
+
+def _allowed(allow: list | None, mover: dict | None, owners: list | None = None) -> bool:
+    """allow 为空 = 所有人；含 "owner" 时按 owners 判；否则按 agent_id / name / id 匹配。"""
+    if not allow:
+        return True
+    ids = _mover_ids(mover)
+    for a in allow:
+        if a == "*" or a == "all":
+            return True
+        if a == "owner" and owners and ids & set(owners):
+            return True
+        if a in ids:
+            return True
+    return False
+
+
+def edge_block(edge: dict, mover: dict | None, game_ts: float) -> tuple[str, str | None] | None:
+    """这条边此刻对 mover 是否不可过：None=可过；否则 ("closed"|"locked", opens_at)。"""
+    is_open, opens_at = _hours_state(edge.get("open_hours"), game_ts)
+    if not is_open:
+        return ("closed", opens_at)
+    if not _allowed(edge.get("allow"), mover, (edge.get("owner") or [])):
+        return ("locked", None)
+    return None
+
+
+def arena_block(arena: str | None, mover: dict | None, game_ts: float) -> tuple[str, str | None] | None:
+    """进入某场所此刻是否被访问规则挡住：None=可进；否则 ("locked", opens_at)。"""
+    acc = _ACCESS.get(arena or "")
+    if not acc:
+        return None
+    owners = acc.get("owner") or []
+    if _mover_ids(mover) & set(owners):
+        return None
+    locked_spans = acc.get("locked")
+    if locked_spans == "always" or locked_spans is True:
+        return ("locked", None) if not _allowed(acc.get("allow_when_locked"), mover, owners) else None
+    if not locked_spans:
+        return None
+    in_locked, _ = _hours_state(locked_spans, game_ts)
+    if not in_locked:
+        return None
+    if _allowed(acc.get("allow_when_locked"), mover, owners):
+        return None
+    # 解锁时刻 = 当前锁定段的结束
+    from datetime import datetime
+    from game.time_state import GAME_TZ
+    dt = datetime.fromtimestamp(game_ts, GAME_TZ); now_m = dt.hour * 60 + dt.minute
+    for a, b in locked_spans:
+        am, bm = _hm(a), _hm(b)
+        if am <= now_m < bm:
+            return ("locked", f"{bm // 60:02d}:{bm % 60:02d}")
+    return ("locked", None)
+
+
+def crossing_block(t1: tuple[int, int], t2: tuple[int, int], mover: dict | None, game_ts: float) -> tuple[str, str | None] | None:
+    """从 t1 走到 t2：相邻两格之间若有边按边判；跨场所再按目标场所访问规则判。"""
+    e = _EDGE_BY_PAIR.get(frozenset((t1, t2)))
+    if e is not None:
+        b = edge_block(e, mover, game_ts)
+        if b:
+            return b
+    a1 = _ZONE_LOOKUP.get(t1, {}).get("arena"); a2 = _ZONE_LOOKUP.get(t2, {}).get("arena")
+    if a2 is not None and a2 != a1:
+        return arena_block(a2, mover, game_ts)
+    return None
+
+
+def neighbors(x: int, y: int, mover: dict | None = None, game_ts: float | None = None, ignore_locks: bool = False):
+    """BFS 邻接：四邻可走格 + 楼梯边；返回 [(tile, block)]，block 为 None 或 (reason, opens_at)。"""
+    ts = game_ts if game_ts is not None else game_now_ts()
+    out = []
+    for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+        n = (x + dx, y + dy)
+        if not is_tile_walkable(*n):
+            continue
+        blk = None if ignore_locks else crossing_block((x, y), n, mover, ts)
+        out.append((n, blk))
+    for n, e in _STAIRS.get((x, y), []):
+        if not is_tile_walkable(*n):
+            continue
+        blk = None
+        if not ignore_locks:
+            blk = edge_block(e, mover, ts)
+            if blk is None:
+                a2 = _ZONE_LOOKUP.get(n, {}).get("arena")
+                blk = arena_block(a2, mover, ts) if a2 != _ZONE_LOOKUP.get((x, y), {}).get("arena") else None
+        out.append((n, blk))
+    return out
+
+
+def bfs_path(start: tuple[int, int], goals: set[tuple[int, int]], mover: dict | None = None,
+             ignore_locks: bool = False) -> list[tuple[int, int]] | None:
+    """走 edges 的 BFS：到 goals 中最近一格；已在 goals 内返回 []；不可达 None。"""
+    from collections import deque
+    if start in goals:
+        return []
+    ts = game_now_ts()
+    q = deque([start]); parent = {start: None}
+    while q:
+        cur = q.popleft()
+        for n, blk in neighbors(cur[0], cur[1], mover, ts, ignore_locks):
+            if n in parent or blk is not None:
+                continue
+            parent[n] = cur
+            if n in goals:
+                path = [n]
+                while parent[path[-1]] != start:
+                    path.append(parent[path[-1]])
+                return list(reversed(path))
+            q.append(n)
+    return None
+
+
+def first_block_on_path(start: tuple[int, int], path: list[tuple[int, int]], mover: dict | None) -> tuple[str, str | None] | None:
+    """沿路径找第一个被挡的穿越（给 locked / closed 的 reason 与 opens_at）。"""
+    ts = game_now_ts()
+    prev = start
+    for n in path:
+        blk = crossing_block(prev, n, mover, ts)
+        if blk is None and abs(prev[0] - n[0]) + abs(prev[1] - n[1]) != 1:
+            for m, e in _STAIRS.get(prev, []):
+                if m == n:
+                    blk = edge_block(e, mover, ts) or arena_block(_ZONE_LOOKUP.get(n, {}).get("arena"), mover, ts)
+        if blk is not None:
+            return blk
+        prev = n
+    return None
+
+
+def map_graph_summary() -> dict:
+    """GET /world 的 v2 附加信息。"""
+    return {"format": MAP_FORMAT, "edges": _EDGES, "floors": _FLOORS, "access": _ACCESS}
 
 
 def update_player_facing(player_id: str, facing: str) -> None:
@@ -910,7 +1096,7 @@ def get_cognitive_map() -> dict:
         for sector_id in sorted(sector_ids):
             arena_ids = sector_to_arenas.get(sector_id, set())
             arenas = [
-                {"id": aid, "name": _name("arena", aid)}
+                {"id": aid, "name": _name("arena", aid), "floor": arena_floor(aid)}
                 for aid in sorted(arena_ids)
             ]
             sectors.append({

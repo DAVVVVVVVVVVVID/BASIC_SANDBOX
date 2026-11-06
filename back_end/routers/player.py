@@ -160,6 +160,21 @@ def admin_metrics():
     }
 
 
+# 沙盒数据集三类（+external）的规范字段集（docs/dataset-schema.md sandbox_* 行；api-spec §6 /admin/export）。
+# 导出时缺字段按默认值回填并标 backfilled，保证每行字段齐全。字段只增不删。
+EXPORT_FIELDS = {
+    "actions":  ("timestamp", "entityId", "type", "payload", "success", "reason", "label", "objectId", "game_time", "controller",
+                 "town", "map_version", "seed"),
+    "chat":     ("kind", "ts", "game_time", "town", "map_version", "seed"),            # message 行另有 room_id/seq/from/from_name/to/text/controller；event 行另有 event/room_id/request_id/participants
+    "state":    ("kind", "ts", "game_time", "town", "map_version", "seed", "player_id", "agent_id", "controller", "scene",
+                 "mood_base", "vars", "emotion_tags", "closeness", "online", "position", "facing", "using", "tags"),
+    "external": ("kind", "ts", "town", "map_version", "seed", "game_time", "entity"),
+}
+EXPORT_DEFAULTS = {"objectId": None, "label": None, "mood_base": None, "facing": None, "tags": [], "emotion_tags": [], "closeness": {},
+                   "online": True, "using": None, "agent_id": None, "controller": "human", "scene": "sandbox", "entity": None,
+                   "game_time": None, "reason": None, "kind": "sample"}
+
+
 @router.get("/admin/export")
 def admin_export(date: str, kinds: str = "actions,chat,state,external"):
     """
@@ -198,15 +213,18 @@ def admin_export(date: str, kinds: str = "actions,chat,state,external"):
         if kind not in want:
             continue
         rows, fp = _read_day(sources[kind], _json.loads)
-        for r in rows:                         # W6 之前写的行没有数据集字段：按当前配置回填并标记
-            if not {"town", "map_version", "seed"} <= set(r):
-                r.setdefault("town", TOWN); r.setdefault("map_version", MAP_VERSION); r.setdefault("seed", SANDBOX_SEED)
+        for r in rows:                         # 旧版本写的行缺字段：按规范字段集回填（默认值）并标记（W6 / W9 第 0 项）
+            missing = [k for k in EXPORT_FIELDS[kind] if k not in r]
+            if missing:
+                for k in missing:
+                    r[k] = {"town": TOWN, "map_version": MAP_VERSION, "seed": SANDBOX_SEED}.get(k, EXPORT_DEFAULTS.get(k))
                 r["backfilled"] = True; backfilled += 1
         out[kind] = rows
         out["manifest"]["counts"][kind] = len(rows)
         out["manifest"]["files"][kind] = {"path": str(fp), "exists": fp.exists(),
                                           "bytes": fp.stat().st_size if fp.exists() else 0}
     out["manifest"]["backfilled_rows"] = backfilled
+    out["manifest"]["fields"] = {k: list(v) for k, v in EXPORT_FIELDS.items() if k in want}
     return out
 
 

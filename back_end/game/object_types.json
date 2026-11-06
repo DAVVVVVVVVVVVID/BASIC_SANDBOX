@@ -711,5 +711,610 @@
     "success_message": "你打开游戏机，屏幕亮了起来。",
     "failure_message": "游戏机现在用不了。",
     "leave_message": "你关掉游戏机，这一局结束了。"
+  },
+  "pc": {
+    "prototype": "continuous",
+    "name": "电脑",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": true,
+    "description": "鲸仔的电脑：开直播、做视频。",
+    "effects": [
+      {
+        "type": "external",
+        "key": "live"
+      },
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "social_regen",
+        "value": 0.005556
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": 0.002222
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.001667
+      },
+      {
+        "type": "buff",
+        "key": "fullness_regen",
+        "value": -0.000833
+      },
+      {
+        "type": "tag",
+        "key": "streaming"
+      }
+    ],
+    "advertise": {
+      "social": 70,
+      "fun": 40
+    },
+    "max_users": 1,
+    "use_state_label": "{entity} 正在直播",
+    "max_duration": 10800,
+    "success_message": "直播开始了。",
+    "failure_message": "直播台现在用不了。",
+    "leave_message": "直播结束，你关掉了摄像头。",
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "pc_desk": {
+    "prototype": "continuous",
+    "name": "电脑（写代码）",
+    "interactable": true,
+    "description": "阿蝉的电脑，导播机也在这。",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "success_message": "开始工作吧！",
+    "failure_message": "还不想工作",
+    "max_users": 1,
+    "use_state_label": "{entity} 正在写代码",
+    "max_duration": 3600,
+    "leave_message": "工作很久了，休息一下吧",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "mood_regen",
+        "value": 0.000833
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": -0.000833
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.001111
+      },
+      {
+        "type": "tag",
+        "key": "working"
+      }
+    ],
+    "advertise": {
+      "fun": 5,
+      "mood": 15,
+      "social": 0
+    },
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "stove": {
+    "prototype": "continuous",
+    "name": "灶台",
+    "interactable": true,
+    "description": "做饭的地方。",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "success_message": "开始工作吧！",
+    "failure_message": "还不想工作",
+    "max_users": 1,
+    "use_state_label": "{entity} 正在做饭",
+    "max_duration": 1800,
+    "leave_message": "工作很久了，休息一下吧",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "mood_regen",
+        "value": 0.000833
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": -0.000833
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.001111
+      },
+      {
+        "type": "tag",
+        "key": "cooking"
+      }
+    ],
+    "advertise": {
+      "fullness": 30
+    },
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "sofa_tv": {
+    "prototype": "continuous",
+    "name": "沙发电视",
+    "size": [
+      2,
+      1
+    ],
+    "sprite": "sofa",
+    "interactable": true,
+    "description": "客厅的沙发，对着电视。",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": 0.001667
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": 0.001667
+      },
+      {
+        "type": "buff",
+        "key": "social_regen",
+        "value": 0.001667
+      },
+      {
+        "type": "buff",
+        "key": "fullness_regen",
+        "value": -0.000278
+      },
+      {
+        "type": "tag",
+        "key": "resting"
+      }
+    ],
+    "advertise": {
+      "fun": 30,
+      "energy": 15
+    },
+    "max_users": 2,
+    "use_state_label": "{entity} 在看电视",
+    "max_duration": 3600,
+    "success_message": "你在长椅上坐下来。",
+    "failure_message": "长椅坐满了。",
+    "leave_message": "你从长椅上站起来。",
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "bar": {
+    "prototype": "continuous",
+    "name": "吧台",
+    "size": [
+      2,
+      1
+    ],
+    "sprite": "sofa",
+    "interactable": true,
+    "description": "餐厅吧台，老板在时能聊两句。",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": 0.001667
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": 0.001667
+      },
+      {
+        "type": "buff",
+        "key": "social_regen",
+        "value": 0.001667
+      },
+      {
+        "type": "buff",
+        "key": "fullness_regen",
+        "value": -0.000278
+      },
+      {
+        "type": "tag",
+        "key": "resting"
+      }
+    ],
+    "advertise": {
+      "social": 35,
+      "fun": 10
+    },
+    "max_users": 2,
+    "use_state_label": "{entity} 坐在吧台",
+    "max_duration": 3600,
+    "success_message": "你在长椅上坐下来。",
+    "failure_message": "长椅坐满了。",
+    "leave_message": "你从长椅上站起来。",
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "fish_stall": {
+    "prototype": "instant",
+    "name": "卖鱼摊",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": true,
+    "description": "渔夫的摊子，买鱼卖鱼。",
+    "effects": [
+      {
+        "type": "instant_effect",
+        "key": "fullness",
+        "value": 15
+      },
+      {
+        "type": "instant_effect",
+        "key": "social",
+        "value": 6
+      },
+      {
+        "type": "instant_effect",
+        "key": "energy",
+        "value": -1
+      }
+    ],
+    "advertise": {
+      "fullness": 20,
+      "social": 10
+    },
+    "success_message": "你买了点零食，顺便和老板聊了两句。",
+    "failure_message": "柜台没人。",
+    "open_hours": [
+      [
+        "09:00",
+        "20:00"
+      ]
+    ],
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "notice_board": {
+    "prototype": "instant",
+    "name": "公告栏",
+    "interactable": true,
+    "description": "贴着小镇的委托与告示。",
+    "size": [
+      1,
+      1
+    ],
+    "success_message": "看会书吧",
+    "failure_message": "还不想看书",
+    "effects": [
+      {
+        "type": "instant_effect",
+        "key": "fun",
+        "value": 3
+      }
+    ],
+    "advertise": {
+      "fun": 10
+    },
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "pc_music": {
+    "prototype": "continuous",
+    "name": "琴房电脑",
+    "interactable": true,
+    "description": "琴房里的电脑与钢琴，写歌的地方。",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "success_message": "开始工作吧！",
+    "failure_message": "还不想工作",
+    "max_users": 1,
+    "use_state_label": "{entity} 正在写歌",
+    "max_duration": 3600,
+    "leave_message": "工作很久了，休息一下吧",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "mood_regen",
+        "value": 0.000833
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": -0.000833
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.001111
+      },
+      {
+        "type": "tag",
+        "key": "composing"
+      }
+    ],
+    "advertise": {
+      "fun": 25,
+      "mood": 10
+    },
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "reading_desk": {
+    "prototype": "continuous",
+    "name": "阅览桌",
+    "interactable": true,
+    "description": "图书馆的阅览桌。",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "success_message": "开始工作吧！",
+    "failure_message": "还不想工作",
+    "max_users": 2,
+    "use_state_label": "{entity} 在看书",
+    "max_duration": 3600,
+    "leave_message": "工作很久了，休息一下吧",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "mood_regen",
+        "value": 0.000833
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": -0.000833
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.001111
+      },
+      {
+        "type": "tag",
+        "key": "reading"
+      }
+    ],
+    "advertise": {
+      "fun": 20,
+      "mood": 10
+    },
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "classroom_desk": {
+    "prototype": "continuous",
+    "name": "课桌",
+    "interactable": true,
+    "description": "教学楼的课桌。",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "success_message": "开始工作吧！",
+    "failure_message": "还不想工作",
+    "max_users": 4,
+    "use_state_label": "{entity} 在上课",
+    "max_duration": 3600,
+    "leave_message": "工作很久了，休息一下吧",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "no_interact"
+      },
+      {
+        "type": "buff",
+        "key": "no_use"
+      },
+      {
+        "type": "buff",
+        "key": "mood_regen",
+        "value": 0.000833
+      },
+      {
+        "type": "buff",
+        "key": "fun_regen",
+        "value": -0.000833
+      },
+      {
+        "type": "buff",
+        "key": "energy_regen",
+        "value": -0.001111
+      },
+      {
+        "type": "tag",
+        "key": "working"
+      }
+    ],
+    "advertise": {
+      "fun": 5,
+      "social": 10
+    },
+    "placeholder": true,
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+  },
+  "tree": {
+    "prototype": "instant",
+    "name": "树",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "tree",
+    "interactable": false,
+    "description": "一棵树。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。",
+    "placeholder": true
+  },
+  "shelf": {
+    "prototype": "instant",
+    "name": "货架",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": false,
+    "description": "杂货店的货架。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。",
+    "placeholder": true
+  },
+  "boat": {
+    "prototype": "instant",
+    "name": "渔船",
+    "size": [
+      2,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": false,
+    "description": "渔夫的小船。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。",
+    "placeholder": true
+  },
+  "fountain": {
+    "prototype": "instant",
+    "name": "喷泉",
+    "size": [
+      2,
+      2
+    ],
+    "sprite": "desk",
+    "interactable": false,
+    "description": "广场中央的喷泉。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。",
+    "placeholder": true
+  },
+  "piano": {
+    "prototype": "instant",
+    "name": "钢琴",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": false,
+    "description": "琴房的钢琴。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。",
+    "placeholder": true
   }
 }

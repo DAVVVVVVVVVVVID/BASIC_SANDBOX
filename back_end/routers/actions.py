@@ -31,47 +31,28 @@ def _get_move_interval(entity_id: str) -> float:
     return BASE_MOVE_INTERVAL / max(0.1, speed)
 
 
-def _bfs_path(start_x: int, start_y: int, goal_x: int, goal_y: int) -> list[tuple[int, int]]:
-    """BFS 求从 start 到 goal 的路径，返回途径坐标列表（不含起点，含终点）。"""
-    if start_x == goal_x and start_y == goal_y:
-        return []
-    queue: deque = deque([(start_x, start_y, [])])
-    visited = {(start_x, start_y)}
-    while queue:
-        x, y, path = queue.popleft()
-        for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
-            nx, ny = x + dx, y + dy
-            if (nx, ny) in visited:
-                continue
-            new_path = path + [(nx, ny)]
-            if nx == goal_x and ny == goal_y:
-                return new_path
-            if is_tile_walkable(nx, ny):
-                visited.add((nx, ny))
-                queue.append((nx, ny, new_path))
-    return []
+def _bfs_path(start_x: int, start_y: int, goal_x: int, goal_y: int, mover: dict | None = None) -> list[tuple[int, int]]:
+    """BFS 求从 start 到 goal 的路径（走 edges，含楼梯；锁门不穿），返回途径坐标列表（不含起点，含终点）。"""
+    from game.world_state import bfs_path
+    return bfs_path((start_x, start_y), {(goal_x, goal_y)}, mover) or []
 
 
-def _bfs_path_to_any(start_x: int, start_y: int, goals: set[tuple[int, int]]) -> list[tuple[int, int]] | None:
-    """BFS 到 goals 中最近的一格，返回路径（不含起点，含终点）；已在 goals 内返回 []；不可达返回 None。"""
-    if (start_x, start_y) in goals:
-        return []
-    queue: deque = deque([(start_x, start_y)])
-    parent: dict[tuple[int, int], tuple[int, int] | None] = {(start_x, start_y): None}
-    while queue:
-        x, y = queue.popleft()
-        for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
-            n = (x + dx, y + dy)
-            if n in parent or not is_tile_walkable(*n):
-                continue
-            parent[n] = (x, y)
-            if n in goals:
-                path = [n]
-                while parent[path[-1]] != (start_x, start_y):
-                    path.append(parent[path[-1]])
-                return list(reversed(path))
-            queue.append(n)
-    return None
+def _bfs_path_to_any(start_x: int, start_y: int, goals: set[tuple[int, int]], mover: dict | None = None) -> list[tuple[int, int]] | None:
+    """BFS 到 goals 中最近的一格（走 edges）；已在 goals 内返回 []；不可达返回 None。"""
+    from game.world_state import bfs_path
+    return bfs_path((start_x, start_y), goals, mover)
+
+
+def _blocked_reason(start: tuple[int, int], goals: set[tuple[int, int]], mover: dict | None):
+    """不可达时区分 locked / closed（忽略锁能到）与 no_path。返回 (reason, opens_at)。"""
+    from game.world_state import bfs_path, first_block_on_path
+    p2 = bfs_path(start, goals, mover, ignore_locks=True)
+    if p2 is None:
+        return "no_path", None
+    blk = first_block_on_path(start, p2, mover)
+    if blk is None:
+        return "no_path", None
+    return blk
 
 
 def _compute_facing(current: dict, target_x: int, target_y: int) -> str:
@@ -115,6 +96,10 @@ def handle_move(entity_id: str, payload: dict) -> ActionResponse:
             reason="tile_not_walkable",
             result={"facing": facing},
         )
+    from game.world_state import crossing_block, game_now_ts, _players as _pl
+    blk = crossing_block((current["x"], current["y"]), (new_x, new_y), _pl.get(entity_id), game_now_ts())
+    if blk is not None:                                           # W9：锁门 / 不在开放时段的门
+        return ActionResponse(success=False, type="move", reason=blk[0], result={"facing": facing, "opens_at": blk[1]})
 
     update_player_position(entity_id, new_x, new_y, facing)
     return ActionResponse(
@@ -307,9 +292,10 @@ async def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
     interval = _get_move_interval(entity_id)
     x, y = player["position"]["x"], player["position"]["y"]
     steps_taken = 0
+    from game.world_state import crossing_block, game_now_ts
     for _ in range(steps):
         nx, ny = x + dx, y + dy
-        if not is_tile_walkable(nx, ny):
+        if not is_tile_walkable(nx, ny) or crossing_block((x, y), (nx, ny), _players.get(entity_id), game_now_ts()) is not None:
             break
         x, y = nx, ny
         steps_taken += 1
@@ -348,10 +334,14 @@ async def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
         return ActionResponse(success=False, type="move_to_area", reason="no_walkable_tiles")
 
     pos    = player["position"]
-    # §3.14：按 BFS 实际路程取最近的可达格（跨 sector 走门），而不是曼哈顿最近（可能隔着墙）
-    path = _bfs_path_to_any(pos["x"], pos["y"], {(t["x"], t["y"]) for t in walkable})
+    mover  = _players.get(entity_id)
+    # §3.14：按 BFS 实际路程取最近的可达格（跨 sector 走门 / 楼梯），而不是曼哈顿最近（可能隔着墙）
+    goals = {(t["x"], t["y"]) for t in walkable}
+    path = _bfs_path_to_any(pos["x"], pos["y"], goals, mover)
     if path is None:
-        return ActionResponse(success=False, type="move_to_area", reason="no_path")
+        reason, opens_at = _blocked_reason((pos["x"], pos["y"]), goals, mover)   # W9：locked / closed 带 opens_at
+        return ActionResponse(success=False, type="move_to_area", reason=reason,
+                              result={"area_type": area_type, "area_id": area_id, "opens_at": opens_at} if reason != "no_path" else None)
     goal_x, goal_y = path[-1] if path else (pos["x"], pos["y"])
 
     interval = _get_move_interval(entity_id)
@@ -441,6 +431,13 @@ def handle_freeform(entity_id: str, payload: dict) -> ActionResponse:
     return ActionResponse(success=bool(res.get("success")), type="freeform", reason=reason, result=result)
 
 
+async def handle_go_to(entity_id: str, payload: dict) -> ActionResponse:
+    """W9：`go_to` = move_to_area 的别名，payload {area_id | target, area_type?="arena"}。"""
+    area_id = payload.get("area_id") or payload.get("target")
+    res = await handle_move_to_area(entity_id, {"area_type": payload.get("area_type", "arena"), "area_id": area_id})
+    return ActionResponse(success=res.success, type="go_to", reason=res.reason, result=res.result)
+
+
 _HANDLERS = {
     "move":         handle_move,
     "move_n":       handle_move_n,
@@ -450,6 +447,7 @@ _HANDLERS = {
     "use":          handle_use,
     "leave":        handle_leave,
     "freeform":     handle_freeform,
+    "go_to":        handle_go_to,
 }
 
 
