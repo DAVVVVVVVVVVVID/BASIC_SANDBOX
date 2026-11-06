@@ -50,7 +50,16 @@ export function getMoveInterval(): number {
 /** 同时在途的 move 请求上限：按键节奏 300 ms/格、往返 < 100 ms 时通常只有 1 个 */
 const MAX_INFLIGHT = 3
 
+/** 调试追踪（window.__whaleTrace），最多保留 200 条 */
+const TRACE: unknown[] = []
+;(window as unknown as { __whaleTrace: unknown[] }).__whaleTrace = TRACE
+function trace(ev: string, data: Record<string, unknown>) {
+  TRACE.push({ t: Math.round(performance.now()), ev, ...data })
+  if (TRACE.length > 200) TRACE.shift()
+}
+
 interface Inflight {
+  seq: number
   dir: Direction
   from: Position     // 发出时的预测位置
   to: Position       // 预测目标
@@ -89,6 +98,8 @@ export default class InputSystem {
   private facing: Facing
   private inflight: Inflight[] = []
   private lastAckAt = 0
+  private seq = 0
+  private lastAcceptedSeq = 0
   private nextStepAt = 0
   private walkable = new Set<string>()
 
@@ -149,6 +160,7 @@ export default class InputSystem {
     if (this.inflight.length > 0) return
     if (sentAt < this.lastAckAt) return
     if (pos.x !== this.serverPos.x || pos.y !== this.serverPos.y) {
+      trace('poll-correct', { from: `${this.serverPos.x},${this.serverPos.y}`, to: `${pos.x},${pos.y}` })
       this.serverPos = { ...pos }
       this.pathQueue = []
       this.cb.onReconcile(this.serverPos, false)
@@ -161,16 +173,18 @@ export default class InputSystem {
 
   // ── 步进 ─────────────────────────────────────────────────────────────────────
 
-  private step(dir: Direction, logOptions: { skipLog?: boolean; logLabel?: string }) {
-    if (!this.enabled) return
-    if (this.inflight.length >= MAX_INFLIGHT) return
+  /** 在途请求满了就返回 false（调用方不要消耗这一步） */
+  private step(dir: Direction, logOptions: { skipLog?: boolean; logLabel?: string }): boolean {
+    if (!this.enabled) return false
+    if (this.inflight.length >= MAX_INFLIGHT) return false
     const from = this.predicted()
     const to = { x: from.x + DELTAS[dir].x, y: from.y + DELTAS[dir].y }
-    const entry: Inflight = { dir, from, to, sentAt: performance.now() }
+    const entry: Inflight = { seq: ++this.seq, dir, from, to, sentAt: performance.now() }
     this.facing = dir
 
     // 本地只「先动起来」；格子在地图数据里不可走时不预测位移，只转身，等后端裁定
     const locallyWalkable = this.walkable.has(`${to.x},${to.y}`)
+    trace('send', { seq: entry.seq, dir, from: `${from.x},${from.y}`, to: `${to.x},${to.y}`, walkable: locallyWalkable })
     if (locallyWalkable) {
       this.inflight.push(entry)
       this.cb.onPredictStep(to, dir)
@@ -185,8 +199,13 @@ export default class InputSystem {
         const idx = this.inflight.indexOf(entry)
         if (idx >= 0) this.inflight.splice(idx, 1)
         const f = res.result?.facing
+        trace('ack', { seq: entry.seq, ok: res.success, reason: res.reason ?? null, pos: res.result?.position ? `${res.result.position.x},${res.result.position.y}` : null, inflight: this.inflight.length, idx })
         if (res.success && res.result?.position) {
-          this.serverPos = { ...res.result.position }
+          // 回包可能乱序（多条 keep-alive 连接）：只采纳比上次更新的
+          if (entry.seq > this.lastAcceptedSeq) {
+            this.lastAcceptedSeq = entry.seq
+            this.serverPos = { ...res.result.position }
+          }
           // 让场景对齐到 serverPos + 剩余在途位移；与当前路径终点一致时场景会忽略
           this.cb.onReconcile(this.predicted(), false)
         } else {
@@ -204,6 +223,18 @@ export default class InputSystem {
         this.pathQueue = []
         this.cb.onReconcile(this.predicted(), true)
       })
+    return true
+  }
+
+  /** 后端重启后重新 join：丢掉所有在途与路径，位置 / 朝向以新快照为准 */
+  reset(pos: Position, facing: Facing) {
+    this.inflight = []
+    this.pathQueue = []
+    this.serverPos = { ...pos }
+    this.facing = facing
+    this.lastAckAt = performance.now()
+    this.lastAcceptedSeq = this.seq
+    this.cb.onFacing(facing)
   }
 
   private setupMouseInput() {
@@ -243,12 +274,12 @@ export default class InputSystem {
             .then(res => { if (res.result?.facing) this.cb.onFacing(res.result.facing) })
             .catch(err => console.error('[Turn Error]', err))
         }
-      } else if (now >= this.nextStepAt) {
-        // 长按连走：每 interval 一步，不等回包
+      } else if (now >= this.nextStepAt && this.inflight.length < MAX_INFLIGHT) {
+        // 长按连走：每 interval 一步，不等回包；在途满了就这一帧先不走
         this.nextStepAt = now + interval
         this.step(heldDir, { logLabel: `向${DIR_LABEL[heldDir]}移动` })
       }
-    } else if (this.pathQueue.length > 0 && now >= this.nextStepAt) {
+    } else if (this.pathQueue.length > 0 && now >= this.nextStepAt && this.inflight.length < MAX_INFLIGHT) {
       this.nextStepAt = now + interval
       const dir = this.pathQueue.shift()!
       let logOptions: { skipLog?: boolean; logLabel?: string }

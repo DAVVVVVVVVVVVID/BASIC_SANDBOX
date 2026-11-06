@@ -6,6 +6,14 @@ import type {
 
 export type AppMode = 'play' | 'spectate'
 
+/** 便宜的地图签名：数量 + 不可走格数 + 类型哈希 + 图层数；足够区分换图与重启 */
+export function mapSignature(world: { tiles: { walkable: boolean; type: string }[]; tiled?: { layers: unknown[] } | null }): string {
+  let blocked = 0
+  let typeHash = 0
+  for (const t of world.tiles) { if (!t.walkable) blocked++; typeHash = (typeHash * 31 + t.type.length) >>> 0 }
+  return `${world.tiles.length}:${blocked}:${typeHash}:${world.tiled?.layers?.length ?? 0}`
+}
+
 interface GameStore {
   mode: AppMode
   player: Player | null
@@ -15,6 +23,8 @@ interface GameStore {
   tiled: TiledRenderData | null
   /** tiles / tiled 内容变化时 +1（后端换地图、重启），GameScene 据此重建背景 */
   mapVersion: number
+  /** 最近一次 setMap 的签名（TickSystem.mapSignature），避免启动后第一轮轮询重复重建 */
+  mapSig: string
   objects: GameObject[]
   myPlayerId: string | null
   /** 所有 player（含自己）；GameScene 自行过滤 */
@@ -34,6 +44,8 @@ interface GameStore {
   setActionLog: (log: ActionLogEntry[]) => void
   setTiles: (tiles: Tile[]) => void
   setMap: (tiles: Tile[], tiled: TiledRenderData | null | undefined) => void
+  /** 初始 fetch 之后调用：记下签名（不 +1 版本） */
+  setMapSeen: (world: { tiles: Tile[]; tiled?: TiledRenderData | null }) => void
   setObjects: (objects: GameObject[]) => void
   setMyPlayerId: (id: string | null) => void
   setPlayers: (players: OtherPlayer[]) => void
@@ -53,6 +65,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   tiles: [],
   tiled: null,
   mapVersion: 0,
+  mapSig: '',
   objects: [],
   myPlayerId: null,
   players: [],
@@ -67,7 +80,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setWorldState: (worldState) => set({ worldState }),
   setActionLog: (actionLog) => set({ actionLog }),
   setTiles: (tiles) => set({ tiles }),
-  setMap: (tiles, tiled) => set((s) => ({ tiles, tiled: tiled ?? null, mapVersion: s.mapVersion + 1 })),
+  setMap: (tiles, tiled) => set((s) => ({ tiles, tiled: tiled ?? null, mapVersion: s.mapVersion + 1, mapSig: mapSignature({ tiles, tiled }) })),
+  setMapSeen: (world) => set({ mapSig: mapSignature(world) }),
   setObjects: (objects) => set({ objects }),
   setMyPlayerId: (myPlayerId) => set({ myPlayerId }),
   setPlayers: (players) => set({ players, lastWorldAt: performance.now() }),

@@ -15,14 +15,11 @@ import SpectateHud from './SpectateHud'
  */
 export default function SpectateApp() {
   const params = useRef(parseSpectateParams()).current
-  const started = useRef(false)
   const gameRef = useRef<Phaser.Game | null>(null)
   const [phase, setPhase] = useState<'connecting' | 'running'>('connecting')
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    if (started.current) return
-    started.current = true
     const store = useGameStore.getState()
     store.setMode('spectate')
     if (params.bg === 'transparent') {
@@ -39,12 +36,14 @@ export default function SpectateApp() {
       for (let i = 0; !cancelled; i++) {
         try {
           const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents()])
+          if (cancelled) return
           const s = useGameStore.getState()
           s.setWorldState(worldData.worldState)
           s.setMap(worldData.tiles, worldData.tiled)
           s.setObjects(worldData.objects)
           s.setPlayers(worldData.players ?? [])
           s.setConnection('online')
+          s.setMapSeen(worldData)
           gameRef.current = initGame({ mode: 'spectate', worldData, events, spectate: params })
           const game = gameRef.current
           const getTargetIds = () => {
@@ -55,6 +54,7 @@ export default function SpectateApp() {
           setPhase('running')
           return
         } catch (err) {
+          if (cancelled) return
           useGameStore.getState().setConnection('offline')
           setAttempt(i + 1)
           if (i === 0) console.warn('[Spectate] backend unreachable, retrying…', err)
@@ -65,8 +65,12 @@ export default function SpectateApp() {
     boot()
 
     return () => {
+      // StrictMode 在 dev 下会 mount→cleanup→mount：这里真正收干净，第二次 mount 重新 boot
       cancelled = true
       stopTick?.()
+      stopTick = null
+      gameRef.current?.destroy(true)
+      gameRef.current = null
     }
   }, [params])
 

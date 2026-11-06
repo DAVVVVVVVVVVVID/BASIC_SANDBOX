@@ -95,6 +95,7 @@ export default class GameScene extends Phaser.Scene {
   private camMode: 'follow' | 'pan' = 'follow'
   private targetId: string | null = null
   private targetLostAt = 0
+  private lastTargetPx: { x: number; y: number } | null = null
   private panZoom = MIN_ZOOM
   private followZoom = FOLLOW_ZOOM
   private mapPx = { w: 0, h: 0 }
@@ -192,7 +193,7 @@ export default class GameScene extends Phaser.Scene {
     this.on('player-rejoined', ({ player }: { playerId: string; player: Player }) => {
       this.player = player
       this.self?.snapTo(player.position, player.facing)
-      this.inputSystem?.applyServerSnapshot(player.position, player.facing, performance.now() + 1)
+      this.inputSystem?.reset(player.position, player.facing)
     })
     this.on('chat-message', ({ entityId, content }: { entityId: string; content: string }) => {
       useGameStore.getState().pushBubble(entityId, content)
@@ -276,11 +277,12 @@ export default class GameScene extends Phaser.Scene {
         onFacing: (facing: Facing) => this.self!.setFacing(facing),
         onReconcile: (pos, bounced) => {
           const end = this.self!.getPathEnd()
+          ;(window as unknown as { __whaleTrace: unknown[] }).__whaleTrace?.push({ t: Math.round(performance.now()), ev: 'reconcile', pos: `${pos.x},${pos.y}`, end: `${end.x},${end.y}`, bounced, tile: `${this.self!.getTile().x},${this.self!.getTile().y}` })
           if (end.x === pos.x && end.y === pos.y) return
           const cur = this.self!.getTile()
           const far = Math.abs(cur.x - pos.x) + Math.abs(cur.y - pos.y) > 3
           if (far && !bounced) this.self!.snapTo(pos)   // 被服务器挪远了（teleport）直接贴过去
-          else this.self!.setPath([pos])                 // 回弹 / 小校正：平滑走回
+          else this.self!.setPath([pos], true)           // 回弹 / 小校正：平滑走回，朝向以服务器为准
         },
         onInteract: () => this.handleInteract(),
         onUse: () => this.handleUse(),
@@ -306,8 +308,8 @@ export default class GameScene extends Phaser.Scene {
         if (end.x !== op.position.x || end.y !== op.position.y) {
           const cur = s.getTile()
           const dist = Math.abs(cur.x - op.position.x) + Math.abs(cur.y - op.position.y)
-          if (dist > 12) s.snapTo(op.position, op.facing)         // 瞬移 / 重生：直接贴
-          else s.setPath(this.pathBetween(end, op.position, cur))  // 否则沿网格平滑走过去
+          if (dist > 12) s.snapTo(op.position, op.facing)                       // 瞬移 / 重生：直接贴
+          else for (const p of this.pathBetween(end, op.position)) s.pushWaypoint(p)  // 在现有路径末端续接
         }
         if (!s.isMoving()) s.setFacing(op.facing)
       }
@@ -320,12 +322,10 @@ export default class GameScene extends Phaser.Scene {
     this.syncVars()
   }
 
-  /** 从 from 到 to 的网格路点：优先曼哈顿折线（先横后竖），不做寻路（后端已保证合法） */
-  private pathBetween(from: Position, to: Position, cur: Position): Position[] {
+  /** 从 from（不含）到 to 的网格路点：曼哈顿折线（先横后竖），不做寻路（后端已保证合法） */
+  private pathBetween(from: Position, to: Position): Position[] {
     const pts: Position[] = []
-    const start = (from.x === cur.x && from.y === cur.y) ? cur : from
-    if (start !== cur) pts.push({ ...from })
-    let x = start.x, y = start.y
+    let x = from.x, y = from.y
     while (x !== to.x) { x += Math.sign(to.x - x); pts.push({ x, y }) }
     while (y !== to.y) { y += Math.sign(to.y - y); pts.push({ x, y }) }
     return pts
@@ -428,16 +428,18 @@ export default class GameScene extends Phaser.Scene {
     const cam = this.cameras.main
     if (wantFollow && this.camMode !== 'follow') {
       this.camMode = 'follow'
-      cam.zoomTo(this.followZoom, 700, 'Sine.easeInOut')
+      cam.zoomTo(this.followZoom, 700, 'Sine.easeInOut', true)
     } else if (!wantFollow && this.camMode !== 'pan') {
       this.camMode = 'pan'
-      cam.zoomTo(this.panZoom, 900, 'Sine.easeInOut')
+      cam.zoomTo(this.panZoom, 900, 'Sine.easeInOut', true)
     }
 
     let tx = this.mapPx.w / 2, ty = this.mapPx.h / 2
-    if (this.camMode === 'follow' && this.targetId) {
-      const s = this.others.get(this.targetId)
-      if (s) { const p = s.getPixelPosition(); tx = p.x; ty = p.y }
+    if (this.camMode === 'follow') {
+      const s = this.targetId ? this.others.get(this.targetId) : null
+      if (s) this.lastTargetPx = s.getPixelPosition()
+      // 目标刚消失的宽限期里停在它最后的位置，不要先滑向地图中心
+      if (this.lastTargetPx) { tx = this.lastTargetPx.x; ty = this.lastTargetPx.y }
     }
     const k = 1 - Math.exp(-dt / CAMERA_LERP_MS)
     this.camX += (tx - this.camX) * k

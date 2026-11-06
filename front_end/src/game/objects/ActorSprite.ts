@@ -69,6 +69,8 @@ export default class ActorSprite {
   private stateLabel: string | null = null
   private dimmed = false
   private uiScale = 1
+  /** 回弹 / 校正路径上不用运动方向改朝向（朝向以服务器回包为准） */
+  private facingLocked = false
   readonly name: string
   readonly isSelf: boolean
 
@@ -124,8 +126,9 @@ export default class ActorSprite {
   }
 
   /** 用新路径替换（校正 / 回弹）：从当前像素位置平滑走到路径上 */
-  setPath(points: Position[]) {
+  setPath(points: Position[], lockFacing = false) {
     this.path = points.map(p => ({ ...p }))
+    this.facingLocked = lockFacing && this.path.length > 0
     if (this.path.length === 0) return
     // 如果第一个点就是当前格而我们正站在格中心，丢掉它
     const first = this.path[0]
@@ -139,6 +142,7 @@ export default class ActorSprite {
   /** 直接瞬移 */
   snapTo(p: Position, facing?: Facing) {
     this.path = []
+    this.facingLocked = false
     this.tile = { ...p }
     const c = tileCenter(p.x, p.y)
     this.sprite.setPosition(c.x, c.y)
@@ -172,8 +176,10 @@ export default class ActorSprite {
       // 面朝方向跟随路点
       const dx = c.x - this.sprite.x
       const dy = c.y - this.sprite.y
-      if (Math.abs(dx) > Math.abs(dy)) this.setFacing(dx > 0 ? 'right' : 'left')
-      else if (Math.abs(dy) > 0.5) this.setFacing(dy > 0 ? 'down' : 'up')
+      if (!this.facingLocked) {
+        if (Math.abs(dx) > Math.abs(dy)) this.setFacing(dx > 0 ? 'right' : 'left')
+        else if (Math.abs(dy) > 0.5) this.setFacing(dy > 0 ? 'down' : 'up')
+      }
 
       const catchup = this.path.length > CATCHUP_PATH ? Math.min(4, this.path.length / CATCHUP_PATH) : 1
       const pxPerMs = (TILE_SIZE / BASE_STEP_MS) * Math.max(0.1, speedMul) * catchup
@@ -199,6 +205,7 @@ export default class ActorSprite {
       this.setMoving(true)
       this.idleAt = 0
     } else if (this.moving) {
+      this.facingLocked = false
       // 短暂滞后再切 idle，避免连走时帧间抖动
       if (this.idleAt === 0) this.idleAt = _time + 90
       else if (_time >= this.idleAt) { this.setMoving(false); this.idleAt = 0 }
