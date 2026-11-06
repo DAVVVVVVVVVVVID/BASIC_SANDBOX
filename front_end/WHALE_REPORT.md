@@ -1,9 +1,39 @@
-分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `59d1ac8`（运行台 8000 现为 W6 构建，mapVersion `…@1b824832ace2`）。只改了 `front_end/`。
-总控把运行台 5173 换到本分支时请用下文「提交号」一节。截图在 `front_end/report_shots/`。
+分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `1bfe54d`。只改了 `front_end/`。截图在 `front_end/report_shots/`。
 
 ---
 
-# W5 · 2026-11-06：形象重画、阿蝉操控台、回放页、多镇旁观、游戏机小窗、OBS 布局
+# W6 · 2026-11-06：维护节奏第 1 轮 + Q1 回顾视频
+
+## 每天一轮
+
+| 步 | 结果 |
+|---|---|
+| 1 rebase / 测试 / 构建 | rebase 到 `1bfe54d`（20 个提交重放，0 冲突）；`npm test` 通过；`npm run build` 通过 |
+| 2 各会话给 E 的条目 | **B**「`worldState.time` 每秒一个 patch，前端可忽略只含 time 的 patch」→ 看过：这类 patch 只更新 store 的 worldState，Phaser 侧只有时钟文字变化、React 侧只有 WorldInfoPanel 重渲染，每秒一次开销可忽略，**不改**，也不需要 B 加 `?fields=` 过滤。B 其余条目（`players.upsert` 含 `stateLabel` 等、`tiled` gid 覆盖口）W4–W5 已接。**A / C / D** 本轮报告里没有新的「给 E」。**主播反馈**：§3.22 裁定已采纳（v1、live 布局），`TODO-主播.md` 第 10 条是把直播姬源地址改成 `…&layout=live`，等主播操作 |
+| 3 运行台截图 | `report_shots/W6_runtime_5173_live.jpg`：经 Tailscale `http://100.83.181.41:5173/spectate?follow=鲸仔&hud=0&layout=live&stats=1`，58.5 fps、ws 在线、鲸仔（v1 形象）在码头钓鱼，面板显示「正在钓鱼」与七变量。运行台 5173 现为 `e065963`；本轮新增只有回放 / 回顾功能，**不急切换**，下次顺手切到最新即可 |
+
+## Q1 「她的一天」回顾视频（完成）
+
+- `/replay?...&recap=1`：在原回放画布上叠一条**字幕带**（底部，时间戳 + 一句）与**片头 / 片尾卡**（「鲸仔的一天 · 日期 · 鲸仔小镇」/「明天见」）。字幕来源优先 A 的日摘要 `whale-self/data/self/whale/memory/days/<date>.md` 第一段（她自己写的日记，按句切开均分到时间轴，经只读目录 `/selfdays/`）；**没有日摘要时**退回当天记忆事件里重要度最高的 12 条按时间显示（来源标「她记下的事」）。11-06 她还没睡过、没有 Dream，所以这条用的是事件来源。两个来源都没有弹幕 / 评论原文。
+- `&seconds=75` 控制整天压缩时长（30–180 s，默认 60）；`&export=1` 自动录制下载。
+- **一键脚本** `front_end/tools/recap_export.mjs --date 2026-11-06 [--town main] [--seconds 75] [--base http://127.0.0.1:5174] [--out /home/shan-dw/Project/run/data/recap]`：无头打开回放页、等下载、存到 `run/data/recap/<date>.webm`。需要 playwright（`PLAYWRIGHT_MODULE` 可指向已装好的 node_modules；本机用的是 `/tmp/pw/node_modules/playwright`，**建议总控在 `run/` 下装一份固定的**）。
+- **产物**：`run/data/recap/2026-11-06.webm`，**76.5 s、1600×900、VP8、14.6 MB**（浏览器 `<video>` 核验）；数据：七变量 245 点、思考 119 段、记忆 90 条、行动 398 条、聊天 5 条。帧截图 `report_shots/Q1_recap_frame.jpg`（片头卡 + 字幕带）。主播拿到后只需配音或直接发动态；要「60–90 s」之间的其他长度改 `--seconds`。
+- 接入 cron 的建议（给总控）：A 的每日导出 01:00 之后跑 `node front_end/tools/recap_export.mjs --date <昨天> --base http://127.0.0.1:5173`（preview 同样带只读目录中间件），约 90 s 出一条。
+
+## 小队列状态
+
+Q1 完成；Q2（多角色避让 / 连线 / 切换快捷键）等 C 起 NPC 后做；Q3 `/towns` 总览页、Q4 OBS CEF 实测步骤、Q5 v1 细修排后。
+
+## 提交号
+
+| 项 | 值 |
+|---|---|
+| 代码 | `whale-frontend` @ `54cc669`（基于 B 的 `1bfe54d`） |
+| 新增 | `tools/recap_export.mjs`、`/replay` 的 `recap= seconds=`、只读目录 `/selfdays`（`VITE_SELF_DAYS_DIR`） |
+
+---
+
+# W5 · 2026-11-06：形象重画、阿蝉操控台、回放页、多镇旁观、游戏机小窗、OBS 布局（原报告）
 
 ## 1. 进度（任务 1–7）
 
