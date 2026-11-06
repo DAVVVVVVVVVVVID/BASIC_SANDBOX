@@ -39,23 +39,23 @@ TILE_NAMES = [
 COLS = 8
 
 def tile_grass(d, ox, oy, variant: int, salt: int):
-    base = {0: "#5fae5a", 1: "#5fae5a", 2: "#4f9e55", 3: "#4a9450"}[variant]
-    dark = {0: "#54a050", 1: "#54a050", 2: "#448f4a", 3: "#3f8544"}[variant]
+    base = {0: "#7fb87a", 1: "#7fb87a", 2: "#73ad72", 3: "#6ea36d"}[variant]
+    dark = {0: "#72aa6e", 1: "#72aa6e", 2: "#669f66", 3: "#619560"}[variant]
     d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb(base))
     for i in range(14):
         x, y = int(h2(i, salt, 1) * T), int(h2(i, salt, 2) * T)
         d.point((ox + x, oy + y), fill=rgb(dark))
-        if h2(i, salt, 3) > 0.6: d.point((ox + x, oy + max(0, y - 1)), fill=rgb("#6dbd66"))
+        if h2(i, salt, 3) > 0.6: d.point((ox + x, oy + max(0, y - 1)), fill=rgb("#8cc487"))
     if variant == 1:  # 小花
         for (fx, fy, c) in [(3, 4, "#ffd166"), (10, 9, "#ff8fab"), (6, 12, "#ffffff")]:
             d.point((ox + fx, oy + fy), fill=rgb(c)); d.point((ox + fx + 1, oy + fy), fill=rgb(c))
             d.point((ox + fx, oy + fy + 1), fill=rgb(c)); d.point((ox + fx + 1, oy + fy + 1), fill=rgb(c))
-            d.point((ox + fx, oy + fy + 2), fill=rgb("#3f8544"))
+            d.point((ox + fx, oy + fy + 2), fill=rgb("#619560"))
     if variant == 2:  # 公园：更密、更深的草丛
         for i in range(4):
             x, y = int(h2(i, salt, 4) * (T - 2)), int(h2(i, salt, 5) * (T - 3))
-            d.line([ox + x, oy + y + 2, ox + x, oy + y], fill=rgb("#3f8544"))
-            d.point((ox + x + 1, oy + y + 2), fill=rgb("#3f8544"))
+            d.line([ox + x, oy + y + 2, ox + x, oy + y], fill=rgb("#5f9460"))
+            d.point((ox + x + 1, oy + y + 2), fill=rgb("#5f9460"))
 
 def tile_road(d, ox, oy, salt):
     d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#b9a98a"))
@@ -94,38 +94,38 @@ def tile_floor_tile(d, ox, oy):
         d.line([ox, oy + i, ox + T - 1, oy + i], fill=rgb("#c2b9a6"))
 
 def tile_wall_top(d, ox, oy):
-    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#5b4a42"))
+    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#7a6a63"))
     for y in range(0, T, 4):
         off = 0 if (y // 4) % 2 == 0 else 4
         for x in range(-4, T, 8):
-            d.rectangle([ox + x + off + 1, oy + y + 1, ox + x + off + 7, oy + y + 3], fill=rgb("#6d5a50"))
-    d.line([ox, oy, ox + T - 1, oy], fill=rgb("#7d6a60"))
+            d.rectangle([ox + x + off + 1, oy + y + 1, ox + x + off + 7, oy + y + 3], fill=rgb("#8a7a72"))
+    d.line([ox, oy, ox + T - 1, oy], fill=rgb("#968681"))
 
 def tile_wall_face(d, ox, oy):
-    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#8c7568"))
+    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#a89487"))
     for y in range(0, T, 4):
         off = 0 if (y // 4) % 2 == 0 else 4
         for x in range(-4, T, 8):
-            d.rectangle([ox + x + off + 1, oy + y + 1, ox + x + off + 7, oy + y + 3], fill=rgb("#a08878"))
-    d.rectangle([ox, oy + T - 2, ox + T - 1, oy + T - 1], fill=rgb("#4a3b33"))
+            d.rectangle([ox + x + off + 1, oy + y + 1, ox + x + off + 7, oy + y + 3], fill=rgb("#b8a497"))
+    d.rectangle([ox, oy + T - 2, ox + T - 1, oy + T - 1], fill=rgb("#6b5c55"))
 
 def tile_water(d, ox, oy, frame):
-    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#3d7fc4"))
+    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#6aa2d6"))
     for i in range(5):
         y = (i * 3 + frame * 2) % T
         x0 = int(h2(i, frame, 21) * 8)
-        d.line([ox + x0, oy + y, ox + x0 + 5, oy + y], fill=rgb("#5a9ad8"))
-        d.point((ox + (x0 + 7) % T, oy + y), fill=rgb("#8ec1ea"))
+        d.line([ox + x0, oy + y, ox + x0 + 5, oy + y], fill=rgb("#86b8e2"))
+        d.point((ox + (x0 + 7) % T, oy + y), fill=rgb("#b5d6f0"))
     for i in range(3):
         x, y = int(h2(i, frame, 22) * T), int(h2(i, frame, 23) * T)
-        d.point((ox + x, oy + y), fill=rgb("#2f6aa8"))
+        d.point((ox + x, oy + y), fill=rgb("#5a92c8"))
 
 def tile_carpet(d, ox, oy):
-    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#a8463f"))
+    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#b86a62"))
     for i in range(0, T, 4):
         for j in range(0, T, 4):
-            if (i + j) % 8 == 0: d.point((ox + i + 1, oy + j + 1), fill=rgb("#c0574f"))
-    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], outline=rgb("#8e3a34"))
+            if (i + j) % 8 == 0: d.point((ox + i + 1, oy + j + 1), fill=rgb("#c97e76"))
+    d.rectangle([ox, oy, ox + T - 1, oy + T - 1], outline=rgb("#a35a53"))
 
 def tile_shop_floor(d, ox, oy):
     d.rectangle([ox, oy, ox + T - 1, oy + T - 1], fill=rgb("#cdb48f"))
@@ -150,7 +150,7 @@ def build_tiles():
         elif name == "road": tile_road(d, ox, oy, 5)
         elif name == "square": tile_square(d, ox, oy)
         elif name == "dock": tile_planks(d, ox, oy, "#b48a5a", "#9a7247", "#8a6540")
-        elif name == "floor_wood": tile_planks(d, ox, oy, "#d2a86e", "#bf9458", "#b08650")
+        elif name == "floor_wood": tile_planks(d, ox, oy, "#d9b98c", "#c9a673", "#bd9a6a")
         elif name == "floor_tile": tile_floor_tile(d, ox, oy)
         elif name == "wall_top": tile_wall_top(d, ox, oy)
         elif name == "wall_face": tile_wall_face(d, ox, oy)

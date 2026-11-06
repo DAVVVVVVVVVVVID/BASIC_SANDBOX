@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import Overlay from '../systems/Overlay'
 import ThoughtBar from '../systems/ThoughtBar'
+import InfoPanel from '../systems/InfoPanel'
 import { useGameStore } from '../../store/gameStore'
 import { EventBus } from '../EventBus'
 import type { SpectateParams } from '../../spectate/params'
@@ -18,6 +19,7 @@ export default class UIScene extends Phaser.Scene {
   private overlay!: Overlay
   private statsText: Phaser.GameObjects.Text | null = null
   private thought: ThoughtBar | null = null
+  private panel: InfoPanel | null = null
   private zoneText: Phaser.GameObjects.Text | null = null
   private zoneTween: Phaser.Tweens.Tween | null = null
   private onZone = ({ label }: { label: string }) => {
@@ -48,9 +50,12 @@ export default class UIScene extends Phaser.Scene {
       stroke: '#000000', strokeThickness: 6, letterSpacing: 4,
     }).setOrigin(0.5, 0).setDepth(10005).setResolution(2).setVisible(false)
     EventBus.on('zone-changed', this.onZone)
+    if (this.mode === 'spectate' && (this.params?.panel ?? true)) {
+      this.panel = new InfoPanel(this, { follow: this.params?.follow ?? null, side: safe === 'bl' ? 'right' : 'left' })
+    }
     if (this.mode === 'spectate' && (this.params?.thought ?? true)) {
       // 安全区：右下被占 → 字幕靠左；左下被占 → 靠右
-      const align = safe === 'br' ? 'left' : safe === 'bl' ? 'right' : 'center'
+      const align = safe === 'br' ? 'center' : safe === 'bl' ? 'left' : 'center'
       // follow 可能是 player id（鲸仔_ddba81）或 agent_id（whale），字幕前缀统一显示名字
       const raw = this.params?.follow ?? '鲸仔'
       const name = /^[a-z0-9_-]+$/i.test(raw) ? '鲸仔' : raw.replace(/_[0-9a-f]{6}$/i, '')
@@ -69,6 +74,7 @@ export default class UIScene extends Phaser.Scene {
       EventBus.off('zone-changed', this.onZone)
       this.overlay.destroy()
       this.thought?.destroy()
+      this.panel?.destroy()
     })
   }
 
@@ -76,6 +82,7 @@ export default class UIScene extends Phaser.Scene {
     const s = useGameStore.getState()
     this.overlay.update(s.worldState)
     this.thought?.update(time, dt)
+    this.panel?.update()
     const showBadge = this.mode === 'spectate' ? (this.params?.hud ?? true) : false
     this.overlay.setBadge(showBadge && s.connection === 'offline' ? '后端连接中断，重连中…' : null)
   }

@@ -348,7 +348,9 @@ export default class GameScene extends Phaser.Scene {
 
   private syncVars() {
     const { playerVars } = useGameStore.getState()
-    const bars = this.params?.bars ?? 'none'
+    // 有信息面板时跟随目标的数值在面板里，头顶不再重复画小条；bars=all 仍画全员
+    let bars = this.params?.bars ?? 'none'
+    if (bars === 'target' && (this.params?.panel ?? true)) bars = 'none'
     for (const [id, s] of this.others) {
       const show = bars === 'all' || (bars === 'target' && id === this.targetId)
       const v = playerVars[id]

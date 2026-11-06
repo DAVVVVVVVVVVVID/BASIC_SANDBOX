@@ -12,6 +12,8 @@ export interface SpectateParams {
   safe: 'br' | 'bl' | 'tr' | 'tl' | null
   /** 思考字幕（E8），默认开；C 的 8002 没起时静默 */
   thought: boolean
+  /** 画布内基础信息面板（主播反馈：像游戏一样专门放基础信息），默认开 */
+  panel: boolean
 }
 
 export function parseSpectateParams(search = window.location.search): SpectateParams {
@@ -37,6 +39,7 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
     bars:   bars === 'all' || bars === 'none' ? bars : 'target',
     safe:   safe === 'br' || safe === 'bl' || safe === 'tr' || safe === 'tl' ? safe : null,
     thought: flag('thought', true),
+    panel:  flag('panel', true),
   }
 }
 
