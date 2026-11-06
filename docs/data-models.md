@@ -123,6 +123,10 @@ type ContinuousObject = {
 
 全部物品改为每游戏小时尺度：一次正常使用的恢复量 ≈ 该变量一日衰减量（bed +25 energy/h × 8 h ≈ 200；fridge +40 fullness ≈ 日衰减 / 3 餐；book +60 fun ≈ 日衰减 / 4 次）。表见 api-spec §5。
 
+### 整树感知（W5）
+
+`GET /agent/perceive.arena_tree` 是**整个 world** 的 `world → sectors[] → arenas[] → objects[]`，`current` 标在所在 sector 与 arena；这与 B15「认知地图与 GA 空间树同构」一致（agent 知道整张已知地图），`move_to_area` 按 BFS 实际路程跨 sector 走门。
+
 ### 多人物品（max_users，W4）
 
 continuous 物品都带 `max_users`（`GET /world` 的 `maxUsers`）：餐馆桌子 4、长椅 2、其余 1。满员时 use 返回 `object_full`。

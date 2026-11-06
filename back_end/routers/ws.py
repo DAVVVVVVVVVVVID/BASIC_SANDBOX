@@ -51,6 +51,21 @@ class Hub:
         self._task: asyncio.Task | None = None
         self._last_send = 0.0
         self.sent_patches = 0
+        self._actions: list[dict] = []          # E⑦：待推的动作事件（线程安全：list.append 原子）
+        self._actions_max = 500
+
+    def push_action(self, entity: str, action: str, success: bool, obj: str | None = None,
+                    reason: str | None = None, extra: dict | None = None) -> None:
+        """由 POST /action 分派后调用；与下一次 patch 一起推 {type:"action", ...}。没有订阅者时丢弃。"""
+        if not self._clients:
+            return
+        ev = {"type": "action", "ts": game_now_iso(), "entity": entity, "action": action,
+              "object": obj, "success": bool(success), "reason": reason}
+        if extra:
+            ev.update(extra)
+        self._actions.append(ev)
+        if len(self._actions) > self._actions_max:
+            del self._actions[: len(self._actions) - self._actions_max]
 
     def client_count(self) -> int:
         return len(self._clients)
@@ -134,11 +149,14 @@ class Hub:
         while True:
             try:
                 if self._clients:
+                    pending_actions, self._actions = self._actions, []
+                    for ev in pending_actions:
+                        await self._broadcast(ev)
                     patch = self.build_patch()
                     if patch:
                         await self._broadcast(patch)
                         self.sent_patches += 1
-                    elif time.time() - self._last_send >= HEARTBEAT_S:
+                    elif not pending_actions and time.time() - self._last_send >= HEARTBEAT_S:
                         await self._broadcast({"type": "heartbeat", "ts": game_now_iso()})
                 else:
                     self._last = None            # 没人订阅时不积累 diff；下次连接重建基线
@@ -165,6 +183,7 @@ class Hub:
                 pass
         self._clients.clear()
         self._last = None
+        self._actions.clear()
 
 
 hub = Hub()

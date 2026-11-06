@@ -61,7 +61,9 @@ def test_offline_agent_keeps_ticking(client, fake_clock):
 def test_heartbeat_and_rejoin_restore_online(client):
     pid = _join_agent(client)["playerId"]
     world_state._players[pid]["online"] = False
-    assert client.get(f"/player/{pid}").json()["online"] is True       # GET /player 即心跳
+    assert client.get(f"/player/{pid}").json()["online"] is False      # E②：agent 的 GET /player 不再是心跳
+    hb = client.post(f"/player/{pid}/heartbeat").json()
+    assert hb["ok"] is True and hb["online"] is True and world_state._players[pid]["online"] is True
     world_state._players[pid]["online"] = False
     world_state._last_seen[pid] = 0
     r = client.post("/player/rejoin", json={"playerId": pid})

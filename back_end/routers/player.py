@@ -52,9 +52,19 @@ def leave(player_id: str):
     return {"ok": True}
 
 
+@router.post("/player/{player_id}/heartbeat")
+def heartbeat(player_id: str):
+    """E②：显式心跳（任何 controller）。返回 online 与 last_tick_ts。agent 必须用它（或 rejoin）保持 online=true。"""
+    if not touch_player(player_id):
+        raise HTTPException(status_code=404, detail=f"player not found: {player_id}")
+    p = _players[player_id]
+    return {"ok": True, "online": p.get("online", True), "last_tick_ts": p.get("last_tick_ts")}
+
+
 @router.get("/player/{player_id}")
 def get_player_data(player_id: str):
-    touch_player(player_id)
+    # E②：只对 controller=human 刷心跳（人类前端的老路径）；agent 的 GET 无在线副作用，心跳走 POST /player/{id}/heartbeat
+    touch_player(player_id, human_only=True)
     player = get_player(player_id)
     if player is None:
         raise HTTPException(status_code=404, detail=f"player not found: {player_id}")
@@ -138,8 +148,11 @@ def admin_metrics():
         ws_clients = hub.client_count()
     except Exception:
         ws_clients = 0
+    from game.world_state import SANDBOX_SEED, MAP_VERSION
     return {
         **ticker.metrics(),
+        "seed": SANDBOX_SEED,
+        "mapVersion": MAP_VERSION,
         "players": len(_players),
         "ws_clients": ws_clients,
         "rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),

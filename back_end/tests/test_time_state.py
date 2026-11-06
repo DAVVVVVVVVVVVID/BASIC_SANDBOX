@@ -117,4 +117,4 @@ def test_time_router_shapes(client, fake_clock):
     r = client.post("/time/reset")
     assert r.json()["speed"] == 1.0
     w = client.get("/world").json()["worldState"]
-    assert set(w) == {"date", "time", "period", "running", "speed", "weather"}
+    assert {"date", "time", "period", "running", "speed", "weather"} <= set(w)   # W5 加 mapVersion

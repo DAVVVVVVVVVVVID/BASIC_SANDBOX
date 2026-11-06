@@ -1,5 +1,7 @@
 import copy
 import json
+import os
+import random
 import threading
 import time
 import uuid
@@ -127,6 +129,18 @@ def _generate_tiles() -> list[dict]:
 
 
 _TILES = _generate_tiles()
+
+
+def _compute_map_version() -> str:
+    """地图静态内容的指纹（tiles 类型 / 可走 + 物品 id / 类型 / 位置），前端据此决定是否重拉 tiles（E③）。"""
+    import hashlib
+    h = hashlib.sha1()
+    h.update(json.dumps([[t["type"], t["walkable"]] for t in _TILES]).encode())
+    h.update(json.dumps([[o["id"], o["type"], o["position"]] for o in _OBJECTS], sort_keys=True).encode())
+    return f"{_META.get('name', 'map')}@{h.hexdigest()[:12]}"
+
+
+MAP_VERSION: str = _compute_map_version()
 _EVENTS: list[dict] = _MAP_DATA["events"]
 _WEATHER = "sunny"
 
@@ -154,6 +168,11 @@ RECENT_USES_WINDOW_S = 6 * 3600.0    # 6 游戏小时内使用次数（novelty �
 # 后台 ticker（事件循环线程）与 FastAPI 同步路由（线程池）会并发访问以上字典，
 # 遍历 / 导出 / 增删 player 时持有此锁（B8）。
 STATE_LOCK = threading.RLock()
+
+# SANDBOX_SEED（towns.yaml m1b 用）：沙盒目前没有随机游戏逻辑；种子只决定 player id 后缀的生成器，
+# 使多镇对照里 join 顺序相同 → id 相同（假设）。未设置时用 uuid。
+SANDBOX_SEED: int | None = int(os.environ["SANDBOX_SEED"]) if os.environ.get("SANDBOX_SEED", "").strip() else None
+_id_rng = random.Random(SANDBOX_SEED) if SANDBOX_SEED is not None else None
 
 # 七变量初值（ARCHITECTURE §3.1 B3 / 报告 §4.3 基线）
 INITIAL_FULLNESS = 70.0
@@ -210,6 +229,7 @@ def _make_player(
         "scene":         "sandbox",                  # B4：衰减速率按 scene 切换（sandbox | live）
         "agent_id":      _agent_id_for(name, profile) if controller == "agent" else None,
         "last_tick_ts":  _iso_game_now(),
+        "pos_seq":       0,
         "usingObjectId": None,
         "buffs":         [dict(DECAY_BUFF)],         # B4：自然衰减元 buff
         "tags":          [],
@@ -230,7 +250,7 @@ def _ensure_player_fields(player: dict) -> None:
     defaults = _make_player(player["id"], player.get("name", player["id"]),
                             controller=player.get("controller", "human"))
     for k in ("fullness", "energy", "social", "fun", "mood", "mood_base", "emotion_tags",
-              "closeness", "controller", "online", "scene", "agent_id", "last_tick_ts"):
+              "closeness", "controller", "online", "scene", "agent_id", "last_tick_ts", "pos_seq"):
         if k not in player:
             player[k] = player.get("hp", defaults[k]) if k == "fullness" else defaults[k]
     if not isinstance(player["last_tick_ts"], str):          # W1 的 float → ISO
@@ -251,7 +271,10 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
     agent 玩家会先从自我层 GET /self/state 种入七变量（不可达则用 §2.5 初值）。
     """
     safe = name[:12].lower().replace(" ", "_")
-    player_id = f"{safe}_{uuid.uuid4().hex[:6]}"
+    suffix = f"{_id_rng.getrandbits(24):06x}" if _id_rng is not None else uuid.uuid4().hex[:6]
+    player_id = f"{safe}_{suffix}"
+    while player_id in _players:
+        player_id = f"{safe}_{uuid.uuid4().hex[:6]}"
     player = _make_player(player_id, name, controller, profile)
     if player["controller"] == "agent":
         from game import self_sync
@@ -320,12 +343,16 @@ def remove_player(player_id: str) -> None:
     self_sync.unregister(player_id)
 
 
-def touch_player(player_id: str) -> None:
-    """更新玩家心跳时间戳，表示该玩家仍在线。"""
+def touch_player(player_id: str, human_only: bool = False) -> bool:
+    """更新玩家心跳时间戳，表示该玩家仍在线。human_only=True 时 agent 不刷（E②：GET /player 对 agent 无副作用）。"""
     p = _players.get(player_id)
-    if p is not None:
-        _last_seen[player_id] = time.time()
-        p["online"] = True
+    if p is None:
+        return False
+    if human_only and p.get("controller") == "agent":
+        return False
+    _last_seen[player_id] = time.time()
+    p["online"] = True
+    return True
 
 
 def _cleanup_stale_players() -> None:
@@ -348,6 +375,7 @@ def get_world() -> dict:
     from game.time_state import get_time_state
     world_state = get_time_state()
     world_state["weather"] = _WEATHER
+    world_state["mapVersion"] = MAP_VERSION         # E③
     return {
         "tiles":      _TILES,
         "objects":    _OBJECTS,
@@ -379,6 +407,10 @@ def get_all_players_snapshot() -> list[dict]:
             "controller": p.get("controller", "human"),
             "online":     p.get("online", True),
             "agent_id":   p.get("agent_id"),          # §3.11 A1：自我层 agent↔player 映射
+            "stateLabel":    p.get("stateLabel"),      # E①
+            "usingObjectId": p.get("usingObjectId"),   # E①
+            "tags":          list(p.get("tags", [])),  # E①
+            "pos_seq":       p.get("pos_seq", 0),      # E⑥：位置单调序号
         }
         for p in _players.values()
     ]
@@ -436,6 +468,8 @@ def update_player_position(player_id: str, x: int, y: int, facing: str) -> None:
     player = _players.get(player_id)
     if player is None:
         return
+    if player["position"]["x"] != x or player["position"]["y"] != y:
+        player["pos_seq"] = int(player.get("pos_seq", 0)) + 1      # E⑥
     player["position"]["x"] = x
     player["position"]["y"] = y
     player["facing"] = facing

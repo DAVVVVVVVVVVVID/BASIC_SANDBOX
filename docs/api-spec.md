@@ -49,6 +49,9 @@
 | `period` | `morning`(06–08) / `day`(08–20) / `dusk`(20–22) / `night`(22–06) |
 | `running` | 是否推进。默认 `true`（环境变量 `SANDBOX_TIME_RUNNING=0` 可改） |
 | `speed` | 倍率，默认 `1.0`（与现实 1:1），下限 1.0 |
+| `mapVersion` | **W5 E③** 地图静态内容指纹（名字@sha1 前 12 位，含 tiles 类型 / 可走与物品 id / 类型 / 位置）；变了才需要重拉 `tiles` / `tiled` |
+
+**瘦身（W5 E③）：** `GET /world?fields=players,objects,worldState` 只回这些顶层键（可选值：`tiles` / `objects` / `worldState` / `players` / `tiled`），形状与全量相同（同一响应模型）；全量约 300 KB，`players,objects,worldState` 约 10 KB。`tiled`（**E⑤**）现在非空：`{tilesets: [Sunnyside 信息], layers: [ground, structures]}`，gid 映射为假设值，见 `scripts/gen_map.py` 的 `TILE_GIDS`（可用 `game/maps/tile_gids.json` 覆盖）。
 
 > **只读**：`GET /world` 不推进时间、不跑 buff tick、不清理离线玩家。这些都由后端的独立后台 tick 任务（200 ms）完成，没有任何客户端轮询时状态照样演化。
 
@@ -62,12 +65,20 @@
 | `controller` | **B6** `"human"` \| `"agent"` |
 | `online` | **B6** agent 10 s 无心跳为 `false`（身体仍在原地、仍参与 tick）；human 无心跳直接从列表消失 |
 | `agent_id` | **W4（§3.11 A1）** 自我层 agent id（join 时 `profile.agent_id`），human 为 `null`；自我层据此做 agent↔player 映射 |
+| `stateLabel` / `usingObjectId` / `tags` | **W5 E①** 与 `GET /player` 同义；前端叠加层（睡觉 / 吃饭 / 直播中）直接读，不必反查 userList |
+| `pos_seq` | **W5 E⑥** 位置单调序号：每次坐标实际变化 +1（转向不变），重启后保留；客户端预测校正用它排乱序 |
 
 ---
 
 ### GET /player/{player_id}
 
-获取玩家状态，并刷新该玩家的心跳（10 s 无心跳的人类玩家会被清除）。buff tick 由后台任务驱动，与本接口无关。
+获取玩家状态。**W5 E②：对 `controller=agent` 纯只读**（不刷心跳、不改 `online`）；对 `controller=human` 仍刷心跳（人类前端的老路径，10 s 无心跳会被清除）。两者都会读取并清空 `pendingMessage`。buff tick 由后台任务驱动，与本接口无关。
+
+### POST /player/{player_id}/heartbeat
+
+**W5 E②** 显式心跳（任何 controller）：刷新 `last_seen`、置 `online=true`。**agent 必须用它**（C 的 loop 每 ≤ 10 s 一次，或用 `rejoin`）才能保持 `online=true`。
+
+**响应：** `{ "ok": true, "online": true, "last_tick_ts": "2026-11-06T21:03:00+08:00" }`；不存在 404。
 
 **响应：**
 
@@ -300,6 +311,23 @@
 
 ---
 
+### GET /history/chat
+
+**W5 任务 1（数据集优先）**：聊天 append-only JSONL 回放，只读。文件 `data/chat/YYYY-MM-DD.jsonl`，与 `/ws/world` 的 `chat` 推送同一处写入。
+
+**Query：** `since`（ISO）、`room`（room_id）、`kind`（`message` | `event`）、`limit`。
+
+**行形状：**
+```json
+{ "kind": "message", "ts": "2026-11-06T21:03:01.234", "game_time": "2026-11-06T21:03:01+08:00", "room_id": "def456",
+  "seq": 3, "from": "achan_1a2b3c", "from_name": "阿蝉", "to": ["鲸仔_a1b2c3"], "text": "晚饭吃什么", "controller": "human" }
+{ "kind": "event", "event": "room_open | player_exit | room_limit | room_close | request_expired | request_rejected",
+  "ts": "...", "game_time": "...", "room_id": "def456", "request_id": null, "participants": ["..."], "reason": "all_left" }
+```
+`room_close` 事件带 `reason`（`all_left` / `room_limit`）；`player_exit` 带 `entity`。
+
+---
+
 ## 2. 统一行为接口
 
 ### POST /action
@@ -354,11 +382,45 @@
 |------|------|---------|--------|
 | `move` | 移动一格或前往目标 tile | `{ direction }` 或 `{ targetTile }` | 方向键 / 鼠标 |
 | `move_n` | 向某方向移动 N 格，逐格校验，遇阻停止 | `{ direction, steps }` | agent |
-| `move_to_area` | 移动到目标区域距离当前位置最近的可行走 tile | `{ area_type, area_id }` | agent |
+| `move_to_area` | 移动到目标区域内**按 BFS 实际路程**最近的可行走 tile（跨 sector 走门；W5 前取曼哈顿最近可能隔墙 → `no_path`） | `{ area_type, area_id }` | agent |
 | `turn` | 仅改变朝向，不移动 | `{ direction }` | Ctrl + 方向键 |
 | `interact` | 阅读正前方对象描述，不改变状态 | `{}` | `I` |
 | `use` | 进入使用正前方对象，加入 userList | `{}` | `E` |
 | `leave` | 退出当前正在使用的对象 | `{}` | `Q` |
+| `freeform` | **B12（W5）** 自然语言动作，由自我层 `POST /self/adjudicate` 裁决后把效果落到 player | `{ text, target?, context? }` | agent |
+
+---
+
+### freeform（B12）
+
+```json
+{ "entityId": "鲸仔_a1b2c3", "action": { "type": "freeform", "payload": { "text": "我在广场上给路过的人唱一段鲸歌", "target": "achan_1a2b3c" } } }
+```
+
+| payload 字段 | 说明 |
+|---|---|
+| `text` | 必填，≤ 200 字；她想做的一件事（第一人称） |
+| `target` | 可选，对方 `entity_id` 或 `object_id`，原样传给自我层；裁决返回的效果若 `target` 是在场 player 则落到对方 |
+| `context` | 可选 ≤ 1000 字，附加情境 |
+
+后端：每实体 **30 s 本地限频**（自我层另有一层）→ `POST {SELF_URL}/self/adjudicate {agent: player.agent_id（human 用 name）, text, target?, context?}`（15 s 超时）→ 返回的 `effects`（已是 `instant_effect` / `emotion_tag` buff 形式）经与 `/effects` 同一条管线落到 player（`source="freeform"`），`narration` 写进本人与 `target` 的 `pendingMessage`。**不**再把这组效果转发回自我层（由 30 s delta 上报）。
+
+**响应：**
+```json
+{ "success": true, "type": "freeform", "reason": null,
+  "result": { "narration": "鲸仔在广场上清了清嗓子，给路过的人唱起了一段悠长的鲸歌……",
+              "effects": [ { "type": "instant_effect", "key": "fun", "value": 4.0, "target": "self" }, ... ],
+              "applied": 3, "skipped": 0, "feasible": true, "injection": false } }
+```
+
+| reason | 说明 |
+|---|---|
+| `null` 且 `success=false` | 裁决为不可行（`result.feasible=false`），通常仍有旁白与小幅负效果 |
+| `injection` | 文本试图改规则 / 索要提示词；`effects` 为空，旁白固定「她嘀咕了一句谁也没听懂的话」 |
+| `rate_limited` | 本地 30 s 内重复（`result.retry_after`），或自我层 429 |
+| `adjudication_unavailable` | 自我层不可达 / 超时 / persona 不存在 / `SELF_SYNC=0`（`result.error`） |
+| `adjudication_failed` | 自我层模型调用失败（透传） |
+| `missing_text` / `text_too_long` / `player_not_found` | 本地校验 |
 
 ---
 
@@ -649,7 +711,7 @@
 - 每 5 s 以及进程正常关停时，后端把全部运行时状态写入 SQLite 检查点 `data/sandbox.db`（players、object 使用状态、时间锚点、chat 请求与房间、`meta.last_tick_ts`）。启动时若有检查点则回填，并按停机时长补算一次 tick（`dt ≤ 8 游戏小时`，running=false 时不补）。`kill -9` 最多丢最后 5 s 的变化。
 - 停机补算分段（§3.7 裁定 5）：前 4 游戏小时全量（物品 buff + 衰减）；4–8 h 只补 social / fun / mood / closeness 的衰减，fullness / energy 不再扣（她离线等于在睡，假设）。
 - 数据目录默认 `back_end/data/`，环境变量 `SANDBOX_DATA_DIR` 可改。
-- **多实例（W4）**：一机多镇时每个实例用不同端口 + 不同 `SANDBOX_DATA_DIR`（检查点 `sandbox.db`、`actions/*.jsonl`、pid 文件都在该目录内，进程间没有共享全局文件；日志走 stdout 或 `run_town.sh --log`）。`back_end/scripts/run_town.sh --port 8010 --data run/data/m2a [--self-url http://127.0.0.1:8310] [--cors ...]` 一键起一个镇，端口被占直接拒绝。CORS 白名单走环境变量 `SANDBOX_CORS_ORIGINS`（逗号分隔，默认 `http://localhost:5173,http://127.0.0.1:5173`）。
+- **多实例（W4）**：一机多镇时每个实例用不同端口 + 不同 `SANDBOX_DATA_DIR`（检查点 `sandbox.db`、`actions/*.jsonl`、pid 文件都在该目录内，进程间没有共享全局文件；日志走 stdout 或 `run_town.sh --log`）。`back_end/scripts/run_town.sh --port 8010 --data run/data/m2a [--self-url http://127.0.0.1:8310] [--cors ...]` 一键起一个镇，端口被占直接拒绝。CORS 白名单走环境变量 `SANDBOX_CORS_ORIGINS`（逗号分隔，默认 `http://localhost:5173,http://127.0.0.1:5173`）。**`SANDBOX_SEED`（W5）**：沙盒目前没有随机游戏逻辑，种子只决定 player id 后缀的生成器（相同 join 顺序 → 相同 id，便于多镇对照；未设置用 uuid），`GET /admin/metrics.seed` 可查。`run_town.sh` 的 `--tz / --seed / --env K=V` 与总控 townctl 传的 `SANDBOX_TZ` / `sandbox_env` 一一对应。
 - 实时推送见 §8 `GET /ws/world`。
 
 ### 与自我层同步（§2.5）
@@ -760,7 +822,8 @@
 ```
 
 **说明：**
-- `arena_tree`：嵌套树 `world → sector → arenas[]`，展示当前 sector 内**所有** arena 及其 objects，**不含坐标**；`current: true` 标记当前所在 arena；当 cognitive_map 中找不到对应名称时，`name` 回退为原始 ID
+- `arena_tree`（**W5 §3.14 改为整个 world 的树**）：`{id, name, current, sectors: [{id, name, current, arenas: [{id, name, current, objects: [...]}]}], sector: <当前 sector 节点>}`，列出**所有** sector → arenas → objects，**不含坐标**；`current: true` 同时标在所在 sector 与所在 arena 上（恰好各一个）；旧字段 `sector`（当前 sector 节点）保留。objects 元素：`{id, name, type, interactable, currentUsers, maxUsers?, advertise?}`。室外也能看到每个室内物品（如 `bed_whale`），配合 `move_to_area` 跨 sector 走门过去；当 cognitive_map 中找不到对应名称时，`name` 回退为原始 ID
+- `current`（**W5**）：`{world, sector, arena, sector_name, arena_name}`，站在 arena 外时 `arena` 为 `null`
 - `vision_tiles`：以实体当前位置为中心，边长 `vision_size`（偶数自动取奇）的正方形内所有合法 tile，超出地图边界的 tile 不返回
 - `front_object`：正前方一格的 object 信息，无 object 时为 `null`
 - `players_in_view`（**B13**）：视野正方形内的其他 player
@@ -1068,6 +1131,14 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `players.remove` | 消失的 player id（leave / 心跳超时） |
 | `objects` | `currentUsers` / `userList` 变化了的物品；静态字段（位置、effects、advertise）看 snapshot |
 | `chat` | 连接之后新产生的聊天消息（`kind: "message"`）与房间事件（`kind: "event"`：`player_exit` / `room_limit`），按 `seq` 升序，给前端气泡用。连接前的历史不重放，要历史走 `GET /chat/room/{id}` |
+
+**动作事件（W5 E⑦）：** 每次 `POST /action` 分派后推一条，先于同一帧的 patch：
+```json
+{ "type": "action", "ts": "...", "entity": "鲸仔_a1b2c3", "action": "use", "object": "fridge_kitchen", "success": true, "reason": null }
+```
+`object` 为该动作涉及的物品 id（use / leave / interact），其他动作为 `null`；move 成功时另带 `position`。前端可据此播一次性动画。
+
+`chat` 事件的 `kind: "message"` 带 `from_name`（E④，已实现）。
 
 空闲 5 s 没有变化时发 `{"type": "heartbeat", "ts": ...}`。多个客户端共享同一份 diff 计算；没有订阅者时不计算。
 对账：`cd back_end && uv run python scripts/verify_ws.py --seconds 60`（订阅并叠加 patch，与每秒轮询 `GET /world` 比较，W4 实测 44 次比较 0 不一致）。

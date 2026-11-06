@@ -57,6 +57,7 @@ class WorldState(BaseModel):
     running: bool
     speed: float
     weather: Literal["sunny", "cloudy", "rain"]
+    mapVersion: Optional[str] = None     # E③：地图静态内容指纹
 
 
 class WorldEvent(BaseModel):
@@ -74,11 +75,15 @@ class OtherPlayer(BaseModel):
     controller: Optional[str] = None   # B6
     online: Optional[bool] = None      # B6
     agent_id: Optional[str] = None     # §3.11 A1
+    stateLabel: Optional[str] = None   # E①
+    usingObjectId: Optional[str] = None  # E①
+    tags: List[str] = []               # E①
+    pos_seq: int = 0                   # E⑥
 
 
 class WorldData(BaseModel):
-    tiles: List[Tile]
-    objects: List[GameObject]
-    worldState: WorldState
-    players: List[OtherPlayer] = []
+    tiles: Optional[List[Tile]] = None          # ?fields= 瘦身时可省略（E③）
+    objects: Optional[List[GameObject]] = None
+    worldState: Optional[WorldState] = None
+    players: Optional[List[OtherPlayer]] = None
     tiled: Optional[Any] = None

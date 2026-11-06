@@ -11,6 +11,8 @@
 import logging
 import threading
 
+import httpx
+
 from game import self_sync
 
 log = logging.getLogger("sandbox.external")
@@ -103,6 +105,49 @@ def live_stop(player: dict, game_iso: str) -> None:
         _live_stop_send(agent, game_iso)
     else:
         threading.Thread(target=_live_stop_send, args=(agent, game_iso), name="live-stop", daemon=True).start()
+
+
+# ── B12 freeform：自我层裁决 ──────────────────────────────────────────────────
+
+ADJUDICATE_TIMEOUT = 15.0     # 模型调用，比 feed/live 的 3 s 长
+
+
+def adjudicate(player: dict, text: str, target: str | None, context: str | None) -> dict:
+    """
+    POST {SELF_URL}/self/adjudicate {agent, text, target?, context?}
+    → 原样返回自我层的 {success, narration, effects[], feasible?, skipped?, injection?, reason?}
+    不可达 / 非 2xx → {"success": False, "reason": "adjudication_unavailable" | 自我层给的 reason, ...}
+    """
+    agent = _agent_for(player) or player.get("name", player.get("id"))
+    if not self_sync.enabled():
+        return {"success": False, "narration": "", "effects": [], "reason": "adjudication_unavailable", "error": "self_sync_disabled"}
+    body = {"agent": agent, "text": text}
+    if target:
+        body["target"] = target
+    if context:
+        body["context"] = context[:1000]
+    try:
+        headers = {"content-type": "application/json"}
+        if self_sync._cfg["token"]:
+            headers["Authorization"] = f"Bearer {self_sync._cfg['token']}"
+        with httpx.Client(base_url=self_sync._cfg["url"], headers=headers, timeout=ADJUDICATE_TIMEOUT,
+                          transport=self_sync._cfg["transport"]) as c:
+            r = c.post("/self/adjudicate", json=body)
+        if r.status_code == 429:
+            detail = (r.json() or {}).get("detail") if r.headers.get("content-type", "").startswith("application/json") else None
+            inner = detail.get("detail") if isinstance(detail, dict) else {}
+            return {"success": False, "narration": "", "effects": [], "reason": "rate_limited",
+                    "retry_after": (inner or {}).get("retry_after")}
+        if r.status_code == 404:
+            return {"success": False, "narration": "", "effects": [], "reason": "adjudication_unavailable", "error": "persona_not_found"}
+        r.raise_for_status()
+        res = r.json()
+        if not isinstance(res, dict):
+            raise ValueError("bad response")
+        return res
+    except Exception as e:
+        log.warning("adjudicate failed for %s: %s", agent, e)
+        return {"success": False, "narration": "", "effects": [], "reason": "adjudication_unavailable", "error": str(e)}
 
 
 def external_keys(obj: dict) -> set[str]:

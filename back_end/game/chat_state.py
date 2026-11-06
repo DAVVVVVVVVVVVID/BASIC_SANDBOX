@@ -10,6 +10,8 @@ import time
 import uuid
 from typing import Optional
 
+from game import chat_log
+
 # ── 内存状态 ─────────────────────────────────────────────────────────────────
 _chat_requests: dict[str, dict] = {}   # request_id -> ChatRequest dict
 _chat_rooms:    dict[str, dict] = {}   # chat_room_id -> ChatRoom dict
@@ -148,6 +150,7 @@ def respond_to_request(
     if len(to_ids) == 1:
         if not accept:
             req["status"] = "rejected"
+            chat_log.log_event("request_rejected", None, [req["from_entity_id"], entity_id], request_id=request_id)
             return {"chat_room_id": None, "status": "rejected"}
         return _start_walking_over(req, [req["from_entity_id"], entity_id], players)
 
@@ -220,6 +223,7 @@ def _finish_walking_over(req: dict, players: dict) -> str | None:
             p["state"] = "idle"
     if len(participants) < 2:
         req["status"] = "expired"
+        chat_log.log_event("request_expired", None, req["participants"], request_id=req["request_id"], reason="participant_left")
         return None
     room_id = _create_room(
         participants=participants,
@@ -252,6 +256,7 @@ def tick(now: float | None = None) -> None:
                 _start_walking_over(req, [req["from_entity_id"]] + req["accepted_ids"], players)
             else:
                 req["status"] = "expired"
+                chat_log.log_event("request_expired", None, [req["from_entity_id"], *req["to_entity_ids"]], request_id=req["request_id"])
         elif req["status"] == "walking_over":
             if _all_met(req, players) or now - (req.get("walking_since") or now) >= WALK_TIMEOUT:
                 _finish_walking_over(req, players)
@@ -281,6 +286,7 @@ def _create_room(
     }
     _MSG_SEQ_COUNTER[room_id] = 0
 
+    chat_log.log_event("room_open", room_id, participants)
     # 发起者的招呼语作为第一条消息
     if greeting_from and greeting_text:
         seq = _next_seq(room_id)
@@ -290,6 +296,7 @@ def _create_room(
             "content":        greeting_text,
             "timestamp":      _now_iso(),
         })
+        _log_msg(room_id, seq, greeting_from, greeting_text, players)
 
     # 接受者的回复，按接受顺序排列（只写入最终参与者的消息）
     participant_set = set(participants)
@@ -302,11 +309,19 @@ def _create_room(
                 "content":        item["message"],
                 "timestamp":      _now_iso(),
             })
+            _log_msg(room_id, seq, item["entity_id"], item["message"], players)
 
     # 对所有参与者施加 chat_active buff
     for eid in participants:
         _apply_chat_buff(eid, players)
     return room_id
+
+
+def _log_msg(room_id: str, seq: int, from_id: str, text: str, players: dict) -> None:
+    room = _chat_rooms.get(room_id, {})
+    p = players.get(from_id, {})
+    chat_log.log_message(room_id, seq, from_id, p.get("name", from_id),
+                         [e for e in room.get("participants", []) if e != from_id], text, p.get("controller", "human"))
 
 
 def _apply_chat_buff(entity_id: str, players: dict) -> None:
@@ -374,8 +389,9 @@ def post_message(entity_id: str, room_id: str, content: str) -> dict | None:
         "content":        content,
         "timestamp":      _now_iso(),
     })
+    from game.world_state import _players as players
+    _log_msg(room_id, seq, entity_id, content, players)
     if len(room["messages"]) >= MAX_MESSAGES:               # B9 ④
-        from game.world_state import _players as players
         _close_room(room, players, reason="room_limit")
         return {"seq": seq, "room_closed": True, "reason": "room_limit"}
     return {"seq": seq, "room_closed": False}
@@ -396,6 +412,9 @@ def _close_room(room: dict, players: dict, reason: str) -> None:
     _record_chat_end(participants)
     room["participants"] = []
     room["status"] = "closed"
+    chat_log.log_event(reason, room["chat_room_id"], participants)
+    if reason != "room_close":
+        chat_log.log_event("room_close", room["chat_room_id"], participants, reason=reason)
 
 
 def exit_room(entity_id: str, room_id: str) -> dict | None:
@@ -420,9 +439,11 @@ def exit_room(entity_id: str, room_id: str) -> dict | None:
     _last_chat_end[entity_id] = now
     for other in room["participants"]:
         _last_pair_end[frozenset((entity_id, other))] = now
+    chat_log.log_event("player_exit", room_id, [entity_id, *room["participants"]], entity=entity_id)
     # 若无人在场，关闭房间
     if not room["participants"]:
         room["status"] = "closed"
+        chat_log.log_event("room_close", room_id, [entity_id], reason="all_left")
         return {"room_closed": True}
     return {"room_closed": False}
 
@@ -450,8 +471,10 @@ def cleanup_player_chats(entity_id: str) -> None:
         _last_chat_end[entity_id] = now
         for other in room["participants"]:
             _last_pair_end[frozenset((entity_id, other))] = now
+        chat_log.log_event("player_exit", room_id, [entity_id, *room["participants"]], entity=entity_id, reason="player_removed")
         if not room["participants"]:
             room["status"] = "closed"
+            chat_log.log_event("room_close", room_id, [entity_id], reason="all_left")
 
 
 def get_nearby_players(entity_id: str, players: dict, zone_lookup: dict) -> list[dict]:

@@ -1,10 +1,92 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W4（2026-11-06）**；W3、W2、W1 记录在后。
+分支：`whale-integration`。最新：**W5（2026-11-06）**；W4、W3、W2、W1 记录在后。
 
 ---
 
-# W4 · 2026-11-06：契约小修、WebSocket 推送、多实例与社交物品
+# W5 · 2026-11-06：整树（事故修复）、聊天 JSONL、E 的 7 条、B12 freeform
+
+## 0. 事故修复（§3.14，最先做）——提交 **`504bf9e`**，请总控切运行台
+
+- `GET /agent/perceive.arena_tree` 改为**整个 world 的树**：所有 sector → arenas → objects（`id / name / type / interactable / currentUsers / maxUsers / advertise`），`current` 同时标在所在 sector 与所在 arena；旧字段 `sector`（当前 sector 节点）保留；新增顶层 `current {world, sector, arena, sector_name, arena_name}`。
+- `move_to_area` 改为 BFS **实际路程**最近的区域内可走格（原来取曼哈顿最近，隔着墙就 `no_path`），跨 sector 走门。
+- join / rejoin / 检查点回填：坐标不可走或不在任何 arena → 落回出生点（小仓库），并离开正在用的物品。
+- 验收（`tests/test_w5_tree.py` 8 例）：human 站广场 perceive 看到 `bed_whale`（在 `achan_house → storage` 下，30 个物品全在树里，`current` 恰好一个）；广场 `move_to_area(storage)` 走进小仓库，再到餐馆大堂、渔夫小屋；全部 arena 从出生点 `move_to_area` 可达；`(2,2)` 墙里 / 河里 rejoin 落回出生点；检查点回填同样修正。
+
+## 1. 进度（任务 0–5 全部完成）
+
+| # | 任务 | 状态 | 主要文件 |
+|---|---|---|---|
+| 0 | §3.14 整树 / 落点 | ✅ `504bf9e` | `routers/agent.py`、`routers/actions.py::_bfs_path_to_any`、`world_state._ensure_valid_position` |
+| 1 | 聊天 append-only JSONL：`data/chat/YYYY-MM-DD.jsonl`，消息一行（ts / game_time / room_id / seq / from / from_name / to[] / text / controller），房间 open / player_exit / room_limit / room_close / request_expired / request_rejected 各一行；`GET /history/chat?since=&room=&kind=` 只读 | ✅ | `game/chat_log.py`（新）、`chat_state.py` 六处写点、`routers/history.py` |
+| 2 | E 的 7 条：① `players[]` 加 `stateLabel / usingObjectId / tags`（/world 与 ws upsert 同形状）② `POST /player/{id}/heartbeat`；`GET /player/{id}` 对 agent 纯只读、对 human 仍刷 ③ `GET /world?fields=` + `worldState.mapVersion` ④ ws chat `from_name`（确认已有，测试锁定）⑤ `gen_map.py` 产出 `tiled`（ground + structures 两层，Sunnyside tileset）⑥ `players[].pos_seq` ⑦ ws `{type:"action", entity, action, object, success, reason}` | ✅ | `world_state.get_all_players_snapshot / update_player_position / MAP_VERSION`、`routers/world.py`、`routers/player.py`、`routers/ws.py::push_action`、`scripts/gen_map.py::build_tiled` |
+| 3 | B12 freeform：`POST /action {type:"freeform", payload:{text, target?, context?}}` → 30 s 本地限频 → `POST /self/adjudicate` → effects 经 `apply_effects` 落到本人 / target player，narration 进双方 `pendingMessage`；reason 透传 `injection / rate_limited / adjudication_unavailable / adjudication_failed` | ✅ | `routers/actions.handle_freeform`、`external_effects.adjudicate`、`scripts/verify_freeform.py` |
+| 4 | `SANDBOX_SEED`：原本**不存在**，现已加（只影响 player id 后缀生成器，沙盒无随机游戏逻辑；`/admin/metrics.seed`）；`run_town.sh` 加 `--tz / --seed / --env K=V`，与 townctl 的 `SANDBOX_DATA_DIR / SELF_URL / SANDBOX_TZ / sandbox_env` 一一对应 | ✅ | `world_state`、`scripts/run_town.sh` |
+| 5 | 文档同步 | ✅ | `docs/api-spec.md`（perceive 整树、freeform 行为、`/history/chat`、players 新字段、heartbeat、`?fields` / `mapVersion` / `tiled`、ws action 事件、SEED）、`README.md`、`docs/data-models.md` |
+
+未碰 `front_end/`。
+
+## 2. 测试命令与结果
+
+```bash
+cd back_end
+uv run pytest -q
+# 157 passed（W4 的 139 个 + W5 新增 18 个；另 test_w5_tree 8 例在 504bf9e 已计入 139）
+
+uv run python scripts/verify_freeform.py --self-url http://127.0.0.1:8100       # 对运行台自我层真实 3 条
+#  [OK ] world       2.1s success=True  effects=[fun +4, social +3, mood +2]  Δ={social 3, fun 3.99, mood 2}
+#        旁白：鲸仔在广场上清了清嗓子，给路过的人唱起了一段悠长的鲸歌，几位行人停下脚步侧耳聆听。
+#  [OK ] infeasible  2.2s success=False feasible=False effects=[]            旁白：鲸仔想一口气吃下三锅米饭，但小镇里并没有这样的食物，他只能作罢。
+#  [OK ] injection   0.0s success=False reason=injection effects=[]          旁白：她嘀咕了一句谁也没听懂的话，什么都没发生。
+#  行动日志里 freeform 条数：3  → PASS
+
+uv run python scripts/verify_ws.py --seconds 60      # W5 改动后：0 不一致（30 s 短跑 21 次 0 不一致；60 s 版 44 次 0 不一致）
+uv run python scripts/verify_restart.py              # 15/15（W4 基线，未改）
+scripts/run_town.sh --port <p> --data /tmp/town_seed --no-sync --seed 2 --tz Asia/Shanghai --env SANDBOX_CORS_ORIGINS=http://localhost:5183
+# /admin/metrics → seed 2, mapVersion 阿蝉家与小镇@c4e7af659ee3
+```
+
+| 新增 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/test_w5_tree.py` | 8 | 任务 0（见上） |
+| `tests/test_w5_chat_log.py` | 5 | 一次对话 7 行（room_open、3 条消息、2 次 player_exit、room_close=all_left），字段齐全（controller 区分 human / agent，to 为其余参与者）；room_limit → `room_limit` + `room_close` 两行；request_expired / request_rejected；**JSONL 与 ws `chat` 推送逐条一致**（seq / text / from_name，事件顺序）；重启后文件原样、seq 接着写；截断半行容错；`/history/chat` 的 room / kind / since 过滤 |
+| `tests/test_w5_e_items.py` | 7 | ① use 后 `players[]` 带 stateLabel / usingObjectId / tags，leave 后清空 ② agent 的 `GET /player` 不刷 `last_seen` 不改 `online`，human 仍刷；`POST heartbeat` 置 online；`/state` 只读 ③ `?fields=` 只回请求键、形状与全量相同、体积 < 1/5、未知字段忽略；`mapVersion` ⑤ `tiled` 两层各 2400 格 ⑥ `pos_seq`：转向不增、移动 +1、撞墙不增、`/world` 一致 ⑦ ws action 事件（use 成功带 object、随后 move 失败带 reason）；SEED 下 id 可复现；metrics 带 seed / mapVersion |
+| `tests/test_w5_freeform.py` | 5 | 裁决 effects 落到本人（social/fun/emotion_tag）与 target（mood），旁白进双方 pendingMessage、写行动日志、请求体 `{agent, text, target}`；不可行仍可带负效果；注入 `reason=injection` 零效果；本地限频（`retry_after`，不打自我层）、长度 / 空文本 / 玩家不存在；远端 429 → `rate_limited`+retry_after、宕机 → `adjudication_unavailable`、404 → persona_not_found、`SELF_SYNC=0` → unavailable；human 用 name 作 agent |
+
+## 3. api-spec 改动摘要（只增不删）
+
+| 位置 | 改动 |
+|---|---|
+| `GET /agent/perceive` | `arena_tree` 定义改为整树（`sectors[]`，`current` 两级），保留 `sector`；新增 `current` |
+| 行为类型 | 新增 `freeform` 行与完整小节（payload / 流程 / 响应 / reason 表）；`move_to_area` 说明改为 BFS 实际路程 |
+| `GET /world` | `players[]` 加 `stateLabel / usingObjectId / tags / pos_seq`；`worldState.mapVersion`；`?fields=` 瘦身；`tiled` 非空与 gid 假设 |
+| `GET /player/{id}` | 语义改写：agent 只读 / human 刷心跳；新增 `POST /player/{id}/heartbeat` |
+| `GET /history/chat`（新） | 行形状、事件枚举 |
+| §8 ws | `{type:"action"}` 事件；chat `from_name` 确认 |
+| §4 | `SANDBOX_SEED` 语义；`run_town.sh` 与 townctl 参数对应 |
+
+## 4. 对契约 / 其他会话
+
+1. **给 C（必做一行）**：E② 落地后 `GET /player/{id}` 对 agent **不再是心跳**。请在 loop 里每 ≤ 10 s 调 `POST /player/{id}/heartbeat`（或继续用 `rejoin`），否则鲸仔在 `/world` 与 ws 里会显示 `online=false`（不会被删、仍参与 tick、动作照常）。运行台切到本提交后请尽快改，否则画面上她会一直「离线」。
+2. **给 C**：perceive 的 `arena_tree.sectors` 已是整树，按物品 id 定位（`bed_whale` / `fridge_kitchen` / `stream_desk_whale`）即可；`current` 字段直接给当前 sector / arena id。`move_to_area(arena_id)` 跨 sector 可用，不必自己拆门。
+3. **给 E**：7 条全落地。`tiled` 的 gid 映射是**假设**（grass 260 / wall 964 / floor 与 object 648 / water 1098 / grass1 68，取自旧图频次；floor / water 借用邻近图块），把你想要的 `{类型: gid}` 发我一份放进 `game/maps/tile_gids.json` 就能覆盖；E6 换素材时 `TILESET` 一张表同步改。`players.upsert` 元素现在含 `stateLabel / usingObjectId / tags / pos_seq`；action 事件先于同一帧的 patch 推。
+4. **给 A**：freeform 已接 `/self/adjudicate`，响应里 `feasible / skipped / injection / reason` 原样透传给 agent；沙盒对裁决效果**不**回推 `/self/state/event`（按 13.3 的说法由 delta 回报）。自我层那层 30 s 限频与本地并存，实测 3 条间隔 31 s 没撞上。
+5. **`SANDBOX_SEED`（任务 4 确认）**：之前不存在，现在存在但只影响 player id 后缀（沙盒无随机游戏逻辑：衰减、物品、冷却全是确定性的；真正的随机源在 agent 侧模型采样）。towns.yaml m1b 的 `SANDBOX_SEED: "2"` 可以留着，但「第二个随机种子」的差异要靠 C 的采样温度 / seed 才体现，请 A 在 PLAN 里标注。
+6. **townctl 对齐**：townctl 直接起 uvicorn 并传 `SANDBOX_DATA_DIR / SELF_URL / SANDBOX_TZ` + `sandbox_env`，与 `run_town.sh --data / --self-url / --tz / --env` 完全对应；townctl 若想改用脚本，等价命令是 `run_town.sh --port 8010 --data run/data/m2a/sandbox --self-url http://127.0.0.1:8310 --tz Asia/Shanghai --log run/data/m2a/sandbox.log --fg`（`--fg` 前台便于它接管 pid）。CORS 两边都只在需要跨机前端时设。
+7. **运行台建议切到本提交**（见 §6）：含 504bf9e 的整树 + 全部 W5。地图 tiles / 物品未变（`mapVersion` 与 4d6a931 一致：`阿蝉家与小镇@c4e7af659ee3`），只多了 `tiled` 层，不需清数据目录。
+
+## 5. 卡点
+
+无阻塞。提醒：第 4 条 C 改心跳前，鲸仔在画面上会显示离线；如果总控觉得过渡期不能接受，`touch_player(..., human_only=True)` 改回 `False` 是一行，但那样 E② 就没解。
+
+## 6. 本次提交
+
+事故修复：`504bf9e`（已单独报）；W5 其余：见 `git log -1`。
+
+---
+
+
+# W4 · 2026-11-06：契约小修、WebSocket 推送、多实例与社交物品（原报告）
 
 ## 1. 进度（W4 任务 1–6 全部完成）
 

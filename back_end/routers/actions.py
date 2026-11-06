@@ -348,6 +348,70 @@ async def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
     )
 
 
+# ── B12 freeform ─────────────────────────────────────────────────────────────
+FREEFORM_COOLDOWN_S = 30.0          # 每实体 30 s 一次（墙钟；自我层那边另有一层）
+FREEFORM_MAX_TEXT = 200
+_last_freeform: dict[str, float] = {}
+
+
+def handle_freeform(entity_id: str, payload: dict) -> ActionResponse:
+    """
+    自然语言动作：payload {text, target?: entity_id | object_id, context?}
+    → 自我层 POST /self/adjudicate 裁决 → effects 经 apply_effects 落到本人（target=self）或对方 player（target=entity_id），
+    narration 进双方 pendingMessage。reason 透传：injection / rate_limited / adjudication_unavailable / adjudication_failed。
+    """
+    import time as _time
+    from game.world_state import _players, _pending_messages, STATE_LOCK, apply_effects
+    player = _players.get(entity_id)
+    if player is None:
+        return ActionResponse(success=False, type="freeform", reason="player_not_found")
+    text = str(payload.get("text") or "").strip()
+    if not text:
+        return ActionResponse(success=False, type="freeform", reason="missing_text")
+    if len(text) > FREEFORM_MAX_TEXT:
+        return ActionResponse(success=False, type="freeform", reason="text_too_long",
+                              result={"max": FREEFORM_MAX_TEXT})
+    now = _time.time()
+    last = _last_freeform.get(entity_id)
+    if last is not None and now - last < FREEFORM_COOLDOWN_S:
+        return ActionResponse(success=False, type="freeform", reason="rate_limited",
+                              result={"retry_after": round(FREEFORM_COOLDOWN_S - (now - last), 1)})
+    _last_freeform[entity_id] = now
+
+    target = payload.get("target")
+    res = external_effects.adjudicate(player, text, target, payload.get("context"))
+    narration = str(res.get("narration") or "")
+    effects = res.get("effects") or []
+    applied_self = applied_target = 0
+    skipped = int(res.get("skipped") or 0)
+    if res.get("success") or effects:
+        with STATE_LOCK:
+            mine = [e for e in effects if (e.get("target") in (None, "", "self", entity_id))]
+            others = [e for e in effects if e.get("target") not in (None, "", "self", entity_id)]
+            applied_self = apply_effects(player, mine, source="freeform")["applied"]
+            for e in others:
+                tp = _players.get(e["target"])
+                if tp is None:
+                    skipped += 1
+                    continue
+                applied_target += apply_effects(tp, [e], source="freeform")["applied"]
+                _pending_messages[e["target"]] = narration or None
+    if narration:
+        _pending_messages[entity_id] = narration
+        if target in _players and target != entity_id:
+            _pending_messages[target] = narration
+
+    result = {
+        "narration": narration, "effects": effects, "applied": applied_self + applied_target, "skipped": skipped,
+        "feasible": res.get("feasible"), "injection": bool(res.get("injection", False)),
+    }
+    for k in ("retry_after", "error"):
+        if k in res:
+            result[k] = res[k]
+    reason = res.get("reason")
+    return ActionResponse(success=bool(res.get("success")), type="freeform", reason=reason, result=result)
+
+
 _HANDLERS = {
     "move":         handle_move,
     "move_n":       handle_move_n,
@@ -356,6 +420,7 @@ _HANDLERS = {
     "interact":     handle_interact,
     "use":          handle_use,
     "leave":        handle_leave,
+    "freeform":     handle_freeform,
 }
 
 
@@ -372,6 +437,15 @@ async def dispatch(body: ActionRequest):
 
     if body.action.type == "move" and result.success:
         await asyncio.sleep(_get_move_interval(body.entityId))
+
+    # E⑦：/ws/world 的 action 事件（给前端一次性动画）
+    try:
+        from routers.ws import hub
+        res = result.result or {}
+        hub.push_action(body.entityId, body.action.type, result.success, obj=res.get("objectId"), reason=result.reason,
+                        extra={"position": res.get("position")} if res.get("position") else None)
+    except Exception:
+        pass
 
     if not body.skipLog:
         append_log(

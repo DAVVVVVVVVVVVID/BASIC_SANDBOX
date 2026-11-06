@@ -5,7 +5,7 @@ from tests.conftest import join, action
 def test_world_shape(client):
     w = client.get("/world").json()
     assert {"tiles", "objects", "worldState", "players"} <= set(w)
-    assert {"date", "time", "period", "running", "speed", "weather"} == set(w["worldState"])
+    assert {"date", "time", "period", "running", "speed", "weather"} <= set(w["worldState"])   # W5 加 mapVersion
     o = w["objects"][0]
     for k in ("id", "type", "prototype", "name", "position", "interactable", "effects", "currentUsers", "userList"):
         assert k in o

@@ -160,7 +160,14 @@ BASIC_SANDBOX/
 
 - `GET /ws/world`：只读 WebSocket，连接发全量，之后 ≤ 10 Hz 推 world / players / objects / chat 的变化（字段与 `GET /world` 同名），给前端用；写仍走 `POST /action`
 - 一机多镇：`back_end/scripts/run_town.sh --port 8010 --data run/data/m2a`，每个实例独立端口 + 独立 `SANDBOX_DATA_DIR`，无共享文件；`SANDBOX_CORS_ORIGINS` 配前端来源
-- `GET /admin/metrics`：tick 耗时 / 间隔分位、玩家数、WS 订阅数、RSS
+- `GET /admin/metrics`：tick 耗时 / 间隔分位、玩家数、WS 订阅数、RSS、seed、mapVersion
+- ws 另推 `{type:"action"}` 事件（每次 `POST /action`）；`GET /world?fields=players,objects,worldState` 瘦身；`worldState.mapVersion`
+
+### 数据集（append-only JSONL，均在 `SANDBOX_DATA_DIR` 下）
+
+- `actions/YYYY-MM-DD.jsonl`：每次 `POST /action` 一行（`GET /history/log` 回放）
+- `chat/YYYY-MM-DD.jsonl`：每条聊天消息一行 + 房间开 / 关 / 退出 / 上限 / 邀请过期一行（`GET /history/chat` 回放），与 `/ws/world` 的 `chat` 推送同源
+- `sandbox.db`：SQLite 检查点（当前状态，非历史）
 
 ### 需求值与自我层
 
@@ -234,11 +241,13 @@ POST /action
 
 | 接口 | 说明 |
 |------|------|
-| `GET /agent/perceive` | 当前 arena 语义树、视野范围 tile、正前方物体、视野内 player，以及 `needs` 需求分档文字（不给数值） |
+| `GET /agent/perceive` | **整个 world** 的语义树（所有 sector → arenas → objects，`current` 标所在 sector 与 arena）、视野 tile、正前方物体、视野内 player、`needs` 分档文字、`phone` |
 | `GET /agent/arena-tiles` | 指定 arena 内所有 tile 坐标 |
 | `GET /agent/object-position` | 指定 object 的锚点坐标 |
 | `POST /player/join` | `controller: human \| agent`、`profile: {E, N, agent_id}` |
-| `POST /player/rejoin` | agent 进程重拉后用同一 playerId 续接 |
+| `POST /player/rejoin` | agent 进程重拉后用同一 playerId 续接；坐标非法落回出生点 |
+| `POST /player/{id}/heartbeat` | 显式心跳（agent 必须用；`GET /player/{id}` 对 agent 只读） |
+| `POST /action` type `freeform` | 自然语言动作，自我层 `/self/adjudicate` 裁决后落效果（B12） |
 | `GET /player/{id}/state` | 七变量原始数值、`last_tick_ts`、`recent_uses` |
 | `POST /player/{id}/effects` | 推送与 object_types 同格式的 effect 列表，可带 `scene` |
 
@@ -291,6 +300,7 @@ uv run python scripts/verify_external.py --self-url http://127.0.0.1:8100     # 
 uv run python scripts/soak.py --minutes 30 --rounds 3                         # 稳定性：长时间驱动，监控进程是否意外退出
 uv run python scripts/soak.py --minutes 30 --rounds 1 --agents 6 --ws 1       # 负载：6 名 agent + 1 个 WS 订阅，记 p95 / tick / RSS
 uv run python scripts/verify_ws.py --seconds 60                               # /ws/world 推送与轮询对账
+uv run python scripts/verify_freeform.py --self-url http://127.0.0.1:8100     # B12 对自我层真实裁决 3 条（会调用模型）
 uv run python scripts/gen_map.py                                              # 重新生成地图
 ```
 

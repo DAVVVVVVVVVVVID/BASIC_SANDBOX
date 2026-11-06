@@ -18,6 +18,14 @@ from pathlib import Path
 W, H = 60, 40
 TILE_CHARS = {"#": "grass", ".": "wall", "f": "floor", "F": "grass1", "a": "object", "b": "water"}
 
+# E⑤：tiled 渲染层。tileset 沿用前端现有的 Sunnyside（E6 换素材时只改这张表）。gid 取自旧 50×50 地图各类型最常见的图块
+# （grass 260 / wall 964 / 物品底 648），floor / water / grass1 没有旧数据可查，先借用邻近图块——数值为**假设**，
+# 可用 game/maps/tile_gids.json 覆盖（E 给我一份即可）。
+TILESET = {"name": "SunnysideWorld_Tileset_V0.1", "firstgid": 1, "tilewidth": 16, "tileheight": 16, "tilecount": 4096,
+           "columns": 64, "imageSource": "SunnysideWorld_Tileset_V0.1.png", "imageWidth": 1024, "imageHeight": 1024,
+           "margin": 0, "spacing": 0}
+TILE_GIDS = {"grass": 260, "grass1": 68, "wall": 964, "floor": 648, "object": 648, "water": 1098}
+
 tiles  = [["#"] * W for _ in range(H)]
 world  = [["A"] * W for _ in range(H)]
 sector = [["A"] * W for _ in range(H)]
@@ -161,6 +169,19 @@ obj("fishing_spot_2", "fishing_spot", 53, 19)
 PLAYER_START = {"x": 6, "y": 9, "facing": "down"}        # 小仓库中央
 
 
+def build_tiled():
+    gids = dict(TILE_GIDS)
+    override = Path(__file__).resolve().parent.parent / "game" / "maps" / "tile_gids.json"
+    if override.exists():
+        gids.update(json.loads(override.read_text(encoding="utf-8")))
+    ground = [gids.get(TILE_CHARS[ch], gids["grass"]) for row in tiles for ch in row]
+    # 第二层：墙 / 水再压一层同 gid（给前端区分「有东西」的层级；物品本身由前端按 objects 画）
+    deco = [gids["wall"] if TILE_CHARS[ch] == "wall" else (gids["water"] if TILE_CHARS[ch] == "water" else 0) for row in tiles for ch in row]
+    return {"tilesets": [TILESET],
+            "layers": [{"id": 1, "name": "ground", "width": W, "height": H, "data": ground},
+                       {"id": 2, "name": "structures", "width": W, "height": H, "data": deco}]}
+
+
 def build():
     return {
         "meta": {"name": "阿蝉家与小镇", "width": W, "height": H, "player_start": PLAYER_START},
@@ -172,6 +193,7 @@ def build():
         "sector_map": ["".join(r) for r in sector],
         "arena_map": ["".join(r) for r in arena],
         "events": [],
+        "tiled": build_tiled(),
     }
 
 
