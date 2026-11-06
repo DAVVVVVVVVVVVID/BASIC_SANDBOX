@@ -77,8 +77,12 @@ W2 的 93 个测试里改了断言的（都是预期变化）：bed 速率从 +1
 
 - **运行台 8000**（`run/data/sandbox.log`，只读）：自 11-06 起 9 行日志，全是正常请求，0 条 Traceback / ERROR，进程未重启。
 - **复现**：`scripts/soak.py --minutes 30 --rounds 3 --backend-dir /tmp/sandbox_soak_e7a036a/back_end`（`git worktree` 的 e7a036a，与运行台同版本；内置参考自我层；两名玩家每秒随机 move / turn / use / leave / effects，每 2 s 读 world / player / perceive，每 7 s 一轮对话邀请，每 10 s 检查点 + self-sync 统计，每 5 min 切倍率；每秒 poll 进程、每 30 s 记 RSS）。
-- **结论**：__SOAK_RESULT__
-- **对 W2 那次「意外退出」的解释**：__SOAK_EXPLANATION__
+- **结论**：**未复现，排除为可复现缺陷。** 3 轮 × 30 min 全部正常：第 1 轮 6752 次请求、第 2 轮 6571 次、第 3 轮 6505 次，共 19 828 次请求，0 次请求错误，0 次进程退出，沙盒日志 0 条 Traceback / ERROR；RSS 三轮分别 67→74.6 MB、61→66 MB、61→66 MB，前 5 分钟后趋平，无泄漏迹象。原始日志存 `back_end/scripts/soak_e7a036a_2026-11-06.log`。运行台 8000 同版本自 11-06 起长跑亦无异常。
+- **对 W2 那次「意外退出」的解释**：W2 那次只发生在 `verify_self_sync.py` 的**第一次**运行，当时沙盒的 stdout/stderr 被丢到 DEVNULL，没有日志；之后同脚本连跑 3 次、本次 90 分钟高频压测、运行台长跑都没有再出现。在没有日志的情况下无法定位根因，倾向于一次性环境因素（当时刚 `uv add httpx` 改过 lockfile，首次 `uv run` 可能在子进程启动前后重同步 `.venv`；或与同一进程内刚起的 mock uvicorn 线程竞争端口 / 文件描述符）。已做的防范：`verify_self_sync.py`、`verify_external.py`、`soak.py` 都把沙盒日志落到临时目录并在异常退出时打印尾部，再出现即可直接定位。建议：运行台若再出现退出，把 `run/data/sandbox.log` 尾部贴进 handoff，我这边 `soak.py` 可按同一版本复跑。
+
+## 6. 本次提交
+
+W3 代码：`4369ee5`；本报告与压测日志：见 `git log -1`。运行台 8000 建议切到 **本仓库 `whale-integration` 最新提交**（含新地图、每小时尺度、B9/B10/B11）。
 
 ---
 
