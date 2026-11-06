@@ -101,3 +101,19 @@ def test_replay_restore_sync_point(client, fake_clock):
     row = next(r for r in res["table"] if r["player"] == pid)
     assert res["applied"].get("sync_rows") == 1 and res["applied"]["action_result_mismatch"] == 0
     assert row["max_abs"] < 0.5, row
+
+
+def test_state_rows_carry_tags(client, fake_clock):
+    """W8 Q0d：state 行带 tags（S02 看 sleeping、S07 看 streaming）。"""
+    from game import ticker
+    from tests.conftest import place
+    pid = join(client, "w")
+    assert state_log.read_log(player=pid)[-1]["tags"] == []
+    place(pid, *BED_STAND)
+    assert action(client, pid, "use")["success"]
+    ticker.tick_once(checkpoint=False); fake_clock.advance(31); ticker.tick_once(checkpoint=False)
+    row = state_log.read_log(player=pid)[-1]
+    assert row["kind"] == "sample" and row["tags"] == ["sleeping"] and row["using"] == BED_ID
+    action(client, pid, "leave")
+    fake_clock.advance(31); ticker.tick_once(checkpoint=False)
+    assert state_log.read_log(player=pid)[-1]["tags"] == []

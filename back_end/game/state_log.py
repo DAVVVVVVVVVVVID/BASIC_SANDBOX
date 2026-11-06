@@ -38,6 +38,7 @@ def _row(player: dict, game_iso: str, kind: str = "sample") -> dict:
         "closeness": {k: round(float(v), 3) for k, v in (player.get("closeness") or {}).items()},
         "online": player.get("online", True),
         "position": dict(player["position"]), "facing": player.get("facing"), "using": player.get("usingObjectId"),
+        "tags": list(player.get("tags", [])),                                      # W8 Q0d：sleeping / fishing / streaming…（S02 / S07 判分）
     }
 
 

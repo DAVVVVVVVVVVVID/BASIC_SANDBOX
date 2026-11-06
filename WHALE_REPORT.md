@@ -55,7 +55,7 @@ max |diff| = 0.003  (threshold 0.5) → PASS
 ## 4. 测试与提交
 
 ```bash
-cd back_end && uv run pytest -q      # 242 passed（W7 的 181 + Q1 4 + Q0 24 + Q0b 10 + Q0c 22 + 回放同步点 1）
+cd back_end && uv run pytest -q      # 243 passed（W7 的 181 + Q1 5 + Q0 24 + Q0b 10 + Q0c 22 + 回放同步点 1）
 uv run python scripts/replay.py --date 2026-11-06 --town main      # max |diff| 0.003 → PASS（跨重启）
 uv run python scripts/inspect_runstation.py                        # §1 那一行
 ```
@@ -88,6 +88,10 @@ uv run python scripts/inspect_runstation.py                        # §1 那一�
 - **修法**：`buff_tick.apply_control_flags(player)`——只跑 `no_move / no_interact / no_use / move_speed` 四个控制 handler、不碰需求值与计时；在 `enter_object`、`leave_object`、`/effects` 推送、admin 清 buff、force-reset 之后同步调用。leave 响应带离开后的 `canMove / canUse`。没有用 `movable_at`：同步清以后它恒为「现在」，多一个字段没有信息量。
 - **单测** `tests/test_w8_q0c_leave_move.py` 22 例：19 个 continuous 物品逐个「use → 立刻 move 必须 `move_disabled`（带 no_move 的）→ leave → 同秒 move 必须成功」，全程不经过 tick；leave 后立刻 `move_to_area`；force-reset 与 admin 清 buff 后立刻可动；`/effects` 推 `no_move` 立刻生效。改 1 条旧断言（`test_w6_game`）。
 - 提交号见下。
+
+## 5e. Q0d state 行加 tags（插队，同日）
+
+- `data/state/*.jsonl` 每行新增 `tags`（玩家当前 buff 标签：`sleeping / fishing / streaming / gaming / dining / resting / working / taking_bath / reading`），S02 看 `sleeping`、S07 看 `streaming`。数据契约只加字段；`/admin/export` 的 state 同步带。单测 1 例（use 床 → 下一样本 `["sleeping"]`，leave 后为空）。提交号见下。
 
 ## 6. 小队列余项
 
