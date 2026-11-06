@@ -6,6 +6,7 @@ import type GameScene from '../game/scenes/GameScene'
 import { startSpectateTick } from '../game/systems/TickSystem'
 import { useGameStore } from '../store/gameStore'
 import { parseSpectateParams } from './params'
+import { setArtVersion } from '../game/assets'
 import WorldInfoPanel from '../ui/WorldInfoPanel'
 import SpectateHud from './SpectateHud'
 
@@ -22,6 +23,7 @@ export default function SpectateApp() {
   useEffect(() => {
     const store = useGameStore.getState()
     store.setMode('spectate')
+    setArtVersion(params.art)
     if (params.bg === 'transparent') {
       document.documentElement.style.background = 'transparent'
       document.body.style.background = 'transparent'

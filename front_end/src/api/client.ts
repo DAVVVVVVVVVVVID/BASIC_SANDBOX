@@ -1,6 +1,14 @@
 // 统一的 HTTP 客户端：API_BASE 来自 VITE_API_BASE（默认相对路径 /api，由 Vite 代理转发）。
 
-export const API_BASE: string = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/$/, '')
+/** 多镇（E14）：`?town=m2a` → `/t/m2a/api`（Vite 代理按 run/towns.yaml 的 k 规则转到 8000+10k）。主镇用 VITE_API_BASE。 */
+function townFromUrl(): string | null {
+  try {
+    const t = new URLSearchParams(window.location.search).get('town')
+    return t && /^[a-z0-9_-]{1,32}$/i.test(t) && t !== 'main' ? t : null
+  } catch { return null }
+}
+export const TOWN: string | null = townFromUrl()
+export const API_BASE: string = TOWN ? `/t/${TOWN}/api` : (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/$/, '')
 
 export class ApiError extends Error {
   constructor(public readonly status: number, public readonly method: string, public readonly path: string) {

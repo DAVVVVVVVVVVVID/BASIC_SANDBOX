@@ -15,11 +15,20 @@ export const TILE_INDEX = {
 export type TileName = keyof typeof TILE_INDEX
 export const WATER_FRAMES = [TILE_INDEX.water0, TILE_INDEX.water1, TILE_INDEX.water2, TILE_INDEX.water3]
 
-export const CHAR_KEYS = ['whale', 'achan', 'cook', 'grocer', 'fisher', 'regular', 'villager'] as const
+export const CHAR_KEYS = ['whale', 'achan', 'cook', 'grocer', 'fisher', 'regular', 'villager', 'whale_v1', 'achan_v1'] as const
 export type CharKey = typeof CHAR_KEYS[number]
 export const CHAR_FRAME = { w: 16, h: 24 }
-/** 行：down / left / right / up；列：站 走A 站 走B */
+/** 行：down / left / right / up；列：站 走A 站 走B；第 5 行：坐(正) 睡 坐(左) 坐(右) */
 export const CHAR_ROWS: Record<'down' | 'left' | 'right' | 'up', number> = { down: 0, left: 1, right: 2, up: 3 }
+export const POSE_ROW = 4
+
+/** `?art=v1` 时鲸仔 / 阿蝉用 persona 文字版形象 */
+let artVersion: 'v1' | 'v2' = 'v2'
+export function setArtVersion(v: 'v1' | 'v2') { artVersion = v }
+export function resolveCharKey(k: CharKey): CharKey {
+  if (artVersion === 'v1' && (k === 'whale' || k === 'achan')) return `${k}_v1` as CharKey
+  return k
+}
 
 export const OBJ_KEYS = [
   'bed', 'bed_21', 'bath', 'fridge', 'desk', 'stream_desk', 'desk_12', 'book', 'phone', 'restaurant_table',
@@ -74,6 +83,12 @@ export function createGenAnimations(scene: Phaser.Scene) {
         anims.create({ key: `${k}_walk_${dir}`, frames: anims.generateFrameNumbers(tex, { frames: [row + 1, row, row + 3, row] }), frameRate: 8, repeat: -1 })
       }
     }
+    const pr = POSE_ROW * 4
+    const sitFrame: Record<string, number> = { down: pr, up: pr, left: pr + 2, right: pr + 3 }
+    for (const dir of ['down', 'left', 'right', 'up'] as const) {
+      if (!anims.exists(`${k}_sit_${dir}`)) anims.create({ key: `${k}_sit_${dir}`, frames: [{ key: tex, frame: sitFrame[dir] }], frameRate: 1, repeat: -1 })
+    }
+    if (!anims.exists(`${k}_sleep`)) anims.create({ key: `${k}_sleep`, frames: [{ key: tex, frame: pr + 1 }], frameRate: 1, repeat: -1 })
   }
   if (scene.textures.exists(GEN_TILES_KEY) && !anims.exists('gen_water')) {
     anims.create({ key: 'gen_water', frames: anims.generateFrameNumbers(GEN_TILES_KEY, { frames: WATER_FRAMES }), frameRate: 2, repeat: -1 })

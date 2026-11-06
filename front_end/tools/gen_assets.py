@@ -7,7 +7,8 @@
 产物：
   tiles.png / tiles.json     16×16 地砖集（8 列），tiles.json 记录 名字→索引 与「类型/区域 → 地砖」规则
   tile_gids.json             给 B 的 {类型: gid}（firstgid=1，gid = 索引 + 1），附 _tileset 描述本图
-  char_<key>.png             角色四向走路：4 行（down/left/right/up）× 4 列（站 / 走A / 站 / 走B），每帧 16×24
+  char_<key>.png             角色：4 行（down/left/right/up）× 4 列（站 / 走A / 站 / 走B）+ 第 5 行（坐 / 睡 / 坐左 / 坐右），每帧 16×24；
+                             whale / achan 默认为 v2（按 ref/ 立绘），char_whale_v1 / char_achan_v1 为 persona 文字版
   obj_<type>.png             物品，按 footprint 比例（每格 16 px）
 """
 from __future__ import annotations
@@ -276,16 +277,190 @@ def draw_char_frame(img: Image.Image, ox: int, oy: int, c: dict, facing: str, st
     for (x, y) in [(ox + 3, hy - 1), (ox + 12, hy - 1), (ox + 3, hy + 7), (ox + 12, hy + 7)]:
         d.point((x, y), fill=outline)
 
-def build_char(key: str, c: dict):
-    sheet = Image.new("RGBA", (FW * 4, FH * 4), (0, 0, 0, 0))
+def make_sit(frame: Image.Image) -> Image.Image:
+    """坐姿：上半身原样下移 3 px，腿改为前伸的两小块"""
+    out = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+    body = frame.crop((0, 0, FW, 19))
+    out.paste(body, (0, 3), body)
+    d = ImageDraw.Draw(out)
+    # 把原来的腿区盖掉，画前伸的腿
+    px = frame.load()
+    leg = None
+    for y in range(19, FH):
+        for x in range(FW):
+            if px[x, y][3] > 0 and leg is None: leg = px[x, y]
+    leg = leg or (60, 60, 80, 255)
+    d.rectangle([4, 21, 6, 23], fill=leg); d.rectangle([9, 21, 11, 23], fill=leg)
+    d.point((4, 23), fill=(43, 34, 48, 255)); d.point((11, 23), fill=(43, 34, 48, 255))
+    return out
+
+def make_sleep(frame_left: Image.Image) -> Image.Image:
+    """睡姿：侧身帧顺时针转 90° 躺平，盖一条被子，眼睛闭上用被子遮住一部分"""
+    rot = frame_left.rotate(-90, expand=True)  # 24×16
+    out = Image.new("RGBA", (FW, FH), (0, 0, 0, 0))
+    out.paste(rot.crop((0, 0, FW, 16)), (0, 6), rot.crop((0, 0, FW, 16)))
+    d = ImageDraw.Draw(out)
+    d.rectangle([1, 13, 14, 21], fill=(127, 179, 230, 255), outline=(43, 34, 48, 255))  # 被子
+    d.line([2, 16, 13, 16], fill=(169, 205, 240, 255))
+    d.point((13, 9), fill=(255, 255, 255, 255)); d.point((14, 8), fill=(255, 255, 255, 255))  # zZ
+    return out
+
+def build_char(key: str, c: dict, drawer=None, out_key: str | None = None):
+    """drawer(frame, c, facing, step) 自定义画法（v2 形象）；默认用通用 draw_char_frame。第 5 行：坐 / 睡 / 坐左 / 坐右"""
+    drawer = drawer or (lambda frame, c, facing, step: draw_char_frame(frame, 0, 0, c, facing, step))
+    sheet = Image.new("RGBA", (FW * 4, FH * 5), (0, 0, 0, 0))
+    frames: dict[str, Image.Image] = {}
     for row, facing in enumerate(["down", "left", "right", "up"]):
         for col, step in enumerate([0, 1, 0, 2]):
             frame = Image.new("RGBA", (FW, FH), (0, 0, 0, 0))
             src = "left" if facing == "right" else facing
-            draw_char_frame(frame, 0, 0, c, src, step)
+            drawer(frame, c, src, step)
             if facing == "right": frame = frame.transpose(Image.FLIP_LEFT_RIGHT)
             sheet.paste(frame, (col * FW, row * FH))
-    sheet.save(OUT / f"char_{key}.png")
+            if step == 0: frames[facing] = frame
+    sit_down = make_sit(frames["down"]); sit_left = make_sit(frames["left"]); sit_right = sit_left.transpose(Image.FLIP_LEFT_RIGHT)
+    sleep = make_sleep(frames["left"])
+    for col, fr in enumerate([sit_down, sleep, sit_left, sit_right]): sheet.paste(fr, (col * FW, 4 * FH))
+    sheet.save(OUT / f"char_{out_key or key}.png")
+
+
+# ───────────────────────────── v2：按主播立绘（front_end/ref/）─────────────────────────────
+
+def _legs_and_shoes(d, ox, oy, step, pants, shoe, bob, sock=None):
+    ly = oy + 19 + bob
+    def leg(x0, x1, y0, y1):
+        d.rectangle([ox + x0, y0, ox + x1, y1], fill=sock or pants)
+    if step == 0: leg(5, 6, ly, ly + 3); leg(9, 10, ly, ly + 3)
+    elif step == 1: leg(4, 5, ly, ly + 3); leg(9, 10, ly - 1, ly + 2)
+    else: leg(5, 6, ly - 1, ly + 2); leg(10, 11, ly, ly + 3)
+    d.point((ox + (5 if step != 1 else 4), ly + 3), fill=shoe); d.point((ox + (10 if step != 2 else 11), ly + 3), fill=shoe)
+    d.point((ox + (6 if step != 1 else 5), ly + 3), fill=shoe); d.point((ox + (9 if step != 2 else 10), ly + 3), fill=shoe)
+
+def draw_whale_v2(img: Image.Image, c: dict, facing: str, step: int):
+    """鲸仔：深蓝→浅蓝长卷发、白色荷叶边头饰、两侧蓝蝴蝶结与鳍耳、白衬衫泡泡袖、深蓝裙+白围裙、白长袜、深蓝鞋、鲸尾"""
+    d = ImageDraw.Draw(img); ox = oy = 0
+    bob = -1 if step else 0
+    outline = rgb("#2b2a3d")
+    skin = rgb("#ffe9dc"); hair_d = rgb("#2f3f7a"); hair_m = rgb("#4a6ab8"); hair_l = rgb("#7fb0ea")
+    white = rgb("#f7f8fc"); navy = rgb("#2d3a78"); bow = rgb("#3b8fe8"); eye = rgb("#2f63c9"); fin = rgb("#5a6b94"); fin_l = rgb("#cfd8e8")
+    hy = oy + 4 + bob; by = oy + 12 + bob
+    # 鲸尾（身后，正面看在右下、背面看在左下、侧面看在身后）
+    if facing == "down":
+        d.polygon([(ox + 12, by + 7), (ox + 15, by + 10), (ox + 13, by + 11), (ox + 15, by + 12), (ox + 12, by + 10)], fill=hair_d)
+    elif facing == "up":
+        d.polygon([(ox + 7, by + 6), (ox + 4, by + 9), (ox + 6, by + 11), (ox + 8, by + 11), (ox + 10, by + 9)], fill=hair_d)
+    else:
+        d.polygon([(ox + 11, by + 6), (ox + 15, by + 8), (ox + 15, by + 11), (ox + 12, by + 10)], fill=hair_d)
+    # 长发（后面那层，到腰）
+    if facing != "up":
+        d.rectangle([ox + 3, hy + 2, ox + 4, by + 5], fill=hair_m); d.rectangle([ox + 11, hy + 2, ox + 12, by + 5], fill=hair_m)
+        d.rectangle([ox + 3, by + 1, ox + 4, by + 5], fill=hair_l); d.rectangle([ox + 11, by + 1, ox + 12, by + 5], fill=hair_l)
+    else:
+        d.rectangle([ox + 4, hy + 1, ox + 11, by + 5], fill=hair_m); d.rectangle([ox + 4, by, ox + 11, by + 5], fill=hair_l)
+        d.rectangle([ox + 5, by + 3, ox + 10, by + 5], fill=rgb("#a9cdf0"))
+    # 腿：白长袜 + 深蓝鞋
+    _legs_and_shoes(d, ox, oy, step, white, navy, bob, sock=white)
+    # 裙（深蓝）+ 白围裙
+    d.rectangle([ox + 4, by + 4, ox + 11, by + 7], fill=navy)
+    d.rectangle([ox + 3, by + 6, ox + 12, by + 7], fill=navy)
+    d.line([ox + 3, by + 8, ox + 12, by + 8], fill=white)  # 裙摆荷叶边
+    if facing != "up":
+        d.rectangle([ox + 6, by + 4, ox + 9, by + 7], fill=white)   # 围裙
+    # 上衣：白衬衫 + 泡泡袖
+    d.rectangle([ox + 5, by, ox + 10, by + 3], fill=white)
+    swing = 1 if step == 1 else (-1 if step == 2 else 0)
+    d.rectangle([ox + 3, by + swing, ox + 4, by + 2 + swing], fill=white); d.rectangle([ox + 11, by - swing, ox + 12, by + 2 - swing], fill=white)
+    d.point((ox + 3, by + 3 + swing), fill=skin); d.point((ox + 12, by + 3 - swing), fill=skin)
+    if facing == "down":
+        d.rectangle([ox + 7, by, ox + 8, by + 1], fill=navy)          # 蝴蝶结
+        d.point((ox + 7, by + 2), fill=rgb("#d9a441"))                 # 小铃铛
+    # 头：皮肤
+    d.rectangle([ox + 4, hy, ox + 11, hy + 7], fill=skin)
+    # 头发前层
+    d.rectangle([ox + 4, hy - 1, ox + 11, hy + 2], fill=hair_d)
+    d.rectangle([ox + 3, hy, ox + 3, hy + 3], fill=hair_d); d.rectangle([ox + 12, hy, ox + 12, hy + 3], fill=hair_d)
+    if facing == "down":
+        d.point((ox + 5, hy + 3), fill=hair_d); d.point((ox + 10, hy + 3), fill=hair_d)   # 两侧发丝
+        d.point((ox + 7, hy + 2), fill=hair_m)
+    elif facing == "left":
+        d.rectangle([ox + 7, hy, ox + 11, hy + 4], fill=hair_d)
+    else:
+        d.rectangle([ox + 4, hy, ox + 11, hy + 6], fill=hair_d); d.point((ox + 6, hy + 3), fill=hair_m)
+    # 呆毛
+    d.point((ox + 8, hy - 2), fill=hair_d); d.point((ox + 9, hy - 3), fill=hair_d)
+    # 荷叶边头饰（白）
+    d.rectangle([ox + 4, hy - 1, ox + 11, hy - 1], fill=white); d.point((ox + 5, hy - 2), fill=white); d.point((ox + 10, hy - 2), fill=white)
+    # 蓝蝴蝶结 + 鳍耳
+    if facing != "up":
+        d.point((ox + 3, hy - 1), fill=bow); d.point((ox + 12, hy - 1), fill=bow)
+    if facing == "down":
+        d.rectangle([ox + 2, hy + 3, ox + 2, hy + 4], fill=fin); d.rectangle([ox + 13, hy + 3, ox + 13, hy + 4], fill=fin)
+        d.point((ox + 2, hy + 3), fill=fin_l); d.point((ox + 13, hy + 3), fill=fin_l)
+    elif facing == "left":
+        d.rectangle([ox + 2, hy + 3, ox + 3, hy + 4], fill=fin); d.point((ox + 2, hy + 3), fill=fin_l)
+    # 眼睛（蓝）与腮红
+    if facing == "down":
+        d.point((ox + 6, hy + 4), fill=eye); d.point((ox + 9, hy + 4), fill=eye)
+        d.point((ox + 6, hy + 5), fill=rgb("#1f3f8a")); d.point((ox + 9, hy + 5), fill=rgb("#1f3f8a"))
+        d.point((ox + 5, hy + 6), fill=rgb("#f3b3b3")); d.point((ox + 10, hy + 6), fill=rgb("#f3b3b3"))
+    elif facing == "left":
+        d.point((ox + 5, hy + 4), fill=eye); d.point((ox + 5, hy + 5), fill=rgb("#1f3f8a")); d.point((ox + 5, hy + 6), fill=rgb("#f3b3b3"))
+    for (x, y) in [(ox + 3, hy - 2), (ox + 12, hy - 2)]: d.point((x, y), fill=outline)
+
+def draw_achan_v2(img: Image.Image, c: dict, facing: str, step: int):
+    """阿蝉：白色蓬发+呆毛、白猫耳粉内耳、右侧两枚蓝发卡、灰蓝眼、蓝短袖衬衫罩白衬衫+黑领带+工牌、黑裤、白蓝运动鞋、白猫尾"""
+    d = ImageDraw.Draw(img); ox = oy = 0
+    bob = -1 if step else 0
+    outline = rgb("#2b2a3d")
+    skin = rgb("#ffe9dc"); hair = rgb("#f4f4f8"); hair_s = rgb("#d8dae6"); blue = rgb("#4a7fd6"); blue_d = rgb("#3b67b3")
+    white = rgb("#ffffff"); black = rgb("#2c2f3a"); eye = rgb("#6b7f99"); pink = rgb("#f6b6c4"); tail = rgb("#eceef5")
+    hy = oy + 4 + bob; by = oy + 12 + bob
+    # 猫尾（身后）
+    if facing == "down":
+        d.polygon([(ox + 12, by + 8), (ox + 14, by + 5), (ox + 15, by + 7), (ox + 14, by + 10), (ox + 12, by + 10)], fill=tail)
+    elif facing == "up":
+        d.polygon([(ox + 3, by + 8), (ox + 1, by + 5), (ox + 2, by + 9), (ox + 4, by + 10)], fill=tail)
+    else:
+        d.polygon([(ox + 11, by + 7), (ox + 15, by + 5), (ox + 15, by + 8), (ox + 12, by + 10)], fill=tail)
+    # 腿：黑裤 + 白蓝鞋
+    _legs_and_shoes(d, ox, oy, step, black, white, bob)
+    ly = oy + 19 + bob
+    d.point((ox + 5, ly + 3), fill=blue); d.point((ox + 10, ly + 3), fill=blue)
+    # 上衣：蓝短袖衬衫敞开，中间白衬衫 + 黑领带 + 工牌
+    d.rectangle([ox + 4, by, ox + 11, by + 6], fill=blue)
+    swing = 1 if step == 1 else (-1 if step == 2 else 0)
+    d.rectangle([ox + 3, by + swing, ox + 3, by + 2 + swing], fill=blue); d.rectangle([ox + 12, by - swing, ox + 12, by + 2 - swing], fill=blue)
+    d.rectangle([ox + 3, by + 3 + swing, ox + 3, by + 4 + swing], fill=skin); d.rectangle([ox + 12, by + 3 - swing, ox + 12, by + 4 - swing], fill=skin)
+    if facing == "down":
+        d.rectangle([ox + 7, by, ox + 8, by + 6], fill=white)
+        d.rectangle([ox + 7, by + 1, ox + 8, by + 3], fill=black)        # 领带
+        d.rectangle([ox + 7, by + 4, ox + 8, by + 5], fill=rgb("#f1f1f1")); d.point((ox + 7, by + 4), fill=blue_d)  # 工牌
+    elif facing == "left":
+        d.rectangle([ox + 5, by, ox + 6, by + 6], fill=white); d.point((ox + 6, by + 2), fill=black)
+    # 头
+    d.rectangle([ox + 4, hy, ox + 11, hy + 7], fill=skin)
+    # 白色蓬发
+    d.rectangle([ox + 3, hy - 1, ox + 12, hy + 2], fill=hair)
+    d.rectangle([ox + 3, hy + 3, ox + 3, hy + 4], fill=hair); d.rectangle([ox + 12, hy + 3, ox + 12, hy + 4], fill=hair)
+    d.point((ox + 5, hy + 3), fill=hair); d.point((ox + 10, hy + 3), fill=hair)
+    d.point((ox + 6, hy), fill=hair_s); d.point((ox + 10, hy + 1), fill=hair_s)
+    if facing == "left": d.rectangle([ox + 7, hy, ox + 12, hy + 4], fill=hair)
+    if facing == "up": d.rectangle([ox + 3, hy, ox + 12, hy + 6], fill=hair); d.point((ox + 7, hy + 3), fill=hair_s)
+    d.point((ox + 8, hy - 2), fill=hair); d.point((ox + 9, hy - 3), fill=hair)  # 呆毛
+    # 猫耳
+    for x in (3, 10):
+        d.polygon([(ox + x, hy - 1), (ox + x + 1, hy - 4), (ox + x + 2, hy - 1)], fill=hair)
+        d.point((ox + x + 1, hy - 2), fill=pink)
+    # 发卡（右侧两枚）
+    if facing != "up":
+        d.point((ox + 10, hy + 1), fill=blue); d.point((ox + 11, hy + 2), fill=blue)
+    # 眼睛（灰蓝，略下垂）
+    if facing == "down":
+        d.point((ox + 6, hy + 4), fill=eye); d.point((ox + 9, hy + 4), fill=eye)
+        d.point((ox + 6, hy + 5), fill=rgb("#4c5f7a")); d.point((ox + 9, hy + 5), fill=rgb("#4c5f7a"))
+    elif facing == "left":
+        d.point((ox + 5, hy + 4), fill=eye); d.point((ox + 5, hy + 5), fill=rgb("#4c5f7a"))
+    for (x, y) in [(ox + 3, hy - 2), (ox + 12, hy - 2)]: d.point((x, y), fill=outline)
 
 # ───────────────────────────── 物品 ─────────────────────────────
 
@@ -434,6 +609,9 @@ OBJECTS = {
 def main():
     build_tiles()
     for k, c in CHARS.items(): build_char(k, c)
+    # v1（按 persona 文字）另存，v2（按 ref/ 立绘）覆盖默认键
+    build_char("whale", CHARS["whale"], out_key="whale_v1"); build_char("achan", CHARS["achan"], out_key="achan_v1")
+    build_char("whale", CHARS["whale"], drawer=draw_whale_v2); build_char("achan", CHARS["achan"], drawer=draw_achan_v2)
     for k, fn in OBJECTS.items(): fn().save(OUT / f"obj_{k}.png")
     manifest = {"tiles": "tiles.png", "chars": sorted(CHARS), "objects": sorted(OBJECTS), "license": "CC0-1.0（本仓库自制，tools/gen_assets.py 生成）"}
     (OUT / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")

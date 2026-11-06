@@ -6,4 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_PORT?: string
   readonly VITE_OBSERVE_BASE?: string
   readonly VITE_OBSERVE_TARGET?: string
+  readonly VITE_TOWNS_YAML?: string
+  readonly VITE_DATASET_DIR?: string
+  readonly VITE_SANDBOX_DATA_DIR?: string
+  readonly VITE_GAME_RUNS_DIR?: string
 }

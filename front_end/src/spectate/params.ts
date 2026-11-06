@@ -14,6 +14,12 @@ export interface SpectateParams {
   thought: boolean
   /** 画布内基础信息面板（主播反馈：像游戏一样专门放基础信息），默认开 */
   panel: boolean
+  /** 形象版本：v2 按主播立绘（默认）/ v1 按 persona 文字 */
+  art: 'v1' | 'v2'
+  /** OBS 布局预设（E16）：live = 右下留 Live2D 安全区、面板左下、字幕底中；full = 全屏无保留 */
+  layout: 'live' | 'full' | null
+  /** 多镇（E14）：town 名 → 代理前缀 /t/<town>/api；缺省主镇 */
+  town: string | null
 }
 
 export function parseSpectateParams(search = window.location.search): SpectateParams {
@@ -27,7 +33,12 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
   const zoom = num('zoom')
   const panzoom = num('panzoom')
   const bars = q.get('bars')
-  const safe = q.get('safe')
+  const layout = q.get('layout') === 'live' ? 'live' : q.get('layout') === 'full' ? 'full' : null
+  // layout 预设展开为具体参数；显式给出的参数优先
+  const safeRaw = q.get('safe') ?? (layout === 'live' ? 'br' : null)
+  const safe = safeRaw
+  const townRaw = q.get('town')
+  const town = townRaw && /^[a-z0-9_-]{1,32}$/i.test(townRaw) && townRaw !== 'main' ? townRaw : null
   return {
     follow: q.get('follow') || null,
     hud:    flag('hud', true),
@@ -40,6 +51,9 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
     safe:   safe === 'br' || safe === 'bl' || safe === 'tr' || safe === 'tl' ? safe : null,
     thought: flag('thought', true),
     panel:  flag('panel', true),
+    art:    q.get('art') === 'v1' ? 'v1' : 'v2',
+    layout,
+    town,
   }
 }
 

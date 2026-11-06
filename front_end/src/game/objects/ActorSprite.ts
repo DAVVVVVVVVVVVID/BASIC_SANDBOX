@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { Position, Facing, NeedVars, NEED_KEYS } from '../../types'
 import { tileCenter, TILE_SIZE } from '../map/TileMap'
-import { CharKey, charTextureKey } from '../assets'
+import { CharKey, charTextureKey, resolveCharKey } from '../assets'
 
 const SCALE = 4
 const BASE_STEP_MS = 300            // 一格基准用时（与 InputSystem 一致）
@@ -69,6 +69,8 @@ export default class ActorSprite {
   private moving = false
   private idleAt = 0
   private stateLabel: string | null = null
+  /** 姿态：由状态标签推断（睡觉 → 躺，坐 / 休息 / 玩游戏 / 看书 → 坐） */
+  private pose: 'stand' | 'sit' | 'sleep' = 'stand'
   private dimmed = false
   private uiScale = 1
   /** 回弹 / 校正路径上不用运动方向改朝向（朝向以服务器回包为准） */
@@ -84,11 +86,11 @@ export default class ActorSprite {
     this.tile   = { ...position }
     this.name   = opts.name
     this.isSelf = !!opts.isSelf
-    this.charKey = opts.charKey
-    this.hasGen = scene.textures.exists(charTextureKey(opts.charKey))
+    this.charKey = resolveCharKey(opts.charKey)
+    this.hasGen = scene.textures.exists(charTextureKey(this.charKey))
 
     const { x, y } = tileCenter(position.x, position.y)
-    this.sprite = scene.add.sprite(x, y, this.hasGen ? charTextureKey(opts.charKey) : 'player_idle')
+    this.sprite = scene.add.sprite(x, y, this.hasGen ? charTextureKey(this.charKey) : 'player_idle')
       .setScale(SCALE)
       .setOrigin(0.5, 0.5)
       .setDepth(y)
@@ -167,6 +169,8 @@ export default class ActorSprite {
   private playAnim(moving: boolean) {
     if (this.hasGen) {
       this.sprite.setFlipX(false)
+      if (!moving && this.pose === 'sleep') { this.sprite.play(`${this.charKey}_sleep`, true); return }
+      if (!moving && this.pose === 'sit') { this.sprite.play(`${this.charKey}_sit_${this.facing}`, true); return }
       this.sprite.play(`${this.charKey}_${moving ? 'walk' : 'idle'}_${this.facing}`, true)
     } else {
       this.sprite.setFlipX(this.facing === 'left')
@@ -268,6 +272,8 @@ export default class ActorSprite {
     this.stateLabel = label
     if (label) this.stateText.setText(label).setVisible(true)
     else this.stateText.setVisible(false)
+    const pose: typeof this.pose = !label ? 'stand' : /睡|sleep|躺/.test(label) ? 'sleep' : /坐|休息|玩游戏|看书|读|吃|用餐|钓|工作|直播|刷手机|sit|rest|gam/.test(label) ? 'sit' : 'stand'
+    if (pose !== this.pose) { this.pose = pose; if (!this.moving) this.playAnim(false) }
   }
 
   /** 离线（agent 进程挂了但身体还在）→ 半透明 */
