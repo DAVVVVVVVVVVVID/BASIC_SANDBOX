@@ -17,6 +17,13 @@ export const ZONE_NAMES: { world: Record<string, string>; sector: Record<string,
   },
 }
 
+/** 运行时用 /world 的 zone_names 覆盖（B 已暴露）；没有就用上面的复制 */
+export function setZoneNames(z: { world?: Record<string, string>; sector?: Record<string, string>; arena?: Record<string, string> } | undefined | null) {
+  if (!z) return
+  if (z.world) Object.assign(ZONE_NAMES.world, z.world)
+  if (z.sector) Object.assign(ZONE_NAMES.sector, z.sector)
+  if (z.arena) Object.assign(ZONE_NAMES.arena, z.arena)
+}
 export const sectorName = (id: string | null | undefined) => (id ? ZONE_NAMES.sector[id] ?? id : '')
 export const arenaName = (id: string | null | undefined) => (id ? ZONE_NAMES.arena[id] ?? id : '')
 

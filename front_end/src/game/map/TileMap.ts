@@ -84,12 +84,12 @@ export default class TileMap {
 
   render() {
     const own = this.tiledData?.tilesets?.[0]?.imageSource === 'gen/tiles.png'
-    if (this.tiledData && this.tiledData.layers.length > 0 && own) {
-      // B 的 tiled 层已经按我们的 tile_gids.json 导出：直接按 gid 画
-      this.renderTiledLayers()
-    } else if (this.scene.textures.exists(GEN_TILES_KEY)) {
-      // 默认：按 tile 类型 + 区域用自制地砖画（B 的 tiled 现在仍指向 Sunnyside 且 gid 是假设值，不采用）
+    if (this.scene.textures.exists(GEN_TILES_KEY)) {
+      // 首选：按 tile 类型 + 区域（街道 / 广场 / 公园 / 码头 / 厨房 / 餐厅…）用自制地砖画。
+      // B 的 tiled 层（W5 起已指向 gen/tiles.png）只有按类型的 6 个 gid，画不出区域差异，所以只作兜底。
       this.renderGenerated()
+    } else if (this.tiledData && this.tiledData.layers.length > 0 && own) {
+      this.renderTiledLayers()
     } else {
       this.renderFallbackTiles()
     }
@@ -100,8 +100,8 @@ export default class TileMap {
     const arena = t.arena ?? ''
     // 室外按区域优先：街道 / 广场 / 码头 / 公园（后端用 grass1 标街道，类型本身不区分）
     if (t.type !== 'water' && t.type !== 'wall') {
-      if (arena === 'road') return 'road'
-      if (arena === 'square') return 'square'
+      if (arena === 'road' || arena === 'street' || arena === 'lane') return 'road'
+      if (arena === 'square' || arena === 'campus') return 'square'
       if (arena === 'dock') return 'dock'
       if (arena === 'park') return (((t.x * 73856093) ^ (t.y * 19349663)) >>> 0) % 100 < 10 ? 'grass_flower' : 'grass_park'
     }

@@ -113,6 +113,10 @@ export interface WorldData {
   floors?: unknown
   access?: unknown
   arenas?: unknown[]
+  /** v2：地图块 { format, edges, floors, access } */
+  map?: unknown
+  /** B W6+：区域中文名 */
+  zone_names?: { world?: Record<string, string>; sector?: Record<string, string>; arena?: Record<string, string> }
 }
 
 export type Facing = 'up' | 'down' | 'left' | 'right'

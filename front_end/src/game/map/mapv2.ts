@@ -32,6 +32,9 @@ const asRec = (v: unknown): AnyRec | null => (v && typeof v === 'object' && !Arr
 
 function parseHours(v: unknown): Hours | null {
   if (!v) return null
+  // B v2：open_hours / locked 是时段列表 [["06:00","23:00"], ...]，取第一段（多段先只画第一段，假设）
+  if (Array.isArray(v) && v.length > 0 && Array.isArray(v[0])) return parseHours(v[0])
+  if (v === 'always') return { start: '00:00', end: '24:00' }
   if (typeof v === 'string') {
     const m = /(\d{1,2}:\d{2})\s*[-–~]\s*(\d{1,2}:\d{2})/.exec(v)
     return m ? { start: m[1].padStart(5, '0'), end: m[2].padStart(5, '0') } : null
@@ -61,7 +64,8 @@ export function parseMapV2(world: Pick<WorldData, 'tiles'> & AnyRec): MapV2 {
   const raw = world as AnyRec
   // ── floors ──
   const arenaFloor = new Map<string, number>()
-  const fl = raw.floors
+  const mapBlock = asRec(raw.map)
+  const fl = raw.floors ?? mapBlock?.floors
   if (Array.isArray(fl)) for (const f of fl) { const r = asRec(f); if (r && typeof r.floor === 'number') for (const a of ([] as unknown[]).concat(r.arena ?? r.arenas ?? r.id ?? [])) arenaFloor.set(String(a), r.floor as number) }
   else if (asRec(fl)) for (const [k, v] of Object.entries(fl as AnyRec)) { if (typeof v === 'number') arenaFloor.set(k, v); else if (Array.isArray(v)) for (const a of v) arenaFloor.set(String(a), Number(k) || 1) }
   const tileFloor = new Map<string, number>()
@@ -76,29 +80,34 @@ export function parseMapV2(world: Pick<WorldData, 'tiles'> & AnyRec): MapV2 {
 
   // ── edges ──
   const edges: MapEdge[] = []
-  const rawEdges = Array.isArray(raw.edges) ? raw.edges : Array.isArray((asRec(raw.map) ?? {}).edges) ? (asRec(raw.map)!.edges as unknown[]) : []
+  const rawEdges = Array.isArray(raw.edges) ? raw.edges : Array.isArray(mapBlock?.edges) ? (mapBlock!.edges as unknown[]) : []
   for (const e of rawEdges) {
     const r = asRec(e); if (!r) continue
     const tiles = parsePositions(r)
-    const type = String(r.type ?? r.kind ?? 'door').toLowerCase()
+    let type = String(r.type ?? r.kind ?? 'door').toLowerCase()
+    if (type === 'gate') type = 'door'   // 校门：当门处理（有 open_hours）
+    if (type === 'stair' || type === 'staircase') type = 'stairs'
     const fromA = asRec(r.from), toA = asRec(r.to)
     edges.push({
       type,
-      from: typeof r.from === 'string' ? r.from : (fromA?.arena as string | undefined) ?? (r.from_arena as string | undefined) ?? null,
-      to: typeof r.to === 'string' ? r.to : (toA?.arena as string | undefined) ?? (r.to_arena as string | undefined) ?? null,
+      from: typeof r.from === 'string' ? r.from : (fromA?.arena as string | undefined) ?? (asRec(r.a)?.arena as string | undefined) ?? (r.from_arena as string | undefined) ?? null,
+      to: typeof r.to === 'string' ? r.to : (toA?.arena as string | undefined) ?? (asRec(r.b)?.arena as string | undefined) ?? (r.to_arena as string | undefined) ?? null,
       tiles,
       openHours: parseHours(r.open_hours ?? r.hours ?? r.open),
       allow: Array.isArray(r.allow) ? (r.allow as unknown[]).map(String) : null,
-      floors: type === 'stairs' ? [Number((fromA?.floor as number | undefined) ?? r.from_floor ?? 1), Number((toA?.floor as number | undefined) ?? r.to_floor ?? 2)] : null,
+      floors: type === 'stairs' ? [Number((fromA?.floor as number | undefined) ?? (asRec(r.a)?.floor as number | undefined) ?? r.from_floor ?? 1), Number((toA?.floor as number | undefined) ?? (asRec(r.b)?.floor as number | undefined) ?? r.to_floor ?? 2)] : null,
     })
   }
 
   // ── access ──
   const access = new Map<string, ArenaAccess>()
-  const acc = raw.access ?? raw.arena_access
+  const acc = raw.access ?? raw.arena_access ?? mapBlock?.access
   if (asRec(acc)) for (const [k, v] of Object.entries(acc as AnyRec)) {
     const r = asRec(v); if (!r) continue
-    access.set(k, { owner: (r.owner as string | undefined) ?? null, lockHours: parseHours(r.locked ?? r.lock_hours ?? r.locked_hours ?? r.lock), allow: Array.isArray(r.allow) ? (r.allow as unknown[]).map(String) : null })
+    const ownerRaw = r.owner
+    const owner = Array.isArray(ownerRaw) ? (ownerRaw as unknown[]).map(String).join('、') : typeof ownerRaw === 'string' ? ownerRaw : null
+    const allowRaw = r.allow ?? r.allow_when_locked
+    access.set(k, { owner, lockHours: parseHours(r.locked ?? r.lock_hours ?? r.locked_hours ?? r.lock), allow: Array.isArray(allowRaw) ? (allowRaw as unknown[]).map(String) : null })
   }
   if (Array.isArray(raw.arenas)) for (const a of raw.arenas) {
     const r = asRec(a); const ac = r && asRec(r.access); if (!r || !ac) continue

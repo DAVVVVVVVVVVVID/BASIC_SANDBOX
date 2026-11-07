@@ -2,6 +2,7 @@ import { API_BASE } from '../../api/client'
 import { fetchWorld, fetchWorldLive } from '../../api/world'
 import { useGameStore, mapSignature } from '../../store/gameStore'
 import { EventBus } from '../EventBus'
+import { setZoneNames } from '../map/zones'
 import { startPoller, PollerHandle } from './Poller'
 import type { WorldData, WsMessage, WsPatch } from '../../types'
 
@@ -38,7 +39,8 @@ export function applyWorldSnapshot(world: WorldData) {
   const s = useGameStore.getState()
   s.setWorldState(world.worldState)
   s.setObjects(world.objects)
-  if (world.tiles && world.tiles.length > 0 && mapKey(world) !== s.mapSig) s.setMap(world.tiles, world.tiled, mapKey(world), { edges: world.edges, floors: world.floors, access: world.access, arenas: world.arenas })
+  if (world.tiles && world.tiles.length > 0 && mapKey(world) !== s.mapSig) setZoneNames(world.zone_names)
+  s.setMap(world.tiles, world.tiled, mapKey(world), { edges: world.edges, floors: world.floors, access: world.access, arenas: world.arenas, map: world.map })
   s.setPlayers(world.players ?? [])
   s.setConnection('online')
 }

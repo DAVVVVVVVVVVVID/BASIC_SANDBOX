@@ -618,6 +618,40 @@ def obj_door_closed():
     d.rectangle([6, 4, 9, 5], fill=rgb("#e74c3c"))  # 小红牌：锁
     return img
 
+def obj_boat():
+    img, d = new_obj(2, 1); W, H = img.size
+    tile_water(d, 0, 0, 2); tile_water(d, 16, 0, 2)
+    d.polygon([(2, 9), (6, 13), (W - 7, 13), (W - 3, 9), (W - 5, 6), (4, 6)], fill=rgb("#8a5a3c"), outline=rgb("#2b2230"))
+    d.rectangle([W // 2 - 1, 2, W // 2, 8], fill=rgb("#5a3a22")); d.polygon([(W // 2 + 1, 2), (W // 2 + 7, 6), (W // 2 + 1, 6)], fill=rgb("#f4f1ea"))
+    return img
+
+def obj_fish_stall():
+    img, d = new_obj(1, 1)
+    box(d, 1, 6, 14, 12, "#b07a4a"); d.rectangle([2, 13, 3, 15], fill=rgb("#8a5a3c")); d.rectangle([12, 13, 13, 15], fill=rgb("#8a5a3c"))
+    d.rectangle([0, 3, 15, 5], fill=rgb("#e74c3c")); d.rectangle([0, 3, 15, 3], fill=rgb("#f4f1ea"))  # 棚
+    d.ellipse([3, 7, 7, 10], fill=rgb("#7fb3e6")); d.ellipse([8, 7, 12, 10], fill=rgb("#9fd3f5"))
+    return img
+
+def obj_notice_board():
+    img, d = new_obj(1, 1)
+    box(d, 1, 1, 14, 10, "#8a5a3c"); d.rectangle([2, 2, 13, 9], fill=rgb("#e8dcc0"))
+    d.rectangle([3, 3, 7, 5], fill=rgb("#f4f1ea")); d.rectangle([8, 4, 12, 7], fill=rgb("#fde68a")); d.point((5, 3), fill=rgb("#e74c3c")); d.point((10, 4), fill=rgb("#3498db"))
+    d.rectangle([4, 11, 5, 15], fill=rgb("#5a3a22")); d.rectangle([10, 11, 11, 15], fill=rgb("#5a3a22"))
+    return img
+
+def obj_piano():
+    img, d = new_obj(1, 1)
+    box(d, 1, 2, 14, 12, "#2b2230"); d.rectangle([2, 9, 13, 11], fill=rgb("#f4f1ea"))
+    for x in range(3, 13, 2): d.rectangle([x, 9, x, 10], fill=rgb("#2b2230"))
+    d.rectangle([3, 13, 4, 15], fill=rgb("#2b2230")); d.rectangle([11, 13, 12, 15], fill=rgb("#2b2230"))
+    return img
+
+def obj_fountain():
+    img, d = new_obj(1, 1)
+    d.ellipse([1, 4, 14, 14], fill=rgb("#9aa5ad"), outline=rgb("#2b2230")); d.ellipse([3, 6, 12, 12], fill=rgb("#6aa2d6"))
+    d.rectangle([7, 2, 8, 9], fill=rgb("#cfd6dc")); d.point((6, 3), fill=rgb("#b5d6f0")); d.point((9, 3), fill=rgb("#b5d6f0")); d.point((7, 1), fill=rgb("#dff3ff"))
+    return img
+
 def obj_tree():
     img, d = new_obj(1, 1)
     d.rectangle([7, 10, 8, 15], fill=rgb("#7a4e2d")); d.ellipse([2, 1, 13, 11], fill=rgb("#3f8544"), outline=rgb("#2d6b33")); d.point((5, 4), fill=rgb("#6dbd66"))
@@ -629,6 +663,10 @@ OBJECTS = {
     "book": obj_book, "phone": obj_phone, "restaurant_table": obj_table, "bench": obj_bench,
     "fishing_spot": obj_fishing_spot, "shop_counter": obj_counter, "sofa": obj_sofa, "cook": obj_stove,
     "sink": obj_sink, "toilet": obj_toilet, "well": obj_well, "tree": obj_tree, "game_console": obj_game_console, "stairs": obj_stairs, "door_closed": obj_door_closed,
+    # v1.0 草图镇（02-map / 03-objects）：先用近似画法占位
+    "pc": lambda: obj_desk(True), "pc_desk": lambda: obj_desk(True), "pc_music": lambda: obj_desk(True), "classroom_desk": lambda: obj_desk(False),
+    "reading_desk": lambda: obj_desk(False), "shelf": obj_book, "stove": obj_stove, "sofa_tv": obj_sofa, "bar": obj_counter, "boat": obj_boat,
+    "fish_stall": obj_fish_stall, "notice_board": obj_notice_board, "piano": obj_piano, "fountain": obj_fountain,
 }
 
 def main():

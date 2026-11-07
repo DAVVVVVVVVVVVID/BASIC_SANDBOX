@@ -232,6 +232,8 @@ export default class GameScene extends Phaser.Scene {
       selfTile: () => this.self?.getTile() ?? null,
       inflight: () => this.inputSystem?.hasInflight() ?? false,
       keys: () => this.inputSystem?.debugKeys() ?? null,
+      focusLabels: () => this.focus?.debugLabels() ?? [],
+      zoom: () => this.cameras.main.zoom,
       others: () => [...this.others.entries()].map(([id, s]) => ({ id, px: s.getPixelPosition(), tile: s.getTile(), moving: s.isMoving() })),
     }
 
@@ -279,7 +281,7 @@ export default class GameScene extends Phaser.Scene {
     this.tileIndex = buildTileIndex(world.tiles)
     if (!this.focus) this.focus = new SceneFocus(this, { enabled: (this.params?.scene ?? 'follow') === 'follow', baseZoom: () => this.mode === 'spectate' ? this.followZoom : this.currentZoom, snap: snapZoom })
     const extras = useGameStore.getState().mapExtras
-    this.focus.setMap({ tiles: world.tiles, edges: world.edges ?? extras.edges, floors: world.floors ?? extras.floors, access: world.access ?? extras.access, arenas: world.arenas ?? extras.arenas }, Math.round(this.mapPx.w / TILE_SIZE) || 1, Math.round(this.mapPx.h / TILE_SIZE) || 1)
+    this.focus.setMap({ tiles: world.tiles, edges: world.edges ?? extras.edges, floors: world.floors ?? extras.floors, access: world.access ?? extras.access, arenas: world.arenas ?? extras.arenas, map: world.map ?? extras.map } as Parameters<SceneFocus['setMap']>[0], Math.round(this.mapPx.w / TILE_SIZE) || 1, Math.round(this.mapPx.h / TILE_SIZE) || 1)
     const { w, h } = mapSize(world.tiles, world.tiled)
     this.mapPx = { w: w * TILE_SIZE, h: h * TILE_SIZE }
     for (const obj of world.objects) this.objectSprites.push(new GameObjectSprite(this, obj))
@@ -487,8 +489,9 @@ export default class GameScene extends Phaser.Scene {
     }
     // W7 取景：进屋推近 + 屋外压暗
     const fr = this.focus.update(focusTile, dt, useGameStore.getState().worldState)
-    if (this.params?.focus && !this.targetId && fr.indoor && fr.zoom) {
-      if (fr.zoom !== this.focusZoom) { this.focusZoom = fr.zoom; cam.zoomTo(fr.zoom, ZOOM_MS, 'Sine.easeInOut', true) }
+    if (this.params?.focus && !this.targetId && focusTile) {
+      const want = fr.indoor && fr.zoom ? fr.zoom : this.followZoom
+      if (want !== this.focusZoom) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
       const k0 = 1 - Math.exp(-dt / CAMERA_LERP_MS)
       this.camX += (tx - this.camX) * k0; this.camY += (ty - this.camY) * k0
       const c0 = this.focus.clampCenter(this.camX, this.camY, cam.zoom)

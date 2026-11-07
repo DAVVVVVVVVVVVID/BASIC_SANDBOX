@@ -39,7 +39,7 @@ export default class SceneFocus {
   }
 
   /** 地图（重）建后调用 */
-  setMap(world: { tiles: Tile[]; edges?: unknown[]; floors?: unknown; access?: unknown; arenas?: unknown[] }, mapW: number, mapH: number) {
+  setMap(world: { tiles: Tile[]; edges?: unknown[]; floors?: unknown; access?: unknown; arenas?: unknown[]; map?: unknown }, mapW: number, mapH: number) {
     this.mapPx = { w: mapW * TILE_SIZE, h: mapH * TILE_SIZE }
     this.v2 = parseMapV2(world)
     this.tileIndex = new Map(world.tiles.map(t => [`${t.x},${t.y}`, t]))
@@ -65,9 +65,10 @@ export default class SceneFocus {
       const locksByAccess = (e.to && this.v2.access.get(e.to)?.lockHours) || (e.from && this.v2.access.get(e.from)?.lockHours)
       if (!e.openHours && !locksByAccess) continue
       if (!this.scene.textures.exists(objTextureKey('door_closed'))) continue
-      for (const p of e.tiles) {
+      for (const p of e.tiles.slice(-1)) {   // a=外侧格、b=内侧格：门画在内侧那一格
         const img = this.scene.add.image(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE + TILE_SIZE / 2, objTextureKey('door_closed')).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(2).setVisible(false)
-        const hours = e.openHours ? `开 ${e.openHours.start}–${e.openHours.end}` : locksByAccess ? `锁 ${locksByAccess.start}–${locksByAccess.end}` : ''
+        const fmt = (h: { start: string; end: string }, kind: '开' | '锁') => (h.start === '00:00' && h.end === '24:00') ? (kind === '锁' ? '常锁' : '常开') : `${kind} ${h.start}–${h.end}`
+        const hours = e.openHours ? fmt(e.openHours, '开') : locksByAccess ? fmt(locksByAccess, '锁') : ''
         const who = e.to && this.v2.access.get(e.to)?.owner ? `（${arenaName(e.to)}）` : ''
         const label = this.scene.add.text(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE - 4, `🔒 ${hours}${who}`, { fontFamily: 'system-ui, "PingFang SC", sans-serif', fontSize: '12px', color: '#ffd7d7', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(3).setResolution(2).setVisible(false)
         this.doorNodes.push({ edge: e, img, label }); this.labels.push(label)
@@ -76,9 +77,12 @@ export default class SceneFocus {
   }
 
   get hasV2() { return this.v2.hasV2 }
-  /** 某 sector（可选楼层）的中心格，给 &focus= 用 */
-  sectorCenter(sector: string, floor = 1): { x: number; y: number } | null {
-    const b = arenaBBox([...this.tileIndex.values()].filter(t => this.v2.floorOf(t) === floor), sector)
+  /** 调试 */
+  debugLabels() { return this.labels.map(l => ({ text: l.text, scale: l.scaleX, visible: l.visible, x: l.x, y: l.y, depth: l.depth })) }
+  /** 某 sector 或 arena（可选楼层）的中心格，给 &focus= 用 */
+  sectorCenter(id: string, floor = 1): { x: number; y: number } | null {
+    const tiles = [...this.tileIndex.values()].filter(t => this.v2.floorOf(t) === floor)
+    const b = arenaBBox(tiles, id) ?? arenaBBox(tiles, null, id)
     if (!b) return null
     return { x: Math.round((b.x0 + b.x1) / 2), y: Math.round((b.y0 + b.y1) / 2) }
   }

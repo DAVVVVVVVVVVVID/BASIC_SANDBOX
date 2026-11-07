@@ -22,15 +22,16 @@ fs.mkdirSync(out, { recursive: true })
 
 const world = await (await fetch(`${api}/world`)).json()
 const sectors = [...new Set(world.tiles.map(t => t.sector).filter(Boolean))]
-const pick = (res) => sectors.find(s => res.test(s)) || null
+const arenas = [...new Set(world.tiles.map(t => t.arena).filter(Boolean))]
+const pick = (res) => sectors.find(s => res.test(s)) || arenas.find(a => res.test(a)) || null
 const S = {
   house: pick(/share|rent|home|achan_house|whale_home|dorm|合租/i),
   campus: pick(/campus|univ|school|college|teach|library|music|大学|校园/i),
   square: pick(/square|plaza|广场/i),
   dock: pick(/dock|pier|harbor|wharf|码头/i),
 }
-console.log('sectors:', sectors.join(', ')); console.log('picked:', JSON.stringify(S))
-const hasFloor2 = world.tiles.some(t => (t.floor ?? 1) >= 2)
+console.log('sectors:', sectors.join(', ')); console.log('arenas:', arenas.join(', ')); console.log('picked:', JSON.stringify(S))
+const hasFloor2 = world.tiles.some(t => (t.floor ?? 1) >= 2) || Object.values((world.map && world.map.floors) || world.floors || {}).some(v => Number(v) >= 2)
 
 const vite = spawn(process.env.npm_execpath ? 'npx' : 'npx', ['vite', '--port', String(port), '--strictPort'], { env: { ...process.env, VITE_PROXY_TARGET: api }, stdio: 'ignore', detached: true })
 await new Promise(r => setTimeout(r, 4500))

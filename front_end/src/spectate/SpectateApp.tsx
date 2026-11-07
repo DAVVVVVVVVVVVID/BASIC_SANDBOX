@@ -7,6 +7,7 @@ import { startSpectateTick } from '../game/systems/TickSystem'
 import { useGameStore } from '../store/gameStore'
 import { parseSpectateParams } from './params'
 import { setArtVersion } from '../game/assets'
+import { setZoneNames } from '../game/map/zones'
 import WorldInfoPanel from '../ui/WorldInfoPanel'
 import SpectateHud from './SpectateHud'
 
@@ -41,7 +42,8 @@ export default function SpectateApp() {
           if (cancelled) return
           const s = useGameStore.getState()
           s.setWorldState(worldData.worldState)
-          s.setMap(worldData.tiles, worldData.tiled, worldData.worldState?.mapVersion, { edges: worldData.edges, floors: worldData.floors, access: worldData.access, arenas: worldData.arenas })
+          setZoneNames(worldData.zone_names)
+          s.setMap(worldData.tiles, worldData.tiled, worldData.worldState?.mapVersion, { edges: worldData.edges, floors: worldData.floors, access: worldData.access, arenas: worldData.arenas, map: worldData.map })
           s.setObjects(worldData.objects)
           s.setPlayers(worldData.players ?? [])
           s.setConnection('online')
