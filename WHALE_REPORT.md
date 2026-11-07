@@ -50,7 +50,8 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **原因**：v1 的 `access` 只有渔夫 / 小千 / 店主 / 阿蝉房，合租房三间与 `door_home` 没有任何规则，谁都能进（老渔夫 05:34 走进厨房、模板期睡过 `bed_whale`）。
 - **改**（`gen_map_v1.py`，按 02-map §2.3）：`access.whale_room = {owner [whale], locked always, allow_when_locked [achan, npc_xiaoqian]}`、`living_room / kitchen = {owner [whale, achan], locked always, allow_when_locked [npc_xiaoqian]}`；`door_home` 加 `owner [whale, achan]`、`allow ["owner", "npc_xiaoqian"]`。小千按总控意见放进 allow（主播改口再去）。出门照 §3.38 放行。核过各家大门：渔夫屋 / 小千家 / 店主家本来就有 owner，餐厅 / 杂货店 §3.38 加了，现在六扇门都有 `owner`。v1 图重出（tiles / 物品不变，mapVersion 不变；access 11 条）。
 - **「出门永远放行」的室内推广** `arena_cross_block`：站在自己不被允许的场所里的人，往同一 sector 相邻场所走一律放行（否则老渔夫会被锁在厨房——厨房 → 客厅跨的是 arena 不是门边）；出了门就回不来。所有跨场所判定（相邻格、楼梯、走路、首阻塞）走这一个函数。
-- **副作用请知悉**：人类玩家（操控页）不在名单，出生在鲸仔房间，走出去后回不来（`locked`）；如需放行人类，加一个 `"human"` 关键字很容易，等主播定。另：家里的最短路（`/admin/path`、`path_table.py`）要带 `mover=whale`，x1-fixtures 的数字本来就是按鲸仔算的，不变。
+- **人类放行（总控 11-08 定）**：`_allowed` 新关键字 `"human"`（controller=human 的玩家），加进合租房三处 `allow_when_locked` 与 `door_home.allow`——操控页演阿蝉的人类玩家进出自如。
+- **NPC 冰箱（总控问「老渔夫冰箱空」）**：规则对所有 `fridge` 类型一样（`economy.json fridge`：初始 2、每日 08:00 +2、上限 4、use 吃 1），不是只有鲸仔家有补货。主镇 11-08 05:26 实况：`fridge_fisher / fridge_home / fridge_rest / fridge_owners` 都是 0，只有小千家还剩 2——每天只补 2 份而每人一天吃 3 顿，08:00 前必空；03-objects 的设计是「从杂货店买食材补」，NPC 的 agent 若不会 `buy ingredients` + `store`，冰箱就只够两顿。建议（配置项，不改代码）：`fridge.initial / restock_qty` 提到 3–4，或主播定 NPC 家冰箱另给水位；等总控 / 主播拍板。另：家里的最短路（`/admin/path`、`path_table.py`）要带 `mover=whale`，x1-fixtures 的数字本来就是按鲸仔算的，不变。
 - **测试** `tests/test_w11_home_access.py` 2 例：老渔夫街道 `go_to kitchen` → `no_path/locked/blocked_at (12,33)`；小千进客厅、再去鲸仔房间；阿蝉进鲸仔房间；老渔夫已在厨房能走出去、回不来；鲸仔随时进；人类单格 `locked`；六扇门 owner 与三条 access 规则进了 `/world.map`。既有 1 例改（x1 的 `/admin/path` 家里加 `mover=whale`）。
 
 ## 5e. §3.38 门禁只管「进」不管「出」、主人随时双向 —— 完成

@@ -902,6 +902,8 @@ def _allowed(allow: list | None, mover: dict | None, owners: list | None = None)
     for a in allow:
         if a == "*" or a == "all":
             return True
+        if a == "human" and mover is not None and mover.get("controller", "human") == "human":   # §3.39 ①：人类控制者（操控页演阿蝉）
+            return True
         if a == "owner" and owners and ids & set(owners):
             return True
         if a in ids:

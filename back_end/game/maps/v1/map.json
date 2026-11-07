@@ -447,7 +447,8 @@
       },
       "allow": [
         "owner",
-        "npc_xiaoqian"
+        "npc_xiaoqian",
+        "human"
       ],
       "owner": [
         "whale",
@@ -588,7 +589,8 @@
       "locked": "always",
       "allow_when_locked": [
         "achan",
-        "npc_xiaoqian"
+        "npc_xiaoqian",
+        "human"
       ]
     },
     "living_room": {
@@ -598,7 +600,8 @@
       ],
       "locked": "always",
       "allow_when_locked": [
-        "npc_xiaoqian"
+        "npc_xiaoqian",
+        "human"
       ]
     },
     "kitchen": {
@@ -608,7 +611,8 @@
       ],
       "locked": "always",
       "allow_when_locked": [
-        "npc_xiaoqian"
+        "npc_xiaoqian",
+        "human"
       ]
     },
     "achan_room": {

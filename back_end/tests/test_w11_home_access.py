@@ -47,21 +47,23 @@ def test_fisher_cannot_enter_home_but_residents_and_xiaoqian_can(client, v1, fak
     # 鲸仔自己随时进出
     place(whale, 45, 19, "left")
     assert action(client, whale, "go_to", {"target": "kitchen"})["success"]
-    # 人类玩家（操控页）不在名单：也进不去——出生在鲸仔房间，出来后回不去
+    # 人类玩家（操控页演阿蝉）：allow 里的 "human" 关键字放行（§3.39 ①）
     h = join(client, "h")
     assert _arena(h) == "whale_room"
     place(h, 12, 34, "up")
-    assert action(client, h, "move", {"direction": "up"})["reason"] == "locked"                  # 人类单格直接给 locked
+    assert action(client, h, "move", {"direction": "up"})["success"]
+    place(h, 45, 19, "left")
+    res = action(client, h, "go_to", {"target": "whale_room"}); assert res["success"], res
 
 
 def test_all_house_doors_have_owner_and_access_rules_listed(client, v1):
     m = client.get("/world", params={"fields": "map"}).json()["map"]
     edges = {e["id"]: e for e in m["edges"]}
-    assert edges["door_home"]["owner"] == ["whale", "achan"] and edges["door_home"]["allow"] == ["owner", "npc_xiaoqian"]
+    assert edges["door_home"]["owner"] == ["whale", "achan"] and edges["door_home"]["allow"] == ["owner", "npc_xiaoqian", "human"]
     for eid, owner in (("door_fisher", ["npc_fisher"]), ("door_xiaoqian", ["npc_xiaoqian"]), ("door_owners", ["npc_rest_owner", "npc_grocer"]),
                        ("door_restaurant", ["npc_rest_owner"]), ("door_grocery", ["npc_grocer"])):
         assert edges[eid]["owner"] == owner, eid                                                   # §3.39 ④：各家大门都有 owner
     acc = m["access"]
-    assert acc["whale_room"] == {"owner": ["whale"], "locked": "always", "allow_when_locked": ["achan", "npc_xiaoqian"]}
-    assert acc["living_room"]["owner"] == ["whale", "achan"] and acc["kitchen"]["allow_when_locked"] == ["npc_xiaoqian"]
+    assert acc["whale_room"] == {"owner": ["whale"], "locked": "always", "allow_when_locked": ["achan", "npc_xiaoqian", "human"]}
+    assert acc["living_room"]["owner"] == ["whale", "achan"] and acc["kitchen"]["allow_when_locked"] == ["npc_xiaoqian", "human"]
     assert len(acc) == 11
