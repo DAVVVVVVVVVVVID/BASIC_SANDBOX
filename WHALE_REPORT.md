@@ -51,7 +51,7 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **测试**：`tests/test_w11_walking.py` 7 例（1 格 / 游戏秒逐格推进与 `walk` 字段、到达 `move_done`；`SANDBOX_WALK_TILE_SEC`、人类单格立即 / targetTile 排队 / 走路中方向键改手动、agent 单格也排队；`no_path` 带 `blocked_reason/blocked_at/opens_at`、13:59:50 出发去餐厅 14:00 门关 → `blocked/closed`；走路中 use/interact 拒绝、leave 就地停、新 move 替换；聊天接受中途停下；move_n / go_to 排队；teleport 取消 + ws 字段）。既有 9 例按新语义改（`walk_done` 测试助手；`locked/closed` → `no_path + blocked_reason`；回放多一行 `move_done`）。**304 passed**。`verify_self_sync / verify_external / verify_game` 改成一次 `move targetTile` + 等 `state != walking`。
 - **api-spec**：新「移动语义（§3.36）」一节 + move 响应示例 + `GET /player` `walk` + reason `no_path / walking` + 日志类型 `move_done`。
 - **给 E**：`reason` 不再直接是 `locked/closed`（人类单格除外），锁门气泡请看 `result.blocked_reason`；`state == "walking"` 播走路帧，位置按 patch 逐格；ws `action` 事件多 `state / path_len / eta_game_s / blocked_reason / blocked_at`，新事件 `action: "move_done"`。**给 C**：发出移动后轮询 `GET /player/{id}` 到 `state != "walking"`（超时 eta×3+10 s）。
-- 8091 自测三项见下一条。
+- **8091 自测（×6 速，提交 `910506f`）**：① 码头 (55,13) `go_to whale_room`：立即返回 `walking, path_len 71, eta 71.0`，12.1 s 真实时间走完（71 游戏秒），`move_done {outcome: arrived, position (9,30), path_len 71, steps_done 71, game_s 71.9, action: move_to_area}`；② 10:00 `move_to_area achan_room` → `no_path {blocked_reason: locked, blocked_at (3,37), opens_at 18:30}`；③ 广场出发去餐厅（16 格）走 3 格时小千邀请、鲸仔接受 → `walking_over`，就地停在 (41,29)，`move_done {outcome: stopped, reason: state:walking_over, steps_done 3, game_s 4.6}`。测试玩家已清。
 
 ## 5c. 总控（whale-68）追加：最短路 JSON、床的饱腹疑问 —— 完成，并查出 bench 的根因
 
