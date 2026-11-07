@@ -16,8 +16,9 @@ export const TILE_INDEX = {
 export type TileName = keyof typeof TILE_INDEX
 export const WATER_FRAMES = [TILE_INDEX.water0, TILE_INDEX.water1, TILE_INDEX.water2, TILE_INDEX.water3]
 
-export const CHAR_KEYS = ['whale', 'achan', 'cook', 'grocer', 'fisher', 'regular', 'villager', 'whale_v1', 'achan_v1'] as const
-export type CharKey = typeof CHAR_KEYS[number]
+export { CHAR_KEYS, charKeyFor, type CharKey } from './charKey'
+import type { CharKey } from './charKey'
+import { CHAR_KEYS } from './charKey'
 export const CHAR_FRAME = { w: 16, h: 24 }
 /** 行：down / left / right / up；列：站 走A 站 走B；第 5 行：坐(正) 睡 坐(左) 坐(右) */
 export const CHAR_ROWS: Record<'down' | 'left' | 'right' | 'up', number> = { down: 0, left: 1, right: 2, up: 3 }
@@ -39,23 +40,6 @@ export const OBJ_KEYS = [
 
 export const objTextureKey = (type: string) => `objgen_${type}`
 export const charTextureKey = (key: CharKey) => `char_${key}`
-
-const NPC_POOL: CharKey[] = ['cook', 'grocer', 'fisher', 'regular']   // 主播 11-07 评分：「为什么会有村民」→ villager 下线，不再分给任何人
-
-/** 按名字 / 身份挑角色外观：鲸仔、阿蝉固定，NPC 先按关键词，否则按名字哈希稳定分配 */
-export function charKeyFor(name: string, controller?: string): CharKey {
-  const n = (name || '').toLowerCase()
-  if (/鲸|whale/.test(n)) return 'whale'
-  if (/阿蝉|achan|蝉/.test(n)) return 'achan'
-  if (/厨|cook|chef/.test(n)) return 'cook'
-  if (/杂货|grocer|店/.test(n)) return 'grocer'
-  if (/渔|fish/.test(n)) return 'fisher'
-  if (/小千|小满|xiaoqian|常客|regular/.test(n)) return 'regular'   // W8：regular 这套外观画成千小满（小千）
-  if (controller === 'human') return 'achan'   // 作者进来操控默认是阿蝉
-  let h = 0
-  for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0
-  return NPC_POOL[h % NPC_POOL.length]
-}
 
 /** 预加载全部自制素材（幂等） */
 export function preloadGenAssets(scene: Phaser.Scene) {

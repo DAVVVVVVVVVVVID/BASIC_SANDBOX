@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "npm run typecheck && npm run lint"
+    "test": "npm run typecheck && npm run lint && npm run test:unit",
+    "test:unit": "esbuild tests/*.test.ts --bundle --platform=node --format=esm --outdir=node_modules/.cache/tests --out-extension:.js=.mjs --log-level=warning && node --test 'node_modules/.cache/tests/*.test.mjs'"
   },
   "dependencies": {
     "phaser": "^3.87.0",

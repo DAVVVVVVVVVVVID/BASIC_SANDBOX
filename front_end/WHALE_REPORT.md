@@ -51,6 +51,8 @@
 
 费用：本轮 2 次调用，累计约 $19 / 200 张预算。
 
+**总控追加（11-07 晚，主播截图）：餐厅老板被画成小千** — 原因：「餐厅老板」没命中任何名字规则，按哈希落到 NPC 池，而池里有小千专属的 `regular`。修法：名字 → 外观规则搬到无 Phaser 依赖的 `src/game/charKey.ts`，`04-npcs.md` 六个角色全部显式匹配（鲸仔 / 阿蝉 / 小千·千小满 / 餐厅老板·厨师 / 杂货店老板·老板娘 / 老渔夫），`regular` 从兜底池拿掉（池子只剩 cook / grocer / fisher）；新增 `tests/charKey.test.ts`（node:test，esbuild 打包后跑，`npm run test:unit`，已并入 `npm test`），覆盖六个名字、带 `_xxxxxx` 后缀的实例 id、一打未知名字都不会变成小千。截图 `W9_fix_cook_follow.jpg`。
+
 ## 1. 进度
 
 B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**上午还没落地**：8091 的门仍在北面、`/qq/contacts` 404、`/world` 物品没有 `use_pos`、玩家没有 `gold`。所以 1–3 按交接里的接口形状把前端做好、对字段名做了宽容解析，B 落地后只需对齐字段名；4、5 已完成。
