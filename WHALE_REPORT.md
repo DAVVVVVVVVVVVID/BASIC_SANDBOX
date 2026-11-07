@@ -52,6 +52,7 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **根因（bench 8090 的 11-07 日志）**：S03 夹具 `reset` + `set_time 15:00` + `spawn` 后，self-sync 每 30 游戏秒与自我层对账，自我层 8390 回的 whale 值远低于本地（第一批 drift fullness −43.9 / energy −29 / social −22 / fun −37，之后几批继续往下），snap「以自我层为准」把本地**所有变量 2 游戏分钟内打到 0**（state 行 15:00:30 → 15:02:30 全 0）。同理 S01 直写 fullness 15 时自我层还是旧值 ~59，snap 把它拉回 40。即：**夹具直写的值被自我层旧状态覆盖**。
 - **修**：`self_sync.assert_local(pid)`——scenario 的 `spawn` / `set_vars` 之后本地为准：漂移 > 0.5 时不 snap 本地，把差值当 delta 推回自我层（`external` `self_assert`、`/admin/self-sync` `asserts`），两边一致后恢复原规则；非夹具玩家照旧 snap。2 例单测（假自我层回显 60 → 直写 15 → 一批后仍 15、自我层两批内变 15；spawn 同理；旁人照旧 snap）。**另请 A 看一眼 8390**：它的 whale 状态为何在 15:00 时是 ~26 / 70 / 38 / 23 并持续下滑——可能是 bench 自我层数据没清或它按墙钟衰减（bench ×6）。bench 跑 X1 也可以干脆 `SELF_SYNC=0`。
 - 296 passed。8091 已重起带上；bench 8090 请切到本提交。
+- **追加（总控转 A 的要求）**：直写后不只「本地为准」，还要**立刻**让自我层一致——`self_sync.push_local_now()`：`GET /self/state` 取远端，`POST /self/state/delta` 发 (本地 − 远端)，`source: "scenario"`；`spawn` / `set_vars` 步骤结果带 `self_push {ok, pushed, remote_after}`；自我层不可达时直写照样成功、由对账兜底推回。3 例单测（直写即一致、spawn 带 vars 即一致、推送失败兜底），297 passed。
 
 ## 5. 总控（whale-68）两条
 

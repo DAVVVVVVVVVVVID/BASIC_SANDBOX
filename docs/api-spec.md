@@ -1231,7 +1231,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `remove_object` | `id` | **X1 N5** 撤掉物品（脚下变地板），`/world.objects` 里消失；`restore_object` 放回原位（库存一起回来） |
 | `restore_object` | `id?` | 恢复：撤掉的放回、挪过的挪回；不给 `id` = 全部（`reset` 也会做）。恢复后 `mapVersion` 回到原值 |
 
-**与自我层（W11 维护，X1 根因修）：** `spawn` / `set_vars` 直写的七变量**以本地为准**——之后 self-sync 若发现与自我层漂移 > 0.5，不再 snap 本地（那会把夹具摆的 fullness 15 拉回自我层的旧值），而是把差值当 delta 推回自我层直到两边一致（`external` 记 `kind: self_assert`，`GET /admin/self-sync` 的 `asserts` 计数），之后恢复「自我层为准」。bench 若不想要自我层参与，也可以直接 `SELF_SYNC=0` 或 `SELF_SYNC_SNAP=0` 起沙盒。
+**与自我层（W11 维护，X1 根因修）：** `spawn` / `set_vars` 直写七变量后**立刻**把本地值推给自我层：`GET /self/state` 取远端值，`POST /self/state/delta {vars_delta: 本地 − 远端, source: "scenario"}`，两边开局即一致；步骤结果带 `self_push: {ok, pushed{var: delta}, remote_after}`（自我层关闭 / 没有 agent_id → `{ok: false, skipped}`；不可达 → `{ok: false, error}`，直写照样成功）。同时该玩家标「本地为准」：之后 self-sync 若仍发现漂移 > 0.5，不 snap 本地而是把差值推回自我层直到一致（兜底推送失败的情形），再恢复「自我层为准」。两种推送都记 `external` `kind: self_assert`，`GET /admin/self-sync` 的 `asserts` 计数。bench 若不想要自我层参与，也可以直接 `SELF_SYNC=0` 或 `SELF_SYNC_SNAP=0` 起沙盒。
 
 **可见性：** 每步写一条 `external` 日志（`kind: "scenario"`，含 label / step / op / args / result），`spawn / teleport / set_vars / effects / occupy / release` 另给受影响玩家立即写一行 state（`kind: "scenario"`）。回放把 scenario 行当外部输入重现。
 

@@ -37,16 +37,35 @@ def test_set_vars_pushes_drift_to_self_layer_instead_of_snapping(client, fake_cl
     assert p["fullness"] == 60.0                                                        # join 时从自我层种入
     r = client.post("/admin/scenario", json={"steps": [{"op": "set_vars", "player": pid, "vars": {"fullness": 15}}]}).json()
     assert r["ok"] and p["fullness"] == 15.0
-    _batch(fake_clock)
-    assert 14.0 < p["fullness"] < 15.1, p["fullness"]                                  # 没被 snap 回 60（只有正常衰减）
-    assert f.vars["fullness"] == 60.0 and f.deltas[-1].get("fullness") in (None, 0.0) or True
+    push = r["steps"][0]["detail"]["self_push"]
+    assert push["ok"] and abs(push["pushed"]["fullness"] + 45.0) < 1e-6 and f.vars["fullness"] == 15.0   # 直写即推给自我层，开局一致
+    assert f.deltas[-1] == {"fullness": -45.0}
     rows = external_log.read_log(kind="self_assert")
-    assert rows and abs(rows[-1]["drift"]["fullness"] - 45.0) < 0.5 and not external_log.read_log(kind="self_snap")
-    _batch(fake_clock)                                                                   # 下一批把 −45 推给自我层 → 两边一致
-    assert abs(f.vars["fullness"] - p["fullness"]) < 0.5, (f.vars, p["fullness"])
+    assert rows and rows[-1]["pushed"] == {"fullness": -45.0} and rows[-1]["remote_after"]["fullness"] == 15.0
+    _batch(fake_clock)
+    assert 14.0 < p["fullness"] < 15.1 and abs(f.vars["fullness"] - p["fullness"]) < 0.5      # 之后正常对账，无 snap
+    assert not external_log.read_log(kind="self_snap")
     _batch(fake_clock)
     assert pid not in self_sync._local_authority                                         # 一致后恢复「自我层为准」
     assert self_sync.snapshot_stats().get("asserts", 0) >= 1
+
+
+def test_push_failure_falls_back_to_assert_local(client, fake_clock, monkeypatch):
+    """自我层此刻不可达：直写仍成功，self_push.ok=false；之后对账把差值推回去（原机制兜底）。"""
+    monkeypatch.setenv("SANDBOX_SCENARIO", "1")
+    f = FakeSelf(); down = {"v": False}
+    def handler(req):
+        if down["v"]:
+            raise httpx.ConnectError("down", request=req)
+        return f.handler(req)
+    self_sync.configure(url="http://self.test", enabled=True, snap=True, transport=httpx.MockTransport(handler))
+    pid = client.post("/player/join", json={"name": "鲸仔", "controller": "agent", "profile": {"agent_id": "whale"}}).json()["playerId"]
+    down["v"] = True
+    r = client.post("/admin/scenario", json={"steps": [{"op": "set_vars", "player": pid, "vars": {"fullness": 15}}]}).json()
+    assert r["ok"] and r["steps"][0]["detail"]["self_push"]["ok"] is False and world_state._players[pid]["fullness"] == 15.0
+    down["v"] = False
+    _batch(fake_clock); _batch(fake_clock)
+    assert abs(f.vars["fullness"] - world_state._players[pid]["fullness"]) < 0.5
 
 
 def test_spawn_asserts_local_and_normal_snap_still_works(client, fake_clock, monkeypatch):
@@ -55,7 +74,8 @@ def test_spawn_asserts_local_and_normal_snap_still_works(client, fake_clock, mon
     self_sync.configure(url="http://self.test", enabled=True, snap=True, transport=httpx.MockTransport(f.handler))
     r = client.post("/admin/scenario", json={"steps": [{"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "vars": {"fullness": 20}}]}).json()
     pid = r["steps"][0]["detail"]["id"]
-    assert pid in self_sync._local_authority
+    assert pid in self_sync._local_authority and r["steps"][0]["detail"]["self_push"]["ok"]
+    assert f.vars["fullness"] == 20.0                                                    # spawn 带 vars 也立刻推
     _batch(fake_clock); _batch(fake_clock)
     assert abs(f.vars["fullness"] - world_state._players[pid]["fullness"]) < 0.5 and 18 < world_state._players[pid]["fullness"] <= 20
     # 非夹具玩家：自我层为准，照旧 snap

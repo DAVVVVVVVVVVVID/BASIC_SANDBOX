@@ -121,7 +121,8 @@ def op_spawn(step: dict) -> dict:
         op_set_vars({"player": pid, "vars": step["vars"]})
     from game import self_sync
     self_sync.assert_local(pid)                       # W11 维护：夹具摆的值以本地为准，不被自我层旧值 snap 回去
-    return _brief(world_state._players[pid])
+    pushed = self_sync.push_local_now(world_state._players[pid], world_state.game_now_ts())   # 并立刻推给自我层，开局即一致
+    return {**_brief(world_state._players[pid]), "self_push": pushed}
 
 
 def op_remove(step: dict) -> dict:
@@ -164,7 +165,8 @@ def op_set_vars(step: dict) -> dict:
             p["closeness"] = {k: float(v) for k, v in step["closeness"].items()}
     from game import self_sync
     self_sync.assert_local(p["id"])                   # W11 维护：见 self_sync.assert_local
-    return _brief(p)
+    pushed = self_sync.push_local_now(p, world_state.game_now_ts())
+    return {**_brief(p), "self_push": pushed}
 
 
 def op_effects(step: dict) -> dict:

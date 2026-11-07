@@ -258,6 +258,41 @@ def assert_local(player_id: str) -> None:
         _local_authority.add(player_id)
 
 
+def push_local_now(player: dict, game_ts: float) -> dict:
+    """W11 维护（X1）：夹具直写后立刻把本地七变量推给自我层——GET /self/state 取远端值，POST /self/state/delta 发 (本地 − 远端)，
+    让两边开局就一致（source: "scenario"）。同步、3 s 超时；失败返回 {ok: False}，之后由 assert_local 的对账兜底。"""
+    if not _cfg["enabled"]:
+        return {"ok": False, "skipped": "self_sync_disabled"}
+    agent = player.get("agent_id")
+    if not agent:
+        return {"ok": False, "skipped": "no_agent_id"}
+    try:
+        with _client() as c:
+            r = c.get("/self/state", params={"agent": agent}); r.raise_for_status()
+            remote = (r.json().get("vars") or {})
+            delta = {v: round(float(player.get(v, 0.0)) - float(remote[v]), 6) for v in VARS if v in remote}
+            delta = {k: d for k, d in delta.items() if abs(d) > 1e-6}
+            if delta:
+                body = {"agent": agent, "scene": player.get("scene", "sandbox"), "ts": _iso(game_ts), "vars_delta": delta, "source": "scenario"}
+                r2 = c.post("/self/state/delta", json=body); r2.raise_for_status()
+                after = (r2.json().get("vars") or {})
+            else:
+                after = remote
+    except Exception as e:
+        stats["last_error"] = f"push_local: {e}"
+        log.warning("self-layer push_local failed for %s: %s", agent, e)
+        return {"ok": False, "error": str(e)}
+    with _lock:
+        _pending.get(player["id"], {}).clear()          # 刚推过的差值不要再被 track 的 pending 重复发
+    stats["asserts"] = stats.get("asserts", 0) + 1
+    try:
+        from game import external_log
+        external_log.log("self_assert", player["id"], pushed=delta, remote_before=remote, remote_after=after)
+    except Exception:
+        pass
+    return {"ok": True, "pushed": delta, "remote_after": after}
+
+
 def _push_to_remote(player_id: str, drift: dict[str, float]) -> None:
     with _lock:
         pend = _pending.setdefault(player_id, {})
