@@ -1418,7 +1418,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 - `items.json` 新物品 `key`（class `key`），背包条目 `{type: "key", count: 1, meta: {door_id, name}}`（如「合租房大门钥匙」）；`GET /player/{id}` 另给 `keys: [{door_id, name}]`。
 - **总数固定**：每扇带 `owner` 的门 `map.edges[].keys` 把（缺省 = owner 数）。v1：`door_home` 3 把（鲸仔 1、阿蝉 1、人类控制者进场自带 1）；`door_fisher` / `door_xiaoqian` 各 1；`door_owners` 2（两位店主）；`door_restaurant` / `door_grocery` 各 1 归店主。
-- **发放**：`POST /player/join` / 夹具 `spawn` 时按 `owner`（或 `homes` 住在该家）发自家门钥匙，每个身份槽只发一次（同一 agent_id 再 join 不重发）；人类控制者领 `door_home` 余下的把数（第一位人类拿到，之后的人类没有）。持钥匙的玩家被删除 → 钥匙回池。动作日志 `key_issued`。
+- **发放**：`POST /player/join` / 夹具 `spawn` 时按 `owner`（或 `homes` 住在该家）发自家门钥匙，每个身份槽只发一次（同一 agent_id 再 join 不重发）；人类控制者领 `door_home` 余下的把数（第一位人类拿到，之后的人类没有）。持钥匙的玩家被删除 → 钥匙回池。动作日志 `key_issued {door_id, name, slot, why: default | migrate}`。**启动迁移**：加载检查点后对每个 agent 玩家按同一规则补发（旧检查点的人没经过 join），幂等；人类控制者下次 join 时领。
 - **转交**：只能当面 `give {target, item: "key", door_id?}`（只有一把时可省 `door_id`；多把 → `door_id_required`；对方已有同门钥匙 → `already_has_key`）；日志 `give` 的 payload 带 `item: key` 与 `door_id`。QQ 不可传（`not_transferable`）。
 
 ### 门默认锁（`edge_block`，有向：只管进）

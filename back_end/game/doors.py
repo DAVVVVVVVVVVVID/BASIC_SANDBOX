@@ -134,7 +134,20 @@ def issue_key(player: dict, edge: dict, slot: str, why: str = "default") -> bool
     return True
 
 
-def issue_default_keys(player: dict) -> list[str]:
+def migrate_keys(players: dict) -> dict[str, list[str]]:
+    """启动迁移（§3.41 补）：加载检查点后，对每个 agent 玩家按同一规则补发自家钥匙（身份槽已发过的不重发，幂等）；
+    人类控制者不在这里发——下次 join 领剩余把数。返回 {player_id: [door_id]}。"""
+    got = {}
+    for p in players.values():
+        if p.get("controller", "human") != "agent":
+            continue
+        ids = issue_default_keys(p, why="migrate")
+        if ids:
+            got[p["id"]] = ids
+    return got
+
+
+def issue_default_keys(player: dict, why: str = "default") -> list[str]:
     """join / spawn：agent 按 owner / homes 发自家门的钥匙；人类控制者发一把合租房大门钥匙（演阿蝉）。"""
     from game import world_state as ws
     from game.world_state import _mover_ids
@@ -153,7 +166,7 @@ def issue_default_keys(player: dict) -> list[str]:
                 slot = None
         if slot is None and player.get("controller", "human") == "human" and e["id"] == "door_home":
             slot = f"human:{player['id']}"
-        if slot and issue_key(player, e, slot):
+        if slot and issue_key(player, e, slot, why=why):
             got.append(e["id"])
     return got
 

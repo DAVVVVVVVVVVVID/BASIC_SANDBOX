@@ -45,7 +45,9 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
-## 5h. §3.41 门禁改钥匙物品 + 从内侧开门（替换 §3.39 / §3.40）—— 完成
+## 5h. §3.41 门禁改钥匙物品 + 从内侧开门（替换 §3.39 / §3.40）—— 完成（+ 启动迁移）
+
+- **启动迁移（总控切主镇后发现六人 keys 全空、全镇被锁在门外，已回滚）**：`doors.migrate_keys()` 在 `load_checkpoint` 末尾对每个 agent 玩家按 join 的同一规则补发自家钥匙（身份槽已发过的不重发，幂等；日志 `key_issued why=migrate`），人类控制者下次 join 领剩余把数。2 例单测：钥匙前检查点 → 加载 → 鲸仔 / 阿蝉 / 老渔夫各得自家钥匙、人类不发、`/admin/path` 鲸仔街道→房间可达、再启动不重发、人类再 join 领到第 3 把；scenario `spawn` 的鲸仔拿到 `door_home` 钥匙且街道→床有路（X1 S02）。314 passed。
 
 - **钥匙**：`items.json` 新物品 `key`（背包条目 meta `{door_id, name}`）；每扇带 owner 的门固定把数（`edge.keys`，缺省 = owner 数；`door_home` 3 = 鲸仔、阿蝉、人类控制者 1）；join / spawn 按 owner / homes 发自家钥匙（按身份槽只发一次，人类领余下的把数），持有人被删除钥匙回池；`give {target, item: key, door_id?}` 当面转交，QQ 不可传。`GET /player` 加 `keys[]`。
 - **门默认锁**（`edge_block` 重写）：出门放行 → 敞开窗口 → 商店营业中 → 持钥匙 → 否则 `locked`（商店打烊 `closed`）；去掉 owner 直通与 allow 白名单；`gen_map_v1` 去掉合租房 / 渔夫 / 小千 / 店主家内房间的 `locked`（`access` 只剩 owner），`door_home` 去 allow、`keys=3`；`achan_room` 时段锁保留。`/admin/path mover=<身份>` 按「主人默认有自家钥匙」算（x1-shortest 数字不变）。

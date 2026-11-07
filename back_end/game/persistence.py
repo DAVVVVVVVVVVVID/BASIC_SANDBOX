@@ -15,8 +15,10 @@ load_checkpoint()：启动时回填 world_state / chat_state / time_state 的模
 """
 
 import json
+import logging
 import sqlite3
 from pathlib import Path
+log = logging.getLogger(__name__)
 
 from game.paths import data_dir
 from game import world_state, chat_state, time_state
@@ -187,6 +189,10 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         commissions.import_state(json.loads(meta.get("commissions") or "{}"))
         from game import doors
         doors.import_state(json.loads(meta.get("doors") or "{}"))
+        with world_state.STATE_LOCK:
+            migrated = doors.migrate_keys(world_state._players)        # §3.41 补：旧检查点的玩家没经过 join，补发自家钥匙（幂等）
+        if migrated:
+            log.info("door keys migrated: %s", migrated)
         qc = json.loads(meta.get("qq_contacts") or "{}")
         qq.import_state({
             "messages": [json.loads(d) for (d,) in conn.execute("SELECT data FROM qq_messages")],
