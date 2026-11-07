@@ -94,13 +94,14 @@ def obj(oid, typ, x, y):
     objects.append({"id": oid, "type": typ, "position": {"x": x, "y": y}})
 
 
-def edge(eid, kind, a, b, name=None, open_hours=None, allow=None, owner=None):
+def edge(eid, kind, a, b, name=None, open_hours=None, allow=None, owner=None, keys=None):
     e = {"id": eid, "kind": kind, "name": name or eid,
          "a": {"arena": ARENAS[arena[a[1]][a[0]]], "x": a[0], "y": a[1]},
          "b": {"arena": ARENAS[arena[b[1]][b[0]]], "x": b[0], "y": b[1]}}
     if open_hours: e["open_hours"] = open_hours
     if allow: e["allow"] = allow
     if owner: e["owner"] = owner
+    if owner: e["keys"] = keys if keys is not None else len(owner)      # §3.41：钥匙总数（缺省 = 每个 owner 一把）
     edges.append(e)
 
 
@@ -137,9 +138,9 @@ edge("door_music", "door", (37, 7), (37, 6), "音乐楼门", open_hours=[["08:00
 house(47, 1, 57, 7, "fisher_house", rooms=[(48, 2, 51, 6, "fisher_bedroom"), (53, 2, 56, 6, "fisher_kitchen")], doors=[(52, 7)])
 wall(52, 2, 52, 5, door=(52, 4), ar="fisher_bedroom")   # (52,6) 留作门内过道
 obj("bed_fisher", "bed", 48, 2); obj("fridge_fisher", "fridge", 56, 2)
-edge("door_fisher", "door", (52, 8), (52, 7), "渔夫家门", allow=["owner"], owner=["npc_fisher"])
-access["fisher_bedroom"] = {"owner": ["npc_fisher"], "locked": "always"}
-access["fisher_kitchen"] = {"owner": ["npc_fisher"], "locked": "always"}
+edge("door_fisher", "door", (52, 8), (52, 7), "渔夫家门", owner=["npc_fisher"])      # §3.41：钥匙门（owner = 初始发钥匙的人）
+access["fisher_bedroom"] = {"owner": ["npc_fisher"]}                                      # §3.41：进了家门房间不再单独锁
+access["fisher_kitchen"] = {"owner": ["npc_fisher"]}
 
 # ── 合租房 1F（x2–15,y21–33）与 2F（x2–9,y36–41）──────────────────────────────
 house(2, 21, 15, 33, "home", rooms=[(3, 22, 8, 27, "whale_room"), (10, 22, 14, 32, "living_room"), (3, 29, 8, 32, "kitchen")], doors=[(12, 33)])   # 南门（W10：所有建筑南面进门）
@@ -150,11 +151,10 @@ wall(3, 28, 8, 28, ar="whale_room")                      # 鲸仔房 ↔ 厨房 
 obj("bed_whale", "bed", 3, 22); obj("pc_whale", "pc", 8, 22); obj("shelf_whale", "book", 8, 27)
 obj("table_home", "restaurant_table", 11, 23); obj("sofa_tv", "sofa_tv", 11, 27)
 obj("fridge_home", "fridge", 3, 29); obj("stove", "stove", 8, 29)
-edge("door_home", "door", (12, 34), (12, 33), "合租房大门", allow=["owner", "npc_xiaoqian", "human"], owner=["whale", "achan"])   # §3.39：两位住户 + 闺蜜小千 + 人类控制者（操控页演阿蝉）；其他人 locked
-# §3.39（02-map §2.3，主播 11-08）：鲸仔房间「她的；阿蝉可进」，客厅 / 厨房「两人」；小千是闺蜜放进 allow。出门按 §3.38 永远放行
-access["whale_room"] = {"owner": ["whale"], "locked": "always", "allow_when_locked": ["achan", "npc_xiaoqian", "human"]}
-access["living_room"] = {"owner": ["whale", "achan"], "locked": "always", "allow_when_locked": ["npc_xiaoqian", "human"]}
-access["kitchen"] = {"owner": ["whale", "achan"], "locked": "always", "allow_when_locked": ["npc_xiaoqian", "human"]}
+edge("door_home", "door", (12, 34), (12, 33), "合租房大门", owner=["whale", "achan"], keys=3)   # §3.41：钥匙门——鲸仔 1、阿蝉 1、人类控制者进场自带 1
+access["whale_room"] = {"owner": ["whale"]}                                                   # §3.41：家内房间不锁；owner 只用于「谁是这家的主人」
+access["living_room"] = {"owner": ["whale", "achan"]}
+access["kitchen"] = {"owner": ["whale", "achan"]}
 house(2, 36, 9, 41, "home", rooms=[(3, 37, 8, 40, "achan_room")])     # 2F：画布另一处，无门
 obj("bed_achan", "bed_21", 3, 40); obj("pc_achan", "pc_desk", 8, 37); obj("shelf_achan", "book", 8, 40)
 edge("stairs_home", "stairs", (14, 32), (3, 37), "合租房楼梯")
@@ -188,16 +188,16 @@ house(12, 36, 20, 41, "xiaoqian_house", rooms=[(13, 37, 16, 40, "xiaoqian_room")
 wall(17, 37, 17, 40, door=(17, 39), ar="xiaoqian_room")
 obj("bed_xiaoqian", "bed", 13, 37); obj("fridge_xiaoqian", "fridge", 19, 37)
 fill(12, 42, 29, 42, "F", "outside", "lane"); fill(22, 47, 29, 47, "F", "outside", "lane")   # 小千家 / 店主家门前小巷
-edge("door_xiaoqian", "door", (16, 42), (16, 41), "小千家门", allow=["owner"], owner=["npc_xiaoqian"])
-access["xiaoqian_room"] = {"owner": ["npc_xiaoqian"], "locked": "always"}
-access["xiaoqian_kitchen"] = {"owner": ["npc_xiaoqian"], "locked": "always"}
+edge("door_xiaoqian", "door", (16, 42), (16, 41), "小千家门", owner=["npc_xiaoqian"])
+access["xiaoqian_room"] = {"owner": ["npc_xiaoqian"]}
+access["xiaoqian_kitchen"] = {"owner": ["npc_xiaoqian"]}
 house(22, 36, 29, 46, "owners_house", rooms=[(23, 37, 28, 39, "owner_rest_room"), (23, 41, 28, 42, "owners_kitchen"), (23, 44, 28, 45, "owner_grocer_room")], doors=[(26, 46)])   # 南门
 arena[46][26] = R("owner_grocer_room")                    # 门格归它所邻的杂货店主房
 wall(23, 40, 28, 40, door=(25, 40), ar="owner_rest_room"); wall(23, 43, 28, 43, door=(25, 43), ar="owners_kitchen")
 obj("bed_owner_rest", "bed_21", 27, 37); obj("fridge_owners", "fridge", 23, 41); obj("bed_owner_grocer", "bed_21", 27, 45)
-edge("door_owners", "door", (26, 47), (26, 46), "店主家门", allow=["owner"], owner=["npc_rest_owner", "npc_grocer"])
+edge("door_owners", "door", (26, 47), (26, 46), "店主家门", owner=["npc_rest_owner", "npc_grocer"])
 for a_ in ("owner_rest_room", "owners_kitchen", "owner_grocer_room"):
-    access[a_] = {"owner": ["npc_rest_owner", "npc_grocer"], "locked": "always"}
+    access[a_] = {"owner": ["npc_rest_owner", "npc_grocer"]}
 
 # ── 装饰层 decor[]（W10，E 的外观底图参考；不可交互。path / pond 同时改 tile，其余只记位置）──
 decor: list[dict] = []

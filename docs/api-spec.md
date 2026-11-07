@@ -62,7 +62,7 @@
 | `a`, `b` | `{arena, x, y}` 两端格子；门 / 路口的 a、b 四邻相邻；楼梯任意 |
 | `open_hours` | `[["HH:MM","HH:MM"], ...]` 游戏时间；不在时段内 → `closed` |
 | `allow` / `owner` | `allow` 为谁能过（agent_id / name / id，或 `"owner"` 配合 `owner[]`）；为空 = 所有人；不在名单 → `locked` |
-| **进 / 出语义（§3.38，主播 11-07 定）** | 边是**有向判断**的：`a` 外 `b` 内。`open_hours` 与 `allow` 只管**进**（a→b）；从 `b` 走到 `a`（出）任何人任何时候放行——打烊时还在店里的客人能走出去。**主人随时双向放行**：`edge.owner`、内侧场所的 `access.owner`、`homes` 里家在内侧场所的人，不受 `open_hours`（v1：`door_restaurant.owner = [npc_rest_owner]`、`door_grocery.owner = [npc_grocer]`）。`GET /admin/path`、BFS、逐格走路都按同一规则 |
+| **进 / 出语义（§3.38 / §3.41）** | 边是**有向判断**的：`a` 外 `b` 内。只管**进**（a→b）；从 `b` 走到 `a`（出）任何人任何时候放行。带 `owner` 的门：敞开窗口 ‖ 商店 `open_hours` 内 ‖ 持该门钥匙 → 过，否则 `locked`（商店打烊 → `closed`）；`keys` = 钥匙总数。不带 owner 的边只看 `open_hours` / `allow`。`GET /admin/path`、BFS、逐格走路同一规则 |
 
 | `map.access[arena]` 字段 | 说明 |
 |---|---|
@@ -72,7 +72,7 @@
 
 `floors`：`{arena: 楼层}`，缺省 1；2F 画在画布另一处，只靠 `stairs` 边相连。`homes`（map.json，不下发）：`{agent_id: arena}` 决定 agent 出生点（覆盖代码里的 `AGENT_HOME_ARENA`）。
 
-**合租房门禁（§3.39，02-map §2.3，主播 11-08）：** `whale_room` = `{owner: [whale], locked: "always", allow_when_locked: [achan, npc_xiaoqian]}`；`living_room` / `kitchen` = `{owner: [whale, achan], locked: "always", allow_when_locked: [npc_xiaoqian]}`；`door_home` = `owner [whale, achan]`、`allow ["owner", "npc_xiaoqian"]`。其他人（含人类玩家）进 → `no_path / locked`（人类单格 direction 直接 `locked`）；出门照 §3.38 永远放行，**室内推广**：站在自己本就不被允许的场所里的人（闯入者 / 旧世界遗留）往同一 sector 的相邻场所走一律放行（厨房 → 客厅 → 大门出去），出了门就回不来。各家大门边现在都带 `owner`（渔夫屋 / 小千家 / 店主家 / 餐厅 / 杂货店）。
+**家门与钥匙（§3.41，主播 11-08，替换 §3.39 白名单）：** 带 `owner` 的门默认锁，持该门钥匙（物品 `key`）或门敞开窗口内才能进，出门永远放行；家内房间不再单独锁；`map.edges[].keys` = 钥匙总数，`map.access[*].owner` 只用于「谁是这家的主人」（发钥匙 / 记账）。详见「11. 门禁：钥匙、开门、敲门」。
 
 **v1.0 草图**（`game/maps/v1/`，`scripts/gen_map_v1.py`，按 `docs/world-bible/02-map.md`）：64×48，8 个 sector（小镇 / 鲸鱼大学 / 老渔夫家 / 合租房 / 餐厅 / 杂货店 / 小千家 / 店主们的家）、26 个 arena、52 个物品、12 条边、8 条访问规则（阿蝉房 09:00–18:30 锁、四户 NPC 家常锁 owner-only）。物品按 `03-objects.md` 3.1 位置摆，类型沿用旧表或占位类型（`placeholder: true`，数值不改）。`run_town.sh --map game/maps/v1` 起；旧图在 `game/maps/legacy_v0/`（默认目录仍是 v0，主镇不切）。`tiled` 的 tileset 现为 E 交付的自制 CC0 地砖 `gen/tiles.png`（`game/maps/tile_gids.json` 覆盖 gid 与 `_tileset`）。
 
@@ -453,7 +453,8 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 | `eat` | **W10 ④** 吃背包里的食物（随处吃），按 `items.json` 的 `eat` 加需求值 | `{ item \| item_id }` | agent / E |
 | `give` | **W10 ④** 当面给别人（2 格内）；`gift` 类按 `items.json` 的 `give` 给对方亲密度 / 心情；**W11** 给委托人一首 `song` = 交付委托（酬金入账、委托人亲密度 +15） | `{ target, item \| item_id, qty?=1, commission_id? }`（`target` = player id / agent_id / 名字） | agent / E |
 | `store` | **W11 ④** 把食材放进冰箱（相邻；不超过 `fridge.max` 4） | `{ item?="ingredients", qty?=1, object_id? }` | agent |
-| `knock` | **§3.40** 在上锁的家门外敲门（见「敲门」一节） | `{ door_id }` 或 `{ target_tile {x,y} }` 或 `{ home: <sector> }` | agent / E |
+| `knock` | **§3.41** 在上锁的家门外敲门（见「门禁」一节） | `{ door_id }` 或 `{ target_tile {x,y} }` 或 `{ home: <sector> }` | agent / E |
+| `open_door` | **§3.41** 站在门内侧相邻格开门（不需钥匙），敞开 60 游戏秒 | `{ door_id }` | agent / E |
 | `compose` | **W11 ①** 在琴房电脑（`pc_music`）上用满 `min_minutes`（30）后产一首「歌」（文件类，`meta.title / commission_id / text…` 由 C 填） | `{ title?, commission_id?, text?, meta? }` | agent |
 | `make_video` | **W11 ①** 在电脑（`pc` / `pc_desk` / `stream_desk`）上用满 60 分钟后产一份「电台文稿」 | `{ title?, text?, meta? }` | agent |
 
@@ -1411,38 +1412,52 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 ---
 
-## 11. 敲门（§3.40，主播 2026-11-08 06:50 定）
+## 11. 门禁：钥匙、开门、敲门（§3.41，主播 2026-11-08 07:30 定；替换 §3.39 白名单与 §3.40 远程放行）
 
-**家** = 带锁定访问规则（`map.access[*].locked`）的 sector：合租房 `home`、渔夫家 `fisher_house`、小千家 `xiaoqian_house`、店主家 `owners_house`。商店不走敲门（按营业时间）。**主人** = 这家各 arena 的 `access.owner` ∪ 大门 `edge.owner` ∪ `homes` 住在里面的人。物品不设归属：进了屋就能用、能吃。
+### 钥匙（物品 `key`）
+
+- `items.json` 新物品 `key`（class `key`），背包条目 `{type: "key", count: 1, meta: {door_id, name}}`（如「合租房大门钥匙」）；`GET /player/{id}` 另给 `keys: [{door_id, name}]`。
+- **总数固定**：每扇带 `owner` 的门 `map.edges[].keys` 把（缺省 = owner 数）。v1：`door_home` 3 把（鲸仔 1、阿蝉 1、人类控制者进场自带 1）；`door_fisher` / `door_xiaoqian` 各 1；`door_owners` 2（两位店主）；`door_restaurant` / `door_grocery` 各 1 归店主。
+- **发放**：`POST /player/join` / 夹具 `spawn` 时按 `owner`（或 `homes` 住在该家）发自家门钥匙，每个身份槽只发一次（同一 agent_id 再 join 不重发）；人类控制者领 `door_home` 余下的把数（第一位人类拿到，之后的人类没有）。持钥匙的玩家被删除 → 钥匙回池。动作日志 `key_issued`。
+- **转交**：只能当面 `give {target, item: "key", door_id?}`（只有一把时可省 `door_id`；多把 → `door_id_required`；对方已有同门钥匙 → `already_has_key`）；日志 `give` 的 payload 带 `item: key` 与 `door_id`。QQ 不可传（`not_transferable`）。
+
+### 门默认锁（`edge_block`，有向：只管进）
+
+带 `owner` 的门对「进」（a→b）的判定顺序：出门永远放行 → 门处于**敞开窗口**（`open_door` 后 60 游戏秒）→ 商店门 `open_hours` 内 → mover 持该门钥匙 → 否则 `locked`（商店打烊无钥匙 → `closed` + `opens_at`）。不带 `owner` 的边（校门、校园楼门、楼梯）只看 `open_hours` / `allow`。`access` 里家内房间**不再上锁**（进了家门就能到各房间，物品不设归属）；`achan_room` 09:00–18:30 时段锁保留。`GET /admin/path?mover=<agent_id>` 只给身份时按「主人默认有自家钥匙」算。
+
+`GET /world.map.doors[]`：`{door_id, name, x, y(外侧格), open: bool, open_until, keys, owners}`——E 画锁 / 开状态。
+
+### POST /action `open_door`
+
+`{ "door_id": "door_home" }`：站在门**内侧**格 `b` 或其相邻格（且在门内 sector）的**任何人**、不需钥匙。成功 `result {message, door_id, name, open_until, open_s: 60, x, y, by}`；门敞开 60 游戏秒，期间任何人可过；到期自动落锁（日志 `door_locked`，ws `{type:"door", event:"closed", door_id, name, x, y}`）。失败：`unknown_door` / `not_lockable`（没有 owner 的边）/ `not_inside_door`（`result.inside{x,y}`）/ `walking`。等在门外的敲门访客 `pendingMessage`「X 把门打开了。」日志 `open_door`；ws `{type:"door", event:"opened", ...}`。
 
 ### POST /action `knock`
 
-访客站在**家门外侧**（离门外格 `a` 或所指的格 ≤ 2 格，且不在这家里面）：`{ "door_id": "door_home" }`，或 `{ "target_tile": {"x": 12, "y": 33} }`（家里任一格），或 `{ "home": "home" }`（sector id；门取离访客最近的一扇）。
+访客在**家门外侧**（离门外格 `a` 或所指的格 ≤ 2、不在这家里）：`{door_id}` / `{target_tile {x,y}}` / `{home: <sector>}`。家 = 带 owner 且没有 open_hours 的门所在的 sector（合租房 / 渔夫家 / 小千家 / 店主家）；商店 `not_a_home`。
 
-**成功：** `result: { message: "咚咚咚。", request_id, expires_at, home, door {id, x, y}, notified: [在家且清醒的主人 id], request: {...} }`。生成 `door_request {id, visitor, visitor_name, visitor_account, home, home_name, owners[], door, created_at, expires_at(+90 游戏秒), status: "pending"}`；在家且清醒（无 `sleeping` 标签、`scene ≠ live`、在场）的主人收到 `pendingMessage`「X 在敲门。」并在 `GET /player` `pending_knocks[]` / perceive `knocks[]` 里看到；ws 推 `{type:"knock", request_id, visitor, visitor_name, home, home_name, door{x,y,id}, owners, expires_at, notified}`（E 画门口气泡）。动作日志一行 `knock`（payload = request）。
+成功 `result {message: "咚咚咚。", request_id, expires_at(+90 游戏秒), home, door{id, name, x, y, inside{x,y}}, notified: [屋内清醒者 id], request}`；**notified = 这家 sector 内所有清醒（无 `sleeping`、`scene ≠ live`、在场）的玩家，不限 owner**（人类演阿蝉站在客厅就能收到）；他们 `pendingMessage`「X 在敲门。」、`GET /player` `pending_knocks[]`、perceive `knocks[]`。ws `{type:"knock", request_id, visitor, visitor_name, home, home_name, door, owners, expires_at, notified}`。日志 `knock`。
 
-**失败 `reason`：** `unknown_door` / `missing_door_or_target` / `not_a_home`（商店等）/ `already_inside` / `is_owner` / `no_door` / `too_far`（`result.door`、`range: 2`）/ `already_knocking`（`result.request_id`）/ `already_has_pass` / `walking`。
+失败：`unknown_door` / `missing_door_or_target` / `not_a_home` / `already_inside` / `has_key`（有钥匙不用敲）/ `no_door` / `too_far` / `already_knocking` / `walking`。
 
 ### POST /door/respond
 
 ```json
-{ "request_id": "k1a2b3c4d5", "entity_id": "阿蝉_1a2b3c", "accept": true }
+{ "request_id": "k1a2b3c4", "entity_id": "阿蝉_1a2b3c", "text": "等一下" }       // 隔门喊一句 → status answered，访客 pendingMessage「阿蝉：等一下」，计时续 90 秒
+{ "request_id": "k1a2b3c4", "entity_id": "阿蝉_1a2b3c", "decline": true }        // 拒绝 → declined，访客「阿蝉 没让你进。」
 ```
-只限这家的主人（`not_owner`）；请求须 pending（`not_pending:<status>`）；404 = 实体 / 请求不存在。**响应：** `{ success, reason, request: {..., status: "accepted" | "declined", responded_by, responded_at} }`。
-- `accept` → 访客获得 **door_pass**：对这家**全部 arena** 的临时通行，`edge_block` / `arena_block` 同一判定；**2 游戏小时**或**访客进屋后再离开该 sector**即失效（先到为准）。日志 `door_pass_granted`（访客行）；失效时 `door_pass_expired {reason: timeout | left}`。访客 `pendingMessage`「X 给你开了门。」
-- `decline` → 访客 `door_request.status = "declined"`，`pendingMessage`「X 没让你进。」
-- 90 游戏秒无人回应（没人在家 / 都在睡 / 不想开）→ `no_answer`：日志 `door_respond {outcome: no_answer}`（访客行，`success: false, reason: no_answer`），访客 `pendingMessage`「敲了半天没人应门。」
-- 每次回应日志 `door_respond {request_id, visitor, home, outcome}`（主人行）；ws `{type:"door", event: accepted | declined | no_answer | pass_expired, request_id, visitor, visitor_name, home, by, door}`。
+**屋内任何人**都可回应（不在这家里 → `not_inside`）；请求须 pending / answered（`not_pending:<status>`）；`text` 与 `decline` 二选一（`text_required`）。**开门不走这个接口**——走到门内侧 `open_door`。响应 `{success, reason, request}`；日志 `door_respond {request_id, visitor, home, outcome: answered | declined, text}`；ws `{type:"door", event: answered | declined, request_id, visitor, visitor_name, home, by, by_name, text, door}`。
 
-### 查询字段
+### 访客状态 `door_request.status`
+
+`pending` → `answered`（喊过话）→ `opened`（敞开窗口内访客跨过这扇门，日志 `door_respond {outcome: opened}`，ws `door visitor_entered`）；或 `declined`；或 90 游戏秒无动静 → `no_answer`（日志 `door_respond {outcome: no_answer}` 访客行 `success: false`，`pendingMessage`「敲了半天没人应门。」，ws `door no_answer`）；喊过话但没开门到期 → `closed`（保留 `answers`）。
 
 | 哪里 | 字段 |
 |---|---|
-| `GET /player/{id}` | `door_request`（访客视角，最近一次：`{id, home, home_name, status: pending \| accepted \| declined \| no_answer, expires_at, responded_by, door}`，没敲过 `null`）；`pending_knocks[]`（主人视角：`{id, visitor, visitor_name, home, home_name, door, expires_at}`）；`door_passes[]`（`{home, granted_at, expires_at, by, request_id, entered}`） |
-| `GET /agent/perceive` | `knocks[]`（主人：`{id, visitor_name, home_name, expires_at}`，不给坐标）、`door_request`（访客：`{id, home_name, status, expires_at}`） |
-| `GET /door/requests?player=` | 三者合一 `{pending_knocks, door_request, door_passes}` |
+| `GET /player/{id}` | `door_request`（访客：`{id, home, home_name, status, expires_at, responded_by, answers[{by, text, at}], door}`）、`pending_knocks[]`（屋内 / 主人：`{id, visitor, visitor_name, home, home_name, door, status, expires_at}`）、`keys[]` |
+| `GET /agent/perceive` | `knocks[]`（`{id, visitor_name, home_name, expires_at}`）、`door_request`（`{id, home_name, status, expires_at}`） |
+| `GET /door/requests?player=` | `{pending_knocks, door_request, keys, open_doors[{door_id, open_until, by}]}` |
 
-通行证与请求进检查点（meta `doors`）。常量：`doors.KNOCK_EXPIRE_S = 90`、`PASS_S = 7200`、`KNOCK_RANGE = 2`。
+检查点 meta `doors`：请求、敞开窗口、钥匙槽位（钥匙本身在玩家背包里）。常量 `doors.KNOCK_EXPIRE_S = 90`、`OPEN_S = 60`、`KNOCK_RANGE = 2`。
 
 ---
 

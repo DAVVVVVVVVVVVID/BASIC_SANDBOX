@@ -145,6 +145,8 @@ def handle_move(entity_id: str, payload: dict) -> ActionResponse:
         with STATE_LOCK:
             stop_walk(entity_id, "stopped", "manual_move")
             update_player_position(entity_id, new_x, new_y, facing)
+            from game import doors
+            doors.on_cross(entity_id, (current["x"], current["y"]), (new_x, new_y), game_now_ts())
         return ActionResponse(success=True, type="move", result={"facing": facing, "position": {"x": new_x, "y": new_y}, "state": "idle"})
 
     # §3.36：其余一律先 BFS（逐边判锁与时段），有路入队按 1 格 / 游戏秒走，无路 no_path
@@ -501,6 +503,20 @@ async def handle_go_to(entity_id: str, payload: dict) -> ActionResponse:
     return ActionResponse(success=res.success, type="go_to", reason=res.reason, result=res.result)
 
 
+def handle_open_door(entity_id: str, payload: dict) -> ActionResponse:
+    """§3.41：站在门内侧相邻格的人开门（不需钥匙），敞开 60 游戏秒后自动落锁。"""
+    from game import doors
+    from game.world_state import STATE_LOCK
+    g = _walking_guard(entity_id, "open_door")
+    if g:
+        return g
+    with STATE_LOCK:
+        info, reason, detail = doors.open_door(entity_id, payload.get("door_id") or payload.get("door") or "")
+    if reason:
+        return ActionResponse(success=False, type="open_door", reason=reason, result=detail)
+    return ActionResponse(success=True, type="open_door", result={"message": f"把{info['name']}打开了。", **info})
+
+
 def handle_knock(entity_id: str, payload: dict) -> ActionResponse:
     """§3.40：访客在上锁家门外敲门 {door_id | target_tile | home}。"""
     from game import doors
@@ -534,6 +550,7 @@ _HANDLERS = {
     # W11 ①④
     "store":        economy_actions.handle_store,
     "knock":        handle_knock,                 # §3.40
+    "open_door":    handle_open_door,             # §3.41
     "compose":      economy_actions.handle_compose,
     "make_video":   economy_actions.handle_make_video,
 }
@@ -573,7 +590,7 @@ async def dispatch(body: ActionRequest):
     except Exception:
         pass
 
-    if not body.skipLog and not (body.action.type == "knock" and result.success):   # §3.40：knock 成功时 doors.knock 已写一行完整 request
+    if not body.skipLog and not (body.action.type in ("knock", "open_door") and result.success):   # §3.40/41：成功时 doors 模块已写一行
         append_log(
             entity_id=body.entityId,
             action_type=body.action.type,

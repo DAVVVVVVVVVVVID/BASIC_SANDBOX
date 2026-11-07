@@ -1,13 +1,86 @@
 {
-  "_doc": "W10 背包物品目录（03-objects.md 3.2，数值为假设）。class：food 随处吃 / material 进冰箱灶台 / consumable 钓鱼耗材 / gift 送人 / file 文件类（可走 QQ）。price = 杂货店买价，sell = 卖出价（null 不可买 / 不可卖）。",
-  "bread":       {"name": "面包",          "class": "food",       "price": 5,    "sell": 2,    "eat": {"fullness": 25}},
-  "sweets":      {"name": "甜食",          "class": "food",       "price": 6,    "sell": 2,    "eat": {"fullness": 10, "mood": 6}},
-  "bento":       {"name": "便当",          "class": "food",       "price": null, "sell": null, "eat": {"fullness": 40}},
-  "ingredients": {"name": "食材",          "class": "material",   "price": 8,    "sell": 3},
-  "fish":        {"name": "鱼",            "class": "food",       "price": 12,   "sell": 10,   "eat": {"fullness": 30}},
-  "bait":        {"name": "鱼饵",          "class": "consumable", "price": 3,    "sell": 1},
-  "gift":        {"name": "小礼物",        "class": "gift",       "price": 25,   "sell": 10,   "give": {"closeness": 8, "mood": 5}},
-  "song":        {"name": "歌（文件）",     "class": "file",       "price": null, "sell": null},
-  "script":      {"name": "电台文稿（文件）", "class": "file",     "price": null, "sell": null},
-  "image":       {"name": "图片（文件）",   "class": "file",       "price": null, "sell": null}
+  "_doc": "W10 背包物品目录（03-objects.md 3.2，数值为假设）。class：food 随处吃 / material 进冰箱灶台 / consumable 钓鱼耗材 / gift 送人 / file 文件类（可走 QQ）。price = 杂货店买价，sell = 卖出价（null 不可买 / 不可卖）。 key：钥匙（§3.41，meta.door_id 指门，总数固定，只能 give，不进 QQ）。",
+  "bread": {
+    "name": "面包",
+    "class": "food",
+    "price": 5,
+    "sell": 2,
+    "eat": {
+      "fullness": 25
+    }
+  },
+  "sweets": {
+    "name": "甜食",
+    "class": "food",
+    "price": 6,
+    "sell": 2,
+    "eat": {
+      "fullness": 10,
+      "mood": 6
+    }
+  },
+  "bento": {
+    "name": "便当",
+    "class": "food",
+    "price": null,
+    "sell": null,
+    "eat": {
+      "fullness": 40
+    }
+  },
+  "ingredients": {
+    "name": "食材",
+    "class": "material",
+    "price": 8,
+    "sell": 3
+  },
+  "fish": {
+    "name": "鱼",
+    "class": "food",
+    "price": 12,
+    "sell": 10,
+    "eat": {
+      "fullness": 30
+    }
+  },
+  "bait": {
+    "name": "鱼饵",
+    "class": "consumable",
+    "price": 3,
+    "sell": 1
+  },
+  "gift": {
+    "name": "小礼物",
+    "class": "gift",
+    "price": 25,
+    "sell": 10,
+    "give": {
+      "closeness": 8,
+      "mood": 5
+    }
+  },
+  "song": {
+    "name": "歌（文件）",
+    "class": "file",
+    "price": null,
+    "sell": null
+  },
+  "script": {
+    "name": "电台文稿（文件）",
+    "class": "file",
+    "price": null,
+    "sell": null
+  },
+  "image": {
+    "name": "图片（文件）",
+    "class": "file",
+    "price": null,
+    "sell": null
+  },
+  "key": {
+    "name": "钥匙",
+    "class": "key",
+    "price": null,
+    "sell": null
+  }
 }

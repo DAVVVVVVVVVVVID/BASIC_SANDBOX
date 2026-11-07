@@ -424,12 +424,10 @@
         "x": 52,
         "y": 7
       },
-      "allow": [
-        "owner"
-      ],
       "owner": [
         "npc_fisher"
-      ]
+      ],
+      "keys": 1
     },
     {
       "id": "door_home",
@@ -445,15 +443,11 @@
         "x": 12,
         "y": 33
       },
-      "allow": [
-        "owner",
-        "npc_xiaoqian",
-        "human"
-      ],
       "owner": [
         "whale",
         "achan"
-      ]
+      ],
+      "keys": 3
     },
     {
       "id": "stairs_home",
@@ -496,7 +490,8 @@
       ],
       "owner": [
         "npc_rest_owner"
-      ]
+      ],
+      "keys": 1
     },
     {
       "id": "door_grocery",
@@ -520,7 +515,8 @@
       ],
       "owner": [
         "npc_grocer"
-      ]
+      ],
+      "keys": 1
     },
     {
       "id": "door_xiaoqian",
@@ -536,12 +532,10 @@
         "x": 16,
         "y": 41
       },
-      "allow": [
-        "owner"
-      ],
       "owner": [
         "npc_xiaoqian"
-      ]
+      ],
+      "keys": 1
     },
     {
       "id": "door_owners",
@@ -557,13 +551,11 @@
         "x": 26,
         "y": 46
       },
-      "allow": [
-        "owner"
-      ],
       "owner": [
         "npc_rest_owner",
         "npc_grocer"
-      ]
+      ],
+      "keys": 2
     }
   ],
   "floors": {
@@ -573,46 +565,28 @@
     "fisher_bedroom": {
       "owner": [
         "npc_fisher"
-      ],
-      "locked": "always"
+      ]
     },
     "fisher_kitchen": {
       "owner": [
         "npc_fisher"
-      ],
-      "locked": "always"
+      ]
     },
     "whale_room": {
       "owner": [
         "whale"
-      ],
-      "locked": "always",
-      "allow_when_locked": [
-        "achan",
-        "npc_xiaoqian",
-        "human"
       ]
     },
     "living_room": {
       "owner": [
         "whale",
         "achan"
-      ],
-      "locked": "always",
-      "allow_when_locked": [
-        "npc_xiaoqian",
-        "human"
       ]
     },
     "kitchen": {
       "owner": [
         "whale",
         "achan"
-      ],
-      "locked": "always",
-      "allow_when_locked": [
-        "npc_xiaoqian",
-        "human"
       ]
     },
     "achan_room": {
@@ -630,35 +604,30 @@
     "xiaoqian_room": {
       "owner": [
         "npc_xiaoqian"
-      ],
-      "locked": "always"
+      ]
     },
     "xiaoqian_kitchen": {
       "owner": [
         "npc_xiaoqian"
-      ],
-      "locked": "always"
+      ]
     },
     "owner_rest_room": {
       "owner": [
         "npc_rest_owner",
         "npc_grocer"
-      ],
-      "locked": "always"
+      ]
     },
     "owners_kitchen": {
       "owner": [
         "npc_rest_owner",
         "npc_grocer"
-      ],
-      "locked": "always"
+      ]
     },
     "owner_grocer_room": {
       "owner": [
         "npc_rest_owner",
         "npc_grocer"
-      ],
-      "locked": "always"
+      ]
     }
   },
   "homes": {

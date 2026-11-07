@@ -69,6 +69,21 @@ def remove(player: dict, item: str, qty: int = 1) -> str | None:
     return None
 
 
+def find(player: dict, item: str, **meta) -> dict | None:
+    """找第一条 type 匹配且 meta 含给定键值的条目。"""
+    for e in ensure(player):
+        if e.get("type") == item and all((e.get("meta") or {}).get(k) == v for k, v in meta.items()):
+            return e
+    return None
+
+
+def remove_entry(player: dict, entry: dict, qty: int = 1) -> None:
+    inv = ensure(player)
+    entry["count"] = int(entry.get("count", 0)) - qty
+    if entry["count"] <= 0 and entry in inv:
+        inv.remove(entry)
+
+
 def view(player: dict) -> list[dict]:
     out = []
     for e in ensure(player):

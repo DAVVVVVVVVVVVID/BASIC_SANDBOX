@@ -1,34 +1,49 @@
 """
-敲门机制（§3.40，主播 11-08 06:50 定）。
+门禁 = 钥匙物品 + 敲门 + 从内侧开门（§3.41，主播 11-08 07:30 定；替换 §3.39 白名单与 §3.40 远程放行）。
 
-- 家 = 含锁定访问规则（access.locked）的 sector：合租房 home、渔夫家、小千家、店主家。商店不是家（按营业时间）。
-- 访客在家门外侧（离门 a 格 / 家的边界 ≤ 2 格、不在家里）`POST /action knock {door_id | target_tile | home}` →
-  door_request {id, visitor, visitor_name, home, home_name, owners[], door{x,y,id}, created_at, expires_at(+90 游戏秒), status}；
-  动作日志 `knock`；ws `{type:"knock", ...}`；在家且清醒（无 sleeping、scene≠live）的主人 pendingMessage「X 在敲门」、perceive.knocks[]。
-- 主人 `POST /door/respond {request_id, entity_id, accept}`：accept → door_pass {visitor, home, expires_at(+2 游戏小时)}（访客离开该 sector 即失效，先到为准），
-  走 edge_block / arena_block 同一判定；decline → declined；到期无人回应 → no_answer。
-- 动作日志：knock / door_respond（含 no_answer）/ door_pass_granted / door_pass_expired；检查点 meta `doors`。
+- 钥匙：物品 type "key"，meta {door_id, name}。每扇带 owner 的门有固定把数（edge.keys，缺省 = owner 数；door_home 3 把：鲸仔、阿蝉、人类控制者进场自带 1）。
+  join / spawn 时按 owner / homes 发自家钥匙（每把只发一次，持有人被删除时钥匙回池）；只能当面 give，QQ 不可传。
+- 门默认锁：出门永远放行 ‖ 门敞开窗口内放行 ‖ 商店门 open_hours 内放行 ‖ 持该门钥匙放行；其余 locked（商店打烊无钥匙 → closed + opens_at）。
+- open_door {door_id}：站在门内侧相邻格的任何人、不需钥匙；敞开 60 游戏秒后自动落锁（日志 door_locked，ws door closed）。
+- knock / door_request（90 游戏秒）沿用；主人 POST /door/respond {request_id, entity_id, text | decline} 喊话（answered）或拒绝（declined）；
+  访客在敞开窗口内跨过那扇门 → opened；无动静到期 → no_answer。
 """
 import uuid
 
-KNOCK_EXPIRE_S = 90.0        # 游戏秒
-PASS_S = 2 * 3600.0          # 游戏秒
-KNOCK_RANGE = 2              # 离门 / 家边界几格内可敲
+KNOCK_EXPIRE_S = 90.0
+OPEN_S = 60.0
+KNOCK_RANGE = 2
 
-_requests: dict[str, dict] = {}        # id -> request
-_passes: dict[str, dict] = {}          # f"{visitor}:{home}" -> pass
+_requests: dict[str, dict] = {}
+_open: dict[str, dict] = {}            # door_id -> {"until_gts", "by", "opened_at"}
+_issued: dict[str, dict[str, str]] = {}   # door_id -> {slot: holder player id}；slot = owner 账号，或 "human:<pid>"（余下的把数给人类控制者）
 
 
-# ── 家 / 主人 ──
-def home_sectors() -> set[str]:
+# ── 门 / 家 / 主人 ──
+def _edges():
     from game import world_state as ws
-    out = set()
-    for arena, acc in ws._ACCESS.items():
-        if acc.get("locked"):
-            s = ws.sector_of_arena(arena)
-            if s:
-                out.add(s)
-    return out
+    return ws._EDGES
+
+
+def door(door_id: str) -> dict | None:
+    return next((e for e in _edges() if e["id"] == door_id), None)
+
+
+def is_keyed(edge: dict) -> bool:
+    return bool(edge.get("owner")) and edge.get("kind") != "stairs"
+
+
+def is_shop_door(edge: dict) -> bool:
+    return bool(edge.get("open_hours")) and is_keyed(edge)
+
+
+def door_sector(edge: dict) -> str | None:
+    from game import world_state as ws
+    return ws._ZONE_LOOKUP.get((edge["b"]["x"], edge["b"]["y"]), {}).get("sector")
+
+
+def home_sectors() -> set[str]:
+    return {s for e in _edges() if is_keyed(e) and not is_shop_door(e) for s in [door_sector(e)] if s}
 
 
 def home_owners(sector: str) -> set[str]:
@@ -37,8 +52,8 @@ def home_owners(sector: str) -> set[str]:
     for arena, acc in ws._ACCESS.items():
         if ws.sector_of_arena(arena) == sector:
             owners |= set(acc.get("owner") or [])
-    for e in ws._EDGES:
-        if ws._ZONE_LOOKUP.get((e["b"]["x"], e["b"]["y"]), {}).get("sector") == sector:
+    for e in _edges():
+        if door_sector(e) == sector:
             owners |= set(e.get("owner") or [])
     for aid, arena in ws._HOMES.items():
         if ws.sector_of_arena(arena) == sector:
@@ -49,6 +64,12 @@ def home_owners(sector: str) -> set[str]:
 def _is_owner(player: dict, sector: str) -> bool:
     from game.world_state import _mover_ids
     return bool(_mover_ids(player) & home_owners(sector))
+
+
+def _inside(player: dict, sector: str) -> bool:
+    from game import world_state as ws
+    pos = player["position"]
+    return ws.get_zone_at(pos["x"], pos["y"]).get("sector") == sector
 
 
 def _at_home_awake(player: dict, sector: str) -> bool:
@@ -74,65 +95,200 @@ def _push(ev: dict) -> None:
         pass
 
 
+# ── 钥匙 ──
+def key_name(edge: dict) -> str:
+    return f"{edge.get('name') or edge['id']}钥匙"
+
+
+def holds_key(mover: dict | None, door_id: str) -> bool:
+    """持钥匙？有背包的真实玩家看物品；只有身份的假 mover（/admin/path mover=whale、path_table）按「主人默认有自家钥匙」算。"""
+    if not mover:
+        return False
+    if "inventory" in mover:
+        from game.inventory import find
+        return find(mover, "key", door_id=door_id) is not None
+    from game.world_state import _mover_ids
+    e = door(door_id)
+    return bool(e and _mover_ids(mover) & set(e.get("owner") or []))
+
+
+def issue_key(player: dict, edge: dict, slot: str, why: str = "default") -> bool:
+    """按槽位发一把钥匙（总数固定 edge.keys：owner 各占一槽，余下的槽给人类控制者）。返回是否发出。"""
+    from game.inventory import add, find
+    if find(player, "key", door_id=edge["id"]) is not None:
+        return False
+    slots = _issued.setdefault(edge["id"], {})
+    total = int(edge.get("keys") or len(edge.get("owner") or []) or 1)
+    owners = list(edge.get("owner") or [])
+    if slot in slots:
+        return False                                             # 这把已经发出（在别人手里）
+    if slot not in owners:                                       # 人类槽：只能用 owner 之外剩下的把数
+        if sum(1 for s in slots if s not in owners) >= max(0, total - len(owners)):
+            return False
+    if len(slots) >= total:
+        return False
+    if add(player, "key", 1, meta={"door_id": edge["id"], "name": key_name(edge)}) is not None:
+        return False
+    slots[slot] = player["id"]
+    _log(player["id"], "key_issued", {"door_id": edge["id"], "name": key_name(edge), "slot": slot, "why": why})
+    return True
+
+
+def issue_default_keys(player: dict) -> list[str]:
+    """join / spawn：agent 按 owner / homes 发自家门的钥匙；人类控制者发一把合租房大门钥匙（演阿蝉）。"""
+    from game import world_state as ws
+    from game.world_state import _mover_ids
+    got = []
+    ids = _mover_ids(player)
+    home_arena = ws._HOMES.get(player.get("agent_id") or "")
+    home_sector = ws.sector_of_arena(home_arena) if home_arena else None
+    for e in _edges():
+        if not is_keyed(e):
+            continue
+        owners = list(e.get("owner") or [])
+        slot = next((o for o in owners if o in ids), None)
+        if slot is None and home_sector is not None and door_sector(e) == home_sector and not is_shop_door(e) and player.get("agent_id"):
+            slot = player["agent_id"]                            # homes 里住这家但不在 owner 名单：按身份占槽（名单外不额外加把数）
+            if slot not in owners:
+                slot = None
+        if slot is None and player.get("controller", "human") == "human" and e["id"] == "door_home":
+            slot = f"human:{player['id']}"
+        if slot and issue_key(player, e, slot):
+            got.append(e["id"])
+    return got
+
+
+def transfer_key(giver: dict, target: dict, door_id: str) -> str | None:
+    """give：实物转交。返回失败 reason 或 None。"""
+    from game.inventory import find, remove_entry, add
+    entry = find(giver, "key", door_id=door_id)
+    if entry is None:
+        return "no_item"
+    if find(target, "key", door_id=door_id) is not None:
+        return "already_has_key"
+    err = add(target, "key", 1, meta=dict(entry.get("meta") or {}))
+    if err:
+        return err
+    remove_entry(giver, entry, 1)
+    slots = _issued.setdefault(door_id, {})
+    for s, h in list(slots.items()):
+        if h == giver["id"]:
+            slots[s] = target["id"]; break
+    return None
+
+
+def on_player_removed(player: dict) -> None:
+    """持钥匙的人被删除：钥匙回池（下次该身份 join 再发）。"""
+    for door_id, slots in _issued.items():
+        for s, h in list(slots.items()):
+            if h == player["id"]:
+                del slots[s]
+
+
+def keys_of(player: dict) -> list[dict]:
+    return [{"door_id": (e.get("meta") or {}).get("door_id"), "name": (e.get("meta") or {}).get("name")} for e in player.get("inventory", []) if e.get("type") == "key"]
+
+
+# ── 门的开关 ──
+def is_open_window(door_id: str, gts: float) -> bool:
+    o = _open.get(door_id)
+    return o is not None and gts < o["until_gts"]
+
+
+def open_door(entity_id: str, door_id: str) -> tuple[dict | None, str | None, dict | None]:
+    """站在门内侧（b 格或其四邻、且在门内 sector）的任何人开门，不需钥匙；60 游戏秒后自动落锁。调用方持 STATE_LOCK。"""
+    from game import world_state as ws
+    p = ws._players.get(entity_id)
+    if p is None:
+        return None, "player_not_found", None
+    e = door(door_id)
+    if e is None:
+        return None, "unknown_door", None
+    if not is_keyed(e):
+        return None, "not_lockable", {"door_id": door_id}
+    b = (e["b"]["x"], e["b"]["y"]); pos = (p["position"]["x"], p["position"]["y"])
+    inside_sector = door_sector(e)
+    if pos != b and (max(abs(pos[0] - b[0]), abs(pos[1] - b[1])) > 1 or ws.get_zone_at(*pos).get("sector") != inside_sector):
+        return None, "not_inside_door", {"door_id": door_id, "inside": {"x": b[0], "y": b[1]}}
+    gts = ws.game_now_ts()
+    _open[door_id] = {"until_gts": gts + OPEN_S, "by": entity_id, "opened_at": ws._iso_from_ts(gts)}
+    info = {"door_id": door_id, "name": e.get("name"), "open_until": ws._iso_from_ts(gts + OPEN_S), "open_s": OPEN_S, "x": e["a"]["x"], "y": e["a"]["y"], "by": entity_id}
+    _log(entity_id, "open_door", info)
+    _push({"type": "door", "event": "opened", **info})
+    # 等在门外的访客：告知
+    for r in _requests.values():
+        if r["status"] in ("pending", "answered") and r["door"].get("id") == door_id:
+            if r["visitor"] in ws._players:
+                ws._pending_messages[r["visitor"]] = f"{p.get('name')} 把门打开了。"
+    return info, None, None
+
+
+def on_cross(entity_id: str, t1: tuple[int, int], t2: tuple[int, int], gts: float) -> None:
+    """有人跨过了一扇门（走路 / 人类单格）：若是敞开窗口内进门的访客且有未结的敲门 → status opened。"""
+    from game import world_state as ws
+    e = ws._EDGE_BY_PAIR.get(frozenset((t1, t2)))
+    if e is None or not is_keyed(e) or (t2[0], t2[1]) != (e["b"]["x"], e["b"]["y"]):
+        return
+    for r in _requests.values():
+        if r["visitor"] == entity_id and r["status"] in ("pending", "answered") and r["door"].get("id") == e["id"]:
+            r["status"] = "opened"; r["responded_at"] = ws._iso_from_ts(gts)
+            _log(entity_id, "door_respond", {"request_id": r["id"], "visitor": entity_id, "home": r["home"], "outcome": "opened"})
+            _push({"type": "door", "event": "visitor_entered", "request_id": r["id"], "visitor": entity_id, "visitor_name": r["visitor_name"], "home": r["home"], "door": r["door"]})
+
+
 # ── 敲门 ──
 def knock(entity_id: str, payload: dict) -> tuple[dict | None, str | None, dict | None]:
-    """返回 (request, None, None) 或 (None, reason, detail)。调用方持 STATE_LOCK。"""
     from game import world_state as ws
     p = ws._players.get(entity_id)
     if p is None:
         return None, "player_not_found", None
     pos = (p["position"]["x"], p["position"]["y"])
-    door = None; sector = None
+    d = None; sector = None; anchor = None
     if payload.get("door_id") or payload.get("door"):
-        door = next((e for e in ws._EDGES if e["id"] == (payload.get("door_id") or payload.get("door"))), None)
-        if door is None:
+        d = door(payload.get("door_id") or payload.get("door"))
+        if d is None:
             return None, "unknown_door", None
-        sector = ws._ZONE_LOOKUP.get((door["b"]["x"], door["b"]["y"]), {}).get("sector")
-        anchor = (door["a"]["x"], door["a"]["y"])
+        sector = door_sector(d); anchor = (d["a"]["x"], d["a"]["y"])
     elif payload.get("target_tile") or payload.get("targetTile"):
         t = payload.get("target_tile") or payload.get("targetTile")
-        sector = ws.get_zone_at(int(t["x"]), int(t["y"])).get("sector")
-        anchor = (int(t["x"]), int(t["y"]))
+        sector = ws.get_zone_at(int(t["x"]), int(t["y"])).get("sector"); anchor = (int(t["x"]), int(t["y"]))
     elif payload.get("home") or payload.get("target"):
         ref = payload.get("home") or payload.get("target")
         sector = ref if ref in {z.get("sector") for z in ws._ZONE_LOOKUP.values()} else ws.sector_of_arena(ref)
-        anchor = None
     else:
         return None, "missing_door_or_target", None
     if not sector or sector not in home_sectors():
         return None, "not_a_home", {"sector": sector}
     if ws.get_zone_at(*pos).get("sector") == sector:
         return None, "already_inside", {"home": sector}
-    if _is_owner(p, sector):
-        return None, "is_owner", {"home": sector}
-    if door is None:                                                     # 找离访客最近的这家的门（a 在外侧）
-        cands = [e for e in ws._EDGES if ws._ZONE_LOOKUP.get((e["b"]["x"], e["b"]["y"]), {}).get("sector") == sector and e["kind"] != "stairs"]
+    if d is None:
+        cands = [e for e in _edges() if is_keyed(e) and not is_shop_door(e) and door_sector(e) == sector]
         if cands:
-            door = min(cands, key=lambda e: abs(e["a"]["x"] - pos[0]) + abs(e["a"]["y"] - pos[1]))
-    if anchor is None and door is not None:
-        anchor = (door["a"]["x"], door["a"]["y"])
-    if anchor is None:
+            d = min(cands, key=lambda e: abs(e["a"]["x"] - pos[0]) + abs(e["a"]["y"] - pos[1]))
+    if d is None:
         return None, "no_door", {"home": sector}
+    if anchor is None:
+        anchor = (d["a"]["x"], d["a"]["y"])
+    if holds_key(p, d["id"]):
+        return None, "has_key", {"door_id": d["id"]}
     if max(abs(anchor[0] - pos[0]), abs(anchor[1] - pos[1])) > KNOCK_RANGE:
         return None, "too_far", {"home": sector, "door": {"x": anchor[0], "y": anchor[1]}, "range": KNOCK_RANGE}
     for r in _requests.values():
-        if r["visitor"] == entity_id and r["home"] == sector and r["status"] == "pending":
-            return None, "already_knocking", {"request_id": r["id"], "expires_at": r["expires_at"]}
-    if has_pass(entity_id, sector, ws.game_now_ts()):
-        return None, "already_has_pass", {"home": sector}
+        if r["visitor"] == entity_id and r["home"] == sector and r["status"] in ("pending", "answered"):
+            return None, "already_knocking", {"request_id": r["id"], "status": r["status"], "expires_at": r["expires_at"]}
     gts = ws.game_now_ts()
     owners = sorted(home_owners(sector))
     req = {"id": f"k{uuid.uuid4().hex[:8]}", "visitor": entity_id, "visitor_name": p.get("name"), "visitor_account": p.get("agent_id") or entity_id,
-           "home": sector, "home_name": ws.zone_display_name("sector", sector),
-           "owners": owners, "door": {"id": door["id"] if door else None, "x": anchor[0], "y": anchor[1]},
+           "home": sector, "home_name": ws.zone_display_name("sector", sector), "owners": owners,
+           "door": {"id": d["id"], "name": d.get("name"), "x": anchor[0], "y": anchor[1], "inside": {"x": d["b"]["x"], "y": d["b"]["y"]}},
            "created_at": ws._iso_from_ts(gts), "created_gts": gts, "expires_at": ws._iso_from_ts(gts + KNOCK_EXPIRE_S), "expires_gts": gts + KNOCK_EXPIRE_S,
-           "status": "pending", "responded_by": None, "notified": []}
+           "status": "pending", "responded_by": None, "answers": [], "notified": []}
     _requests[req["id"]] = req
     for op in ws._players.values():
-        if _is_owner(op, sector) and _at_home_awake(op, sector):
+        if op["id"] != entity_id and _at_home_awake(op, sector):                  # §3.41 补：屋内所有清醒者（不限 owner）
             ws._pending_messages[op["id"]] = f"{p.get('name')} 在敲门。"
             req["notified"].append(op["id"])
-    _log(entity_id, "knock", {k: v for k, v in req.items() if k not in ("created_gts", "expires_gts")})
+    _log(entity_id, "knock", public_request(req))
     _push({"type": "knock", "request_id": req["id"], "visitor": entity_id, "visitor_name": p.get("name"), "home": sector, "home_name": req["home_name"],
            "door": req["door"], "owners": owners, "expires_at": req["expires_at"], "notified": list(req["notified"])})
     return public_request(req), None, None
@@ -142,9 +298,8 @@ def public_request(r: dict) -> dict:
     return {k: v for k, v in r.items() if k not in ("created_gts", "expires_gts")}
 
 
-# ── 回应 ──
-def respond(entity_id: str, request_id: str, accept: bool) -> tuple[dict | None, str | None]:
-    """主人回应。返回 (request, None) 或 (None, reason)。调用方持 STATE_LOCK。"""
+def respond(entity_id: str, request_id: str, text: str | None, decline: bool) -> tuple[dict | None, str | None]:
+    """主人隔门喊一句（answered，续 90 秒）或拒绝（declined）。调用方持 STATE_LOCK。"""
     from game import world_state as ws
     p = ws._players.get(entity_id)
     if p is None:
@@ -152,108 +307,86 @@ def respond(entity_id: str, request_id: str, accept: bool) -> tuple[dict | None,
     r = _requests.get(request_id)
     if r is None:
         return None, "unknown_request"
-    if not _is_owner(p, r["home"]):
-        return None, "not_owner"
-    if r["status"] != "pending":
+    if not _inside(p, r["home"]):
+        return None, "not_inside"                                # §3.41 补：屋内任何人都可应门（人类演阿蝉站在客厅即可）
+    if r["status"] not in ("pending", "answered"):
         return None, f"not_pending:{r['status']}"
+    if not decline and not (text or "").strip():
+        return None, "text_required"
     gts = ws.game_now_ts()
-    r["status"] = "accepted" if accept else "declined"; r["responded_by"] = entity_id; r["responded_at"] = ws._iso_from_ts(gts)
-    _log(entity_id, "door_respond", {"request_id": r["id"], "visitor": r["visitor"], "home": r["home"], "outcome": r["status"]})
-    if accept:
-        grant_pass(r["visitor"], r["home"], gts, by=entity_id, request_id=r["id"])
-    _push({"type": "door", "event": r["status"], "request_id": r["id"], "visitor": r["visitor"], "visitor_name": r["visitor_name"],
-           "home": r["home"], "by": entity_id, "door": r["door"]})
-    v = ws._players.get(r["visitor"])
-    if v is not None:
-        ws._pending_messages[r["visitor"]] = (f"{p.get('name')} 给你开了门。" if accept else f"{p.get('name')} 没让你进。")
+    r["responded_by"] = entity_id; r["responded_at"] = ws._iso_from_ts(gts)
+    if decline:
+        r["status"] = "declined"
+        msg = f"{p.get('name')} 没让你进。"
+    else:
+        r["status"] = "answered"; r["answers"].append({"by": entity_id, "text": text.strip(), "at": r["responded_at"]})
+        r["expires_gts"] = gts + KNOCK_EXPIRE_S; r["expires_at"] = ws._iso_from_ts(r["expires_gts"])
+        msg = f"{p.get('name')}：{text.strip()}"
+    _log(entity_id, "door_respond", {"request_id": r["id"], "visitor": r["visitor"], "home": r["home"], "outcome": r["status"], "text": None if decline else text.strip()})
+    _push({"type": "door", "event": r["status"], "request_id": r["id"], "visitor": r["visitor"], "visitor_name": r["visitor_name"], "home": r["home"],
+           "by": entity_id, "by_name": p.get("name"), "text": None if decline else text.strip(), "door": r["door"]})
+    if r["visitor"] in ws._players:
+        ws._pending_messages[r["visitor"]] = msg
     return public_request(r), None
-
-
-def grant_pass(visitor: str, home: str, gts: float, by: str | None = None, request_id: str | None = None) -> dict:
-    from game import world_state as ws
-    ps = {"visitor": visitor, "home": home, "granted_at": ws._iso_from_ts(gts), "expires_at": ws._iso_from_ts(gts + PASS_S), "expires_gts": gts + PASS_S,
-          "by": by, "request_id": request_id, "entered": False}
-    _passes[f"{visitor}:{home}"] = ps
-    _log(visitor, "door_pass_granted", {k: v for k, v in ps.items() if k != "expires_gts"})
-    return ps
-
-
-def has_pass(entity_id: str | None, sector: str | None, gts: float) -> bool:
-    if not entity_id or not sector:
-        return False
-    ps = _passes.get(f"{entity_id}:{sector}")
-    return ps is not None and gts < ps["expires_gts"]
-
-
-def passes_of(entity_id: str) -> list[dict]:
-    return [{k: v for k, v in ps.items() if k != "expires_gts"} for ps in _passes.values() if ps["visitor"] == entity_id]
-
-
-def _expire_pass(key: str, reason: str) -> None:
-    ps = _passes.pop(key, None)
-    if ps is None:
-        return
-    _log(ps["visitor"], "door_pass_expired", {"home": ps["home"], "reason": reason, "granted_at": ps["granted_at"]})
-    _push({"type": "door", "event": "pass_expired", "visitor": ps["visitor"], "home": ps["home"], "reason": reason})
 
 
 # ── 查询 ──
 def visitor_view(entity_id: str) -> dict | None:
-    """访客的最近一次敲门：{id, home, home_name, status, expires_at, responded_by}。"""
     mine = [r for r in _requests.values() if r["visitor"] == entity_id]
     if not mine:
         return None
     r = max(mine, key=lambda x: x["created_gts"])
     return {"id": r["id"], "home": r["home"], "home_name": r["home_name"], "status": r["status"], "expires_at": r["expires_at"],
-            "responded_by": r.get("responded_by"), "door": r["door"]}
+            "responded_by": r.get("responded_by"), "answers": list(r.get("answers") or []), "door": r["door"]}
 
 
 def pending_for_owner(player: dict) -> list[dict]:
-    out = []
-    for r in _requests.values():
-        if r["status"] == "pending" and _is_owner(player, r["home"]):
-            out.append({"id": r["id"], "visitor": r["visitor"], "visitor_name": r["visitor_name"], "home": r["home"], "home_name": r["home_name"],
-                        "door": r["door"], "expires_at": r["expires_at"]})
-    return out
+    """屋内的人（或这家主人）看到的待回应敲门。"""
+    return [{"id": r["id"], "visitor": r["visitor"], "visitor_name": r["visitor_name"], "home": r["home"], "home_name": r["home_name"],
+             "door": r["door"], "status": r["status"], "expires_at": r["expires_at"]}
+            for r in _requests.values() if r["status"] in ("pending", "answered") and (_inside(player, r["home"]) or _is_owner(player, r["home"]))]
+
+
+def open_doors_view() -> list[dict]:
+    from game import world_state as ws
+    gts = ws.game_now_ts()
+    return [{"door_id": k, "open_until": ws._iso_from_ts(o["until_gts"]), "by": o["by"]} for k, o in _open.items() if gts < o["until_gts"]]
 
 
 # ── tick ──
 def on_tick(gts: float, players: dict) -> None:
-    """到期无人回应 → no_answer；通行证到期或访客离家 → 失效。调用方持 STATE_LOCK。"""
     from game import world_state as ws
     for r in _requests.values():
         if r["status"] == "pending" and gts >= r["expires_gts"]:
             r["status"] = "no_answer"
-            _log(r["visitor"], "door_respond", {"request_id": r["id"], "visitor": r["visitor"], "home": r["home"], "outcome": "no_answer"},
-                 success=False, reason="no_answer")
+            _log(r["visitor"], "door_respond", {"request_id": r["id"], "visitor": r["visitor"], "home": r["home"], "outcome": "no_answer"}, success=False, reason="no_answer")
             _push({"type": "door", "event": "no_answer", "request_id": r["id"], "visitor": r["visitor"], "visitor_name": r["visitor_name"], "home": r["home"], "door": r["door"]})
             if r["visitor"] in players:
                 ws._pending_messages[r["visitor"]] = "敲了半天没人应门。"
-    for key, ps in list(_passes.items()):
-        if gts >= ps["expires_gts"]:
-            _expire_pass(key, "timeout"); continue
-        v = players.get(ps["visitor"])
-        if v is None:
-            _expire_pass(key, "left"); continue
-        inside = ws.get_zone_at(v["position"]["x"], v["position"]["y"]).get("sector") == ps["home"]
-        if inside:
-            ps["entered"] = True
-        elif ps["entered"]:
-            _expire_pass(key, "left")
-    # 过期很久的记录清掉（保留 1 游戏小时供查询）
+        elif r["status"] == "answered" and gts >= r["expires_gts"]:
+            r["status"] = "closed"                     # 喊过话但没开门：到期结束，访客 door_request 保留 answers
+    for door_id, o in list(_open.items()):
+        if gts >= o["until_gts"]:
+            del _open[door_id]
+            e = door(door_id)
+            _log(o["by"], "door_locked", {"door_id": door_id, "name": e.get("name") if e else None, "opened_at": o["opened_at"]})
+            _push({"type": "door", "event": "closed", "door_id": door_id, "name": e.get("name") if e else None,
+                   "x": e["a"]["x"] if e else None, "y": e["a"]["y"] if e else None})
     for rid, r in list(_requests.items()):
-        if r["status"] != "pending" and gts - r["expires_gts"] > 3600:
+        if r["status"] not in ("pending", "answered") and gts - r["expires_gts"] > 3600:
             del _requests[rid]
 
 
 def export_state() -> dict:
-    return {"requests": {k: dict(v) for k, v in _requests.items()}, "passes": {k: dict(v) for k, v in _passes.items()}}
+    return {"requests": {k: dict(v) for k, v in _requests.items()}, "open": {k: dict(v) for k, v in _open.items()},
+            "issued": {k: dict(v) for k, v in _issued.items()}}
 
 
 def import_state(d: dict) -> None:
-    _requests.clear(); _passes.clear()
-    _requests.update(d.get("requests") or {}); _passes.update(d.get("passes") or {})
+    _requests.clear(); _open.clear(); _issued.clear()
+    _requests.update(d.get("requests") or {}); _open.update(d.get("open") or {})
+    _issued.update({k: dict(v) for k, v in (d.get("issued") or {}).items()})
 
 
 def _reset_for_tests() -> None:
-    _requests.clear(); _passes.clear()
+    _requests.clear(); _open.clear(); _issued.clear()

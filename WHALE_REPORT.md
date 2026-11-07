@@ -45,7 +45,17 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
-## 5g. §3.40 敲门机制 —— 完成
+## 5h. §3.41 门禁改钥匙物品 + 从内侧开门（替换 §3.39 / §3.40）—— 完成
+
+- **钥匙**：`items.json` 新物品 `key`（背包条目 meta `{door_id, name}`）；每扇带 owner 的门固定把数（`edge.keys`，缺省 = owner 数；`door_home` 3 = 鲸仔、阿蝉、人类控制者 1）；join / spawn 按 owner / homes 发自家钥匙（按身份槽只发一次，人类领余下的把数），持有人被删除钥匙回池；`give {target, item: key, door_id?}` 当面转交，QQ 不可传。`GET /player` 加 `keys[]`。
+- **门默认锁**（`edge_block` 重写）：出门放行 → 敞开窗口 → 商店营业中 → 持钥匙 → 否则 `locked`（商店打烊 `closed`）；去掉 owner 直通与 allow 白名单；`gen_map_v1` 去掉合租房 / 渔夫 / 小千 / 店主家内房间的 `locked`（`access` 只剩 owner），`door_home` 去 allow、`keys=3`；`achan_room` 时段锁保留。`/admin/path mover=<身份>` 按「主人默认有自家钥匙」算（x1-shortest 数字不变）。
+- **open_door {door_id}**：站在门内侧相邻格的任何人、不需钥匙；敞开 60 游戏秒，到期自动落锁（日志 `door_locked`、ws `door closed`）；`/world.map.doors[]` 给每扇钥匙门此刻开 / 锁。
+- **敲门**：沿用 knock / door_request / 90 s no_answer；**通知与回应按「在屋内」判**（总控补条）：notified = 这家 sector 内所有清醒者，屋内任何人可 `POST /door/respond {text | decline}`（喊话 answered、拒绝 declined）与 `open_door`；访客在敞开窗口内跨过那扇门 → `opened`。删除 door_pass。
+- **日志**：knock / door_respond（answered | declined | opened | no_answer）/ open_door / door_locked / key_issued / give（item key, door_id）。
+- **测试**：`test_w11_home_access.py` 3 例（join 发钥匙、无钥匙 no_path/locked、有钥匙直接过、家内房间不锁、屋内无钥匙者可出、/admin/path 身份算法、总数固定（同身份不重发、第 3 把给第一位人类、第二位人类没有）、人类单格；give 钥匙后对方能进自己进不去、删人回池再 join 可领、QQ 不可传；edges keys / access 无 locked / map.doors）+ `test_w11_knock.py` 3 例（小千敲门 → 鲸仔收到 → 喊话 answered → 不在内侧拒 → 走到门内侧 open_door → 小千进 opened → 61 秒后 door_locked、再进不来；鲸仔在睡 no_answer、decline、商店 not_a_home、有钥匙 has_key、屋内无钥匙的小千能开门能出、店主钥匙打烊直接过而外人 closed、人类站客厅被通知并能应门；检查点保留敞开窗口 / 请求 / 钥匙槽位）。既有用例全过。
+- api-spec §11 改写为「门禁：钥匙、开门、敲门」，边表 / 行为表同步。
+
+## 5g. §3.40 敲门机制 —— 已被 §3.41 替换（见 5h）
 
 - `game/doors.py` + `routers/door.py` + 动作 `knock`：家 = 带 `access.locked` 的 sector（商店不算）；访客在门外 ≤ 2 格 `knock {door_id | target_tile | home}` → `door_request`（90 游戏秒），动作日志 `knock`，ws `knock` 事件（带门坐标），在家且清醒的主人 `pendingMessage`「X 在敲门。」+ `pending_knocks[]` / perceive `knocks[]`；`POST /door/respond {request_id, entity_id, accept}` 只限主人：accept → `door_pass`（这家全部 arena，2 游戏小时或进屋后离家即失效，`edge_block` / `arena_block` 同一判定，日志 `door_pass_granted` / `door_pass_expired {timeout|left}`），decline → `declined`，到期 → `no_answer`（日志 `door_respond` outcome no_answer）；ws `door` 事件。`GET /player` 加 `door_request / pending_knocks / door_passes`，perceive 加 `knocks / door_request`，`GET /door/requests`。通行证与请求进检查点 meta `doors`。物品不设归属（§3.40 ①）：本来就没有物品级权限，无需改。
 - **测试** `tests/test_w11_knock.py` 3 例：老渔夫敲合租房门（太远 `too_far`、重复 `already_knocking`）→ 阿蝉在客厅清醒收到 → 非主人不能回应 → accept → 老渔夫 `go_to kitchen` 真走进厨房、这家所有 arena 可达 → 2 小时后通行证没了、再进 `no_path`；鲸仔在睡 → 没人收到 → 95 秒后 `no_answer`；醒了 decline；商店 `not_a_home`、主人 `is_owner`；进屋再离家 → `door_pass_expired left`；检查点往返后通行证与请求都在。311 passed。

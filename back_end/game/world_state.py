@@ -600,6 +600,8 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
         self_sync.seed_player(player, game_now_ts())
     with STATE_LOCK:
         _players[player_id] = player
+        from game import doors
+        doors.issue_default_keys(player)                       # §3.41：按 owner / homes 发自家钥匙；人类控制者 1 把合租房钥匙
         _pending_messages[player_id] = None
         _use_start_times[player_id]  = None
         _last_seen[player_id]        = time.time()
@@ -655,6 +657,9 @@ def remove_player(player_id: str) -> None:
         from game.chat_state import cleanup_player_chats
         cleanup_player_chats(player_id)
         leave_object(player_id)
+        from game import doors
+        if player_id in _players:
+            doors.on_player_removed(_players[player_id])         # §3.41：钥匙回池
         _players.pop(player_id, None)
         _walks.pop(player_id, None)
         _pending_messages.pop(player_id, None)
@@ -757,7 +762,7 @@ def get_player(player_id: str) -> dict | None:
     from game import doors
     data["door_request"] = doors.visitor_view(player_id)      # §3.40：我最近一次敲门 {id, home, status: pending|accepted|declined|no_answer, expires_at…}
     data["pending_knocks"] = doors.pending_for_owner(player)  # §3.40：我家待回应的敲门 [{id, visitor, visitor_name, home, door, expires_at}]
-    data["door_passes"] = doors.passes_of(player_id)          # §3.40：我持有的临时通行 [{home, expires_at, …}]
+    data["keys"] = doors.keys_of(player)                      # §3.41：持有的钥匙 [{door_id, name}]（也在 inventory 里，type key）
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -937,27 +942,27 @@ def _edge_owners(edge: dict) -> set[str]:
     return owners
 
 
-def _has_door_pass(entity_id: str | None, sector: str | None, game_ts: float) -> bool:
-    from game import doors
-    return doors.has_pass(entity_id, sector, game_ts)
-
-
 def edge_block(edge: dict, mover: dict | None, game_ts: float, frm: tuple[int, int] | None = None) -> tuple[str, str | None] | None:
     """这条边此刻对 mover 是否不可过：None=可过；否则 ("closed"|"locked", opens_at)。
-    §3.38（主播 11-07 定）：① 营业时间与门锁只管「进」（a→b，外→内），从内侧 b 走出去任何人任何时候放行——打烊时店里的客人能走；
-    ② 主人（edge.owner / 内侧场所 access.owner / homes 住在里面的人）随时双向放行，不受 open_hours。frm = 出发格，None 当作「进」。"""
+    §3.38：只管「进」（a→b），从内侧 b 出去任何人任何时候放行。
+    §3.41（主播 11-08 定）：带 owner 的门默认锁——门敞开窗口内 ‖ 商店 open_hours 内 ‖ 持该门钥匙 → 过；其余 locked（商店打烊 → closed + opens_at）。
+    不带 owner 的边（校门 / 校园楼门 / 楼梯）只看 open_hours 与 allow。frm = 出发格，None 当作「进」。"""
+    from game import doors
     b_tile = ((edge.get("b") or {}).get("x"), (edge.get("b") or {}).get("y"))
     if frm is not None and tuple(frm) == b_tile:
         return None                                              # 出：总是放行
-    owners = _edge_owners(edge)
-    if _mover_ids(mover) & owners:
-        return None                                              # 主人：随时
-    if mover and _has_door_pass(mover.get("id"), _ZONE_LOOKUP.get(b_tile, {}).get("sector"), game_ts):
-        return None                                              # §3.40：敲门获准的访客
     is_open, opens_at = _hours_state(edge.get("open_hours"), game_ts)
+    if doors.is_keyed(edge):
+        if doors.is_open_window(edge["id"], game_ts):
+            return None                                          # 有人从里面开了门
+        if edge.get("open_hours") and is_open:
+            return None                                          # 商店营业中
+        if mover is not None and doors.holds_key(mover, edge["id"]):
+            return None                                          # 持钥匙
+        return ("closed", opens_at) if edge.get("open_hours") else ("locked", None)
     if not is_open:
         return ("closed", opens_at)
-    if not _allowed(edge.get("allow"), mover, sorted(owners)):
+    if not _allowed(edge.get("allow"), mover, sorted(_edge_owners(edge))):
         return ("locked", None)
     return None
 
@@ -970,8 +975,6 @@ def arena_block(arena: str | None, mover: dict | None, game_ts: float) -> tuple[
     owners = acc.get("owner") or []
     if _mover_ids(mover) & set(owners):
         return None
-    if mover and _has_door_pass(mover.get("id"), sector_of_arena(arena), game_ts):
-        return None                                              # §3.40：敲门获准的访客（2 游戏小时 / 离家失效）
     locked_spans = acc.get("locked")
     if locked_spans == "always" or locked_spans is True:
         ok = bool(acc.get("allow_when_locked")) and _allowed(acc.get("allow_when_locked"), mover, owners)
@@ -1079,9 +1082,25 @@ def first_block_on_path(start: tuple[int, int], path: list[tuple[int, int]], mov
     return None
 
 
+def door_states() -> list[dict]:
+    """§3.41：带 owner 的门此刻状态（E 画锁 / 开）。"""
+    from game import doors
+    gts = game_now_ts()
+    out = []
+    for e in _EDGES:
+        if not doors.is_keyed(e):
+            continue
+        is_open, opens_at = _hours_state(e.get("open_hours"), gts)
+        out.append({"door_id": e["id"], "name": e.get("name"), "x": e["a"]["x"], "y": e["a"]["y"],
+                    "open": doors.is_open_window(e["id"], gts) or bool(e.get("open_hours") and is_open),
+                    "open_until": next((o["open_until"] for o in doors.open_doors_view() if o["door_id"] == e["id"]), None),
+                    "keys": int(e.get("keys") or len(e.get("owner") or [])), "owners": list(e.get("owner") or [])})
+    return out
+
+
 def map_graph_summary() -> dict:
     """GET /world 的 v2 附加信息。"""
-    return {"format": MAP_FORMAT, "edges": _EDGES, "floors": _FLOORS, "access": _ACCESS}
+    return {"format": MAP_FORMAT, "edges": _EDGES, "floors": _FLOORS, "access": _ACCESS, "doors": door_states()}   # §3.41：门此刻开 / 锁
 
 
 def update_player_facing(player_id: str, facing: str) -> None:
@@ -1188,6 +1207,8 @@ def walk_tick(gts: float) -> int:
             facing = ("left" if dx < 0 else "right") if abs(dx) >= abs(dy) and dx != 0 else ("up" if dy < 0 else "down")
             update_player_position(pid, nxt[0], nxt[1], facing)
             p["state"] = "walking"
+            from game import doors
+            doors.on_cross(pid, cur, nxt, gts)                   # §3.41：敞开窗口内进门的访客 → 敲门 opened
             w["i"] += 1; w["next_gts"] += WALK_TILE_SEC; moved += 1
             if w["i"] >= w["path_len"]:
                 _walks.pop(pid, None); _finish_walk(pid, w, "arrived", None); break

@@ -209,6 +209,20 @@ def handle_give(entity_id: str, payload: dict) -> ActionResponse:
         t, err = _find_target(p, payload.get("target") or payload.get("target_id") or payload.get("to"))
         if err:
             return ActionResponse(success=False, type="give", reason=err, result={"target": payload.get("target"), **_item_fields(item, qty)})
+        if item == "key":                                            # §3.41：钥匙按 door_id 实物转交
+            from game import doors
+            door_id = payload.get("door_id") or payload.get("door")
+            if not door_id:
+                mine = doors.keys_of(p)
+                if len(mine) != 1:
+                    return ActionResponse(success=False, type="give", reason="door_id_required", result={"keys": mine})
+                door_id = mine[0]["door_id"]
+            kerr = doors.transfer_key(p, t, door_id)
+            if kerr:
+                return ActionResponse(success=False, type="give", reason=kerr, result={"item": "key", "door_id": door_id, "target": t["id"]})
+            mark_input(entity_id)
+            return ActionResponse(success=True, type="give", result={"message": f"把{door_id}的钥匙给了{t.get('name')}。", "item": "key", "item_name": "钥匙",
+                                                                    "door_id": door_id, "qty": 1, "target": t["id"], "target_name": t.get("name"), "inventory": inventory.view(p)})
         if inventory.count(p, item) < qty:
             return ActionResponse(success=False, type="give", reason="no_item", result={**_item_fields(item, qty), "have": inventory.count(p, item)})
         ierr = inventory.add(t, item, qty)
