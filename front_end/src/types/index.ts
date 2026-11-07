@@ -38,11 +38,11 @@ export interface GameObject {
   useStateLabel: string
   effects: Effect[]
   advertise?: Record<string, number>
-  /** W9（B W10 任务 2）：使用者站位（相对格）与朝向 */
-  use_pos?: { x: number; y: number } | [number, number] | null
-  use_facing?: Facing | null
-  /** W9（B W10 任务 4）：商店物品（柜台 / 卖鱼摊） */
-  shop?: { type?: string; item?: string; name?: string; price?: number; stock?: number }[]
+  /** W10（B c0e75ef）：使用者站位（**绝对格**，按使用顺序分配）与朝向；后端 use 时已把人挪到该格并转向，null = 原地不动 */
+  usePos?: { x: number; y: number }[] | null
+  useFacing?: Facing | null
+  /** W10：商店物品（shop_counter / fish_stall / bar）；price = 卖价（null 不卖）、sell = 收购价、stock null = 不限量 */
+  shop?: { type?: string; item?: string; name?: string; price?: number | null; sell?: number | null; stock?: number | null }[] | null
 }
 
 export type TimePeriod = 'morning' | 'day' | 'dusk' | 'night'

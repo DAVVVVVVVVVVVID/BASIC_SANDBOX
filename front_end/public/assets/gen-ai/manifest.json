@@ -10,9 +10,10 @@
       "w": 16,
       "h": 15,
       "px": 32,
-      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "margin": 1,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6918f8018e93",
       "tile_px": 96,
-      "qa_score": 0.899
+      "qa_score": 0.962
     },
     "dock_1f_interior": {
       "sector": "dock",
@@ -121,9 +122,9 @@
       "h": 11,
       "px": 32,
       "margin": 1,
-      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6918f8018e93",
       "tile_px": 96,
-      "qa_score": 0.927
+      "qa_score": 0.844
     },
     "classroom_1f_interior": {
       "sector": "classroom",
@@ -148,9 +149,9 @@
       "h": 8,
       "px": 32,
       "margin": 1,
-      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6918f8018e93",
       "tile_px": 96,
-      "qa_score": 0.95
+      "qa_score": 0.949
     },
     "library_1f_exterior": {
       "sector": "library",
@@ -215,9 +216,9 @@
       "h": 9,
       "px": 32,
       "margin": 1,
-      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6918f8018e93",
       "tile_px": 96,
-      "qa_score": 0.982
+      "qa_score": 0.999
     },
     "square_1f_interior": {
       "sector": "square",
@@ -243,9 +244,9 @@
       "h": 13,
       "px": 32,
       "margin": 1,
-      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6918f8018e93",
       "tile_px": 96,
-      "qa_score": 0.912
+      "qa_score": 0.998
     },
     "fisher_house_1f_interior": {
       "sector": "fisher_house",

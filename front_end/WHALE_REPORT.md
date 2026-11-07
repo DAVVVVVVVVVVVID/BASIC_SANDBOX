@@ -1,12 +1,26 @@
-分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `0d091e1`（B 的 W10 尚未落地）。只改了 `front_end/`。截图在 `front_end/report_shots/`（W9 在 `report_shots/w9/`，美术在 `report_shots/v1art/`）。
+分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `e82ac17`（W10 已联调）。只改了 `front_end/`。截图在 `front_end/report_shots/`（W9 在 `report_shots/w9/`，美术在 `report_shots/v1art/`）。
 
 ---
 
-# W9 · 2026-11-07：美术收尾与 v1 UI（QQ 面板、金币背包、室内过渡、主播评分）— 第 1 天
+# W9 · 2026-11-07：美术收尾与 v1 UI（QQ 面板、金币背包、室内过渡、主播评分）— 第 1 天 + 与 B 的 W10 联调
+
+## 0. 联调结果（B 的 W10 `c0e75ef` 下午上线 8091 后）
+
+全部通过，截图 `report_shots/w9/W9_integ_*.jpg`：
+
+| 项 | 结果 |
+|---|---|
+| QQ 一来一回 | 操控页加入人类玩家，在 QQ 面板选「鲸仔」发文字 → 旁观页鲸仔的手机出现「E测试」会话与未读（`W9_integ_spectate_qq_unread`）；反向：阿蝉账号发给人类玩家 → 操控页面板收到 → 点「标记已读」→ `POST /qq/read` 成功、`tags: [reading]`、buff `reading +1 (57 s)` → 旁观页头顶 `📱 看手机`（`W9_integ_read_phone` / `W9_integ_play_read`）。鲸仔本人 `/qq/read` 也成功（count 1、busy 60 s），但 8091 的鲸仔 agent 没有 brain 在线、标签被「💤 离线」盖住，所以用在线的人类玩家演示 |
+| 购买一次 | 传送到杂货店柜台南侧 → 背包面板列出柜台 5 种商品（鱼饵 3 / 面包 5 / 小礼物 25 / 食材 8 / 甜食 6）→ 买面包：金币 300 → 295、背包出现 🍞×1、头顶气泡 `🛒 买了🍞面包 -5 金币`、面板回显「买了 1 个面包，花了 5 金币」（`W9_integ_play_bought`）→ 吃：背包清空、气泡（`W9_integ_play_ate`） |
+| 坐姿 | `use classroom_desk` 后后端把人挪到 `usePos` (5,3) 并转向 up，前端直接画服务器位置 → 人坐在课桌下沿的椅子上（`W9_integ_play_sit`）；前端按类型猜座位的逻辑在物品带 `usePos` 时不再介入 |
+| 南门 | 五栋门边已在南墙正中，外观底图的门与之吻合；5 张室内底图（合租房 1F / 餐馆 / 杂货店 / 小千屋 / 老板屋）按新版式重出（门洞改到南墙）（QA：合租房 1F 0.962、杂货店 0.999、小千屋 0.949、老板屋 0.998、餐馆 0.844——餐馆两次都 0.8 左右，看叠图是模型把内墙画厚了一点、门洞位置和房间分隔都对，放行），其余 18 张尺寸位置不变直接复用（版式全部重导核对过） |
+| `decor[]` | 小径（路砖）、池塘（水砖）、花坛（每格一个花坛）、晾衣绳（暂用围栏图）都渲染出来（`W9_integ_decor` / `W9_integ_overview`）；两块大草坪不再空。装饰层占的格自动避开我的撒点 |
+
+**按 B 的差异表改的**：`usePos` 是绝对格数组 + `useFacing`（不是相对偏移）→ 坐姿交给服务器位置；ws `qq` 事件平铺且分 `event: message | read`（read 只刷状态）；`decor` 用 `kind` 字段、`tiles[]`；`shop[]` 另有 `sell`（收购价）。perceive 的 `phone` 形状变化与前端无关。
 
 ## 1. 进度
 
-B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**今天还没落地**：8091 的门仍在北面、`/qq/contacts` 404、`/world` 物品没有 `use_pos`、玩家没有 `gold`。所以 1–3 按交接里的接口形状把前端做好、对字段名做了宽容解析，B 落地后只需对齐字段名；4、5 已完成。
+B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**上午还没落地**：8091 的门仍在北面、`/qq/contacts` 404、`/world` 物品没有 `use_pos`、玩家没有 `gold`。所以 1–3 按交接里的接口形状把前端做好、对字段名做了宽容解析，B 落地后只需对齐字段名；4、5 已完成。
 
 | # | 任务 | 状态 | 做了什么 |
 |---|---|---|---|
@@ -32,7 +46,7 @@ B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**
 
 | 项 | 值 |
 |---|---|
-| 代码 | `whale-frontend` @ 本提交（基于 B 的 `0d091e1`） |
+| 代码 | `whale-frontend` @ 本提交（基于 B 的 `e82ac17`） |
 | 新增文件 | `src/ui/QQPanel.tsx`、`src/ui/BackpackPanel.tsx`、`src/api/qq.ts`、`src/game/items.ts`、`report_shots/w9/*` |
 | 新增参数 | `&qq=0`（旁观页关 QQ 面板）；`__whaleDebug.setFocus()` |
 

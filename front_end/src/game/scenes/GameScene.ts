@@ -83,22 +83,10 @@ export function poseAnchorsFor(p: { id: string; position: Position; usingObjectI
     const b = box(bed)
     sleep = { x: (b.x0 + b.x1 + 1) / 2 * T, y: (b.y0 + b.y1 + 1) / 2 * T, angle: (b.x1 - b.x0) > (b.y1 - b.y0) ? -90 : 0, depth: (b.y1 + 1) * T + 1 }
   }
-  const seatPosOf = (o: GameObject): { x: number; y: number; facing?: Facing } | null => {
-    // B W10 任务 2：use_pos 是相对物品 position 的格；若落在物品 3 格外就当成绝对格
-    const raw = o.use_pos; if (!raw) return null
-    const rx = Array.isArray(raw) ? raw[0] : raw.x, ry = Array.isArray(raw) ? raw[1] : raw.y
-    if (typeof rx !== 'number' || typeof ry !== 'number') return null
-    let x = o.position.x + rx, y = o.position.y + ry
-    if (Math.abs(rx - o.position.x) <= 3 && Math.abs(ry - o.position.y) <= 3 && (Math.abs(rx) > 3 || Math.abs(ry) > 3)) { x = rx; y = ry }
-    return { x, y, facing: o.use_facing ?? undefined }
-  }
-  if (bed && seatPosOf(bed)) {
-    const u = seatPosOf(bed)!, b = box(bed)
-    sleep = { x: (u.x + 0.5) * T, y: (u.y + 0.5) * T, angle: (b.x1 - b.x0) > (b.y1 - b.y0) ? -90 : 0, depth: (b.y1 + 1) * T + 1 }
-  }
-  if (seat && seatPosOf(seat)) {
-    const u = seatPosOf(seat)!, b = box(seat)
-    sit = { x: (u.x + 0.5) * T, y: (u.y + 0.5) * T, angle: 0, facing: u.facing, depth: (b.y1 + 1) * T + 1 }
+  // B W10 ②：物品带 usePos（绝对格）时后端 use 已把人挪到座位格并转向 → 坐姿不再前端猜位置；床仍贴到床中心（1×2 的床只给一格，画在中心更像躺在床上）
+  const serverPlaced = (o: GameObject) => Array.isArray(o.usePos) && o.usePos.length > 0
+  if (seat && serverPlaced(seat)) {
+    sit = null
   } else if (seat) {
     const b = box(seat), ty = seat.type
     const col = Math.min(Math.max(p.position.x, b.x0), b.x1)

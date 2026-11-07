@@ -42,6 +42,12 @@ export default class DecoLayer {
       }
       const key = DECOR_SPRITE[type]
       if (!key || !scene.textures.exists(key)) { console.debug('[decor] unknown type', type); continue }
+      if (type === 'flowerbed' || type === 'clothesline' || type === 'fence') {
+        // 成片 / 成排的：每格一个
+        const src0 = scene.textures.get(key).getSourceImage() as { width: number; height: number }
+        for (const t of ts) this.nodes.push(scene.add.image((t.x + 0.5) * TILE_SIZE, (t.y + 1) * TILE_SIZE, key).setOrigin(0.5, 1).setDisplaySize(src0.width * kk, src0.height * kk).setDepth((t.y + 1) * TILE_SIZE - 2))
+        continue
+      }
       const xs = ts.map(t => t.x), ys = ts.map(t => t.y)
       const cx = (Math.min(...xs) + Math.max(...xs) + 1) / 2, by = Math.max(...ys) + 1
       const src = scene.textures.get(key).getSourceImage() as { width: number; height: number }

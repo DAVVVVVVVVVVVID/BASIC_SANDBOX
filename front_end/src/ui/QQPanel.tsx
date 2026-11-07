@@ -40,7 +40,11 @@ export default function QQPanel({ playerId, readOnly, compact = false, inventory
     }
     tick()
     const id = window.setInterval(tick, POLL_MS)
-    const onWs = (msg: unknown) => { const m = normalizeMessage(msg); if (m) mergeQQMessages([m]) }
+    const onWs = (msg: unknown) => {
+      const ev = (msg as { event?: string }).event
+      if (ev === 'read') { tick(); return }               // B：平铺 {type:'qq', event:'message'|'read', …}；read 只刷一次状态
+      const m = normalizeMessage(msg); if (m) mergeQQMessages([m])
+    }
     EventBus.on('qq-event', onWs)
     return () => { stop = true; window.clearInterval(id); EventBus.off('qq-event', onWs) }
   }, [playerId, setQQContacts, mergeQQMessages])
