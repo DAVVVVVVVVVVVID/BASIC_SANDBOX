@@ -45,6 +45,14 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5d. §3.36 移动改为「必须有路、按固定速度花游戏时间」（主播 11-07 20:55 定）—— 完成
+
+- **改法**（`game/world_state.py` 走路队列 + `routers/actions.py`）：`move / move_n / move_to_area / go_to` 统一先 BFS（复用 `bfs_path`，逐边判锁与时段）；有路 → `state="walking"`、路径入队、**立即返回** `{state:"walking", path_len, eta_game_s, position, facing, target}`；ticker 每 tick 按 **1 格 / 游戏秒**（`SANDBOX_WALK_TILE_SEC`，默认 1.0，env 可覆盖）逐格推进，每格到点前再查可走 / 门锁 / 时段 / `canMove`；到达 / 中断在动作日志写 `move_done {outcome: arrived|blocked|stopped, reason, position, path_len, steps_done, game_s, action, target, start}`（`success = arrived`）并推 ws `action` 事件；无路 → `no_path` + `result.{blocked_reason, blocked_at, opens_at}`（首个阻塞）。新 move 替换旧路径（`stopped/replaced`）；走路中 `use/interact` → `reason: walking`；`leave` 就地停；聊天接受进入 `walking_over` 的那一 tick 就地停（`stopped/state:walking_over`）；人类单格 `direction` 免排队（门锁照查，走路中按方向键 = 就地改手动）；夹具 `teleport` 取消路径；`usePos` 入座不变。`GET /player/{id}` 多 `walk: {remaining, path_len, eta_game_s, target, next, started_at, action}`。走路队列不进检查点（重启归 idle）；回放把 `move_done` 当位置同步点、回放中不写 move_done。
+- **测试**：`tests/test_w11_walking.py` 7 例（1 格 / 游戏秒逐格推进与 `walk` 字段、到达 `move_done`；`SANDBOX_WALK_TILE_SEC`、人类单格立即 / targetTile 排队 / 走路中方向键改手动、agent 单格也排队；`no_path` 带 `blocked_reason/blocked_at/opens_at`、13:59:50 出发去餐厅 14:00 门关 → `blocked/closed`；走路中 use/interact 拒绝、leave 就地停、新 move 替换；聊天接受中途停下；move_n / go_to 排队；teleport 取消 + ws 字段）。既有 9 例按新语义改（`walk_done` 测试助手；`locked/closed` → `no_path + blocked_reason`；回放多一行 `move_done`）。**304 passed**。`verify_self_sync / verify_external / verify_game` 改成一次 `move targetTile` + 等 `state != walking`。
+- **api-spec**：新「移动语义（§3.36）」一节 + move 响应示例 + `GET /player` `walk` + reason `no_path / walking` + 日志类型 `move_done`。
+- **给 E**：`reason` 不再直接是 `locked/closed`（人类单格除外），锁门气泡请看 `result.blocked_reason`；`state == "walking"` 播走路帧，位置按 patch 逐格；ws `action` 事件多 `state / path_len / eta_game_s / blocked_reason / blocked_at`，新事件 `action: "move_done"`。**给 C**：发出移动后轮询 `GET /player/{id}` 到 `state != "walking"`（超时 eta×3+10 s）。
+- 8091 自测三项见下一条。
+
 ## 5c. 总控（whale-68）追加：最短路 JSON、床的饱腹疑问 —— 完成，并查出 bench 的根因
 
 - **`docs/x1-shortest.json`**：`{"S01": 13, "S02": 67, "S03": 71, "N1": 85, "N2": 24, "N3": null, "N4": 50, "N5": 17}`（按各场景时刻、鲸仔身份；N5 = 广场 (41,26) 12:30 到挪位后的 `table_rest_2` (50,28) 17 步，`table_rest_1` (48,26) 为 21，取「任一替代物」的最小值）。

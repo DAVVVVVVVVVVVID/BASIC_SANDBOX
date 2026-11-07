@@ -98,6 +98,17 @@ def join(client, name="tester") -> str:
     return r.json()["playerId"]
 
 
+def walk_done(pid: str, fake_clock, max_s: int = 3000) -> int:
+    """§3.36 测试用：推 ticker + 拨游戏钟（1 s/步）直到该玩家走完（不在走路队列里）。返回用掉的游戏秒。"""
+    from game import world_state, ticker
+    ticker.tick_once(checkpoint=False)
+    used = 0
+    while pid in world_state._walks and used < max_s:
+        fake_clock.advance(1.0); ticker.tick_once(checkpoint=False); used += 1
+    assert pid not in world_state._walks, f"{pid} still walking after {max_s}s: {world_state.walk_view(pid)}"
+    return used
+
+
 def action(client, pid: str, type_: str, payload: dict | None = None, **kw):
     body = {"entityId": pid, "action": {"type": type_, "payload": payload or {}}, **kw}
     r = client.post("/action", json=body)

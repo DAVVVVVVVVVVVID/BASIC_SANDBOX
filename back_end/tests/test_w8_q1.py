@@ -8,7 +8,7 @@ import pytest
 from game import world_state, state_log, persistence, chat_state
 from game.time_state import GAME_TZ
 from routers import actions as actions_mod
-from tests.conftest import BED_ID, BED_STAND, join, action
+from tests.conftest import walk_done, BED_ID, BED_STAND, join, action
 
 
 def test_join_rejoin_restore_write_immediate_samples(client, fake_clock):
@@ -49,6 +49,7 @@ def test_replay_same_second_join_and_actions_unambiguous(client, fake_clock):
     client.post(f"/player/{pid}/effects", json={"effects": [{"type": "instant_effect", "key": "energy", "value": -60}]})
     client.post("/player/rejoin", json={"playerId": pid})            # 起点行（同秒内紧接着动作）
     assert action(client, pid, "move", {"targetTile": {"x": BED_STAND[0], "y": BED_STAND[1]}})["success"]
+    walk_done(pid, fake_clock)                                        # §3.36
     assert action(client, pid, "turn", {"direction": BED_STAND[2]})["success"]
     assert action(client, pid, "use")["success"]
     ticker.tick_once(checkpoint=False)
@@ -61,7 +62,7 @@ def test_replay_same_second_join_and_actions_unambiguous(client, fake_clock):
     assert [r["kind"] for r in rows[:2]] == ["join", "rejoin"] and rows[1]["ts"] < rows[2]["ts"]
     res = rp.replay(date.today().isoformat(), data_dir(), threshold=0.5, start_kind="rejoin")
     row = next(r for r in res["table"] if r["player"] == pid)
-    assert res["applied"]["action_result_mismatch"] == 0 and res["applied"]["actions"] == 4
+    assert res["applied"]["action_result_mismatch"] == 0 and res["applied"]["actions"] == 5   # §3.36：多一行 move_done 同步点
     assert row["max_abs"] < 0.5, row
     # 同秒：rejoin 行与三步动作 game_time 相同，排序靠真实 ts
     acts = [a for a in client.get("/history/log").json() if a["entityId"] == pid]
@@ -78,6 +79,7 @@ def test_replay_restore_sync_point(client, fake_clock):
     pid = client.post("/player/join", json={"name": "鲸仔", "controller": "agent", "profile": {"agent_id": "whale"}}).json()["playerId"]
     client.post(f"/player/{pid}/effects", json={"effects": [{"type": "instant_effect", "key": "energy", "value": -50}]})
     assert action(client, pid, "move", {"targetTile": {"x": BED_STAND[0], "y": BED_STAND[1]}})["success"]
+    walk_done(pid, fake_clock)                                        # §3.36
     assert action(client, pid, "turn", {"direction": BED_STAND[2]})["success"]
     assert action(client, pid, "use")["success"]
     ticker.tick_once(checkpoint=False)

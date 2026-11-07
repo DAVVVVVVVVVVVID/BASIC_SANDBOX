@@ -73,9 +73,8 @@ def main() -> int:
         world = http("GET", f"{base}/world")
 
         def walk_and_use(obj_id, stand, face):
-            me = http("GET", f"{base}/player/{q}")
-            for d in bfs(world["tiles"], (me["position"]["x"], me["position"]["y"]), stand):
-                http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "move", "payload": {"direction": d}}})
+            from verify_self_sync import walk_to
+            walk_to(base, pid, stand)                                                  # §3.36：排队走，等到达
             http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "turn", "payload": {"direction": face}}})
             return http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "use", "payload": {}}})
 

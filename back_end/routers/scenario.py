@@ -142,6 +142,7 @@ def op_teleport(step: dict) -> dict:
     with world_state.STATE_LOCK:
         if p.get("usingObjectId"):
             world_state.leave_object(p["id"])
+        world_state.stop_walk(p["id"], "stopped", "teleport")      # §3.36
         world_state.update_player_position(p["id"], x, y, facing)
         p["state"] = "idle" if p["state"] in ("walking", "walking_over") else p["state"]
     return _brief(p)

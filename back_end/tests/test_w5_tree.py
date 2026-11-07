@@ -3,7 +3,7 @@ import pytest
 
 from game import world_state, persistence, chat_state
 from routers import actions as actions_mod
-from tests.conftest import BED_ID, join, action, place
+from tests.conftest import walk_done, BED_ID, join, action, place
 
 
 @pytest.fixture(autouse=True)
@@ -48,29 +48,40 @@ def test_indoor_perceive_marks_current_sector_and_arena(client):
     assert [s["id"] for s in tree["sectors"] if s["current"]] == ["achan_house"]
 
 
-def test_move_to_area_crosses_sectors(client):
+def test_move_to_area_crosses_sectors(client, fake_clock):
     pid = join(client, "h")
     place(pid, *SQUARE, "down")
     res = action(client, pid, "move_to_area", {"area_type": "arena", "area_id": "storage"})
     assert res["success"], res
+    assert res["result"]["state"] == "walking" and res["result"]["path_len"] > 0            # §3.36：先排队，再按 1 格 / 游戏秒走
     p = client.get(f"/player/{pid}").json()
+    assert p["state"] == "walking" and p["walk"]["remaining"] == res["result"]["path_len"]
+    used = walk_done(pid, fake_clock)
+    assert used >= res["result"]["path_len"] - 1
+    p = client.get(f"/player/{pid}").json()
+    assert p["state"] == "idle" and p["walk"] is None
     assert world_state.get_zone_at(p["position"]["x"], p["position"]["y"])["arena"] == "storage"
     # 再去餐馆大堂（另一个 sector）
     res = action(client, pid, "move_to_area", {"area_type": "arena", "area_id": "dining"})
     assert res["success"]
+    walk_done(pid, fake_clock)
     p = client.get(f"/player/{pid}").json()
     assert world_state.get_zone_at(p["position"]["x"], p["position"]["y"])["arena"] == "dining"
     # sector 级
     assert action(client, pid, "move_to_area", {"area_type": "sector", "area_id": "fisher_house"})["success"]
+    walk_done(pid, fake_clock)
 
 
-def test_move_to_area_picks_reachable_not_manhattan_nearest(client):
+def test_move_to_area_picks_reachable_not_manhattan_nearest(client, fake_clock):
     """小仓库 (10,9) 到阿蝉房间：曼哈顿最近的格在墙后，必须绕门 (11,9)。"""
     pid = join(client, "h")
     place(pid, 4, 3, "down")
     res = action(client, pid, "move_to_area", {"area_type": "arena", "area_id": "achan_room"})
     assert res["success"]
-    assert world_state.get_zone_at(res["result"]["position"]["x"], res["result"]["position"]["y"])["arena"] == "achan_room"
+    assert world_state.get_zone_at(res["result"]["target"]["x"], res["result"]["target"]["y"])["arena"] == "achan_room"
+    walk_done(pid, fake_clock)
+    p = world_state._players[pid]["position"]
+    assert world_state.get_zone_at(p["x"], p["y"])["arena"] == "achan_room"
 
 
 def test_every_arena_reachable_from_spawn_by_move_to_area(client):

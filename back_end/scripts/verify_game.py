@@ -81,10 +81,8 @@ def main() -> int:
         q = urllib.parse.quote(pid)
         # 直接放到游戏机旁（出生点就在小仓库，走两步即可）
         me = http("GET", f"{base}/player/{q}")
-        sys.path.insert(0, str(HERE)); from verify_self_sync import bfs
-        world = http("GET", f"{base}/world")
-        for d in bfs(world["tiles"], (me["position"]["x"], me["position"]["y"]), CONSOLE[1]):
-            http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "move", "payload": {"direction": d}}})
+        sys.path.insert(0, str(HERE)); from verify_self_sync import walk_to
+        walk_to(base, pid, CONSOLE[1])                                                 # §3.36：排队走，等到达
         http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "turn", "payload": {"direction": CONSOLE[2]}}})
         res = http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "use", "payload": {}}})
         check("use game_console", res["success"] and res["result"]["objectId"] == CONSOLE[0], f"reason={res.get('reason')} {res.get('result', {}).get('error', '')}")

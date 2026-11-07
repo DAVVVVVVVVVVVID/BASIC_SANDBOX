@@ -8,7 +8,7 @@ import pytest
 from game import world_state, external_log, ticker, state_log, buff_tick
 from game.time_state import GAME_TZ
 from routers import actions as actions_mod
-from tests.conftest import join, action, place
+from tests.conftest import walk_done, join, action, place
 
 TABLE_ID, TABLE_STAND = "table_rest_1", (46, 33, "up")
 COUNTER_ID, COUNTER_STAND = "counter_grocer", (25, 24, "right")
@@ -174,6 +174,7 @@ def test_replay_synthetic_day_matches_state_log(client, fake_clock, tmp_path):
     def goto(stand):                                              # 用会进日志的动作移动（回放要能复现位置）
         x, y, face = stand
         assert action(client, pid, "move", {"targetTile": {"x": x, "y": y}})["success"]
+        walk_done(pid, fake_clock)                                # §3.36：按 1 格 / 游戏秒走完（回放靠 move_done 行同步位置）
         assert action(client, pid, "turn", {"direction": face})["success"]
     goto(BED_STAND); assert action(client, pid, "use")["success"]            # 睡
     run(1800)

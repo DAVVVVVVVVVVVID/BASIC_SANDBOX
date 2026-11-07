@@ -110,6 +110,23 @@ def run_mock(port: int):
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
 
 
+def wait_idle(base, pid, timeout=120.0, interval=0.5):
+    """§3.36：移动是排队走的，等 state != walking 再做下一步。返回最后的 player。"""
+    import urllib.parse, time as _t
+    q = urllib.parse.quote(pid); t0 = _t.time()
+    while True:
+        me = http("GET", f"{base}/player/{q}")
+        if me.get("state") != "walking" or _t.time() - t0 > timeout:
+            return me
+        _t.sleep(interval)
+
+
+def walk_to(base, pid, tile, timeout=120.0):
+    """§3.36：一次 move targetTile（后端 BFS）+ 等走完。返回 (move 响应, 最终 player)。"""
+    res = http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "move", "payload": {"targetTile": {"x": tile[0], "y": tile[1]}}}})
+    return res, wait_idle(base, pid, timeout)
+
+
 def bfs(tiles, start, goal):
     from collections import deque
     walk = {(t["x"], t["y"]) for t in tiles if t["walkable"]}
@@ -160,9 +177,8 @@ def main() -> int:
         seeded = all(abs(p[k] - remote0[k]) < 0.01 for k in ("fullness", "energy", "social", "fun"))
         print(f"  seed from self-layer: {'OK ' if seeded else 'FAIL'} local={ {k: p[k] for k in ('fullness','energy','social','fun','mood')} }")
         # 走到床边并使用（regen 顶到 100 后，上报的增量 = 恰好抵消衰减的那部分）
-        world = http("GET", f"{base}/world")
-        for d in bfs(world["tiles"], (p["position"]["x"], p["position"]["y"]), STAND):
-            http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "move", "payload": {"direction": d}}})
+        mv, _ = walk_to(base, pid, STAND)                       # §3.36：排队走，等到达
+        print(f"  walk to {STAND}: {mv.get('success')} path_len={(mv.get('result') or {}).get('path_len')}")
         http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "turn", "payload": {"direction": FACE}}})
         use = http("POST", f"{base}/action", {"entityId": pid, "action": {"type": "use", "payload": {}}})
         print(f"  use {OBJ_ID}: {'OK ' if use['success'] else 'FAIL ' + str(use.get('reason'))}")

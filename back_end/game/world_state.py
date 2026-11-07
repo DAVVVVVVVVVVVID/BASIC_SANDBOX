@@ -644,6 +644,7 @@ def remove_player(player_id: str) -> None:
         cleanup_player_chats(player_id)
         leave_object(player_id)
         _players.pop(player_id, None)
+        _walks.pop(player_id, None)
         _pending_messages.pop(player_id, None)
         _use_start_times.pop(player_id, None)
         _last_seen.pop(player_id, None)
@@ -740,6 +741,7 @@ def get_player(player_id: str) -> dict | None:
     from game.inventory import view as _inv_view
     data["inventory"] = _inv_view(player)             # W10 ④：[{type, name, class, count, meta?}]
     data["gold"] = int(player.get("gold", 0))
+    data["walk"] = walk_view(player_id)                # §3.36：走路中 {remaining, path_len, eta_game_s, target, next, started_at}，否则 null
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -1030,6 +1032,111 @@ def map_graph_summary() -> dict:
 def update_player_facing(player_id: str, facing: str) -> None:
     if player_id in _players:
         _players[player_id]["facing"] = facing
+
+
+# ── §3.36 走路：有路才动、按固定速度花游戏时间（主播 11-07 20:55 定） ──────────────────
+WALK_TILE_SEC = float(os.environ.get("SANDBOX_WALK_TILE_SEC", "1.0"))     # 每格游戏秒（towns.yaml sandbox_env 可覆盖）
+_walks: dict[str, dict] = {}        # pid -> {path:[(x,y)...], i, next_gts, started_gts, path_len, action, target, start}
+_walk_log_enabled = True            # 回放时关掉（move_done 行不能写回正在重放的日志）
+
+
+def start_walk(player_id: str, path: list[tuple[int, int]], action: str, target: dict | None = None) -> dict:
+    """路径入队，state=walking；返回 {path_len, eta_game_s}。空路径 = 原地，不入队。调用方持 STATE_LOCK。"""
+    p = _players[player_id]
+    old = _walks.pop(player_id, None)
+    if old is not None:
+        _finish_walk(player_id, old, "stopped", "replaced", log=True)
+    if not path:
+        return {"path_len": 0, "eta_game_s": 0.0}
+    gts = game_now_ts()
+    _walks[player_id] = {"path": [tuple(t) for t in path], "i": 0, "next_gts": gts + WALK_TILE_SEC, "started_gts": gts,
+                         "path_len": len(path), "action": action, "target": target,
+                         "start": {"x": p["position"]["x"], "y": p["position"]["y"]}}
+    p["state"] = "walking"
+    return {"path_len": len(path), "eta_game_s": round(len(path) * WALK_TILE_SEC, 3)}
+
+
+def walk_view(player_id: str) -> dict | None:
+    w = _walks.get(player_id)
+    if w is None:
+        return None
+    remaining = w["path_len"] - w["i"]
+    return {"remaining": remaining, "path_len": w["path_len"], "eta_game_s": round(remaining * WALK_TILE_SEC, 3),
+            "target": w.get("target"), "action": w["action"], "next": {"x": w["path"][w["i"]][0], "y": w["path"][w["i"]][1]} if remaining else None,
+            "started_at": _iso_from_ts(w["started_gts"])}
+
+
+def _iso_from_ts(ts: float) -> str:
+    from game.time_state import _game_dt
+    return _game_dt(ts).isoformat(timespec="seconds")
+
+
+def _finish_walk(player_id: str, w: dict, outcome: str, reason: str | None, *, log: bool = True) -> dict:
+    p = _players.get(player_id)
+    gts = game_now_ts()
+    row = {"outcome": outcome, "reason": reason, "position": dict(p["position"]) if p else None,
+           "path_len": w["path_len"], "steps_done": w["i"], "game_s": round(gts - w["started_gts"], 3),
+           "action": w["action"], "target": w.get("target"), "start": w.get("start")}
+    if p is not None and p["state"] == "walking":
+        p["state"] = "idle"
+    if log and _walk_log_enabled:
+        try:
+            from game.action_log import append_log
+            append_log(player_id, "move_done", row, success=(outcome == "arrived"), reason=None if outcome == "arrived" else reason)
+        except Exception:
+            pass
+        try:
+            from routers.ws import hub
+            hub.push_action(player_id, "move_done", outcome == "arrived", reason=None if outcome == "arrived" else reason,
+                            extra={"position": row["position"], "outcome": outcome, "path_len": w["path_len"], "steps_done": w["i"], "game_s": row["game_s"]})
+        except Exception:
+            pass
+    return row
+
+
+def stop_walk(player_id: str, outcome: str = "stopped", reason: str | None = None) -> dict | None:
+    """就地停下（聊天接受 / leave / teleport / 新 move 替换）。没在走返回 None。调用方持 STATE_LOCK。"""
+    w = _walks.pop(player_id, None)
+    if w is None:
+        return None
+    return _finish_walk(player_id, w, outcome, reason)
+
+
+def walk_tick(gts: float) -> int:
+    """ticker 每 tick 调：到点就走一格；门锁 / 时段 / 不可走 / canMove=false → blocked；状态被别人改了（聊天 / use）→ stopped。返回推进的格数。"""
+    moved = 0
+    for pid, w in list(_walks.items()):
+        p = _players.get(pid)
+        if p is None:
+            _walks.pop(pid, None); continue
+        if p["state"] != "walking":                                   # 聊天接受（walking_over）/ use / talking 等改了状态 → 就地停
+            _walks.pop(pid, None); _finish_walk(pid, w, "stopped", f"state:{p['state']}"); continue
+        while gts >= w["next_gts"] and w["i"] < w["path_len"]:
+            if not p.get("canMove", True):
+                _walks.pop(pid, None); _finish_walk(pid, w, "blocked", "move_disabled"); break
+            cur = (p["position"]["x"], p["position"]["y"]); nxt = w["path"][w["i"]]
+            blk = None
+            if not is_tile_walkable(*nxt):
+                blk = ("tile_not_walkable", None)
+            else:
+                blk = crossing_block(cur, nxt, p, gts)
+                if blk is None and abs(cur[0] - nxt[0]) + abs(cur[1] - nxt[1]) != 1:        # 楼梯
+                    for m, e in _STAIRS.get(cur, []):
+                        if m == nxt:
+                            blk = edge_block(e, p, gts) or arena_block(_ZONE_LOOKUP.get(nxt, {}).get("arena"), p, gts)
+            if blk is not None:
+                _walks.pop(pid, None)
+                row = _finish_walk(pid, w, "blocked", blk[0])
+                row["opens_at"] = blk[1]
+                break
+            dx, dy = nxt[0] - cur[0], nxt[1] - cur[1]
+            facing = ("left" if dx < 0 else "right") if abs(dx) >= abs(dy) and dx != 0 else ("up" if dy < 0 else "down")
+            update_player_position(pid, nxt[0], nxt[1], facing)
+            p["state"] = "walking"
+            w["i"] += 1; w["next_gts"] += WALK_TILE_SEC; moved += 1
+            if w["i"] >= w["path_len"]:
+                _walks.pop(pid, None); _finish_walk(pid, w, "arrived", None); break
+    return moved
 
 
 def update_player_position(player_id: str, x: int, y: int, facing: str) -> None:
@@ -1482,6 +1589,7 @@ def _run_buff_tick_all(delta: float) -> None:
                 continue
             run_tick(player, delta, game_ts=gts)
             _check_auto_leave(player_id)
+        walk_tick(gts)                                  # §3.36：按 1 格 / 游戏秒逐格推进
         self_sync.on_tick(gts, _players)
         from game import economy, production, commissions, qq
         economy.on_tick(gts, _players)                  # W10 ④：日薪 / 时薪按日程结算
@@ -1538,6 +1646,8 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
             _players[pid] = player
             if _ensure_valid_position(player):            # 换地图后旧坐标非法 → 出生点
                 row["use_start_time"] = None
+            if player.get("state") == "walking":          # §3.36：走路队列不进检查点，重启后就地站住
+                player["state"] = "idle"
             _pending_messages[pid] = row.get("pending_message")
             _use_start_times[pid]  = row.get("use_start_time")
             _last_seen[pid] = now if grace_last_seen else (row.get("last_seen") or now)
@@ -1569,7 +1679,9 @@ def _reset_for_tests() -> None:
     """清空全部运行时状态（测试用）。"""
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
-        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear(); _pre_use_pos.clear(); _use_start_game_ts.clear()
+        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear(); _pre_use_pos.clear(); _use_start_game_ts.clear(); _walks.clear()
+        global _walk_log_enabled
+        _walk_log_enabled = True
         if _REMOVED_OBJECTS or _OBJ_ORIG_POS:
             restore_object()
         _REMOVED_OBJECTS.clear(); _OBJ_ORIG_POS.clear()

@@ -49,3 +49,4 @@ class Player(BaseModel):
     pendingMessage: Optional[str] = None
     game: Optional[dict] = None                 # B18：游戏机局内状态
     pos_seq: int = 0
+    walk: Optional[dict] = None                 # §3.36：走路中 {remaining, path_len, eta_game_s, target, next, started_at}；否则 null

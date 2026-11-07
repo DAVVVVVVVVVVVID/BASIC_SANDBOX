@@ -188,6 +188,7 @@ def _replay_body(date, actions, external, states, first, last, t_start, t_end, c
     nondet = [e for _, _, _, k, e in events if k == "external" and e["kind"] in ("nondeterministic", "self_snap", "self_seed")]
     skipped_actions = sum(1 for a in actions if _ts(a["game_time"]) < t_start)
 
+    world_state._walk_log_enabled = False                  # §3.36：回放中走完不写 move_done
     def advance_to(t: float):
         while clock.t + step_s <= t:
             clock.t += step_s
@@ -244,6 +245,14 @@ def _replay_body(date, actions, external, states, first, last, t_start, t_end, c
             applied["chat_events"] = applied.get("chat_events", 0) + 1
             continue
         if kind == "action":
+            if e["type"] == "move_done":                              # §3.36：到达 / 中断是沙盒自己写的，回放当位置同步点
+                p = world_state._players.get(e["entityId"])
+                pos = (e.get("payload") or {}).get("position")
+                if p is not None and pos:
+                    with world_state.STATE_LOCK:
+                        world_state.stop_walk(e["entityId"], "stopped", "replay_sync")
+                        world_state.update_player_position(e["entityId"], int(pos["x"]), int(pos["y"]), p["facing"])
+                applied["actions"] += 1; continue
             handler = actions_mod._HANDLERS.get(e["type"])
             if handler is None or e["entityId"] not in world_state._players:
                 applied["skipped"] += 1; continue
@@ -321,6 +330,7 @@ def _replay_body(date, actions, external, states, first, last, t_start, t_end, c
                         world_state.apply_effects(world_state._players[tgt], [x], source="freeform", track=False)
                 applied["adjudication"] += 1
     advance_to(t_end)
+    world_state._walk_log_enabled = True
 
     # 对账
     table = []

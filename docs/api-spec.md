@@ -105,7 +105,7 @@
 
 ### GET /player/{player_id}
 
-获取玩家状态。**W5 E②：对 `controller=agent` 纯只读**（不刷心跳、不改 `online`）；对 `controller=human` 仍刷心跳（人类前端的老路径，10 s 无心跳会被清除）。两者都会读取并清空 `pendingMessage`。buff tick 由后台任务驱动，与本接口无关。
+获取玩家状态。**§3.36：** 多 `walk` 字段——走路中 `{remaining, path_len, eta_game_s, target{x,y,…}, next{x,y}, started_at, action}`，否则 `null`；`state` 为 `"walking"`。**W5 E②：对 `controller=agent` 纯只读**（不刷心跳、不改 `online`）；对 `controller=human` 仍刷心跳（人类前端的老路径，10 s 无心跳会被清除）。两者都会读取并清空 `pendingMessage`。buff tick 由后台任务驱动，与本接口无关。
 
 ### POST /player/{player_id}/heartbeat
 
@@ -411,13 +411,34 @@
 
 ---
 
+### 移动语义（§3.36，主播 2026-11-07 20:55 定；W11 维护落地）
+
+**任何 `move` / `move_n` / `move_to_area` / `go_to` 都先 BFS 寻路**（走 `map.edges`，逐边判门锁与营业时段，与 `GET /admin/path` 同一算法），再按**固定速度 1 格 / 游戏秒**（环境变量 `SANDBOX_WALK_TILE_SEC`，默认 `1.0`，towns.yaml `sandbox_env` 可覆盖）由后台 ticker 逐格推进。不再有瞬移。
+
+| 情形 | 响应 |
+|---|---|
+| 有路 | **立即返回** `success: true`，`result: {state: "walking", path_len, eta_game_s, position(出发时), facing, target{x,y,…}}`；玩家 `state = "walking"`，`GET /player/{id}` 带 `walk: {remaining, path_len, eta_game_s, target, next{x,y}, started_at, action}`（走完为 `null`） |
+| 已在目标格 | `success: true`，`result.state: "idle"`，`path_len: 0` |
+| 无路 | `success: false`，`reason: "no_path"`，`result: {blocked_reason: "locked" \| "closed" \| "no_path", blocked_at: {x,y} \| null, opens_at}`——`blocked_reason` 是忽略门禁能到时**首个**挡住的边 / 场所的原因与那一格（E 的锁门气泡请看 `result.blocked_reason`；直接返回 `locked` / `closed` 的旧写法只保留给人类单格 direction） |
+| 目标格本身不可走 | `reason: "tile_not_walkable"`（不变） |
+| 走到一半 | 每格到点前再查一次该格可走 / 门锁 / 时段 / `canMove`：被挡 → 就地停，`outcome: blocked`（如 13:59 出发去餐厅、14:00 门关） |
+| 到达 / 中断 | ticker 在**动作日志**写一行 `type: "move_done"`：`payload {outcome: "arrived" \| "blocked" \| "stopped", reason, position, path_len, steps_done, game_s, action(发起的动作), target, start}`，`success = (outcome == arrived)`，`reason` 非 arrived 时为 `closed` / `locked` / `tile_not_walkable` / `move_disabled` / `replaced` / `leave` / `teleport` / `manual_move` / `state:<新状态>`；同时推 ws `action` 事件 `{action: "move_done", outcome, position, path_len, steps_done, game_s}` |
+| 走路中再 `move*` | 新路径**替换**旧路径（旧的记 `move_done stopped/replaced`） |
+| 走路中 `use` / `interact` | `reason: "walking"`（`result` 带 `walk` 字段） |
+| 走路中 `leave` | 允许：就地停下，`success: true`，`result: {stopped_walk, position, playerState}` |
+| 走路中被邀请 / 接受聊天 | 允许；进入 `walking_over` 的那一 tick 走路队列就地停（`move_done stopped/state:walking_over`），与 B9 对齐 |
+| 人类控制者单格 `direction` | **免排队**：立即到位（键盘手感），门锁照查，`reason` 仍是 `locked` / `closed`；走路中按方向键 = 就地改手动（旧路径 `stopped/manual_move`） |
+| 夹具 `teleport`、`usePos` 入座 | 不变（teleport 取消在走的路径，记 `stopped/teleport`） |
+
+agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（超时 = `eta_game_s × 3 + 10 s`），再做后续动作；回放把 `move_done` 行当位置同步点。走路队列不进检查点：重启后站在原地、`state` 归 `idle`。
+
 ### 行为类型一览
 
 | type | 说明 | payload | 触发键 |
 |------|------|---------|--------|
-| `move` | 移动一格或前往目标 tile | `{ direction }` 或 `{ targetTile }` | 方向键 / 鼠标 |
-| `move_n` | 向某方向移动 N 格，逐格校验，遇阻停止 | `{ direction, steps }` | agent |
-| `move_to_area` | 移动到目标区域内**按 BFS 实际路程**最近的可行走 tile（跨 sector 走门；W5 前取曼哈顿最近可能隔墙 → `no_path`） | `{ area_type, area_id }` | agent |
+| `move` | 走到目标 tile（§3.36：先 BFS、按 1 格 / 游戏秒排队走；人类单格 `direction` 立即到位） | `{ direction }` 或 `{ targetTile }` | 方向键 / 鼠标 |
+| `move_n` | 沿某方向走最多 N 格（先算直线上此刻能走到的最远格，再排队走过去；`result.steps_planned`） | `{ direction, steps }` | agent |
+| `move_to_area` | 走到目标区域内**按 BFS 实际路程**最近的可行走 tile（跨 sector 走门 / 楼梯）；排队走 | `{ area_type, area_id }` | agent |
 | `turn` | 仅改变朝向，不移动 | `{ direction }` | Ctrl + 方向键 |
 | `interact` | 阅读正前方对象描述，不改变状态 | `{}` | `I` |
 | `use` | 进入使用正前方对象，加入 userList | `{}` | `E` |
@@ -505,18 +526,29 @@
 }
 ```
 
-**响应（成功）：**
+**响应（成功，§3.36 排队走路）：**
 
 ```json
 {
   "success": true,
   "type": "move",
   "result": {
-    "facing": "up",
-    "position": { "x": 3, "y": 3 },
-    "state": "idle"
+    "state": "walking",
+    "path_len": 6,
+    "eta_game_s": 6.0,
+    "position": { "x": 4, "y": 3 },
+    "facing": "down",
+    "target": { "x": 4, "y": 9 }
   }
 }
+```
+之后 `GET /player/{id}` 的 `position` 每游戏秒前进一格，`state: "walking"`，`walk: {remaining, path_len, eta_game_s, target, next, started_at}`；到达后 `state: "idle"`、`walk: null`，动作日志多一行 `move_done`。人类单格 `direction` 仍是旧形状：`{"facing": "up", "position": {...}, "state": "idle"}`（立即到位）。
+
+**响应（失败，无路 / 被锁）：**
+
+```json
+{ "success": false, "type": "move", "reason": "no_path",
+  "result": { "blocked_reason": "locked", "blocked_at": { "x": 3, "y": 37 }, "opens_at": "18:30", "facing": "down", "target": { "x": 5, "y": 38 } } }
 ```
 
 **响应（失败，tile 不可行走）：**
@@ -769,6 +801,8 @@
 | 400 | 请求参数错误（entityId 缺失、action.type 不合法等） |
 | 404 | 实体不存在 |
 | 500 | 服务器内部错误 |
+
+**§3.36 新增业务 `reason`：** `no_path`（`result.blocked_reason / blocked_at / opens_at`）、`walking`（走路中 `use` / `interact`）；动作日志新类型 `move_done`。
 
 **W11 新增业务 `reason`：** `out_of_stock`（库存不足）、`empty`（冰箱空）、`no_ingredients`（灶台没食材）、`not_storage` / `not_storable` / `storage_full`（store）、`need_object` / `not_ready`（compose / make_video）。
 

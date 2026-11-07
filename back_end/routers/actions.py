@@ -64,6 +64,52 @@ def _compute_facing(current: dict, target_x: int, target_y: int) -> str:
     return "left" if dx < 0 else "right"
 
 
+def _blocked_detail(start: tuple[int, int], goals: set[tuple[int, int]], mover: dict | None) -> dict:
+    """§3.36：no_path 时给首个阻塞原因与位置（忽略锁能到 → locked / closed + 格；否则纯 no_path）。"""
+    from game.world_state import bfs_path, crossing_block, edge_block, arena_block, game_now_ts, _STAIRS, _ZONE_LOOKUP
+    p2 = bfs_path(start, goals, mover, ignore_locks=True)
+    if p2 is None:
+        return {"blocked_reason": "no_path", "blocked_at": None, "opens_at": None}
+    ts = game_now_ts(); prev = start
+    for n in p2:
+        blk = crossing_block(prev, n, mover, ts)
+        if blk is None and abs(prev[0] - n[0]) + abs(prev[1] - n[1]) != 1:
+            for m, e in _STAIRS.get(prev, []):
+                if m == n:
+                    blk = edge_block(e, mover, ts) or arena_block(_ZONE_LOOKUP.get(n, {}).get("arena"), mover, ts)
+        if blk is not None:
+            return {"blocked_reason": blk[0], "blocked_at": {"x": n[0], "y": n[1]}, "opens_at": blk[1]}
+        prev = n
+    return {"blocked_reason": "no_path", "blocked_at": None, "opens_at": None}
+
+
+def _no_path(action_type: str, start: tuple[int, int], goals: set[tuple[int, int]], mover: dict | None, extra: dict | None = None) -> ActionResponse:
+    d = _blocked_detail(start, goals, mover)
+    return ActionResponse(success=False, type=action_type, reason="no_path", result={**d, **(extra or {})})
+
+
+def _begin_walk(entity_id: str, action_type: str, path: list[tuple[int, int]], target: dict | None, extra: dict | None = None) -> ActionResponse:
+    """§3.36：路径入队，立即返回 {state:"walking", path_len, eta_game_s, position}。空路径 = 已在目标。"""
+    from game.world_state import start_walk, STATE_LOCK
+    with STATE_LOCK:
+        p = _players[entity_id]
+        if path:
+            update_player_facing(entity_id, _compute_facing(p["position"], path[0][0], path[0][1]))
+        info = start_walk(entity_id, path, action_type, target)
+        pos = dict(p["position"]); facing = p["facing"]
+    return ActionResponse(success=True, type=action_type, result={
+        "state": "walking" if path else "idle", "path_len": info["path_len"], "eta_game_s": info["eta_game_s"],
+        "position": pos, "facing": facing, "target": target, **(extra or {})})
+
+
+def _walking_guard(entity_id: str, action_type: str) -> ActionResponse | None:
+    from game.world_state import _walks
+    if entity_id in _walks:
+        return ActionResponse(success=False, type=action_type, reason="walking",
+                              result={"message": "还在走路，等到了再说。", **(get_player(entity_id) or {}).get("walk", {})})
+    return None
+
+
 def handle_move(entity_id: str, payload: dict) -> ActionResponse:
     player = get_player(entity_id)
     if player is None:
@@ -73,41 +119,42 @@ def handle_move(entity_id: str, payload: dict) -> ActionResponse:
     current = player["position"]
     direction = payload.get("direction")
     target_tile = payload.get("targetTile")
+    from game.world_state import crossing_block, game_now_ts, _players as _pl, stop_walk, STATE_LOCK
 
     if direction is not None:
         if direction not in _DIRECTION_DELTA:
             return ActionResponse(success=False, type="move", reason="invalid_direction")
         dx, dy = _DIRECTION_DELTA[direction]
-        new_x = current["x"] + dx
-        new_y = current["y"] + dy
+        new_x, new_y = current["x"] + dx, current["y"] + dy
         facing = direction
     elif target_tile is not None:
-        new_x = target_tile["x"]
-        new_y = target_tile["y"]
+        new_x, new_y = int(target_tile["x"]), int(target_tile["y"])
         facing = _compute_facing(current, new_x, new_y)
     else:
         return ActionResponse(success=False, type="move", reason="missing_direction_or_target")
 
     update_player_facing(entity_id, facing)
-
     if not is_tile_walkable(new_x, new_y):
-        return ActionResponse(
-            success=False,
-            type="move",
-            reason="tile_not_walkable",
-            result={"facing": facing},
-        )
-    from game.world_state import crossing_block, game_now_ts, _players as _pl
-    blk = crossing_block((current["x"], current["y"]), (new_x, new_y), _pl.get(entity_id), game_now_ts())
-    if blk is not None:                                           # W9：锁门 / 不在开放时段的门
-        return ActionResponse(success=False, type="move", reason=blk[0], result={"facing": facing, "opens_at": blk[1]})
+        return ActionResponse(success=False, type="move", reason="tile_not_walkable", result={"facing": facing})
 
-    update_player_position(entity_id, new_x, new_y, facing)
-    return ActionResponse(
-        success=True,
-        type="move",
-        result={"facing": facing, "position": {"x": new_x, "y": new_y}, "state": "idle"},
-    )
+    if direction is not None and player.get("controller", "human") == "human":
+        # §3.36：人类控制者单格 direction 免排队（键盘手感）；仍查门锁
+        blk = crossing_block((current["x"], current["y"]), (new_x, new_y), _pl.get(entity_id), game_now_ts())
+        if blk is not None:
+            return ActionResponse(success=False, type="move", reason=blk[0], result={"facing": facing, "opens_at": blk[1]})
+        with STATE_LOCK:
+            stop_walk(entity_id, "stopped", "manual_move")
+            update_player_position(entity_id, new_x, new_y, facing)
+        return ActionResponse(success=True, type="move", result={"facing": facing, "position": {"x": new_x, "y": new_y}, "state": "idle"})
+
+    # §3.36：其余一律先 BFS（逐边判锁与时段），有路入队按 1 格 / 游戏秒走，无路 no_path
+    start = (current["x"], current["y"]); goal = (new_x, new_y)
+    if start == goal:
+        return ActionResponse(success=True, type="move", result={"facing": facing, "position": dict(current), "state": "idle", "path_len": 0, "eta_game_s": 0.0})
+    path = _bfs_path_to_any(start[0], start[1], {goal}, _pl.get(entity_id))
+    if path is None:
+        return _no_path("move", start, {goal}, _pl.get(entity_id), {"facing": facing, "target": {"x": new_x, "y": new_y}})
+    return _begin_walk(entity_id, "move", path, {"x": new_x, "y": new_y})
 
 
 def handle_turn(entity_id: str, payload: dict) -> ActionResponse:
@@ -122,6 +169,9 @@ def handle_interact(entity_id: str, payload: dict) -> ActionResponse:
     player = get_player(entity_id)
     if player is None:
         return ActionResponse(success=False, type="interact", reason="player_not_found")
+    g = _walking_guard(entity_id, "interact")                     # §3.36
+    if g:
+        return g
     if not player.get("canInteract", True):
         return ActionResponse(success=False, type="interact", reason="interact_disabled")
     pos    = player["position"]
@@ -142,6 +192,9 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
     player = get_player(entity_id)
     if player is None:
         return ActionResponse(success=False, type="use", reason="player_not_found")
+    g = _walking_guard(entity_id, "use")                          # §3.36
+    if g:
+        return g
     if not player.get("canUse", True):
         return ActionResponse(success=False, type="use", reason="use_disabled")
     pos    = player["position"]
@@ -288,6 +341,13 @@ def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
     """
     if entity_id not in _players:
         return ActionResponse(success=False, type="leave", reason="player_not_found")
+    from game.world_state import stop_walk, STATE_LOCK, _walks
+    if entity_id in _walks and not _players[entity_id].get("usingObjectId"):          # §3.36：走路中 leave = 就地停下
+        with STATE_LOCK:
+            row = stop_walk(entity_id, "stopped", "leave")
+        p = _players[entity_id]
+        return ActionResponse(success=True, type="leave", result={"message": "停下了。", "stopped_walk": row, "position": dict(p["position"]),
+                                                                  "playerState": p["state"], "canMove": p.get("canMove", True), "canUse": p.get("canUse", True)})
     obj = leave_object(entity_id)
     if obj is None:
         return ActionResponse(success=False, type="leave", reason="not_using_any_object")
@@ -314,41 +374,27 @@ async def handle_move_n(entity_id: str, payload: dict) -> ActionResponse:
         return ActionResponse(success=False, type="move_n", reason="player_not_found")
     if not player.get("canMove", True):
         return ActionResponse(success=False, type="move_n", reason="move_disabled")
-
     direction = payload.get("direction")
     steps = payload.get("steps", 1)
-
     if direction not in _DIRECTION_DELTA:
         return ActionResponse(success=False, type="move_n", reason="invalid_direction")
     if not isinstance(steps, int) or steps < 1:
         return ActionResponse(success=False, type="move_n", reason="invalid_steps")
-
     dx, dy = _DIRECTION_DELTA[direction]
     update_player_facing(entity_id, direction)
-
-    interval = _get_move_interval(entity_id)
-    x, y = player["position"]["x"], player["position"]["y"]
-    steps_taken = 0
+    # §3.36：沿直线找最远能到的格（可走 + 此刻能穿），然后入队走过去
     from game.world_state import crossing_block, game_now_ts
+    x, y = player["position"]["x"], player["position"]["y"]
+    path: list[tuple[int, int]] = []
     for _ in range(steps):
         nx, ny = x + dx, y + dy
         if not is_tile_walkable(nx, ny) or crossing_block((x, y), (nx, ny), _players.get(entity_id), game_now_ts()) is not None:
             break
         x, y = nx, ny
-        steps_taken += 1
-        update_player_position(entity_id, x, y, direction)
-        await asyncio.sleep(interval)
-
-    return ActionResponse(
-        success=steps_taken > 0,
-        type="move_n",
-        reason=None if steps_taken > 0 else "tile_not_walkable",
-        result={
-            "facing": direction,
-            "position": {"x": x, "y": y},
-            "steps_taken": steps_taken,
-        },
-    )
+        path.append((x, y))
+    if not path:
+        return ActionResponse(success=False, type="move_n", reason="tile_not_walkable", result={"facing": direction, "position": dict(player["position"]), "steps_taken": 0})
+    return _begin_walk(entity_id, "move_n", path, {"x": x, "y": y}, {"steps_planned": len(path), "steps_taken": 0})
 
 
 async def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
@@ -375,31 +421,11 @@ async def handle_move_to_area(entity_id: str, payload: dict) -> ActionResponse:
     # §3.14：按 BFS 实际路程取最近的可达格（跨 sector 走门 / 楼梯），而不是曼哈顿最近（可能隔着墙）
     goals = {(t["x"], t["y"]) for t in walkable}
     path = _bfs_path_to_any(pos["x"], pos["y"], goals, mover)
-    if path is None:
-        reason, opens_at = _blocked_reason((pos["x"], pos["y"]), goals, mover)   # W9：locked / closed 带 opens_at
-        return ActionResponse(success=False, type="move_to_area", reason=reason,
-                              result={"area_type": area_type, "area_id": area_id, "opens_at": opens_at} if reason != "no_path" else None)
+    if path is None:                                              # §3.36：no_path + 首个阻塞（locked / closed 带 opens_at 与格）
+        return _no_path("move_to_area", (pos["x"], pos["y"]), goals, mover, {"area_type": area_type, "area_id": area_id})
     goal_x, goal_y = path[-1] if path else (pos["x"], pos["y"])
-
-    interval = _get_move_interval(entity_id)
-    prev_x, prev_y = pos["x"], pos["y"]
-    facing = _compute_facing(pos, goal_x, goal_y)
-    for step_x, step_y in path:
-        facing = _compute_facing({"x": prev_x, "y": prev_y}, step_x, step_y)
-        update_player_position(entity_id, step_x, step_y, facing)
-        prev_x, prev_y = step_x, step_y
-        await asyncio.sleep(interval)
-
-    return ActionResponse(
-        success=True,
-        type="move_to_area",
-        result={
-            "facing":    facing,
-            "position":  {"x": goal_x, "y": goal_y},
-            "area_type": area_type,
-            "area_id":   area_id,
-        },
-    )
+    return _begin_walk(entity_id, "move_to_area", path, {"x": goal_x, "y": goal_y, "area_type": area_type, "area_id": area_id},
+                       {"area_type": area_type, "area_id": area_id})
 
 
 # ── B12 freeform ─────────────────────────────────────────────────────────────
@@ -510,8 +536,8 @@ async def dispatch(body: ActionRequest):
     else:
         result = handler(body.entityId, body.action.payload)
 
-    if body.action.type == "move" and result.success:
-        await asyncio.sleep(_get_move_interval(body.entityId))
+    if body.action.type == "move" and result.success and (result.result or {}).get("state") == "idle" and (result.result or {}).get("path_len") is None:
+        await asyncio.sleep(_get_move_interval(body.entityId))      # 人类单格移动的节拍；排队走路的请求立即返回
 
     # E⑦：/ws/world 的 action 事件（给前端一次性动画）
     try:
@@ -524,7 +550,7 @@ async def dispatch(body: ActionRequest):
             from game.world_state import get_object_by_id
             o = get_object_by_id(res["objectId"])
             extra["object_type"] = o["type"] if o else None               # E：前端不必再按 id 查
-        for k in ("item", "item_name", "qty", "price", "gold_delta", "gold", "target", "target_name"):   # W10 ④：E 的气泡字段
+        for k in ("item", "item_name", "qty", "price", "gold_delta", "gold", "target", "target_name", "state", "path_len", "eta_game_s", "blocked_reason", "blocked_at"):   # W10 ④ / §3.36
             if k in res:
                 extra[k] = res[k]
         hub.push_action(body.entityId, body.action.type, result.success, obj=res.get("objectId"), reason=result.reason, extra=extra or None)
