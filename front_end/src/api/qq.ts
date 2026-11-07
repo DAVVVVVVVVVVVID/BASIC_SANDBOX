@@ -72,7 +72,8 @@ export function sendText(from: string, peer: string, text: string, group = false
 }
 /** 发文件类物品（歌 / 文稿）：带背包物品引用；实物后端会拒 */
 export function sendFile(from: string, peer: string, item: { id?: string; type: string; name?: string }, group = false) {
-  return apiPost<unknown>('/qq/send', { from, [group ? 'group' : 'to']: peer, kind: 'file', file_ref: item.id ?? item.type, item: { id: item.id, type: item.type, name: item.name } })
+  // B 的 schema：file_ref 是对象 {item, name, meta}（字符串会 422）
+  return apiPost<unknown>('/qq/send', { entity_id: from, [group ? 'group' : 'to']: peer, kind: 'file', text: item.name ? `发了「${item.name}」` : undefined, file_ref: { item: item.type, name: item.name ?? item.type, meta: item.id ? { id: item.id } : {} } })
 }
 /** 读某个会话（占用 1 游戏分钟，后端打 reading 标签） */
 export function markRead(player: string, peer: string, group = false) {
