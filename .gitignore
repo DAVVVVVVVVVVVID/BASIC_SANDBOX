@@ -34,3 +34,5 @@ front_end/public/assets/vendor/
 # W8 美术管线：原始生成图与中间件不入库（成品在 public/assets/gen-ai/）
 front_end/data/assets/gen-ai-raw/
 front_end/tools/.venv/
+# 主播评分（评审页 /review-api/rate 写的运行数据，不入库；路径可用 VITE_REVIEW_FILE 指到 run/data/）
+front_end/data/assets/review.jsonl

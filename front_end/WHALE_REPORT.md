@@ -40,7 +40,7 @@
 
 **任务 0b 走路跟服务器（B §3.36 `910506f`）**：删掉前端 `pathBetween` 猜路；`syncOthers` 收到相邻一格就 `pushWaypoint`、跳格才 `snapTo`；步速 `setStepMs(1000 / 小镇倍速)`（人类单格 300 ms），`setServerWalking(state === 'walking')` 时走路帧不因两 tick 之间的空档回 idle（1.5 s 宽限）。在 8091 加人类玩家 `move` 到 (44,24)：`path_len 60`，20 s 内采样全部相邻、最大跳 1 格、在走的比例 0.82，录屏 `W9_walk_server_20s.webm`。气泡按 §3.36 的新字段：`blocked_reason: locked` → 「咚咚咚…锁着」、`closed` → 「🚪 还没开门」、`no_path` / `move_done{outcome: blocked}` → 「🚧 走不过去」、走路中 use / interact 被拒（`reason: walking`）→ 「🚶 还在走」。
 
-**主播评分（`data/assets/review.jsonl`，59 条，👎 4 项）**
+**主播评分（`data/assets/review.jsonl`，59 条，👎 4 项；与总控备份 `run/data/review-5173-backup-1107-2131.jsonl` 逐行核对一致）**
 
 | 评 | 处理 |
 |---|---|
@@ -61,7 +61,7 @@ B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**
 | 2 | QQ 面板 | **做完等联调** | `src/ui/QQPanel.tsx` + `src/api/qq.ts`：联系人 / 群（👥）/ 未读角标、会话、发文字、发文件类物品（下拉只列背包里 kind=file 的歌 / 文稿；实物不列）、「标记已读」（占 1 游戏分钟）。操控页右上（收成图标）；旁观页只读看跟随目标的手机，`layout=live` 或 `hud=0` 收成 📱 图标 + 未读数，`&qq=0` 关。数据：ws `qq` 事件即时推 + 每 4 s 轮询 `/qq/inbox?player=&since=` 兜底；后端 404 时面板显示「后端还没开通」。她读消息时头顶 `📱 看手机`（按 B 的 `reading` 标签） |
 | 3 | 金币与背包 | **做完等联调** | 旁观：信息面板末行 `💰 余额 + 背包图标×数量`，React 面板同样一行；操控页：左下 `BackpackPanel` 10 格背包 + 金币，物品可「吃」「送（相邻的人）」「卖（站在柜台 / 卖鱼摊旁）」，站在带 `shop[]` 的物品旁列出可买项（价格、钱不够灰掉）；全部走 `POST /action {type: buy|eat|give|sell}`。反馈气泡：ws `action` 事件 → `🛒 买了🍞面包 -5 金币` / `🍞 吃了面包` / `🎁 把小礼物送给了小千` / `💰 卖了🐟鱼 +10 金币` / `💸 钱不够，买不了面包`（`insufficient_funds`）。物品表 `src/game/items.ts` 按 `03-objects.md` 3.2，中英文名都认 |
 | 4 | 室内视角过渡 | 完成 | 进屋 / 出门：140 ms 压黑 → 黑场里直接切 zoom 与屋顶 / 室内视图 → 260 ms 亮起（原来是 650 ms 的 zoom 渐变 + 压暗叠在一起，会抽）；上下楼：180 / 320 ms 并在屏幕中央弹 `2F ↑` / `1F ↓`；锁门提示沿用 W7。录屏 `report_shots/w9/W9_indoor_transition_20s.webm`（8091：广场 → 合租房 1F → 2F → 广场 → 教室 → 餐馆），`W9_transition_last.jpg`。调试钩子 `__whaleDebug.setFocus(sector, floor)` 运行时切取景（录屏用） |
-| 5 | 评审页主播评分 | 完成 | 每张底图 / 角色表 / 物品 / 地砖表 / 装饰下面 👍 👎 + 备注框（回车提交），写 `front_end/data/assets/review.jsonl`（一行 `{ts, kind, name, vote, note, by}`），页顶统计 👍/👎 数。写入靠 Vite dev / preview 的 `/review-api/rate` 中间件（`vite.config.ts`），生产静态托管下没有写入口——评审页本来就只在运行台开 |
+| 5 | 评审页主播评分 | 完成 | 每张底图 / 角色表 / 物品 / 地砖表 / 装饰下面 👍 👎 + 备注框（回车提交），写 `front_end/data/assets/review.jsonl`（一行 `{ts, kind, name, vote, note, by}`；**不进 git**，路径可用 `VITE_REVIEW_FILE` 指到总控的 `run/data/`——总控建议，11-07 晚改），页顶统计 👍/👎 数。写入靠 Vite dev / preview 的 `/review-api/rate` 中间件（`vite.config.ts`），生产静态托管下没有写入口——评审页本来就只在运行台开 |
 
 ## 2. 假设（B 落地后要对齐的字段名，全在 `src/api/qq.ts` / `src/game/items.ts` / `BackpackPanel.tsx` / `GameScene.ts` 顶部注释）
 

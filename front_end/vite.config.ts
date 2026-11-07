@@ -131,7 +131,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      reviewApi(path.resolve(__dirname, 'data/assets/review.jsonl')),
+      reviewApi(env.VITE_REVIEW_FILE || path.resolve(__dirname, 'data/assets/review.jsonl')),   // 主播评分落盘路径；总控可指到 run/data/（文件不进 git）
       readOnlyDir('/dataset', env.VITE_DATASET_DIR || '/home/shan-dw/Project/whale-self/data/dataset'),
       readOnlyDir('/sandboxdata', env.VITE_SANDBOX_DATA_DIR || '/home/shan-dw/Project/run/data/sandbox'),
       readOnlyDir('/gameruns', env.VITE_GAME_RUNS_DIR || '/home/shan-dw/Project/whale-game/runs'),
