@@ -238,9 +238,39 @@ def process_batch(batch: dict, client: httpx.Client | None = None) -> bool:
     stats["drift_last"] = {k: round(x, 4) for k, x in drift.items()}
     worst = max((abs(x) for x in drift.values()), default=0.0)
     stats["drift_max"] = max(stats["drift_max"], worst)
-    if _cfg["snap"] and worst > SNAP_THRESHOLD:
-        _apply_correction(batch["player_id"], drift)
+    pid = batch["player_id"]
+    if worst > SNAP_THRESHOLD and pid in _local_authority:
+        _push_to_remote(pid, drift)                 # W11 维护：夹具直写的值以本地为准，把差值推回自我层
+    elif worst <= SNAP_THRESHOLD and pid in _local_authority:
+        _local_authority.discard(pid)               # 两边一致了，恢复「自我层为准」
+    elif _cfg["snap"] and worst > SNAP_THRESHOLD:
+        _apply_correction(pid, drift)
     return True
+
+
+_local_authority: set[str] = set()
+
+
+def assert_local(player_id: str) -> None:
+    """W11 维护（X1 夹具）：scenario 的 spawn / set_vars 直写了本地七变量后调用——之后若与自我层有漂移，
+    不再 snap 本地，而是把差值当 delta 推给自我层，直到两边一致。否则 bench 上 set_vars fullness 15 会被自我层旧值拉回去。"""
+    with _lock:
+        _local_authority.add(player_id)
+
+
+def _push_to_remote(player_id: str, drift: dict[str, float]) -> None:
+    with _lock:
+        pend = _pending.setdefault(player_id, {})
+        for v, d in drift.items():
+            if abs(d) > 1e-9:
+                pend[v] = pend.get(v, 0.0) - d
+    stats["asserts"] = stats.get("asserts", 0) + 1
+    try:
+        from game import external_log
+        external_log.log("self_assert", player_id, drift={k: round(x, 4) for k, x in drift.items()})
+    except Exception:
+        pass
+    log.info("self-sync assert-local %s: pushing %s back to self-layer", player_id, {k: round(-x, 3) for k, x in drift.items()})
 
 
 def _apply_correction(player_id: str, drift: dict[str, float]) -> None:
@@ -336,8 +366,9 @@ def _reset_for_tests() -> None:
             _queue.get_nowait()
         except queue.Empty:
             break
-    stats.update({"sent": 0, "failed": 0, "seeded": 0, "resyncs": 0, "drift_max": 0.0,
+    stats.update({"sent": 0, "failed": 0, "seeded": 0, "resyncs": 0, "asserts": 0, "drift_max": 0.0,
                   "drift_last": {}, "last_error": None, "last_ok_ts": None})
+    _local_authority.clear()
     _cfg["transport"] = None
     _cfg["enabled"] = os.environ.get("SELF_SYNC", "1") not in ("0", "false", "False")
     _cfg["snap"] = True

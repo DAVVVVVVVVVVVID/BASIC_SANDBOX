@@ -45,6 +45,14 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5c. 总控（whale-68）追加：最短路 JSON、床的饱腹疑问 —— 完成，并查出 bench 的根因
+
+- **`docs/x1-shortest.json`**：`{"S01": 13, "S02": 67, "S03": 71, "N1": 85, "N2": 24, "N3": null, "N4": 50, "N5": 17}`（按各场景时刻、鲸仔身份；N5 = 广场 (41,26) 12:30 到挪位后的 `table_rest_2` (50,28) 17 步，`table_rest_1` (48,26) 为 21，取「任一替代物」的最小值）。
+- **床没有饱腹项**：`object_types.json` 全图共用（v0 / v1 同一张表），`bed` = energy +25/h、fun −1/h + no_move/no_interact/no_use；`bed_21` 同形 energy +20/h。bath / sofa / bench 只有 fullness **−**1/h。pilot 里「用床后饱腹 15 → 40」不是床。
+- **根因（bench 8090 的 11-07 日志）**：S03 夹具 `reset` + `set_time 15:00` + `spawn` 后，self-sync 每 30 游戏秒与自我层对账，自我层 8390 回的 whale 值远低于本地（第一批 drift fullness −43.9 / energy −29 / social −22 / fun −37，之后几批继续往下），snap「以自我层为准」把本地**所有变量 2 游戏分钟内打到 0**（state 行 15:00:30 → 15:02:30 全 0）。同理 S01 直写 fullness 15 时自我层还是旧值 ~59，snap 把它拉回 40。即：**夹具直写的值被自我层旧状态覆盖**。
+- **修**：`self_sync.assert_local(pid)`——scenario 的 `spawn` / `set_vars` 之后本地为准：漂移 > 0.5 时不 snap 本地，把差值当 delta 推回自我层（`external` `self_assert`、`/admin/self-sync` `asserts`），两边一致后恢复原规则；非夹具玩家照旧 snap。2 例单测（假自我层回显 60 → 直写 15 → 一批后仍 15、自我层两批内变 15；spawn 同理；旁人照旧 snap）。**另请 A 看一眼 8390**：它的 whale 状态为何在 15:00 时是 ~26 / 70 / 38 / 23 并持续下滑——可能是 bench 自我层数据没清或它按墙钟衰减（bench ×6）。bench 跑 X1 也可以干脆 `SELF_SYNC=0`。
+- 296 passed。8091 已重起带上；bench 8090 请切到本提交。
+
 ## 5. 总控（whale-68）两条
 
 - **agent_id 全线统一**（04-npcs.md）：`whale / achan / npc_xiaoqian / npc_rest_owner / npc_grocer / npc_fisher`。核对：v1 `homes`、`economy.json`（初始金币 / 日薪 / 店主）、`qq_config.json`（显示名 / 通讯录 / 群）、`commissions.clients` 全部已是这组，无别名；只有 v0 兜底表 `AGENT_HOME_ARENA` 里还是旧名（`npc_cook` / `npc_regular`…）——已补上 `npc_rest_owner → cook_bedroom`、`npc_xiaoqian → regular_bedroom`，旧名保留给老检查点。

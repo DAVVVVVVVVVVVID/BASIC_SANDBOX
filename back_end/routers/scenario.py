@@ -119,6 +119,8 @@ def op_spawn(step: dict) -> dict:
         op_teleport({"player": pid, "x": step["x"], "y": step["y"], "facing": step.get("facing")})
     if step.get("vars"):
         op_set_vars({"player": pid, "vars": step["vars"]})
+    from game import self_sync
+    self_sync.assert_local(pid)                       # W11 维护：夹具摆的值以本地为准，不被自我层旧值 snap 回去
     return _brief(world_state._players[pid])
 
 
@@ -160,6 +162,8 @@ def op_set_vars(step: dict) -> dict:
             p["scene"] = step["scene"]
         if isinstance(step.get("closeness"), dict):
             p["closeness"] = {k: float(v) for k, v in step["closeness"].items()}
+    from game import self_sync
+    self_sync.assert_local(p["id"])                   # W11 维护：见 self_sync.assert_local
     return _brief(p)
 
 
