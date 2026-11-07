@@ -38,6 +38,11 @@
 
 Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5（api-spec 全文核对）下两轮各做一项。
 
+## 5. 总控（whale-68）两条
+
+- **agent_id 全线统一**（04-npcs.md）：`whale / achan / npc_xiaoqian / npc_rest_owner / npc_grocer / npc_fisher`。核对：v1 `homes`、`economy.json`（初始金币 / 日薪 / 店主）、`qq_config.json`（显示名 / 通讯录 / 群）、`commissions.clients` 全部已是这组，无别名；只有 v0 兜底表 `AGENT_HOME_ARENA` 里还是旧名（`npc_cook` / `npc_regular`…）——已补上 `npc_rest_owner → cook_bedroom`、`npc_xiaoqian → regular_bedroom`，旧名保留给老检查点。
+- **Q6（排队，冻结后做）**：实验 X4「靠近即可说」—— `POST /action say {text}`：曼哈顿 ≤ 2 格内的玩家在下一次 perceive 的 `nearby_speech[]`（`from, text, ts`）看到，不开房间不走邀请；进聊天 JSONL（`kind: say`）与 ws。C 的变体排在冻结之后。
+
 ---
 
 # W11 · 2026-11-07：冻结前收口——产出链、直播收入、QQ 亲密度、库存补货、SANDBOX_MAP / world_reset

@@ -251,8 +251,11 @@ _id_rng = random.Random(SANDBOX_SEED) if SANDBOX_SEED is not None else None
 # - NPC 出生点：controller=agent 的玩家出生在其「家」arena 内由 (seed, agent_id) 决定的可走格；seed 为 None 时取该 arena 第一个可走格
 WEATHER_SLOT_HOURS = 6
 WEATHER_WEIGHTS = (("sunny", 6), ("cloudy", 3), ("rain", 1))
-AGENT_HOME_ARENA = {"whale": "storage", "achan": "achan_room", "npc_cook": "cook_bedroom", "npc_grocer": "grocer_bedroom",
-                    "npc_fisher": "fisher_hut", "npc_regular": "regular_bedroom",
+# agent_id 全线统一（04-npcs.md，11-07 定）：whale / achan / npc_xiaoqian / npc_rest_owner / npc_grocer / npc_fisher。
+# 这里是 v0 图（map.json 没有 homes）时的兜底；npc_cook / npc_regular 等是 v0 旧别名，只为老检查点保留。
+AGENT_HOME_ARENA = {"whale": "storage", "achan": "achan_room", "npc_grocer": "grocer_bedroom", "npc_fisher": "fisher_hut",
+                    "npc_rest_owner": "cook_bedroom", "npc_xiaoqian": "regular_bedroom",
+                    "npc_cook": "cook_bedroom", "npc_regular": "regular_bedroom",
                     "npc_teacher": "teacher_room", "npc_painter": "painter_room", "npc_herbalist": "herbalist_room"}
 
 
