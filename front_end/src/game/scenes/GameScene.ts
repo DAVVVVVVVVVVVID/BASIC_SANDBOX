@@ -160,6 +160,8 @@ export default class GameScene extends Phaser.Scene {
   private objectTiles: Position[] = []
   /** W8 底图：name → image；roofed sectors = 有 exterior 底图的 sector */
   private backdrops: { name: string; meta: AiBackdrop; img: Phaser.GameObjects.Image; shadow?: Phaser.GameObjects.Graphics }[] = []
+  private debugWalls: Phaser.GameObjects.Graphics | null = null   // W9 0c：&debug=walls 叠层
+  private debugTexts: Phaser.GameObjects.Text[] = []
   private deco: DecoLayer | null = null
   private roofedSectors = new Set<string>()
   private insideSector: string | null = null   // 当前取景进入的 sector（室内视图）
@@ -399,6 +401,54 @@ export default class GameScene extends Phaser.Scene {
     this.focus?.hideStairIcons((t) => interiors.some(b => t.x >= b.meta.x0 && t.x < b.meta.x0 + b.meta.w && t.y >= b.meta.y0 && t.y < b.meta.y0 + b.meta.h))
   }
 
+  /**
+   * W9 0c：`&debug=walls` 调试叠层——引擎的 wall 格（红）、门 / 楼梯格（黄 / 青）、室内相邻 arena 之间的墙上开口（绿，即室内门）、
+   * 各 arena 边界（白虚线）、格线与每 5 格的坐标；画在所有东西之上（半透明），不随屋顶 / 室内视图切换。供核对 AI 底图与引擎格子的错位。
+   */
+  private drawDebugWalls() {
+    this.debugWalls?.destroy(); this.debugWalls = null
+    for (const t of this.debugTexts) t.destroy(); this.debugTexts = []
+    if (this.params?.debug !== 'walls') return
+    const g = this.add.graphics().setDepth(100000)
+    const T = TILE_SIZE
+    const idx = this.tileIndex
+    const mapW = Math.round(this.mapPx.w / T), mapH = Math.round(this.mapPx.h / T)
+    // 格线
+    g.lineStyle(1, 0xffffff, 0.18)
+    for (let x = 0; x <= mapW; x++) g.lineBetween(x * T, 0, x * T, mapH * T)
+    for (let y = 0; y <= mapH; y++) g.lineBetween(0, y * T, mapW * T, y * T)
+    g.lineStyle(1, 0xffffff, 0.4)
+    for (let x = 0; x <= mapW; x += 5) g.lineBetween(x * T, 0, x * T, mapH * T)
+    for (let y = 0; y <= mapH; y += 5) g.lineBetween(0, y * T, mapW * T, y * T)
+    // 墙格 / arena 边界 / 室内开口
+    for (const t of idx.values()) {
+      const x = t.x * T, y = t.y * T
+      if (t.type === 'wall') { g.fillStyle(0xff3030, 0.28).fillRect(x, y, T, T); g.lineStyle(1, 0xff3030, 0.6).strokeRect(x + 0.5, y + 0.5, T - 1, T - 1) }
+      const n = [idx.get(`${t.x + 1},${t.y}`), idx.get(`${t.x},${t.y + 1}`)]
+      g.lineStyle(2, 0xffffff, 0.55)
+      if (n[0] && (n[0].arena ?? null) !== (t.arena ?? null)) g.lineBetween(x + T, y, x + T, y + T)
+      if (n[1] && (n[1].arena ?? null) !== (t.arena ?? null)) g.lineBetween(x, y + T, x + T, y + T)
+      // 室内开口：地板格，左右（或上下）都是墙、另一轴两侧是不同 arena 的非墙格
+      if (t.type !== 'wall' && isIndoor(t)) {
+        const L = idx.get(`${t.x - 1},${t.y}`), R = idx.get(`${t.x + 1},${t.y}`), U = idx.get(`${t.x},${t.y - 1}`), D = idx.get(`${t.x},${t.y + 1}`)
+        const w = (q?: Tile) => q?.type === 'wall'
+        const gapV = w(L) && w(R) && U && D && !w(U) && !w(D) && (U.arena ?? null) !== (D.arena ?? null)
+        const gapH = w(U) && w(D) && L && R && !w(L) && !w(R) && (L.arena ?? null) !== (R.arena ?? null)
+        if (gapV || gapH) { g.fillStyle(0x40ff80, 0.35).fillRect(x, y, T, T); g.lineStyle(2, 0x40ff80, 0.9).strokeRect(x + 1, y + 1, T - 2, T - 2) }
+      }
+    }
+    // 门 / 楼梯格（edges）
+    for (const e of this.focus?.edges() ?? []) {
+      const col = e.type === 'stairs' ? 0x40e0ff : 0xffd040
+      for (const p of e.tiles) { g.fillStyle(col, 0.35).fillRect(p.x * T, p.y * T, T, T); g.lineStyle(2, col, 0.95).strokeRect(p.x * T + 1, p.y * T + 1, T - 2, T - 2) }
+    }
+    // 坐标
+    for (let x = 0; x < mapW; x += 5) for (let y = 0; y < mapH; y += 5) {
+      this.debugTexts.push(this.add.text(x * T + 2, y * T + 1, `${x},${y}`, { fontFamily: 'monospace', fontSize: '9px', color: '#fff', stroke: '#000', strokeThickness: 2 }).setDepth(100001).setResolution(2).setAlpha(0.8))
+    }
+    this.debugWalls = g
+  }
+
   /** 底图是照 8091 草图镇某一版地图画的：当前地图里该 sector / arena 同层的包围盒必须与 manifest 一致才贴（主镇 / 改图后自动跳过，不会贴错位） */
   private backdropFits(meta: AiBackdrop): boolean {
     const mg = meta.margin ?? 1
@@ -503,6 +553,7 @@ export default class GameScene extends Phaser.Scene {
     this.mapPx = { w: w * TILE_SIZE, h: h * TILE_SIZE }
     for (const obj of world.objects) { this.objectSprites.push(new GameObjectSprite(this, obj)); this.objectTiles.push({ ...obj.position }) }
     this.placeBackdrops()
+    this.drawDebugWalls()
 
     const cam = this.cameras.main
     // 全景 zoom：整张图放进画面，吸附到 1/6 的整数倍

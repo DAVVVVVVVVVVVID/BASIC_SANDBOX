@@ -1,0 +1,1060 @@
+{
+ "classroom_1f_exterior": {
+  "name": "classroom_1f_exterior",
+  "view": "exterior",
+  "rows": [
+   {
+    "kind": "door",
+    "engine": [
+     9,
+     6
+    ],
+    "drawn": [
+     13.51,
+     6.5
+    ],
+    "offset_tiles": 4.01,
+    "width_tiles": 0.99
+   }
+  ]
+ },
+ "classroom_1f_interior": {
+  "name": "classroom_1f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=1 x∈[4,13]",
+    "offset_tiles": -0.09,
+    "thickness_tiles": 1.11
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=6 x∈[4,13]",
+    "offset_tiles": -0.23,
+    "thickness_tiles": 0.95
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     9,
+     6
+    ],
+    "offset_along": null,
+    "offset_across": -0.23,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=4 y∈[1,6]",
+    "offset_tiles": -0.02,
+    "thickness_tiles": 1.29
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=13 y∈[1,6]",
+    "offset_tiles": 0.26,
+    "thickness_tiles": 0.72
+   }
+  ],
+  "wall_palette": [
+   [
+    140,
+    140,
+    126
+   ],
+   [
+    108,
+    90,
+    82
+   ],
+   [
+    180,
+    167,
+    134
+   ],
+   [
+    78,
+    66,
+    65
+   ],
+   [
+    141,
+    118,
+    102
+   ],
+   [
+    116,
+    108,
+    107
+   ],
+   [
+    174,
+    150,
+    131
+   ]
+  ]
+ },
+ "dock_1f_interior": {
+  "name": "dock_1f_interior",
+  "view": "interior",
+  "rows": [],
+  "note": "室外地面，无墙"
+ },
+ "fisher_house_1f_exterior": {
+  "name": "fisher_house_1f_exterior",
+  "view": "exterior",
+  "rows": [
+   {
+    "kind": "door",
+    "engine": [
+     52,
+     7
+    ],
+    "drawn": null,
+    "offset_tiles": null,
+    "note": "正面墙上没找到门",
+    "cands": []
+   }
+  ]
+ },
+ "fisher_house_1f_interior": {
+  "name": "fisher_house_1f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=1 x∈[47,57]",
+    "offset_tiles": -0.09,
+    "thickness_tiles": 0.93
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=7 x∈[47,57]",
+    "offset_tiles": -0.12,
+    "thickness_tiles": 1.2
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     52,
+     7
+    ],
+    "offset_along": null,
+    "offset_across": -0.12,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=47 y∈[1,7]",
+    "offset_tiles": 0.06,
+    "thickness_tiles": 0.93
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=52 y∈[1,5]",
+    "offset_tiles": -0.03,
+    "thickness_tiles": 1.0
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     52,
+     4
+    ],
+    "offset_along": -0.34,
+    "offset_across": -0.03,
+    "width_tiles": 0.9
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=57 y∈[1,7]",
+    "offset_tiles": 0.01,
+    "thickness_tiles": 1.03
+   }
+  ],
+  "wall_palette": [
+   [
+    177,
+    153,
+    140
+   ],
+   [
+    132,
+    109,
+    96
+   ],
+   [
+    95,
+    92,
+    94
+   ],
+   [
+    104,
+    133,
+    103
+   ],
+   [
+    190,
+    167,
+    152
+   ],
+   [
+    84,
+    79,
+    80
+   ],
+   [
+    109,
+    102,
+    100
+   ]
+  ]
+ },
+ "grocery_1f_exterior": {
+  "name": "grocery_1f_exterior",
+  "view": "exterior",
+  "rows": [
+   {
+    "kind": "door",
+    "engine": [
+     51,
+     38
+    ],
+    "drawn": [
+     53.78,
+     38.5
+    ],
+    "offset_tiles": 2.28,
+    "width_tiles": 0.73
+   }
+  ]
+ },
+ "grocery_1f_interior": {
+  "name": "grocery_1f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=32 x∈[46,56]",
+    "offset_tiles": -0.1,
+    "thickness_tiles": 0.92
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=38 x∈[46,56]",
+    "offset_tiles": -0.36,
+    "thickness_tiles": 0.57
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     51,
+     38
+    ],
+    "offset_along": 0.06,
+    "offset_across": -0.36,
+    "width_tiles": 0.89
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=46 y∈[32,38]",
+    "offset_tiles": 0.16,
+    "thickness_tiles": 0.73
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=56 y∈[32,38]",
+    "offset_tiles": -0.15,
+    "thickness_tiles": 0.66
+   }
+  ],
+  "wall_palette": [
+   [
+    149,
+    129,
+    132
+   ],
+   [
+    138,
+    124,
+    134
+   ],
+   [
+    117,
+    109,
+    126
+   ],
+   [
+    133,
+    118,
+    126
+   ],
+   [
+    106,
+    96,
+    108
+   ],
+   [
+    94,
+    78,
+    80
+   ],
+   [
+    163,
+    145,
+    132
+   ]
+  ]
+ },
+ "home_1f_exterior": {
+  "name": "home_1f_exterior",
+  "view": "exterior",
+  "rows": [
+   {
+    "kind": "door",
+    "engine": [
+     12,
+     33
+    ],
+    "drawn": null,
+    "offset_tiles": null,
+    "note": "正面墙上没找到门",
+    "cands": []
+   }
+  ]
+ },
+ "home_1f_interior": {
+  "name": "home_1f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=21 x∈[2,15]",
+    "offset_tiles": -0.29,
+    "thickness_tiles": 0.67
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=28 x∈[2,9]",
+    "offset_tiles": -0.92,
+    "thickness_tiles": 0.29
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=33 x∈[2,15]",
+    "offset_tiles": -0.18,
+    "thickness_tiles": 0.45
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     12,
+     33
+    ],
+    "offset_along": null,
+    "offset_across": -0.18,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=2 y∈[21,33]",
+    "offset_tiles": 0.25,
+    "thickness_tiles": 0.6
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=9 y∈[21,33]",
+    "offset_tiles": -0.02,
+    "thickness_tiles": 0.5
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     9,
+     24
+    ],
+    "offset_along": -0.79,
+    "offset_across": -0.02,
+    "width_tiles": 0.94
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     9,
+     30
+    ],
+    "offset_along": -1.15,
+    "offset_across": -0.02,
+    "width_tiles": 0.97
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=15 y∈[21,33]",
+    "offset_tiles": 0.02,
+    "thickness_tiles": 0.97
+   },
+   {
+    "kind": "extra_opening",
+    "drawn": [
+     7.96,
+     21.21
+    ],
+    "width_tiles": 0.94,
+    "seg": "横墙 y=21 x∈[2,15]"
+   }
+  ],
+  "wall_palette": [
+   [
+    175,
+    172,
+    170
+   ],
+   [
+    97,
+    154,
+    106
+   ],
+   [
+    179,
+    161,
+    154
+   ],
+   [
+    115,
+    102,
+    98
+   ],
+   [
+    200,
+    176,
+    158
+   ],
+   [
+    97,
+    141,
+    109
+   ]
+  ]
+ },
+ "home_2f_exterior": {
+  "name": "home_2f_exterior",
+  "view": "exterior",
+  "rows": []
+ },
+ "home_2f_interior": {
+  "name": "home_2f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=36 x∈[2,9]",
+    "offset_tiles": -0.15,
+    "thickness_tiles": 0.99
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=41 x∈[2,9]",
+    "offset_tiles": 0.01,
+    "thickness_tiles": 0.76
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=2 y∈[36,41]",
+    "offset_tiles": 0.1,
+    "thickness_tiles": 1.01
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=9 y∈[36,41]",
+    "offset_tiles": 0.08,
+    "thickness_tiles": 0.69
+   }
+  ],
+  "wall_palette": [
+   [
+    168,
+    145,
+    143
+   ],
+   [
+    97,
+    90,
+    101
+   ],
+   [
+    121,
+    96,
+    88
+   ],
+   [
+    89,
+    82,
+    95
+   ],
+   [
+    175,
+    151,
+    146
+   ],
+   [
+    69,
+    64,
+    77
+   ],
+   [
+    150,
+    123,
+    112
+   ]
+  ]
+ },
+ "library_1f_exterior": {
+  "name": "library_1f_exterior",
+  "view": "exterior",
+  "rows": [
+   {
+    "kind": "door",
+    "engine": [
+     22,
+     6
+    ],
+    "drawn": [
+     22.56,
+     6.5
+    ],
+    "offset_tiles": 0.06,
+    "width_tiles": 0.54
+   }
+  ]
+ },
+ "library_1f_interior": {
+  "name": "library_1f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=1 x∈[17,28]",
+    "offset_tiles": -0.11,
+    "thickness_tiles": 1.18
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=6 x∈[17,28]",
+    "offset_tiles": -0.05,
+    "thickness_tiles": 0.64
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     22,
+     6
+    ],
+    "offset_along": -0.01,
+    "offset_across": -0.05,
+    "width_tiles": 0.51
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=17 y∈[1,6]",
+    "offset_tiles": 0.07,
+    "thickness_tiles": 1.41
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=28 y∈[1,6]",
+    "offset_tiles": -0.03,
+    "thickness_tiles": 1.2
+   }
+  ],
+  "wall_palette": [
+   [
+    161,
+    137,
+    142
+   ],
+   [
+    100,
+    83,
+    102
+   ],
+   [
+    94,
+    78,
+    99
+   ],
+   [
+    109,
+    90,
+    107
+   ],
+   [
+    81,
+    68,
+    89
+   ]
+  ]
+ },
+ "music_room_1f_exterior": {
+  "name": "music_room_1f_exterior",
+  "view": "exterior",
+  "rows": [
+   {
+    "kind": "door",
+    "engine": [
+     37,
+     6
+    ],
+    "drawn": [
+     37.49,
+     6.5
+    ],
+    "offset_tiles": -0.01,
+    "width_tiles": 0.58
+   }
+  ]
+ },
+ "music_room_1f_interior": {
+  "name": "music_room_1f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=1 x∈[33,42]",
+    "offset_tiles": -0.26,
+    "thickness_tiles": 1.27
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=6 x∈[33,42]",
+    "offset_tiles": 0.02,
+    "thickness_tiles": 1.51
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     37,
+     6
+    ],
+    "offset_along": null,
+    "offset_across": 0.02,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=33 y∈[1,6]",
+    "offset_tiles": 0.09,
+    "thickness_tiles": 1.48
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=42 y∈[1,6]",
+    "offset_tiles": -0.08,
+    "thickness_tiles": 1.47
+   }
+  ],
+  "wall_palette": [
+   [
+    128,
+    113,
+    126
+   ],
+   [
+    238,
+    224,
+    209
+   ],
+   [
+    190,
+    179,
+    175
+   ],
+   [
+    211,
+    198,
+    191
+   ],
+   [
+    118,
+    104,
+    119
+   ],
+   [
+    94,
+    80,
+    86
+   ],
+   [
+    233,
+    219,
+    205
+   ],
+   [
+    152,
+    141,
+    149
+   ]
+  ]
+ },
+ "owners_house_1f_exterior": {
+  "name": "owners_house_1f_exterior",
+  "view": "exterior",
+  "rows": [
+   {
+    "kind": "door",
+    "engine": [
+     26,
+     46
+    ],
+    "drawn": null,
+    "offset_tiles": null,
+    "note": "正面墙上没找到门",
+    "cands": []
+   }
+  ]
+ },
+ "owners_house_1f_interior": {
+  "name": "owners_house_1f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=36 x∈[22,29]",
+    "offset_tiles": 0.05,
+    "thickness_tiles": 1.1
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=40 x∈[22,29]",
+    "offset_tiles": 0.75,
+    "thickness_tiles": 2.5
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     25,
+     40
+    ],
+    "offset_along": null,
+    "offset_across": 0.75,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=43 x∈[22,29]",
+    "offset_tiles": -0.71,
+    "thickness_tiles": 2.57
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     25,
+     43
+    ],
+    "offset_along": null,
+    "offset_across": -0.71,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=46 x∈[22,29]",
+    "offset_tiles": 0.16,
+    "thickness_tiles": 1.43
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     26,
+     46
+    ],
+    "offset_along": null,
+    "offset_across": 0.16,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=22 y∈[36,46]",
+    "offset_tiles": 0.77,
+    "thickness_tiles": 2.46
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=29 y∈[36,46]",
+    "offset_tiles": -0.68,
+    "thickness_tiles": 2.65
+   }
+  ],
+  "wall_palette": [
+   [
+    141,
+    117,
+    112
+   ],
+   [
+    97,
+    85,
+    91
+   ],
+   [
+    222,
+    214,
+    211
+   ],
+   [
+    129,
+    115,
+    119
+   ],
+   [
+    105,
+    101,
+    113
+   ],
+   [
+    125,
+    105,
+    100
+   ],
+   [
+    85,
+    74,
+    79
+   ],
+   [
+    153,
+    142,
+    145
+   ]
+  ]
+ },
+ "park_1f_interior": {
+  "name": "park_1f_interior",
+  "view": "interior",
+  "rows": [],
+  "note": "室外地面，无墙"
+ },
+ "restaurant_1f_exterior": {
+  "name": "restaurant_1f_exterior",
+  "view": "exterior",
+  "rows": [
+   {
+    "kind": "door",
+    "engine": [
+     51,
+     30
+    ],
+    "drawn": [
+     51.72,
+     30.5
+    ],
+    "offset_tiles": 0.22,
+    "width_tiles": 1.18
+   }
+  ]
+ },
+ "restaurant_1f_interior": {
+  "name": "restaurant_1f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=22 x∈[46,56]",
+    "offset_tiles": -0.53,
+    "thickness_tiles": 1.19
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=30 x∈[46,56]",
+    "offset_tiles": 0.31,
+    "thickness_tiles": 0.32
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     51,
+     30
+    ],
+    "offset_along": null,
+    "offset_across": 0.31,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=46 y∈[22,30]",
+    "offset_tiles": 0.56,
+    "thickness_tiles": 1.39
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=53 y∈[22,30]",
+    "offset_tiles": 0.36,
+    "thickness_tiles": 1.21
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     53,
+     26
+    ],
+    "offset_along": null,
+    "offset_across": 0.36,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=56 y∈[22,30]",
+    "offset_tiles": 0.18,
+    "thickness_tiles": 0.68
+   }
+  ],
+  "wall_palette": [
+   [
+    155,
+    136,
+    127
+   ],
+   [
+    83,
+    79,
+    88
+   ],
+   [
+    175,
+    160,
+    154
+   ],
+   [
+    119,
+    89,
+    88
+   ]
+  ]
+ },
+ "square_1f_interior": {
+  "name": "square_1f_interior",
+  "view": "interior",
+  "rows": [],
+  "note": "室外地面，无墙"
+ },
+ "xiaoqian_house_1f_exterior": {
+  "name": "xiaoqian_house_1f_exterior",
+  "view": "exterior",
+  "rows": [
+   {
+    "kind": "door",
+    "engine": [
+     16,
+     41
+    ],
+    "drawn": [
+     16.54,
+     41.5
+    ],
+    "offset_tiles": 0.04,
+    "width_tiles": 0.79
+   }
+  ]
+ },
+ "xiaoqian_house_1f_interior": {
+  "name": "xiaoqian_house_1f_interior",
+  "view": "interior",
+  "rows": [
+   {
+    "kind": "wall",
+    "seg": "横墙 y=36 x∈[12,20]",
+    "offset_tiles": -0.17,
+    "thickness_tiles": 1.0
+   },
+   {
+    "kind": "wall",
+    "seg": "横墙 y=41 x∈[12,20]",
+    "offset_tiles": 0.11,
+    "thickness_tiles": 1.06
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     16,
+     41
+    ],
+    "offset_along": null,
+    "offset_across": 0.11,
+    "note": "墙带里没画开口（墙连着）"
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=12 y∈[36,41]",
+    "offset_tiles": 0.34,
+    "thickness_tiles": 1.03
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=17 y∈[36,41]",
+    "offset_tiles": 0.03,
+    "thickness_tiles": 0.92
+   },
+   {
+    "kind": "opening",
+    "engine": [
+     17,
+     39
+    ],
+    "offset_along": -0.3,
+    "offset_across": 0.03,
+    "width_tiles": 0.69
+   },
+   {
+    "kind": "wall",
+    "seg": "竖墙 x=20 y∈[36,41]",
+    "offset_tiles": 0.08,
+    "thickness_tiles": 0.71
+   },
+   {
+    "kind": "extra_opening",
+    "drawn": [
+     16.59,
+     36.33
+    ],
+    "width_tiles": 0.62,
+    "seg": "横墙 y=36 x∈[12,20]"
+   }
+  ],
+  "wall_palette": [
+   [
+    187,
+    175,
+    184
+   ],
+   [
+    93,
+    104,
+    128
+   ],
+   [
+    141,
+    118,
+    116
+   ],
+   [
+    57,
+    75,
+    108
+   ],
+   [
+    155,
+    150,
+    168
+   ],
+   [
+    175,
+    159,
+    165
+   ],
+   [
+    90,
+    89,
+    112
+   ]
+  ]
+ }
+}

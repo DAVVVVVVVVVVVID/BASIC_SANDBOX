@@ -28,6 +28,8 @@ export interface SpectateParams {
   focus: { sector: string; floor: number } | null
   /** W9 任务 0（主播 11-07 晚）：free = 自由镜头（拖动 / WASD / 滚轮 / 点建筑进屋 / 点人跟随）；follow = 跟随 follow= 的人；world = 全景。缺省：有 follow 则 follow，否则 world */
   mode: 'free' | 'follow' | 'world'
+  /** W9 0c（总控 11-07 晚）：`&debug=walls` 把引擎的墙格 / 门与楼梯格 / arena 边界 / 格线半透明叠在底图上，核对底图与引擎的错位 */
+  debug: 'walls' | null
 }
 
 export function parseSpectateParams(search = window.location.search): SpectateParams {
@@ -65,6 +67,7 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
     town,
     scene:  q.get('scene') === 'world' ? 'world' : 'follow',
     focus:  (() => { const f = q.get('focus'); if (!f) return null; const [sector, fl] = f.split(':'); return /^[\w-]+$/.test(sector) ? { sector, floor: Number(fl) || 1 } : null })(),
+    debug:  q.get('debug') === 'walls' ? 'walls' : null,
     mode:   (() => { const m = q.get('mode'); if (m === 'free' || m === 'follow' || m === 'world') return m; return q.get('follow') ? 'follow' : 'world' })(),
   }
 }
