@@ -35,7 +35,7 @@ export default function BackpackPanel() {
   while (slots.length < 10) slots.push(null)
 
   return (
-    <div style={{ position: 'absolute', left: 16, bottom: 16, width: 300, background: 'rgba(15,15,30,0.9)', border: '1px solid #4a5568', borderRadius: 8, color: '#e2e8f0', fontSize: 12, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none' }}>
+    <div style={{ position: 'absolute', left: 330, bottom: 16, width: 300, background: 'rgba(15,15,30,0.9)', border: '1px solid #4a5568', borderRadius: 8, color: '#e2e8f0', fontSize: 12, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <b style={{ color: '#90cdf4' }}>🎒 背包</b>
         <span style={{ marginLeft: 'auto', color: '#ffe9a8', fontWeight: 700 }}>💰 {gold === null ? '—' : gold}</span>

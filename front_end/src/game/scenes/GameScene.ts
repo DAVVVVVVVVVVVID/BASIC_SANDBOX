@@ -19,6 +19,7 @@ import { arenaBBox, isIndoor } from '../map/mapv2'
 /** 自由镜头命令（React 控件 / 小地图 / 画布点击 → 场景） */
 export type FreeCmd = { cmd: 'free' } | { cmd: 'world' } | { cmd: 'follow'; id: string } | { cmd: 'jump'; x: number; y: number } | { cmd: 'enter'; sector: string; floor: number } | { cmd: 'exit' }
 import { itemMeta } from '../items'
+import type { WsKnock, WsDoor } from '../../types'
 import DecoLayer from '../systems/DecoLayer'
 
 export interface SceneInitData {
@@ -71,6 +72,8 @@ export default class GameScene extends Phaser.Scene {
   /** W8 底图：name → image；roofed sectors = 有 exterior 底图的 sector */
   private backdrops: { name: string; meta: AiBackdrop; img: Phaser.GameObjects.Image; shadow?: Phaser.GameObjects.Graphics }[] = []
   private debugWalls: Phaser.GameObjects.Graphics | null = null   // W9 0c：&debug=walls 叠层
+  /** §3.40 敲门：门口气泡（按 request_id 键；敲门 90 游戏秒，回应 6 s） */
+  private doorBubbles = new Map<string, { bg: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; until: number }>()
   private debugTexts: Phaser.GameObjects.Text[] = []
   private deco: DecoLayer | null = null
   private roofedSectors = new Set<string>()
@@ -244,6 +247,24 @@ export default class GameScene extends Phaser.Scene {
     this.on('chat-message', ({ entityId, content }: { entityId: string; content: string }) => {
       useGameStore.getState().pushBubble(entityId, content)
     })
+    // §3.40 敲门（总控 11-08，B 70fc870 / api-spec §11）：ws knock → 门口「咚咚」气泡 90 游戏秒 + 访客头顶；ws door → 门口反馈气泡
+    this.on('knock-event', (msg: WsKnock) => {
+      const who = msg.visitor_name ?? this.nameOf(msg.visitor) ?? '有人'
+      if (msg.door) {
+        const speed = useGameStore.getState().worldState?.speed || 1
+        this.showDoorBubble(`knock:${msg.request_id}`, msg.door, `🚪 咚咚咚！${who}在敲${msg.home_name ?? ''}的门`, Math.min(180_000, 90_000 / speed))
+      }
+      if (msg.visitor) useGameStore.getState().pushBubble(msg.visitor, '咚咚咚！', 4000)
+    })
+    this.on('door-event', (msg: WsDoor) => {
+      const who = msg.visitor_name ?? this.nameOf(msg.visitor) ?? '访客'
+      const by = msg.by_name ?? this.nameOf(msg.by) ?? '主人'
+      const text = msg.event === 'accepted' ? `🔓 ${by}给${who}开了门` : msg.event === 'declined' ? `🙅 ${by}没让${who}进` : msg.event === 'no_answer' ? `😶 ${who}敲了半天没人应门` : msg.event === 'pass_expired' ? `🔒 ${who}的通行证到期了` : `🚪 ${msg.event}`
+      const key = `knock:${msg.request_id ?? ''}`
+      if (msg.door) this.showDoorBubble(key, msg.door, text, 6000)
+      else this.hideDoorBubble(key)
+      if (msg.visitor && msg.event !== 'pass_expired') useGameStore.getState().pushBubble(msg.visitor, msg.event === 'accepted' ? '🔓 门开了' : msg.event === 'declined' ? '🙅 没让进…' : '😶 没人应门…', 5000)
+    })
 
     // 调试 / 自动化测量用（Playwright 读）：自己的像素位置、在途请求数
     ;(window as unknown as { __whaleDebug: unknown }).__whaleDebug = {
@@ -255,6 +276,7 @@ export default class GameScene extends Phaser.Scene {
       zoom: () => this.cameras.main.zoom,
       state: () => ({ camMode: this.camMode, focus: this.params?.focus ?? null, follow: this.params?.follow ?? null, keyboard: !!this.input.keyboard }),
       setFocus: (sector: string | null, floor = 1) => { if (this.params) this.params.focus = sector ? { sector, floor } : null },   // W9 任务 4 录屏：运行时切取景
+      emit: (evt: string, payload: unknown) => EventBus.emit(evt, payload),   // 调试：模拟 ws 事件（knock-event / door-event …）
       others: () => [...this.others.entries()].map(([id, s]) => ({ id, px: s.getPixelPosition(), tile: s.getTile(), moving: s.isMoving(), ...s.debugPose() })),
     }
 
@@ -272,6 +294,7 @@ export default class GameScene extends Phaser.Scene {
     for (const [e, f] of this.busHandlers) EventBus.off(e, f)
     this.busHandlers = []
     this.inputSystem?.destroy()
+    for (const k of [...this.doorBubbles.keys()]) this.hideDoorBubble(k)
     this.others.forEach(s => s.destroy())
     this.others.clear()
     this.self?.destroy()
@@ -309,6 +332,32 @@ export default class GameScene extends Phaser.Scene {
     // 室内底图覆盖到的格：不再叠画像素楼梯图示
     const interiors = this.backdrops.filter(b => b.meta.view === 'interior')
     this.focus?.hideStairIcons((t) => interiors.some(b => t.x >= b.meta.x0 && t.x < b.meta.x0 + b.meta.w && t.y >= b.meta.y0 && t.y < b.meta.y0 + b.meta.h))
+  }
+
+  private nameOf(id: string | null | undefined): string | undefined {
+    if (!id) return undefined
+    const st = useGameStore.getState()
+    return st.players.find(p => p.id === id)?.name ?? (st.player?.id === id ? (st.player.profile?.name ?? id) : undefined)
+  }
+
+  /** §3.40：门口气泡——画在门格上方，盖过屋顶 / 室内视图（depth 很高），到时自动消失 */
+  private showDoorBubble(key: string, door: { x: number; y: number }, text: string, ms: number) {
+    this.hideDoorBubble(key)
+    const T = TILE_SIZE, x = (door.x + 0.5) * T, y = door.y * T - 10
+    const t = this.add.text(x, y, text, { fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei", sans-serif', fontSize: '13px', color: '#1a202c', wordWrap: { width: 220, useAdvancedWrap: true }, align: 'center' }).setOrigin(0.5, 1).setDepth(90001).setResolution(2)
+    const b = t.getBounds()
+    const g = this.add.graphics().setDepth(90000)
+    g.fillStyle(0xffffff, 0.95).fillRoundedRect(b.x - 8, b.y - 5, b.width + 16, b.height + 10, 8)
+    g.lineStyle(2, 0x8b5e3c, 0.9).strokeRoundedRect(b.x - 8, b.y - 5, b.width + 16, b.height + 10, 8)
+    g.fillStyle(0xffffff, 0.95).fillTriangle(x - 7, b.bottom + 4, x + 7, b.bottom + 4, x, b.bottom + 12)
+    this.doorBubbles.set(key, { bg: g, text: t, until: performance.now() + ms })
+  }
+  private hideDoorBubble(key: string) {
+    const d = this.doorBubbles.get(key)
+    if (d) { d.bg.destroy(); d.text.destroy(); this.doorBubbles.delete(key) }
+  }
+  private pruneDoorBubbles(now: number) {
+    for (const [k, d] of this.doorBubbles) if (now >= d.until) this.hideDoorBubble(k)
   }
 
   /**
@@ -831,6 +880,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update(time: number, dt: number) {
+    if (this.doorBubbles.size) this.pruneDoorBubbles(performance.now())
     const store = useGameStore.getState()
     const speed = store.player?.moveSpeed ?? 1
 

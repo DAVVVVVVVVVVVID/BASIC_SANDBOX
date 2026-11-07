@@ -14,6 +14,7 @@ import ChatPanel from './ui/ChatPanel'
 import ConnectionBadge from './ui/ConnectionBadge'
 import QQPanel from './ui/QQPanel'
 import BackpackPanel from './ui/BackpackPanel'
+import KnockPanel from './ui/KnockPanel'
 import SpectateApp from './spectate/SpectateApp'
 import ReplayApp from './replay/ReplayApp'
 import BrainApp from './brain/BrainApp'
@@ -79,6 +80,7 @@ function PlayApp() {
       <ConnectionBadge />
       <QQPanel playerId={myPlayerId} readOnly={false} compact inventory={myInventory} style={{ top: 120, right: 16 }} />
       <BackpackPanel />
+      <KnockPanel />
     </div>
   )
 }

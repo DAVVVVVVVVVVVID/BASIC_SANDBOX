@@ -184,6 +184,12 @@ export function startWorldFeed(opts: { preferWs?: boolean } = {}): WorldFeedHand
         case 'commission':
           EventBus.emit('commission-event', msg)
           break
+        case 'knock':
+          EventBus.emit('knock-event', msg)
+          break
+        case 'door':
+          EventBus.emit('door-event', msg)
+          break
         case 'heartbeat':
           break
       }

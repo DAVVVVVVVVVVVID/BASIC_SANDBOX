@@ -19,8 +19,9 @@ const META: Record<string, ItemMeta> = {
   script: { icon: '📄', label: '电台文稿', kind: 'file' },
   radio_script: { icon: '📄', label: '电台文稿', kind: 'file' },
   image: { icon: '🖼', label: '图片', kind: 'file' },
+  key: { icon: '🔑', label: '钥匙', kind: 'other' },   // §3.41 敲门新方案：钥匙物品（「合租房钥匙」），送钥匙走现有「送」
 }
-const CN: Record<string, string> = { 面包: 'bread', 甜食: 'sweet', 便当: 'bento', 食材: 'ingredient', 鱼: 'fish', 鱼饵: 'bait', 小礼物: 'gift', 礼物: 'gift', 歌: 'song', 电台文稿: 'script', 文稿: 'script', 图片: 'image' }
+const CN: Record<string, string> = { 面包: 'bread', 甜食: 'sweet', 便当: 'bento', 食材: 'ingredient', 鱼: 'fish', 鱼饵: 'bait', 小礼物: 'gift', 礼物: 'gift', 歌: 'song', 电台文稿: 'script', 文稿: 'script', 图片: 'image', 钥匙: 'key' }
 
 export function itemMeta(type: string | undefined | null, name?: string | null): ItemMeta {
   const k = (type ?? '').toLowerCase().replace(/[-\s]/g, '_')

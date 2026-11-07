@@ -131,6 +131,14 @@
 - `ActorSprite`：服务器说在走（两步之间精灵可能短暂静止）就不播睡 / 坐帧、不贴床；走 ↔ 停切换时重算姿势。
 - 8091 复现（`/tmp/pw/sleepwalk.mjs`：人类玩家 use bed_whale → scenario release → move）：起身第一帧即站立 / 走路帧、`anchored=false`，沿途标签空；睡觉本身仍正常贴床显示「💤 睡觉中」。8091 的人类玩家数据没有滞后，所以旧版在这条路径上也看不出问题；真正的滞后只在主镇 agent 的 ws / 轮询时序上出现，按总控的分析改成「以 state 为准」后与数据时序无关。
 
+## 0e. 总控追加（11-08）：敲门 §3.40 前端初版（§3.41 改版待 B 定稿后调整）
+
+按 B 70fc870 / api-spec §11 做了：ws `knock` → 门口「🚪 咚咚咚！X 在敲合租房的门」气泡（90 游戏秒 ÷ 倍速，画在门格上方、盖过屋顶）+ 访客头顶「咚咚咚！」；ws `door` → 门口反馈气泡（🔓 开门 / 🙅 没让进 / 😶 没人应门 / 🔒 通行证到期，6 s）+ 访客头顶；操控页 `KnockPanel`（顶部居中）：`GET /player.pending_knocks[]` + ws knock（notified / owners 含我）即时弹「X 在敲门」→ 开门 / 不开 → `POST /door/respond`；行为日志把 `knock / door_respond / door_pass_granted / door_pass_expired` 翻成文案。8091 实测截图 `W9_knock_*.jpg`（访客 E访客 敲 door_home；用 scenario `spawn agent_id=achan` 的阿蝉开门）。
+
+**给 B / 总控的发现**：沙盒目前**不把人类玩家算主人**——人类 `E主人测` 站在客厅里，敲门 `notified` 只有阿蝉 agent，`/door/respond` 回 `not_owner`；只有 `agent_id=achan` 的实例能回应。总控说「人类玩家属 owner（阿蝉）」，§3.41 定稿时请 B 明确人类（操控页）算不算主人，否则操控页的弹窗只能看、按了会报「你不是这家的主人」（面板已这样提示）。
+
+§3.41 收到的方向（等字段）：弹窗按钮改「隔门回一句」（输入 → respond text）/「不开」+「走到门边开门」提示，站门内侧相邻格出「开门」→ `POST /action open_door`；旁观门口气泡加主人喊话原文与门敞开 / 落锁（ws door `opened | closed`）；背包钥匙物品（`type: key`，已先加 🔑 图标）；门敞开 60 游戏秒期间可换开门态贴图。另修了操控页背包面板盖住行为日志的布局问题（背包挪到日志右边）。
+
 ## 1. 进度
 
 B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**上午还没落地**：8091 的门仍在北面、`/qq/contacts` 404、`/world` 物品没有 `use_pos`、玩家没有 `gold`。所以 1–3 按交接里的接口形状把前端做好、对字段名做了宽容解析，B 落地后只需对齐字段名；4、5 已完成。
