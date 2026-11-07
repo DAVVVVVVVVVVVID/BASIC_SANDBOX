@@ -14,6 +14,58 @@
       "tile_px": 32,
       "qa_score": 0.899
     },
+    "music_room_1f_interior": {
+      "sector": "music_room",
+      "floor": 1,
+      "view": "interior",
+      "x0": 32,
+      "y0": 0,
+      "w": 12,
+      "h": 8,
+      "px": 32,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 32,
+      "qa_score": 0.946
+    },
+    "classroom_1f_interior": {
+      "sector": "classroom",
+      "floor": 1,
+      "view": "interior",
+      "x0": 3,
+      "y0": 0,
+      "w": 12,
+      "h": 8,
+      "px": 32,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 32,
+      "qa_score": 0.914
+    },
+    "library_1f_exterior": {
+      "sector": "library",
+      "floor": 1,
+      "view": "exterior",
+      "x0": 16,
+      "y0": 0,
+      "w": 14,
+      "h": 8,
+      "px": 32,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 32,
+      "qa_score": 0.965
+    },
+    "classroom_1f_exterior": {
+      "sector": "classroom",
+      "floor": 1,
+      "view": "exterior",
+      "x0": 3,
+      "y0": 0,
+      "w": 12,
+      "h": 8,
+      "px": 32,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 32,
+      "qa_score": 1.0
+    },
     "home_1f_exterior": {
       "sector": "home",
       "floor": 1,
@@ -22,6 +74,19 @@
       "y0": 20,
       "w": 16,
       "h": 15,
+      "px": 32,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 32,
+      "qa_score": 1.0
+    },
+    "music_room_1f_exterior": {
+      "sector": "music_room",
+      "floor": 1,
+      "view": "exterior",
+      "x0": 32,
+      "y0": 0,
+      "w": 12,
+      "h": 8,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
       "tile_px": 32,
@@ -38,11 +103,43 @@
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
       "tile_px": 32,
-      "qa_score": 0.584
+      "qa_score": 0.972
+    },
+    "library_1f_interior": {
+      "sector": "library",
+      "floor": 1,
+      "view": "interior",
+      "x0": 16,
+      "y0": 0,
+      "w": 14,
+      "h": 8,
+      "px": 32,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 32,
+      "qa_score": 0.949
     }
   },
   "objects": [
+    "bar",
     "bed",
-    "pc"
+    "bench",
+    "classroom_desk",
+    "door_closed",
+    "fish_stall",
+    "fishing_spot",
+    "fountain",
+    "fridge",
+    "notice_board",
+    "pc",
+    "pc_music",
+    "piano",
+    "reading_desk",
+    "restaurant_table",
+    "shelf",
+    "shop_counter",
+    "sofa_tv",
+    "stairs",
+    "stove",
+    "tree"
   ]
 }

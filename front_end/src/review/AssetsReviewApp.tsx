@@ -68,11 +68,11 @@ export default function AssetsReviewApp() {
               return (
                 <div key={t} style={card}>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}><b>{t}</b><span style={{ marginLeft: 'auto', color: '#8a897f', fontSize: 12 }}>{last ? `$${(last.cost_usd_est ?? 0).toFixed(2)} · ${last.latency_s ?? '–'}s` : ''}</span></div>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: 8, background: '#2a3a2a', padding: 8, borderRadius: 6 }}>
-                    <img src={`assets/gen/obj_${t}.png`} alt="old" onError={hide} style={{ height: 96, imageRendering: 'pixelated' }} />
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginTop: 8, background: '#2a3a2a', padding: 8, borderRadius: 6, overflow: 'hidden' }}>
+                    <img src={`assets/gen/obj_${t}.png`} alt="old" onError={hide} style={{ ...objImg, imageRendering: 'pixelated' }} />
                     <span style={{ color: '#8a897f' }}>→</span>
-                    <img src={`assets/gen-ai/objects/${t}.png`} alt="new" onError={hide} style={{ height: 96, imageRendering: 'pixelated' }} />
-                    <img src={`assets/gen-ai/review/obj_${t}_raw.png`} alt="raw" onError={hide} style={{ height: 96, marginLeft: 'auto', borderRadius: 4, opacity: 0.9 }} />
+                    <img src={`assets/gen-ai/objects/${t}.png`} alt="new" onError={hide} style={{ ...objImg, imageRendering: 'pixelated' }} />
+                    <img src={`assets/gen-ai/review/obj_${t}_raw.png`} alt="raw" onError={hide} style={{ ...objImg, marginLeft: 'auto', borderRadius: 4, opacity: 0.9 }} />
                   </div>
                   {last?.prompt && <button onClick={() => setShowPrompt(last.prompt!)} style={{ ...btn, marginTop: 6, fontSize: 11 }}>看提示词</button>}
                 </div>
@@ -90,6 +90,7 @@ export default function AssetsReviewApp() {
   )
 }
 const btn: React.CSSProperties = { padding: '6px 12px', borderRadius: 6, border: 'none', background: '#2c2c2a', color: '#f0efec', fontSize: 13, cursor: 'pointer' }
+const objImg: React.CSSProperties = { height: 96, maxWidth: '34%', objectFit: 'contain', objectPosition: 'bottom', flex: '0 1 auto' }
 const card: React.CSSProperties = { background: '#1a1a19', border: '1px solid #2c2c2a', borderRadius: 10, padding: 12 }
 const h2: React.CSSProperties = { fontSize: 16, margin: '18px 0 8px', color: '#c3c2b7' }
 function median(a: number[]) { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)] }

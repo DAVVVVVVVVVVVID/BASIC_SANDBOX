@@ -74,7 +74,7 @@ export default function FlatApp() {
           if (nb) g.strokeRect(tx * px + 1, ty * px + 1, px - 2, px - 2)
         }
       }
-      ;(window as unknown as { __flatMeta: unknown }).__flatMeta = { sector, floor, view, x0, y0, w, h, px, mapVersion: world.worldState?.mapVersion ?? null }
+      ;(window as unknown as { __flatMeta: unknown }).__flatMeta = { sector, floor, view, x0, y0, w, h, px, margin, mapVersion: world.worldState?.mapVersion ?? null }
       setStatus(`${sector} ${floor}F ${view} ${w}×${h} 格 @${px}px`)
       document.title = `flat:${sector}:${floor}:${view}`
     }).catch(e => setStatus(String(e)))

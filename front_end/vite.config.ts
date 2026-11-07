@@ -109,6 +109,8 @@ export default defineConfig(({ mode }) => {
     ],
     server: {
       host: true,                 // 监听 0.0.0.0，局域网可达
+      // tools/.venv（几千个文件）、data/、报告截图、参考图不参与热更新，否则 inotify 配额会被吃光（ENOSPC）
+      watch: { ignored: ['**/tools/.venv/**', '**/data/**', '**/report_shots/**', '**/ref/**', '**/public/assets/gen-ai/review/**'] },
       port: Number(env.VITE_PORT) || 5173,
       strictPort: false,
       proxy,

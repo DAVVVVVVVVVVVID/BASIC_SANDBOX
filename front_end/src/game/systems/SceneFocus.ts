@@ -27,6 +27,7 @@ export default class SceneFocus {
   private v2: MapV2
   private tileIndex = new Map<string, Tile>()
   private edgeNodes: Phaser.GameObjects.GameObject[] = []
+  private edgeNodeTiles: { node: Phaser.GameObjects.GameObject; tile: { x: number; y: number } }[] = []
   private doorNodes: { edge: MapEdge; img: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text }[] = []
   private lastLockSig = ''
   private indoor = false
@@ -45,6 +46,7 @@ export default class SceneFocus {
     this.tileIndex = new Map(world.tiles.map(t => [`${t.x},${t.y}`, t]))
     for (const n of this.edgeNodes) n.destroy()
     this.edgeNodes = []
+    this.edgeNodeTiles = []
     for (const d of this.doorNodes) { d.img.destroy(); d.label.destroy() }
     this.doorNodes = []
     this.labels = []
@@ -56,7 +58,7 @@ export default class SceneFocus {
         const img = this.scene.add.image(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE + TILE_SIZE / 2, objTextureKey('stairs')).setDisplaySize(TILE_SIZE - 8, TILE_SIZE - 8).setDepth(2)
         const f = e.floors ? `${e.floors[0]}F↔${e.floors[1]}F` : '楼梯'
         const t = this.scene.add.text(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE - 2, f, { fontFamily: 'system-ui, sans-serif', fontSize: '12px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(3).setResolution(2)
-        this.edgeNodes.push(img, t); this.labels.push(t)
+        this.edgeNodes.push(img, t); this.labels.push(t); this.edgeNodeTiles.push({ node: img, tile: p }, { node: t, tile: p })
       }
     }
     // 门（有时段的）
@@ -77,6 +79,15 @@ export default class SceneFocus {
   }
 
   get hasV2() { return this.v2.hasV2 }
+  /** W8：屋顶视图下藏起楼梯 / 门标记（roofed = 有屋顶且当前没进入的 sector） */
+  setRoofed(isRoofed: (tile: { x: number; y: number }) => boolean) {
+    for (const { node, tile } of this.edgeNodeTiles) (node as unknown as { setVisible: (b: boolean) => void }).setVisible(!isRoofed(tile))
+    for (const d of this.doorNodes) { const p = d.edge.tiles[d.edge.tiles.length - 1]; if (p && isRoofed(p)) { d.img.setVisible(false); d.label.setVisible(false) } }
+  }
+  /** W8：AI 室内底图里已经画了楼梯 → 这些格的像素楼梯图示不再叠画（文字标签保留） */
+  hideStairIcons(covered: (tile: { x: number; y: number }) => boolean) {
+    for (const { node, tile } of this.edgeNodeTiles) if (node instanceof Phaser.GameObjects.Image && covered(tile)) node.setVisible(false)
+  }
   /** 调试 */
   debugLabels() { return this.labels.map(l => ({ text: l.text, scale: l.scaleX, visible: l.visible, x: l.x, y: l.y, depth: l.depth })) }
   /** 某 sector 或 arena（可选楼层）的中心格，给 &focus= 用 */

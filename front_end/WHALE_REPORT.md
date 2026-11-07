@@ -1,4 +1,83 @@
-分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `41b42dd`。只改了 `front_end/`。截图在 `front_end/report_shots/`（v1 地图评审包在 `report_shots/v1map/`）。
+分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `0d091e1`。只改了 `front_end/`。截图在 `front_end/report_shots/`（v1 地图评审包 `report_shots/v1map/`，美术管线截图 `report_shots/v1art/W8_*`）。
+
+---
+
+# W8 · 2026-11-07：美术管线 v1.0（gpt-image-2 底图 + 物品，任务 1–2 先交主播看）
+
+## 1. 进度（先做了任务 1、2，等主播看过再做 3–5）
+
+| # | 任务 | 状态 | 做了什么 |
+|---|---|---|---|
+| 1 | 合租房外观 + 1F/2F 室内 | 完成 | 3 张底图：`home_1f_exterior`（16×15 格，宝可梦式 3/4 外观：蓝瓦屋顶 + 底边正面墙 + 门窗花箱）、`home_1f_interior`（三间 + 厨房瓷砖，内墙按 B 的版式）、`home_2f_interior`（阿蝉房，画在 B 画布的 2F 位置，常显） |
+| 2 | 校园三栋外观 + 室内、20 件核心物品 | 完成 | 教室 / 图书馆 / 音乐室各 1 外观 + 1 室内（共 6 张）；物品 21 件（任务书 20 件 + `door_closed`）：bed、pc、fridge、stove、restaurant_table、sofa_tv、pc_music、piano、reading_desk、classroom_desk、shelf、bar、shop_counter、fishing_spot、fish_stall、bench、notice_board、door_closed、stairs、tree、fountain。见 `report_shots/v1art/W8_objects_sheet.png` |
+| 3 | 鲸仔 / 阿蝉形象 | 未开始 | 等主播对 1–2 的画风拍板后再做（行走帧用 `images.edit` 一致性仍是风险，见 §5） |
+| 4 | 其余区域底图 + NPC | 未开始 | 餐馆 / 商店 / 渔夫屋 / 小千屋 / 餐厅老板屋 / 码头 / 广场 / 公园的底图和 NPC 形象 |
+| 5 | 评审页 + 报告 | 完成（页）/ 本节 | `/assets-review`：底图四联（平涂版式 → 原始输出 → 对齐 QA 叠图 → 量化成品）+ QA 分 + 次数 + 费用；物品三联（旧像素 → 新 AI → 原始输出）；「一键替换」切 `localStorage.aiAssets`；每张可看提示词 |
+
+**主播补充三条全部按要求做了**：① 统一相机——室内俯视 3/4（参考 `ref/gpt-image-probe/house.png`），外观按主播 11-07 的话改成宝可梦式「看得见正面墙」；鲸仔 / 阿蝉动作表只作画风与配色参考喂给模型，没有照抄侧视；② 小镇视角房屋不镂空（屋顶 + 外墙），相机跟到的人进屋才切室内图；每栋都有外观 + 室内，2F 单独一张；③ 室外小物件（长椅、喷泉、树、公告栏、鱼摊、钓位）一套，室内物件只在室内视图出现（屋顶盖住时隐藏物品和人物）。
+
+## 2. 管线（`tools/gen_assets_ai.py`，全部在 `front_end/`）
+
+```
+/flat 页（Vite）──flat_export.mjs──▶ data/assets/flats/<区域>_<层>f_<视图>.png + .json（x0,y0,w,h,px,margin）
+   │ 平涂版式：按 B 8091 的 /world 画每格颜色（地板/瓷砖/红毯/墙/门/楼梯；exterior = 屋顶色 + 底边一行外墙色）
+   ▼
+gen_assets_ai.py backdrops  ──▶ gpt-image-2 images.edit([letterbox 版式, 画风参考], prompt, quality=high)
+   │ 对齐 QA：墙/门色块轮廓 vs 生成图边缘，覆盖率 ≥ 0.9 过，否则换提示重试（最多 2 次）
+   │ 反 letterbox 裁回版式比例 → 缩到 32 px/格 → ≤ 64 色量化 → public/assets/gen-ai/backdrops/<名>.png + .json
+gen_assets_ai.py objects    ──▶ images.edit([画风参考, 室内参考], 「品红 #FF00FF 纯底」prompt)
+   │ 品红抠像（tol 90 / 软边 40）→ 裁包围盒 → 等比装进 w×h 格（32 px/格）→ 底对齐 → ≤ 64 色
+gen_assets_ai.py manifest   ──▶ public/assets/gen-ai/manifest.json + review/ 缩略图 + gen.jsonl 同步
+每次调用一行 data/assets/gen.jsonl：kind/name/attempt/prompt/size/quality/usage tokens/latency/cost_usd_est/qa_score/error
+```
+
+子命令：`backdrops --regions home:1:interior,... --attempts 2 --qa 0.9 [--dry-run]`、`objects --items bed,pc`、`qa`（只重算分）、`rekey`（只重抠像，不花钱）、`manifest`。gpt-image-2 **不支持** `input_fidelity`、`background=transparent`、seed（三条都是 400 撞出来的，见 §4）；只能用 1024²/1536×1024/1024×1536 三种尺寸，所以版式先 letterbox 进最接近的比例。
+
+游戏接入：`src/game/aiAssets.ts` 读 manifest、`&ai=0` / `localStorage.aiAssets` 开关；`GameScene.placeBackdrops` 把底图贴在 `(x0,y0)` 格、`setCrop` 裁掉版式四周 1 格地面、深度 0.6（地砖之上、物品之下）；`applyView(inside)`：镜头进了某栋（按 backdrop 的 sector **或 arena** 匹配——校园三栋 sector 都是 `university`，按 arena 分）就显示它的室内图、其余有外观图的显示屋顶并隐藏屋内 1F 物品 / 人物；同层没有外观图的室内（2F）常显。物品精灵优先用 `aiobj_<type>`，别名表 `pc_desk→pc、book→shelf、cook→stove、desk→classroom_desk、bed_21→bed、desk_12→reading_desk、game_console→pc`；1×2 的床遇到 2×1 的占位时转 90°。
+
+## 3. 结果与费用（`data/assets/gen.jsonl`，57 次调用）
+
+| 项 | 值 |
+|---|---|
+| 成功 / 失败 | 35 / 22（22 次失败全是参数 400：1 次 `input_fidelity`、21 次 `background=transparent`，**不计费**） |
+| 底图 | 9 张成品，14 次成功调用（home_2f 3 次、home_1f_int / classroom_int / library_int / home_1f_ext 各 2 次） |
+| 物品 | 21 张，21 次，一次过 |
+| 对齐 QA（最终成品） | 外观：home 1.000、classroom 1.000、music_room 1.000、library 0.965；室内：home_2f 0.972、library 0.949、music_room 0.946、classroom 0.914、**home_1f 0.899**（差 0.001，三间房 + 厨房的内墙全对上，缺的是门洞一角，放行，见评审页叠图） |
+| 时延 | 52–97 s / 张，均 74 s（high） |
+| token | 331,295（usage 字段汇总） |
+| 费用估算 | **$8.75**（35 × $0.25；$0.25/张 high 是**假设**，按 gpt-image-1 high 1024² 价；官方账单以 token 计，请总控按实际账单核） |
+| 预算 | 任务书 ≤ 200 张，用了 35 张（17.5%） |
+
+截图（`report_shots/v1art/`，8091 草图镇，无人物）：`W8_overview.jpg` 全镇 1/6 zoom（屋顶版）与 `W8_overview_pixel.jpg`（`&ai=0` 像素版，同机位对照）、`W8_town_roofs.jpg` 合租房屋顶 + 公园广场物品、`W8_home_1f_ai.jpg` / `W8_home_2f_ai.jpg` 进屋取景、`W8_campus_ai.jpg`（镜头在图书馆：它显示室内、两侧教室 / 音乐室保持屋顶）、`W8_classroom_ai.jpg`、`W8_assets_review.jpg` 评审页整页、`W8_objects_sheet.png` 21 件物品一览。
+
+## 4. 踩过的坑（都已处理）
+
+1. **gpt-image-2 参数**：`input_fidelity` 400 → 去掉；`background="transparent"` 400 → 改品红纯底 + 自己抠像；没有 seed，重试靠改提示词。
+2. **抠像 int16 溢出**：第一版 alpha 全 NaN（物品几乎透明），改 int32；已跑完的 21 张用 `rekey` 离线重抠，没有重新花钱。
+3. **小房间照抄参考图**：home_2f 前两次把 `house.png` 参考的房间布局搬进来（QA 0.58 / 0.49）。底图输入去掉室内参考、提示词加「layout must follow the first image exactly」→ 0.972。室内参考现在只喂给物品。
+4. **QA 指标**：最初「所有边缘 IoU」把地板纹理也算进去，对齐良好的图只有 0.55；改成「版式的墙 / 门色块轮廓 → 生成图在同位置（±格宽/3）有没有边」的覆盖率，与肉眼一致。
+5. **外观视角**：第一版是纯俯视屋顶，主播要宝可梦式正面墙 → 版式底边加一行「外墙色」、提示词改写，4 张外观一次过（3 张 1.0）。
+6. **校园三栋不切室内**：tile 的 sector 是 `university`、底图按 arena 命名，匹配不到 → 改成 sector 或 arena 都认（§2）。
+
+## 5. 请主播 / 总控 / B 定
+
+1. **主播**：① 画风（蓝瓦 + 米墙 + 木家具、俯视 3/4）可以吗？② 外观的正面墙比例（约 1.5 格高）够不够「宝可梦」？③ 室内墙厚 1 格、门洞不画门扇（门用 `door_closed` 物品叠）是否接受？拍板后做任务 3（形象）和 4（其余区域）。
+2. **B（请总控转）**：合租房的入口在 **北边**（`door_home`：a=街道 (12,20)、b=鲸仔房 (12,21)，建筑顶边），而 3/4 外观只能把门画在南面正面墙上，现在从北门进屋在画面上是「从屋顶走进去」。建议 v1 地图把合租房门移到南侧（或所有带外观的建筑门都开在南 / 东西侧），校园三栋门已在南侧没问题。另外合租房的 2F 单独画在画布左下，前端当常显室内处理，不需要改。
+3. **总控**：不切 5173（任务书要求）；本周的 `node_modules` 之外新增了 `front_end/tools/.venv`（openai / numpy / pillow，已 gitignore），其他机器跑管线要 `python -m venv tools/.venv && tools/.venv/bin/pip install openai numpy pillow`，密钥从 `~/.env` 读 `OPENAI_API_KEY`。
+
+## 6. 假设（没有依据的决定）
+
+- 费用 $0.25/张（high）；底图 32 px/格、≤ 64 色；对齐阈值 0.9、重试 2 次。
+- 版式四周多带 1 格地面让模型画出屋檐 / 投影，贴图时裁掉。
+- 人物形象（任务 3）准备用 1024×1024 一张 4 向 × 3 帧的动作表 + 自动切格，和 v1 文字版同尺寸（16×24 帧）；若行走帧抖动大就只换立绘不换行走帧——等主播看完再定。
+
+## 7. 提交号
+
+| 项 | 值 |
+|---|---|
+| 代码 | `whale-frontend` @ 本提交（基于 B 的 `0d091e1`） |
+| 新增文件 | `tools/gen_assets_ai.py`、`tools/flat_export.mjs`、`src/flat/FlatApp.tsx`、`src/review/AssetsReviewApp.tsx`、`src/game/aiAssets.ts`、`public/assets/gen-ai/**`（9 底图 + 21 物品 + manifest + review 缩略图 + gen.jsonl）、`data/assets/{flats/,gen.jsonl}`、`report_shots/v1art/W8_*` |
+| 新增参数 | `&ai=0`（旁观 / 操控 / 回放页关 AI 素材）、`/flat?sector=&floor=&view=&px=&margin=`、`/assets-review` |
 
 ---
 

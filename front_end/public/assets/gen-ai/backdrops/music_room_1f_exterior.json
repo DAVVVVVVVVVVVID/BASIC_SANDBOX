@@ -1,0 +1,13 @@
+{
+  "sector": "music_room",
+  "floor": 1,
+  "view": "exterior",
+  "x0": 32,
+  "y0": 0,
+  "w": 12,
+  "h": 8,
+  "px": 32,
+  "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+  "tile_px": 32,
+  "qa_score": 1.0
+}

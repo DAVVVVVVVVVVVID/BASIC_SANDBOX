@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { WorldData, Player, WorldEvent, Position, OtherPlayer, GameObject, Facing } from '../../types'
+import { WorldData, Player, WorldEvent, Position, OtherPlayer, GameObject, Facing, Tile } from '../../types'
 import TileMap, { preloadTileAssets, TILE_SIZE, SOURCE_TILE, mapSize, tileCenter } from '../map/TileMap'
 import PlayerSprite from '../objects/Player'
 import OtherPlayerSprite from '../objects/OtherPlayerSprite'
@@ -274,12 +274,18 @@ export default class GameScene extends Phaser.Scene {
     for (const [name, meta] of Object.entries(m.backdrops)) {
       const key = aiBackdropKey(name)
       if (!this.textures.exists(key)) continue
-      const scale = TILE_SIZE / (meta.tile_px || m.tile_px || 32)
+      const tp = meta.tile_px || m.tile_px || 32
+      const scale = TILE_SIZE / tp
+      const mg = meta.margin ?? 1   // 版式导出时四周多带的地面格：裁掉，只贴建筑本体（setCrop 用纹理坐标，图仍从 x0,y0 起放）
       const img = this.add.image(meta.x0 * TILE_SIZE, meta.y0 * TILE_SIZE, key).setOrigin(0, 0).setScale(scale).setDepth(0.6)
+      img.setCrop(mg * tp, mg * tp, (meta.w - 2 * mg) * tp, (meta.h - 2 * mg) * tp)
       this.backdrops.push({ name, meta, img })
       if (meta.view === 'exterior') this.roofedSectors.add(meta.sector)
     }
     this.applyView(this.insideSector, true)
+    // 室内底图覆盖到的格：不再叠画像素楼梯图示
+    const interiors = this.backdrops.filter(b => b.meta.view === 'interior')
+    this.focus?.hideStairIcons((t) => interiors.some(b => t.x >= b.meta.x0 && t.x < b.meta.x0 + b.meta.w && t.y >= b.meta.y0 && t.y < b.meta.y0 + b.meta.h))
   }
 
   /** 两套视图：inside = 当前镜头进入的 sector（室内视图），其余有屋顶的 sector 显示屋顶、藏起屋内物品与人物 */
@@ -287,23 +293,38 @@ export default class GameScene extends Phaser.Scene {
     if (!force && inside === this.insideSector) return
     this.insideSector = inside
     for (const b of this.backdrops) {
-      const hasPair = this.roofedSectors.has(b.meta.sector)
-      if (!hasPair) { b.img.setVisible(true); continue }           // 只有一张（如 2F 室内）→ 常显
+      const hasPair = this.backdrops.some(o => o.meta.view === 'exterior' && o.meta.sector === b.meta.sector && o.meta.floor === b.meta.floor)
+      if (!hasPair) { b.img.setVisible(true); continue }           // 同层没有外观图（如 2F 室内画在别处）→ 常显
       const showInterior = b.meta.sector === inside
       b.img.setVisible(b.meta.view === 'interior' ? showInterior : !showInterior)
     }
+    this.focus?.setRoofed((tile) => this.underRoof(tile))
     // 屋内物品：所在 sector 有屋顶且不是当前进入的 → 隐藏（只对 1F；2F 另有位置，照常）
     this.objectSprites.forEach((o, i) => {
       const t = this.tileIndex.get(`${this.objectTiles[i]?.x},${this.objectTiles[i]?.y}`)
-      const roofed = !!t?.sector && this.roofedSectors.has(t.sector) && t.sector !== inside && (this.focus?.floorOf(t) ?? 1) === 1
-      o.setVisible(!roofed)
+      const k = this.roofKeyOf(t)
+      o.setVisible(!(k && k !== inside && (this.focus?.floorOf(t) ?? 1) === 1))
     })
+  }
+
+  /** 该格属于哪张外观底图的建筑：manifest 的 backdrop.sector 既可能是 sector（home）也可能是 arena（classroom / library / music_room 都在 sector=university 里） */
+  private roofKeyOf(t: Tile | undefined): string | null {
+    if (!t) return null
+    if (t.sector && this.roofedSectors.has(t.sector)) return t.sector
+    if (t.arena && this.roofedSectors.has(t.arena)) return t.arena
+    return null
+  }
+
+  /** 镜头所在格对应的室内视图键（不在任何有屋顶的建筑里 → null，显示全部外观） */
+  private insideKeyAt(tile: { x: number; y: number } | null | undefined): string | null {
+    return tile ? this.roofKeyOf(this.tileIndex.get(`${tile.x},${tile.y}`)) : null
   }
 
   /** 人物是否被屋顶挡住 */
   private underRoof(tile: Position): boolean {
     const t = this.tileIndex.get(`${tile.x},${tile.y}`)
-    return !!t?.sector && this.roofedSectors.has(t.sector) && t.sector !== this.insideSector && (this.focus?.floorOf(t) ?? 1) === 1
+    const k = this.roofKeyOf(t)
+    return !!k && k !== this.insideSector && (this.focus?.floorOf(t) ?? 1) === 1
   }
 
   /** 运行中换图：新 tileset 可能还没加载，先加载再重建 */
@@ -540,7 +561,7 @@ export default class GameScene extends Phaser.Scene {
     }
     // W7 取景：进屋推近 + 屋外压暗
     const fr = this.focus.update(focusTile, dt, useGameStore.getState().worldState)
-    this.applyView(fr.indoor && focusTile ? (this.tileIndex.get(`${focusTile.x},${focusTile.y}`)?.sector ?? null) : null)
+    this.applyView(fr.indoor ? this.insideKeyAt(focusTile) : null)
     if (this.params?.focus && !this.targetId && focusTile) {
       const want = fr.indoor && fr.zoom ? fr.zoom : this.followZoom
       if (want !== this.focusZoom) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
@@ -583,7 +604,7 @@ export default class GameScene extends Phaser.Scene {
       const p = this.self!.getPixelPosition()
       const fr0 = this.focus.update(this.self!.getTile(), dt, store.worldState)
       const st0 = this.self!.getTile()
-      this.applyView(fr0.indoor ? (this.tileIndex.get(`${st0.x},${st0.y}`)?.sector ?? null) : null)
+      this.applyView(fr0.indoor ? this.insideKeyAt(st0) : null)
       this.centerClamped(p.x, p.y)
     } else {
       this.updateSpectateCamera(time, dt)

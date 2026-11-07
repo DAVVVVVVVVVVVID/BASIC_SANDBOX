@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { GameObject } from '../../types'
 import { tileToPixel, TILE_SIZE } from '../map/TileMap'
 import { objTextureKey } from '../assets'
-import { aiObjectKey, aiEnabled } from '../aiAssets'
+import { aiObjectKey, aiEnabled, aiObjectTypeFor } from '../aiAssets'
 
 const COLOR_OBJECT = 0x8b6b3e
 const TYPE_ICON: [RegExp, string][] = [
@@ -31,6 +31,8 @@ function tooltipLabel(obj: GameObject): string {
 /** 地图物品：有 sprite 用图；没有就画一个带名字的圆角色块（E6 换美术前的占位） */
 export default class GameObjectSprite {
   private nodes: Phaser.GameObjects.GameObject[] = []
+  private tooltip: Phaser.GameObjects.Text | null = null
+  private hiddenByRoof = false
 
   constructor(scene: Phaser.Scene, obj: GameObject) {
     const footprint = obj.tiles && obj.tiles.length > 0 ? obj.tiles : [obj.position]
@@ -45,16 +47,18 @@ export default class GameObjectSprite {
     const imgH = rows * TILE_SIZE
 
     // 优先自制图（按物品类型；bed_21 这类直接有同名图），其次后端给的旧图，借用占位图不用
-    const aiKey = aiEnabled() && scene.textures.exists(aiObjectKey(obj.type)) ? aiObjectKey(obj.type) : aiEnabled() && scene.textures.exists(aiObjectKey(obj.type.replace(/_\d+$/, ''))) ? aiObjectKey(obj.type.replace(/_\d+$/, '')) : null
+    const aiType = aiObjectTypeFor(obj.type)
+    const aiKey = aiEnabled() && scene.textures.exists(aiObjectKey(obj.type)) ? aiObjectKey(obj.type) : aiEnabled() && scene.textures.exists(aiObjectKey(aiType)) ? aiObjectKey(aiType) : null
     const genKey = aiKey ? aiKey : scene.textures.exists(objTextureKey(obj.type)) ? objTextureKey(obj.type)
       : scene.textures.exists(objTextureKey(obj.type.replace(/_\d+$/, ''))) ? objTextureKey(obj.type.replace(/_\d+$/, '')) : null
     const spriteKey = genKey ?? (obj.sprite && !isBorrowedSprite(obj) ? `obj_${obj.sprite}` : null)
     let hit: Phaser.GameObjects.GameObject
     if (spriteKey && scene.textures.exists(spriteKey)) {
-      const img = scene.add.image(px + imgW / 2, py + imgH / 2, spriteKey)
-        .setDisplaySize(imgW, imgH)
-        .setDepth(1)
-        .setInteractive()
+      const img = scene.add.image(px + imgW / 2, py + imgH / 2, spriteKey).setDepth(1).setInteractive()
+      // AI 图竖着、footprint 横着（bed_21 借 bed 图）→ 转 90°，显示尺寸互换
+      const srcTex = scene.textures.get(spriteKey).getSourceImage() as { width: number; height: number }
+      const srcPortrait = srcTex.height > srcTex.width, fpLandscape = cols > rows
+      if (aiKey && srcPortrait && fpLandscape) { img.setAngle(-90); img.setDisplaySize(imgH, imgW) } else img.setDisplaySize(imgW, imgH)
       this.nodes.push(img)
       hit = img
     } else {
@@ -83,16 +87,21 @@ export default class GameObjectSprite {
       .setOrigin(0.5, 1)
       .setDepth(10)
       .setVisible(false)
-    this.nodes.push(tooltip)
-    hit.on('pointerover', () => tooltip.setVisible(true))
+    this.tooltip = tooltip
+    hit.on('pointerover', () => { if (!this.hiddenByRoof) tooltip.setVisible(true) })
     hit.on('pointerout',  () => tooltip.setVisible(false))
   }
 
-  /** 室内物品在屋顶视图下隐藏（W8 两套视图） */
-  setVisible(v: boolean) { for (const n of this.nodes) (n as unknown as { setVisible?: (b: boolean) => void }).setVisible?.(v) }
+  /** 室内物品在屋顶视图下隐藏（W8 两套视图）；tooltip 只在悬停时显示，不受影响 */
+  setVisible(v: boolean) {
+    this.hiddenByRoof = !v
+    for (const n of this.nodes) (n as unknown as { setVisible?: (b: boolean) => void }).setVisible?.(v)
+    if (!v) this.tooltip?.setVisible(false)
+  }
 
   destroy() {
     for (const n of this.nodes) n.destroy()
+    this.tooltip?.destroy()
     this.nodes = []
   }
 }

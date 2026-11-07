@@ -3,7 +3,7 @@
  *   manifest.json = { tile_px, backdrops: { <name>: {sector, floor, view, x0, y0, w, h, px, tile_px, qa_score} }, objects: [type, ...] }
  * 开关：URL `&ai=0` 或 localStorage.aiAssets === 'off' 关闭（评审页「一键替换」切这个）。
  */
-export interface AiBackdrop { sector: string; floor: number; view: 'interior' | 'exterior'; x0: number; y0: number; w: number; h: number; px: number; tile_px: number; qa_score?: number }
+export interface AiBackdrop { sector: string; floor: number; view: 'interior' | 'exterior'; x0: number; y0: number; w: number; h: number; px: number; tile_px: number; qa_score?: number; margin?: number }
 export interface AiManifest { tile_px: number; backdrops: Record<string, AiBackdrop>; objects: string[] }
 
 let manifest: AiManifest | null = null
@@ -28,6 +28,10 @@ export async function loadAiManifest(): Promise<AiManifest | null> {
     return manifest
   } catch { return null }
 }
+
+/** 物品类型别名：没有专属 AI 图的类型借同类图（bed_21 借 bed 并旋转 90°，见 GameObjectSprite） */
+export const AI_OBJECT_ALIAS: Record<string, string> = { pc_desk: 'pc', book: 'shelf', sofa: 'sofa_tv', cook: 'stove', desk: 'classroom_desk', bed_21: 'bed', desk_12: 'reading_desk', game_console: 'pc' }
+export function aiObjectTypeFor(type: string): string { return AI_OBJECT_ALIAS[type] ?? type.replace(/_\d+$/, '') }
 
 export const aiBackdropKey = (name: string) => `aibg_${name}`
 export const aiObjectKey = (type: string) => `aiobj_${type}`
