@@ -73,6 +73,8 @@
 
 **v1.0 草图**（`game/maps/v1/`，`scripts/gen_map_v1.py`，按 `docs/world-bible/02-map.md`）：64×48，8 个 sector（小镇 / 鲸鱼大学 / 老渔夫家 / 合租房 / 餐厅 / 杂货店 / 小千家 / 店主们的家）、26 个 arena、52 个物品、12 条边、8 条访问规则（阿蝉房 09:00–18:30 锁、四户 NPC 家常锁 owner-only）。物品按 `03-objects.md` 3.1 位置摆，类型沿用旧表或占位类型（`placeholder: true`，数值不改）。`run_town.sh --map game/maps/v1` 起；旧图在 `game/maps/legacy_v0/`（默认目录仍是 v0，主镇不切）。`tiled` 的 tileset 现为 E 交付的自制 CC0 地砖 `gen/tiles.png`（`game/maps/tile_gids.json` 覆盖 gid 与 `_tileset`）。
 
+**地图开关（W11 ⑤，冻结用）：** 环境变量 `SANDBOX_MAP=v1`（或 `m1c` / `legacy_v0`）让 `game/maps/<name>` 成为默认图；`SANDBOX_MAP_DIR`（目录）优先级更高；两者都没有 = v0。`scripts/run_town.sh --map v1` 同义；`scripts/world_reset.sh --map v1 --data <dir> --port <p> [-- run_town 其余参数]` 一键停实例 → 归档旧数据目录（`<dir>.v0-<时间戳>`）→ 空目录起新世界。
+
 **瘦身（W5 E③）：** `GET /world?fields=players,objects,worldState` 只回这些顶层键（可选值：`tiles` / `objects` / `worldState` / `players` / `tiled`），形状与全量相同（同一响应模型）；全量约 300 KB，`players,objects,worldState` 约 10 KB。`tiled`（**E⑤**）现在非空：`{tilesets: [Sunnyside 信息], layers: [ground, structures]}`，gid 映射为假设值，见 `scripts/gen_map.py` 的 `TILE_GIDS`（可用 `game/maps/tile_gids.json` 覆盖）。
 
 > **只读**：`GET /world` 不推进时间、不跑 buff tick、不清理离线玩家。这些都由后端的独立后台 tick 任务（200 ms）完成，没有任何客户端轮询时状态照样演化。
@@ -81,7 +83,8 @@
 |------|------|
 | `advertise` | **B5** Sims 式广告值 `{ fullness \| energy \| social \| fun \| mood: 0–100 }`，供规划器做软偏好打分；来自 `object_types.json` 的 `advertise`，可能为空对象 |
 | `usePos` / `useFacing` | **W10 ②** 使用者站位与朝向。`usePos: [{x,y}]` 是**绝对格**（由 `object_types.json` 的 `use_pos: [[dx,dy],…]` 相对物品 `position` 换算），按使用顺序分配（第 1 个使用者拿第 1 格，已占的跳过）；`null` = 原地不动（冰箱、柜台等）。`useFacing`: `up/down/left/right`，`null` = 面向物品中心。**后端在 `use` 时真的把人挪到该格并转向**（床 / 沙发 / 长椅 = 躺坐在物品格上；桌类 = 物品南侧一格朝 up；餐桌 4 座南北各两格），`leave` 回到 use 前的格与朝向，`pos_seq` 各 +1。perceive 不带这两个字段。E 的假设写的是相对格偏移 `use_pos`——实现下发的是**绝对格 `usePos`**，前端直接画在该格即可 |
-| `shop` | **W10 ④** 商店物品 `[{type, item, name, price, sell, stock}]`（`type` 与 `item` 同值 = `items.json` 键；`price` 买价、`sell` 收购价，`null` = 不卖 / 不收；`stock: null` = 不限量）。只有 `economy.json` 的 `shops` 里的类型（`shop_counter` / `fish_stall` / `bar`）有，其余 `null`。营业时间沿用物品的 `openHours` |
+| `shop` | **W10 ④** 商店物品 `[{type, item, name, price, sell, stock}]`（`type` 与 `item` 同值 = `items.json` 键；`price` 买价、`sell` 收购价，`null` = 不卖 / 不收）。**W11 ④** `stock` 为当前库存数（买走就减、卖给店就加、每日 `restock_at` 补到 `economy.json` `shops[].stock` 水位）；只有 `economy.json` 的 `shops` 里的类型（`shop_counter` / `fish_stall` / `bar`）有，其余 `null`。营业时间沿用物品的 `openHours` |
+| `stock` | **W11 ④** 库存 `{item: n}`：商店同上；冰箱 `{"ingredients": n}`（初始 2，每日 08:00 +2 不超过 4，`use` 吃一份、`store` 放进去）；其余 `null`。进检查点 |
 
 **顶层新增（W10 ①）：** `decor`：装饰层 `[{id, kind, tiles: [{x,y}]}]`，`kind`: `path`（小径，可走）/ `pond`（池塘，不可走）/ `clothesline` / `flowerbed`（只记位置，不改 tile）。**不可交互、不是物品**；树是普通 `tree` 物品（`placeholder`）。`?fields=decor` 可单取。v0 图为空数组。
 
@@ -422,7 +425,10 @@
 | `buy` | **W10 ④** 在商店买 | `{ item \| item_id, qty?=1, object_id? }`（缺 `object_id` = 面前的物品；给了须相邻） | agent / E |
 | `sell` | **W10 ④** 卖给商店（`shop[].sell` 非空的物品） | `{ item \| item_id, qty?=1, object_id? }` | agent / E |
 | `eat` | **W10 ④** 吃背包里的食物（随处吃），按 `items.json` 的 `eat` 加需求值 | `{ item \| item_id }` | agent / E |
-| `give` | **W10 ④** 当面给别人（2 格内）；`gift` 类按 `items.json` 的 `give` 给对方亲密度 / 心情 | `{ target, item \| item_id, qty?=1 }`（`target` = player id / agent_id / 名字） | agent / E |
+| `give` | **W10 ④** 当面给别人（2 格内）；`gift` 类按 `items.json` 的 `give` 给对方亲密度 / 心情；**W11** 给委托人一首 `song` = 交付委托（酬金入账、委托人亲密度 +15） | `{ target, item \| item_id, qty?=1, commission_id? }`（`target` = player id / agent_id / 名字） | agent / E |
+| `store` | **W11 ④** 把食材放进冰箱（相邻；不超过 `fridge.max` 4） | `{ item?="ingredients", qty?=1, object_id? }` | agent |
+| `compose` | **W11 ①** 在琴房电脑（`pc_music`）上用满 `min_minutes`（30）后产一首「歌」（文件类，`meta.title / commission_id / text…` 由 C 填） | `{ title?, commission_id?, text?, meta? }` | agent |
+| `make_video` | **W11 ①** 在电脑（`pc` / `pc_desk` / `stream_desk`）上用满 60 分钟后产一份「电台文稿」 | `{ title?, text?, meta? }` | agent |
 
 ### buy / sell / eat / give（W10 ④）
 
@@ -436,6 +442,9 @@
 | 流水 | 每笔金币变动一行 `data/economy/<date>.jsonl`（`kind`: buy / sell / income / expense / wage；`account, entity, delta, balance, item?, qty?, price?, shop?, peer?, source?, label?`），`GET /admin/export?kinds=economy` 导出；ws 推 `{type:"economy", ...同行}` |
 | ws `action` 事件 | buy / sell / eat / give 另带 `item, item_name, qty, price, gold_delta, gold, target, target_name`（有则带），给 E 的气泡 |
 | QQ 转交 | 文件类物品（`class: file`：song / script / image）走 `POST /qq/send kind=file`，是**复制**（发送者保留）；实物只能 `give` |
+| **W11 库存** | `buy` 多一个失败 `out_of_stock`（`result.stock`）；买走 `objects[].stock[item]` −qty，卖给店 +qty；每日 `restock_at`（08:00）补到配置水位（只补不减，同日一次） |
+| **W11 产出链** | `use` 灶台需背包有 1 份食材（否则 `no_ingredients`），use 时消耗，满 30 游戏分钟产便当 ×2（提前 leave 不产）；`use` 钓位后每 40 游戏分钟掷一次（50%，有鱼饵 80% 且每次消耗 1 鱼饵）得「鱼」；`use` 冰箱按库存吃一份（空 → `empty`），`store` 放食材。每次产出：`pendingMessage`（「钓到一条鱼！」）、ws `{type:"produce", entity, via: fishing|stove|compose|make_video, item, item_name, qty, …}`、`external` 日志 `kind: produce`（`seeded` 标是否由 `SANDBOX_SEED` 定种，回放可复现） |
+| **W11 compose / make_video** | 失败 `need_object`（`result.objects` 列出允许的物品类型）、`not_ready`（`result.ready_in_min`）、`inventory_full`；成功 `result: {message, objectId, item, item_name, qty, meta, inventory}`。时长门槛与物品类型在 `economy.json` `production.compose / make_video` |
 
 **地图 v2 的寻路与门禁（W9）：** `move` / `move_n` / `move_to_area` / `go_to` 都按 `map.edges` 走（楼梯是非相邻邻接），每一步跨场所时检查该边的 `open_hours` / `allow` 与目标场所的 `access`。被挡时：`move` 返回 `reason: "closed"`（门不在开放时段，`result.opens_at`）或 `"locked"`（访问规则，`result.opens_at` 为解锁时刻或 `null` = 常锁）；`move_n` 在该步停下；`move_to_area` / `go_to` 若忽略门禁能到而带门禁不能到，返回 `locked` / `closed` + `opens_at`，否则 `no_path`。
 
@@ -758,6 +767,8 @@
 | 400 | 请求参数错误（entityId 缺失、action.type 不合法等） |
 | 404 | 实体不存在 |
 | 500 | 服务器内部错误 |
+
+**W11 新增业务 `reason`：** `out_of_stock`（库存不足）、`empty`（冰箱空）、`no_ingredients`（灶台没食材）、`not_storage` / `not_storable` / `storage_full`（store）、`need_object` / `not_ready`（compose / make_video）。
 
 **W10 新增业务 `reason`：** `insufficient_funds`、`no_shop`、`shop_closed`、`not_for_sale`、`not_buying`、`unknown_item`、`no_item`、`inventory_full`、`not_edible`、`target_not_found`、`target_too_far`、`object_too_far`（buy / sell / eat / give）；`too_tired`（游戏机 energy < 25）；QQ 的 `phone_unavailable` / `not_transferable` / `unknown_recipient` / `unknown_group` / `not_member` / `self_message` / `empty_text` / `need_to_or_group` / `bad_kind` 见「QQ」节。
 
@@ -1154,7 +1165,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 **W6 任务 1（数据集 schema v0.2 的沙盒源）**：一次性给出当日 actions / chat / state 与 manifest，供总控 `dataset_export.py` 拉。只读。
 
-**Query：** `date=YYYY-MM-DD`（必填，400 校验）、`kinds=actions,chat,state,external,qq,economy`（默认全部六种；**W10** 新增 `qq`——`data/qq/<date>.jsonl` 的 message / read 行，`economy`——`data/economy/<date>.jsonl` 的金币流水；`state` 行新增 `gold`）。
+**Query：** `date=YYYY-MM-DD`（必填，400 校验）、`kinds=actions,chat,state,external,qq,economy`（默认全部六种；**W10** 新增 `qq`——`data/qq/<date>.jsonl` 的 message / read 行，`economy`——`data/economy/<date>.jsonl` 的金币流水；`state` 行新增 `gold`）。**W11** `external` 多两种 `kind`：`produce`（钓鱼 / 灶台 / compose / make_video 产出，带 `via, item, qty, seeded`）、`commission`（委托 `open` / `deliver`）；`economy` 的 `income` 行多 `source: stream`（`viewers_avg, gifts, synthetic`）与 `source: song_fee`（`commission`）。
 
 ```json
 { "schema": "sandbox-0.1", "date": "2026-11-06", "town": "main", "map_version": "阿蝉家与小镇@1b824832ace2", "seed": null,
@@ -1280,6 +1291,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 ```
 `qq` 事件平铺（E 的「`{type:'qq', message:{…}}` 或平铺」取后者）。`players.upsert` 元素现在还带 `gold` / `inventory`（W10 ④），余额或背包变了也会出 upsert。
 
+**W11 新增即时事件：** `{type:"produce", entity, via, item, item_name, qty, object, …}`（钓到鱼 / 做好便当 / 写完歌 / 做完文稿）、`{type:"commission", event:"open"|"deliver", id, client, client_name, fee, title, status, …}`。
+
 空闲 5 s 没有变化时发 `{"type": "heartbeat", "ts": ...}`。多个客户端共享同一份 diff 计算；没有订阅者时不计算。
 对账：`cd back_end && uv run python scripts/verify_ws.py --seconds 60`（订阅并叠加 patch，与每秒轮询 `GET /world` 比较，W4 实测 44 次比较 0 不一致）。
 
@@ -1294,7 +1307,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | 账号 | agent 玩家 = `agent_id`（`whale` / `achan` / `npc_xiaoqian` / `npc_rest_owner` / `npc_grocer` / `npc_fisher`），人类玩家 = player id。账号在人不在线时也存在：发给不在线的阿蝉，消息存着等他上线来读。接口里凡是「账号」的地方也接受 player id / 显示名（「阿蝉」） |
 | 通讯录 | 初始：鲸仔 = 阿蝉、小千、餐厅老板、杂货店老板；群「鲸仔直播组」（`g_live`）= 鲸仔 + 阿蝉；其他 NPC 按 `qq_config.json`。互相可见；给谁发过就互加。人类玩家的通讯录 = 所有已知账号 |
 | 约束 | `sleeping` / `streaming` 标签中或 `scene = live` 时不能发也不能读 → `phone_unavailable`。读完 1 游戏分钟内 `canMove` / `canUse` 为 false、`tags` 带 `reading`（timed buff `reading`，`source: "qq"`），到期自动摘 |
-| 社交 | 每条消息给发送者 / 阅读者 `social +2`（`social_per_message`，可改）。「长时间不回降亲密度」未做（数值未定） |
+| 社交 | 每条消息给发送者 / 阅读者 `social +2`（`social_per_message`，可改） |
+| 亲密度（**W11 ③**） | 1:1 消息未读超过 `unread_penalty.after_hours`（2）游戏小时后，**发件人对收件人**的亲密度每小时 −`per_hour`（1），每对每游戏日最多 −`daily_cap`（5）；收件人 `read` 到它 → 发件人对收件人 +`read_reply_bonus`（1，每次读每个发件人一次）；收件人回一条 1:1 → 对方对他 +1。群消息不计。发件人不在线时没处记，跳过。配置在 `qq_config.json` |
 
 ### POST /qq/send
 
@@ -1369,7 +1383,24 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 { "entity_id": "鲸仔_a1b2c3", "amount": 200, "source": "song_fee", "label": "《夜航》酬金", "meta": { "order": "n1" } }
 { "account": "whale", "amount": -30, "source": "adjust" }
 ```
-`entity_id` 或 `account`（agent_id；人类 = player id）其一；`amount` 可负。**响应：** `{ "ok": true, "entity_id", "account", "delta", "balance" }`；找不到人 404。流水 `kind: income`（负数 `expense`），`source` 原样记。写歌酬金、直播收入由自我层 / 直播侧调这个接口；日薪时薪沙盒自己结，不要再调。
+`entity_id` 或 `account`（agent_id；人类 = player id）其一；`amount` 可负。**响应：** `{ "ok": true, "entity_id", "account", "delta", "balance" }`；找不到人 404。流水 `kind: income`（负数 `expense`），`source` 原样记。日薪时薪沙盒自己结，不要再调。
+
+**直播收入（W11 ②）：** `source: "stream"` 时可不给 `amount`，给 `viewers_avg` / `gifts`：`amount = viewers_avg × live_income.per_viewer(0.5) + gifts × gift_rate(1.0)`，响应与流水多 `viewers_avg, gifts, synthetic: false`。
+```json
+{ "entity_id": "鲸仔_a1b2c3", "source": "stream", "viewers_avg": 40, "gifts": 7 }   → delta 27
+```
+直播机未接前（`economy.json` `live_income.synthetic: true`，默认开）：她 `leave` 直播物品（`pc` / `stream_desk`）时沙盒自己按 `synthetic_range` [20, 60] 随机入账一行 `source: stream, synthetic: true`（`SANDBOX_SEED` 定种）。直播侧接上后把 `synthetic` 改 `false`，改用上面的接口回传。**写歌酬金不要走这里**——`give song` 给委托人时沙盒自动入账（见 `/admin/commission`）。
+
+### POST /admin/commission（W11 ①）
+
+```json
+{ "client": "餐厅老板", "kind": "song", "fee": 200, "title": "店里要一首背景歌" }      // fee / title 可省：fee 在 commissions.song_fee [150,300] 随机
+```
+**响应：** `{ "ok": true, "commission": { id, kind, client, client_name, fee, title, status: "open", created_at, source: "admin" } }`。另外每日 `commissions.refresh_at`（08:00）以 `daily_p`（0.3）概率从 `clients` 随机自动出一单（`source: "daily"`，open 不超过 `max_open` 3）。
+
+### GET /commissions（W11 ①）
+
+`?status=open|all&player=`（player 只校验存在）→ `{ "commissions": [...], "count" }`。`use` 公告栏（`notice_board`）的 `result.commissions` 也给 open 列表，`message` 里附一句。交付：`give` 一首 `song` 给委托人（`payload.commission_id` 对上，否则按这首歌 `meta.commission_id`，再否则该委托人最早的 open 单）→ `status: delivered`、酬金入账（流水 `source: song_fee`）、委托人对交付者亲密度 +`closeness_bonus`（15），`give` 的 `result.commission / gold_delta / gold`。
 
 ---
 

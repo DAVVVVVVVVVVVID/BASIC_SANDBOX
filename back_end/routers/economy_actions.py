@@ -8,7 +8,7 @@ payload 字段按 E 的假设：item | item_id、object_id | objectId（缺省 =
 from models.action import ActionResponse
 from game import inventory, economy
 from game.world_state import (
-    STATE_LOCK, _players, get_object_at, get_object_by_id, open_state, mark_input,
+    STATE_LOCK, _players, get_object_at, get_object_by_id, open_state, mark_input, refresh_shop_views,
 )
 from game.buff_tick import add_var, add_closeness
 
@@ -91,6 +91,11 @@ def handle_buy(entity_id: str, payload: dict) -> ActionResponse:
         if item not in shop.get("sells", []) or d.get("price") is None:
             return ActionResponse(success=False, type="buy", reason="not_for_sale", result={"objectId": obj["id"], **_item_fields(item, qty)})
         total = int(d["price"]) * qty
+        stock = obj.get("stock")
+        if stock is not None and int(stock.get(item, 0)) < qty:                      # W11 ④：库存
+            return ActionResponse(success=False, type="buy", reason="out_of_stock",
+                                  result={"objectId": obj["id"], **_item_fields(item, qty, total), "stock": int(stock.get(item, 0)),
+                                          "message": f"{d['name']}卖完了，明早补货。"})
         if int(p.get("gold", 0)) < total:
             return ActionResponse(success=False, type="buy", reason="insufficient_funds",
                                   result={"objectId": obj["id"], **_item_fields(item, qty, total), "gold": int(p.get("gold", 0)),
@@ -98,6 +103,9 @@ def handle_buy(entity_id: str, payload: dict) -> ActionResponse:
         ierr = inventory.add(p, item, qty)
         if ierr:
             return ActionResponse(success=False, type="buy", reason=ierr, result={"objectId": obj["id"], **_item_fields(item, qty, total)})
+        if stock is not None:
+            stock[item] = int(stock.get(item, 0)) - qty
+            refresh_shop_views()
         economy.ledger("buy", p, -total, item=item, qty=qty, price=int(d["price"]), shop=obj["id"], shop_type=obj["type"])
         owner = _owner_player(obj["type"])
         if owner is not None and owner["id"] != p["id"]:
@@ -132,6 +140,9 @@ def handle_sell(entity_id: str, payload: dict) -> ActionResponse:
             return ActionResponse(success=False, type="sell", reason="no_item", result={"objectId": obj["id"], **_item_fields(item, qty), "have": inventory.count(p, item)})
         total = int(d["sell"]) * qty
         inventory.remove(p, item, qty)
+        if obj.get("stock") is not None:
+            obj["stock"][item] = int(obj["stock"].get(item, 0)) + qty
+            refresh_shop_views()
         economy.ledger("sell", p, total, item=item, qty=qty, price=int(d["sell"]), shop=obj["id"], shop_type=obj["type"])
         owner = _owner_player(obj["type"])
         if owner is not None and owner["id"] != p["id"]:
@@ -205,6 +216,11 @@ def handle_give(entity_id: str, payload: dict) -> ActionResponse:
             return ActionResponse(success=False, type="give", reason=ierr, result={**_item_fields(item, qty), "target": t["id"], "target_name": t.get("name")})
         inventory.remove(p, item, qty)
         effects = {}
+        commission = None
+        if item == "song":                                         # W11 ①：交付委托 → 酬金入账、委托人亲密度 +15
+            from game import commissions
+            meta = {"commission_id": payload["commission_id"]} if payload.get("commission_id") else _song_meta(payload, p, t)
+            commission = commissions.deliver(p, t, meta)
         if d.get("give"):                                          # 小礼物：对方亲密度 +8、心情 +5（items.json）
             for k, v in d["give"].items():
                 if k == "closeness":
@@ -212,6 +228,70 @@ def handle_give(entity_id: str, payload: dict) -> ActionResponse:
                 else:
                     add_var(t, k, float(v) * qty); effects[k] = round(float(t.get(k, 0.0)), 3)
         mark_input(entity_id)
-        return ActionResponse(success=True, type="give", result={
-            "message": f"把 {qty} 个{d['name']}给了{t.get('name')}。", **_item_fields(item, qty), "target": t["id"],
-            "target_name": t.get("name"), "target_effects": effects, "inventory": inventory.view(p)})
+        res = {"message": f"把 {qty} 个{d['name']}给了{t.get('name')}。", **_item_fields(item, qty), "target": t["id"],
+               "target_name": t.get("name"), "target_effects": effects, "inventory": inventory.view(p)}
+        if commission:
+            res["commission"] = commission; res["gold_delta"] = commission["fee"]; res["gold"] = p["gold"]
+            res["message"] += f" 完成委托《{commission['title']}》，收到 {commission['fee']} 金币。"
+        return ActionResponse(success=True, type="give", result=res)
+
+
+def _song_meta(payload: dict, giver: dict, target: dict) -> dict:
+    """give song 没指明 commission_id 时：用刚转出去的那首歌的 meta（取 target 背包里最新的 song 条目）。"""
+    songs = [e for e in inventory.ensure(target) if e.get("type") == "song"]
+    return dict((songs[-1].get("meta") or {})) if songs else {}
+
+
+def handle_store(entity_id: str, payload: dict) -> ActionResponse:
+    """W11 ④：把背包里的食材放进冰箱（相邻；不超过 fridge.max）。payload {item?="ingredients", qty?=1, object_id?}。"""
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="store", reason="player_not_found")
+        if not p.get("canUse", True):
+            return ActionResponse(success=False, type="store", reason="use_disabled")
+        oid = payload.get("object_id") or payload.get("objectId")
+        if oid:
+            obj = get_object_by_id(oid)
+            if obj is None:
+                return ActionResponse(success=False, type="store", reason="no_object")
+            if not _adjacent(p, obj):
+                return ActionResponse(success=False, type="store", reason="object_too_far")
+        else:
+            dx, dy = _DIR[p["facing"]]
+            obj = get_object_at(p["position"]["x"] + dx, p["position"]["y"] + dy)
+            if obj is None:
+                return ActionResponse(success=False, type="store", reason="no_object")
+        fc = economy.cfg().get("fridge", {})
+        if obj["type"] != "fridge" or obj.get("stock") is None:
+            return ActionResponse(success=False, type="store", reason="not_storage", result={"objectId": obj["id"]})
+        item = _item(payload) or fc.get("consumes", "ingredients"); qty = _qty(payload)
+        if item != fc.get("consumes", "ingredients"):
+            return ActionResponse(success=False, type="store", reason="not_storable", result={"objectId": obj["id"], **_item_fields(item, qty)})
+        if inventory.count(p, item) < qty:
+            return ActionResponse(success=False, type="store", reason="no_item", result={"objectId": obj["id"], **_item_fields(item, qty), "have": inventory.count(p, item)})
+        room = int(fc.get("max", 4)) - int(obj["stock"].get(item, 0))
+        if room <= 0:
+            return ActionResponse(success=False, type="store", reason="storage_full", result={"objectId": obj["id"], "stock": dict(obj["stock"])})
+        qty = min(qty, room)
+        inventory.remove(p, item, qty)
+        obj["stock"][item] = int(obj["stock"].get(item, 0)) + qty
+        mark_input(entity_id)
+        return ActionResponse(success=True, type="store", result={"message": f"把 {qty} 份{_item_fields(item, qty)['item_name']}放进了{obj['name']}。",
+                                                                  "objectId": obj["id"], **_item_fields(item, qty), "stock": dict(obj["stock"]), "inventory": inventory.view(p)})
+
+
+def handle_compose(entity_id: str, payload: dict) -> ActionResponse:
+    return _craft("compose", entity_id, payload)
+
+
+def handle_make_video(entity_id: str, payload: dict) -> ActionResponse:
+    return _craft("make_video", entity_id, payload)
+
+
+def _craft(kind: str, entity_id: str, payload: dict) -> ActionResponse:
+    from game import production
+    res, reason, extra = production.craft(entity_id, kind, payload)
+    if reason:
+        return ActionResponse(success=False, type=kind, reason=reason, result=extra)
+    return ActionResponse(success=True, type=kind, result=res)

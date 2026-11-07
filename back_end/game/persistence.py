@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS players (
     pending_message TEXT, use_start_time REAL, last_seen REAL
 );
 CREATE TABLE IF NOT EXISTS object_runtime (
-    id TEXT PRIMARY KEY, current_users INTEGER NOT NULL, user_list TEXT NOT NULL
+    id TEXT PRIMARY KEY, current_users INTEGER NOT NULL, user_list TEXT NOT NULL, stock TEXT
 );
 CREATE TABLE IF NOT EXISTS time_state (
     key TEXT PRIMARY KEY, anchor_real REAL, anchor_game REAL, speed REAL, running INTEGER
@@ -56,6 +56,9 @@ def _connect(path: Path | None = None) -> sqlite3.Connection:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(players)")}
     if "extra" not in cols:                       # W2 迁移：last_used / use_history
         conn.execute("ALTER TABLE players ADD COLUMN extra TEXT")
+    ocols = {r[1] for r in conn.execute("PRAGMA table_info(object_runtime)")}
+    if "stock" not in ocols:                      # W11 迁移：库存
+        conn.execute("ALTER TABLE object_runtime ADD COLUMN stock TEXT")
     return conn
 
 
@@ -81,8 +84,9 @@ def save_checkpoint(path: Path | None = None) -> dict:
             )
             conn.execute("DELETE FROM object_runtime")
             conn.executemany(
-                "INSERT INTO object_runtime VALUES (?,?,?)",
-                [(oid, o["currentUsers"], json.dumps(o["userList"])) for oid, o in rt["objects"].items()],
+                "INSERT INTO object_runtime (id, current_users, user_list, stock) VALUES (?,?,?,?)",
+                [(oid, o["currentUsers"], json.dumps(o["userList"]), json.dumps(o.get("stock")) if o.get("stock") is not None else None)
+                 for oid, o in rt["objects"].items()],
             )
             conn.execute("DELETE FROM time_state")
             conn.execute(
@@ -115,6 +119,8 @@ def save_checkpoint(path: Path | None = None) -> dict:
                 [("last_tick_ts", repr(now)), ("saved_at", repr(now)),
                  ("qq_contacts", json.dumps({"contacts": qqs["contacts"], "seq": qqs["seq"]})),
                  ("economy", json.dumps(__import__("game.economy", fromlist=["x"]).export_state())),
+                 ("production", json.dumps(__import__("game.production", fromlist=["x"]).export_state())),
+                 ("commissions", json.dumps(__import__("game.commissions", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("schema_version", str(SCHEMA_VERSION)),
                  ("chat_cooldowns", json.dumps({"last_chat_end": chat["last_chat_end"],
                                                 "last_pair_end": chat["last_pair_end"]}))],   # B9 ③
@@ -162,8 +168,8 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
                 "pre_use_pos": ex.get("pre_use_pos"),
             }
         objects = {
-            oid: {"currentUsers": cu, "userList": json.loads(ul)}
-            for oid, cu, ul in conn.execute("SELECT id, current_users, user_list FROM object_runtime")
+            oid: {"currentUsers": cu, "userList": json.loads(ul), "stock": json.loads(st) if st else None}
+            for oid, cu, ul, st in conn.execute("SELECT id, current_users, user_list, stock FROM object_runtime")
         }
         n = world_state.import_runtime({"players": players, "objects": objects})
 
@@ -174,8 +180,10 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
             "seq":      {rid: s for rid, _, s in conn.execute("SELECT chat_room_id, data, seq FROM chat_rooms")},
             **cooldowns,
         })
-        from game import qq, economy
+        from game import qq, economy, production, commissions
         economy.import_state(json.loads(meta.get("economy") or "{}"))
+        production.import_state(json.loads(meta.get("production") or "{}"))
+        commissions.import_state(json.loads(meta.get("commissions") or "{}"))
         qc = json.loads(meta.get("qq_contacts") or "{}")
         qq.import_state({
             "messages": [json.loads(d) for (d,) in conn.execute("SELECT data FROM qq_messages")],

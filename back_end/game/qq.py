@@ -28,6 +28,9 @@ _groups: dict[str, dict] = {}                 # id -> {id, name, members[]}
 _contacts: dict[str, set[str]] = {}           # 账号 -> 账号集合（互相）
 _MEM_MAX = 5000
 _SEQ = 0
+_PENALTY = dict(_CFG.get("unread_penalty") or {})
+READ_REPLY_BONUS = float(_CFG.get("read_reply_bonus", 0.0))
+_penalty_day: dict[str, float] = {}     # "<from>:<to>:<day>" -> 已扣总量
 
 
 def _init_defaults() -> None:
@@ -172,6 +175,8 @@ def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: 
         if to_acc:
             _contacts.setdefault(me, set()).add(to_acc)
             _contacts.setdefault(to_acc, set()).add(me)
+            if READ_REPLY_BONUS and any(x["from"] == to_acc and x["to"] == me for x in _messages[:-1]):   # W11 ③：回消息 → 对方对我 +1
+                _bump_closeness(to_acc, me, READ_REPLY_BONUS)
         # 文件：复制给在线的收件人（群发给每个在线成员）
         delivered: list[str] = []
         if kind == "file":
@@ -188,6 +193,55 @@ def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: 
         _log({**{k: v for k, v in msg.items() if k not in ("read_by", "kind")}, "msg_kind": msg["kind"], "kind": "message"})
         _push({"event": "message", **{k: v for k, v in msg.items() if k not in ("read_by",)}})
         return _public(msg, me), None
+
+
+def _player_of(account: str) -> dict | None:
+    return _players_by_account().get(account)
+
+
+def _closeness_key(account: str) -> str:
+    p = _player_of(account)
+    return p["id"] if p else account
+
+
+def _bump_closeness(holder_acc: str, toward_acc: str, delta: float) -> bool:
+    """holder 对 toward 的亲密度 +delta；holder 不在线 → 没处记，返回 False。"""
+    from game.buff_tick import add_closeness
+    holder = _player_of(holder_acc)
+    if holder is None or not delta:
+        return False
+    add_closeness(holder, _closeness_key(toward_acc), delta)
+    return True
+
+
+def on_tick(gts: float, players: dict) -> None:
+    """W11 ③：1:1 未读超过 after_hours 游戏小时，发件人对收件人每小时 −per_hour（每对每日 ≤ daily_cap）。调用方持 STATE_LOCK。"""
+    if not _PENALTY:
+        return
+    from datetime import datetime
+    from game.time_state import _game_dt
+    after = float(_PENALTY.get("after_hours", 2)); per = float(_PENALTY.get("per_hour", 1)); cap = float(_PENALTY.get("daily_cap", 5))
+    day = _game_dt(gts).strftime("%Y-%m-%d")
+    with _LOCK:
+        for m in _messages:
+            if m.get("group") or m["read_at"] is not None or not m.get("to"):
+                continue
+            try:
+                sent = datetime.fromisoformat(m["game_time"]).timestamp()
+            except Exception:
+                continue
+            hours = (gts - sent) / 3600.0
+            due = int(hours - after) if hours > after else 0          # 已经该扣的小时数
+            done = int(m.get("penalized_hours", 0))
+            while due > done:
+                key = f"{m['from']}:{m['to']}:{day}"
+                if _penalty_day.get(key, 0.0) >= cap:
+                    break
+                if not _bump_closeness(m["from"], m["to"], -per):
+                    break
+                _penalty_day[key] = _penalty_day.get(key, 0.0) + per
+                done += 1
+                m["penalized_hours"] = done
 
 
 def _public(msg: dict, me: str | None = None) -> dict:
@@ -287,6 +341,9 @@ def read(entity_id: str, *, peer: str | None = None) -> tuple[dict | None, str |
             else:
                 m["read_at"] = now
             got.append(_public(m, me))
+        if READ_REPLY_BONUS:                                        # W11 ③：读 → 每个 1:1 发件人对我 +1
+            for acc in {m["from"] for m in got if not m.get("group")}:
+                _bump_closeness(acc, me, READ_REPLY_BONUS)
         # 占用 1 游戏分钟：reading buff（控制类）+ tag
         dur_ms = READ_GAME_SECONDS * 1000.0
         p["buffs"] = [b for b in p["buffs"] if not (b["key"] == "reading" and b["source"] == "qq")]
@@ -337,7 +394,7 @@ def contacts(entity_id: str) -> dict | None:
 def export_state() -> dict:
     with _LOCK:
         return {"messages": [dict(m) for m in _messages], "groups": {k: dict(v) for k, v in _groups.items()},
-                "contacts": {k: sorted(v) for k, v in _contacts.items()}, "seq": _SEQ}
+                "contacts": {k: sorted(v) for k, v in _contacts.items()}, "seq": _SEQ, "penalty_day": dict(_penalty_day)}
 
 
 def import_state(data: dict) -> None:
@@ -353,10 +410,11 @@ def import_state(data: dict) -> None:
         for a, lst in (data.get("contacts") or {}).items():
             _contacts.setdefault(a, set()).update(lst)
         _SEQ = max(int(data.get("seq") or 0), len(_messages))
+        _penalty_day.clear(); _penalty_day.update(data.get("penalty_day") or {})
 
 
 def _reset_for_tests() -> None:
     global _SEQ
     with _LOCK:
-        _messages.clear(); _groups.clear(); _contacts.clear(); _SEQ = 0
+        _messages.clear(); _groups.clear(); _contacts.clear(); _penalty_day.clear(); _SEQ = 0
         _init_defaults()

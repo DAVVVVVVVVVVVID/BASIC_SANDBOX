@@ -45,6 +45,7 @@ class GameObject(BaseModel):
     usePos: Optional[List[Position]] = None         # W10：使用者站位（绝对格，按使用顺序分配）；null = 原地
     useFacing: Optional[str] = None                 # W10：使用者朝向；null = 面向物品
     shop: Optional[List[dict]] = None               # W10 ④：商店物品 [{type,item,name,price,sell,stock}]；非商店 null
+    stock: Optional[dict] = None                    # W11 ④：库存 {item: n}（商店 / 冰箱）；其余 null
     successMessage: Optional[str] = None
     failureMessage: Optional[str] = None
     currentUsers: int

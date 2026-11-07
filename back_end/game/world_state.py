@@ -12,7 +12,18 @@ from game.time_state import now_real, game_now_ts
 
 # ── 从 JSON 加载地图数据 ──────────────────────────────────────────────────────
 # SANDBOX_MAP_DIR：地图目录（默认 game/maps；m1c 用 game/maps/m1c），一机多镇可各用一张图
-_MAP_DIR = Path(os.environ.get("SANDBOX_MAP_DIR") or (Path(__file__).parent / "maps"))
+def _resolve_map_dir() -> Path:
+    """SANDBOX_MAP_DIR（目录）优先；否则 SANDBOX_MAP=v1|m1c|legacy_v0（W11 冻结开关，game/maps/<name>）；否则默认 game/maps（v0）。"""
+    base = Path(__file__).parent / "maps"
+    if os.environ.get("SANDBOX_MAP_DIR"):
+        return Path(os.environ["SANDBOX_MAP_DIR"])
+    name = (os.environ.get("SANDBOX_MAP") or "").strip()
+    if name and name not in ("v0", "default") and (base / name / "map.json").exists():
+        return base / name
+    return base
+
+
+_MAP_DIR = _resolve_map_dir()
 TOWN: str = os.environ.get("SANDBOX_TOWN", "main")      # 数据集每行带的镇名（towns.yaml 的 key）
 
 # 地图数据（load_map 原地填充：已 import 这些名字的模块不会失效）
@@ -46,12 +57,24 @@ _STAIRS: dict[tuple[int, int], list[tuple[tuple[int, int], dict]]] = {}   # 楼�
 _HOMES: dict[str, str] = {}                               # agent_id -> 家 arena（map.json homes，覆盖 AGENT_HOME_ARENA）
 
 
-def _shop_listing(obj_type: str) -> list[dict] | None:
+def _initial_stock(obj_type: str) -> dict | None:
+    from game.economy import initial_stock
+    return initial_stock(obj_type)
+
+
+def _shop_listing(obj_type: str, stock: dict | None = None) -> list[dict] | None:
     from game.economy import shop_listing
-    rows = shop_listing(obj_type)
+    rows = shop_listing(obj_type, stock)
     if rows is None:
         return None
-    return [{"type": r["item"], "item": r["item"], "name": r["name"], "price": r["price"], "sell": r["sell"], "stock": None} for r in rows]
+    return [{"type": r["item"], "item": r["item"], "name": r["name"], "price": r["price"], "sell": r["sell"], "stock": r["stock"]} for r in rows]
+
+
+def refresh_shop_views() -> None:
+    """W11：把当前库存写进物品的 shop[]（买卖 / 补货后调用）。"""
+    for o in _OBJECTS:
+        if o.get("shop") is not None:
+            o["shop"] = _shop_listing(o["type"], o.get("stock"))
 
 
 def _build_objects(raw: list[dict]) -> list[dict]:
@@ -75,7 +98,8 @@ def _build_objects(raw: list[dict]) -> list[dict]:
             "advertise":      t.get("advertise"),       # B5：Sims 式广告值 {var: 0–100}
             "usePos":         [{"x": x + dx, "y": y + dy} for dx, dy in t.get("use_pos", [])] or None,   # W10：使用者站位（绝对格，按使用顺序分配）
             "useFacing":      t.get("use_facing"),      # W10：使用者朝向（None = 按站位相对物品推）
-            "shop":           _shop_listing(inst["type"]),   # W10 ④：商店物品 [{type,item,name,price,sell,stock}]（非商店 None）
+            "shop":           _shop_listing(inst["type"], _initial_stock(inst["type"])),   # W10 ④：商店物品 [{type,item,name,price,sell,stock}]（非商店 None）
+            "stock":          _initial_stock(inst["type"]),  # W11 ④：库存 {item: n}（商店 / 冰箱），其余 None
             "openHours":      t.get("open_hours"),      # B20：营业时间 [[start, end], ...]，None = 全天
             "successMessage": t["success_message"],
             "failureMessage": t["failure_message"],
@@ -878,6 +902,7 @@ def enter_object(obj_id: str, entity_id: str) -> None:
     player["stateLabel"]    = obj["useStateLabel"].replace("{entity}", player["name"])
     player["usingObjectId"] = obj_id
     _use_start_times[entity_id] = time.time() if obj.get("maxDuration") is not None else None
+    _use_start_game_ts[entity_id] = game_now_ts()
     _move_to_use_pos(player, obj)             # W10：坐进去 / 躺上去
 
     # continuous 物品：buff（persistent 到 leave 为止 / timed）、tag、以及进入时的一次性 instant_effect
@@ -1017,6 +1042,12 @@ def apply_effects_to_player(entity_id: str, effects: list[dict], scene: str | No
 
 
 _pre_use_pos: dict[str, dict] = {}        # entity -> use 前的 {x, y, facing}（leave 时回去）
+_use_start_game_ts: dict[str, float] = {}  # entity -> use 开始的游戏时刻（W11：compose / make_video 的时长门槛）
+
+
+def use_elapsed_game_s(entity_id: str) -> float:
+    t0 = _use_start_game_ts.get(entity_id)
+    return 0.0 if t0 is None else max(0.0, game_now_ts() - t0)
 
 
 def _facing_toward(fx: int, fy: int, obj: dict) -> str:
@@ -1079,11 +1110,15 @@ def leave_object(entity_id: str) -> dict | None:
         obj_tags = {e["key"] for e in obj["effects"] if e["type"] == "tag"}
         player["tags"] = [t for t in player["tags"] if t not in obj_tags]
 
+    from game import production
+    production.on_leave(player)           # W11：钓位 / 灶台状态清掉
+    _use_start_game_ts.pop(entity_id, None)
     if obj and "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
         player["scene"] = "sandbox"       # B11：下播
-        from game import external_effects
+        from game import external_effects, economy
         from game.time_state import game_now_iso
         external_effects.live_stop(player, game_now_iso())
+        economy.synthetic_stream_income(player, obj_id)    # W11 ②：直播机未接前按 synthetic 入账
     if obj and "game" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
         from game import external_effects, external_log
         from game.time_state import game_now_iso
@@ -1269,8 +1304,13 @@ def _run_buff_tick_all(delta: float) -> None:
             run_tick(player, delta, game_ts=gts)
             _check_auto_leave(player_id)
         self_sync.on_tick(gts, _players)
-        from game import economy
+        from game import economy, production, commissions, qq
         economy.on_tick(gts, _players)                  # W10 ④：日薪 / 时薪按日程结算
+        if economy.restock_tick(gts, _OBJECTS):         # W11 ④：商店 / 冰箱每日补货
+            refresh_shop_views()
+        production.on_tick(gts, _players)               # W11 ①：钓位出鱼、灶台出便当
+        commissions.on_tick(gts)                        # W11 ①：每日委托
+        qq.on_tick(gts, _players)                       # W11 ③：未读消息的亲密度惩罚
         update_weather(gts)
         _kick_closed_objects()
         from game import state_log
@@ -1296,7 +1336,7 @@ def export_runtime() -> dict:
             for pid, p in _players.items()
         }
         objects = {
-            o["id"]: {"currentUsers": o["currentUsers"], "userList": list(o["userList"])}
+            o["id"]: {"currentUsers": o["currentUsers"], "userList": list(o["userList"]), "stock": o.get("stock")}
             for o in _OBJECTS
         }
     return {"players": players, "objects": objects}
@@ -1340,6 +1380,9 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
             else:
                 o["userList"] = [u for u in rt.get("userList", []) if u in _players]
                 o["currentUsers"] = len(o["userList"])
+                if rt.get("stock") is not None and o.get("stock") is not None:      # W11：库存回填（新加的物品类型保留初值）
+                    o["stock"] = dict(rt["stock"])
+        refresh_shop_views()
         return len(_players)
 
 
@@ -1347,7 +1390,10 @@ def _reset_for_tests() -> None:
     """清空全部运行时状态（测试用）。"""
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
-        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear(); _pre_use_pos.clear()
+        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear(); _pre_use_pos.clear(); _use_start_game_ts.clear()
+        for o in _OBJECTS:
+            o["stock"] = _initial_stock(o["type"])
+        refresh_shop_views()
         for o in _OBJECTS:
             o["currentUsers"] = 0
             o["userList"] = []

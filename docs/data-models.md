@@ -139,9 +139,21 @@ Object 类型可带 `use_pos: [[dx, dy], ...]`（相对物品 `position` 的格�
 
 `map.json` 可带 `decor: [{id, kind: path|pond|clothesline|flowerbed, tiles: [{x,y}]}]`，`GET /world.decor` 原样下发；`path` 生成时把草改成地板（可走），`pond` 改成水（不可走），其余只记位置。不是物品、不可交互。
 
-### 商店（W10 ④）
+### 商店与库存（W10 ④ / W11 ④）
 
-`economy.json` 的 `shops: {物品类型: {owner, sells[], buys[]}}` 决定哪些类型是商店；运行时视图带 `shop: [{type, item, name, price, sell, stock: null}]`（非商店 `null`），价格来自 `items.json`。营业时间沿用 `open_hours`。
+`economy.json` 的 `shops: {物品类型: {owner, sells[], buys[], stock: {item: n}, restock_at}}` 决定哪些类型是商店；运行时物品带 `stock: {item: n}`（买减卖加，每日 `restock_at` 补到水位）与视图 `shop: [{type, item, name, price, sell, stock}]`（非商店 `null`），价格来自 `items.json`。营业时间沿用 `open_hours`。冰箱也有 `stock`（`economy.json` `fridge`：初始 2、每日 08:00 +2、上限 4；`use` 吃一份、`store` 放食材）。库存进检查点 `object_runtime.stock`。
+
+### 产出链（W11 ①，`economy.json` `production`）
+
+钓位：使用中每 `interval_min` 游戏分钟按 `p`（有鱼饵 `p_bait`，消耗 1 鱼饵）掷一次得鱼；灶台：use 消耗 `consumes`，满 `minutes` 产 `produces`；`compose` / `make_video`：在 `objects` 类型上用满 `min_minutes` 后动作产 `item`（文件类，带 `meta`）。随机数用 `SANDBOX_SEED` 定种；每次产出记 `external` `produce`。
+
+### 委托（W11 ①，`game/commissions.py`）
+
+```typescript
+type Commission = { id: string; kind: "song"; client: Account; client_name: string; fee: number; title: string;
+                    status: "open" | "delivered"; created_at: string; source: "admin" | "daily"; delivered_at?: string; deliverer?: Account }
+```
+进检查点 meta `commissions`；`external` 记 `commission open / deliver`。
 
 ### 游戏机（B18，W6；W10-4b）
 

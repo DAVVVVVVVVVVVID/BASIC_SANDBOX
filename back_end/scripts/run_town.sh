@@ -5,7 +5,7 @@
 #                       [--cors http://localhost:5183] [--host 127.0.0.1] [--tz Asia/Shanghai] [--seed 2]
 #                       [--env K=V ...] [--no-sync] [--scenario] [--fg]
 #   --scenario：开 SANDBOX_SCENARIO=1（行为验收夹具 POST /admin/scenario，只给 bench 镇）
-#   --map DIR：地图目录（SANDBOX_MAP_DIR），如 game/maps/v1 / game/maps/m1c / game/maps/legacy_v0
+#   --map DIR|NAME：地图目录（SANDBOX_MAP_DIR），如 game/maps/v1，或名字 v1 / m1c / legacy_v0；不给则按 SANDBOX_MAP 环境变量（W11 冻结开关，默认 v0）
 #
 # 与总控 townctl.py 的 start() 对齐：townctl 传 SANDBOX_DATA_DIR / SELF_URL / SANDBOX_TZ 与 towns.yaml 的 sandbox_env
 # （SANDBOX_SEED、SELF_SYNC），这里分别对应 --data / --self-url / --tz / --seed / --env；日志由 --log（townctl 自己重定向）。
@@ -45,7 +45,10 @@ export SANDBOX_DATA_DIR="$DATA" SELF_URL="$SELF_URL" SELF_SYNC="$SYNC" SANDBOX_T
 [[ -n "$CORS" ]] && export SANDBOX_CORS_ORIGINS="$CORS"
 [[ -n "$SEED" ]] && export SANDBOX_SEED="$SEED"
 [[ "$SCENARIO" == 1 ]] && export SANDBOX_SCENARIO=1
-[[ -n "$MAP_DIR" ]] && export SANDBOX_MAP_DIR="$(cd "$MAP_DIR" && pwd)"
+if [[ -n "$MAP_DIR" ]]; then                       # W11：--map 可给目录，也可给名字（v1 / m1c / legacy_v0 → game/maps/<name>）
+  [[ -d "$MAP_DIR" ]] || MAP_DIR="$HERE/game/maps/$MAP_DIR"
+  export SANDBOX_MAP_DIR="$(cd "$MAP_DIR" && pwd)"
+fi
 for kv in "${EXTRA_ENV[@]:-}"; do [[ -n "$kv" ]] && export "$kv"; done
 echo "sandbox :$PORT  data=$DATA  self=$SELF_URL  sync=$SYNC  tz=$TZ_NAME  seed=${SEED:-none}  scenario=$SCENARIO  map=${MAP_DIR:-default}  log=$LOG"
 cd "$HERE"

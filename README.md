@@ -260,6 +260,8 @@ POST /action
 
 **W10 金币：** 玩家 `gold` / `inventory`（≤ 10 种）；初始金币、日薪时薪（tick 按日程结算）、餐价、商店目录在 `game/economy.json`，物品在 `game/items.json`（全是 06-economy / 03-objects 的假设值）；外部入账 `POST /admin/income`。
 
+**W11 产出与库存：** 钓位出鱼、灶台出便当、`compose` 出歌、`make_video` 出电台文稿（`production`）；写歌委托 `POST /admin/commission` / `GET /commissions`，`give song` 给委托人即入账；直播收入 `POST /admin/income source=stream`（viewers_avg × 0.5 + gifts；直播机未接前下播按 synthetic 20–60 入账）；商店 `stock` 与每日补货、冰箱 08:00 补食材 + `store` 动作；QQ 未读 > 2 h 对方亲密度 −1/h（日上限 5），读 / 回 +1。全部数值在三份配置里。
+
 ---
 
 ## Agent API
@@ -306,6 +308,14 @@ POST /action
 - Python 3.11+
 - Node.js 18+
 - [uv](https://docs.astral.sh/uv/)（Python 包管理器）
+
+### 地图开关与冻结日重置（W11）
+
+```bash
+SANDBOX_MAP=v1 uv run uvicorn main:app          # v1 图成为默认图（SANDBOX_MAP_DIR 目录优先；都不给 = v0）
+scripts/run_town.sh --port 8091 --map v1 ...    # --map 可给名字或目录
+scripts/world_reset.sh --map v1 --data /path/to/data --port 8000 -- --env SANDBOX_TOWN=main   # 停实例 → 归档旧数据为 <data>.v0-<时间戳> → 起新世界
+```
 
 ### 启动后端
 

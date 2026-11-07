@@ -1,6 +1,48 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W10 南门 / 站位 / QQ / 金币（2026-11-07）**；W9、W8、W7–W1 记录在后。
+分支：`whale-integration`。最新：**W11 冻结前收口（2026-11-07）**；W10、W9、W8、W7–W1 记录在后。
+
+---
+
+# W11 · 2026-11-07：冻结前收口——产出链、直播收入、QQ 亲密度、库存补货、SANDBOX_MAP / world_reset
+
+**v1 就位**（冻结清单第 2 步）：`SANDBOX_MAP=v1` 默认图 ✅、`scripts/world_reset.sh` ✅（已在 bench_v1 跑过一次）、`economy.json` / `items.json` / `qq_config.json` 三份配置 ✅（所有数值都在里面，冻结后只调数）、v1 全部物品 BFS 可达 ✅（`test_all_objects_reachable_including_2f`）。提交号见 git log 最新（本节）。主镇 8000 没动。
+
+## 1. 进度（1–6 全部完成）
+
+| # | 任务 | 状态 | 做了什么 |
+|---|---|---|---|
+| 1 | 产出链 | ✅ | `game/production.py` + `economy.json` `production`：**钓位** use 后每 40 游戏分钟掷一次（50%，有鱼饵 80% 并消耗 1 鱼饵）得「鱼」进背包；**灶台** use 需 1 份食材（否则 `no_ingredients`），use 时消耗，满 30 分钟产便当 ×2（提前 leave 不产）；**`compose`** 动作：正在用 `pc_music` 且用满 30 分钟 → 产「歌」（文件类，`meta.title / commission_id / text` 由 C 填；B 只做物品与交付）；**`make_video`**：在 `pc` / `pc_desk` / `stream_desk` 上用满 60 分钟 → 产「电台文稿」。随机数按 `SANDBOX_SEED` 定种（回放可复现），每次产出：`pendingMessage`、ws `produce` 事件、`external` 日志 `kind: produce`。**委托** `game/commissions.py`：`POST /admin/commission` 手动下单 + 每日 08:00 以 0.3 概率自动出一单（open ≤ 3）；`GET /commissions`；use 公告栏 `result.commissions`；`give song` 给委托人 → `status: delivered`、酬金入账（流水 `source: song_fee`）、委托人对她亲密度 +15。委托进检查点 |
+| 2 | 直播收入 | ✅ | `POST /admin/income source=stream` 给 `viewers_avg` / `gifts` 自动折算 `viewers_avg × 0.5 + gifts × 1.0`（`live_income.per_viewer / gift_rate`），流水带 `viewers_avg, gifts, synthetic:false`；`live_income.synthetic: true`（默认）时 `leave` 直播物品即按 `synthetic_range` [20, 60] 随机入账一行 `source: stream, synthetic: true`（定种）。直播机接上后把 `synthetic` 改 false |
+| 3 | QQ 亲密度 | ✅ | `qq_config.json` `unread_penalty {after_hours: 2, per_hour: 1, daily_cap: 5}`、`read_reply_bonus: 1`：1:1 消息未读超 2 游戏小时后，发件人对收件人每小时 −1（每对每日 ≤ 5）；收件人读到 → 发件人对他 +1；回一条 → +1。群消息不计；发件人不在线没处记。每条消息记 `penalized_hours`，日累计进检查点 |
+| 4 | 库存与补货 | ✅ | 商店 `stock`（`shops[].stock`：柜台 面包 10 / 甜食 10 / 食材 10 / 鱼饵 10 / 礼物 3；鱼摊 鱼 5），买减卖加，`out_of_stock`，每日 `restock_at` 08:00 补到水位（只补不减，同日一次）；`/world` 物品 `stock` 字段 + `shop[].stock` 实数。**冰箱** `stock {ingredients}`：初始 2、每日 08:00 +2 不超过 4，`use` 吃一份（空 → `empty`），新动作 `store` 放食材。库存进检查点（`object_runtime.stock` 列，旧库自动迁移） |
+| 5 | 冻结日准备 | ✅ | `SANDBOX_MAP=v1`（`world_state._resolve_map_dir`：`SANDBOX_MAP_DIR` 目录 > `SANDBOX_MAP` 名字 > v0）；`run_town.sh --map v1` 接受名字；`scripts/world_reset.sh --map v1 --data <dir> --port <p> [-- run_town 参数]`：停 pid → 旧目录改名 `<dir>.v0-<时间戳>`（`--no-archive` 直接删）→ 空目录起新世界。**bench_v1 验证**：`world_reset.sh --map v1 --data run/data/bench_v1/sandbox --port 8091 -- --no-sync --scenario --env SANDBOX_TOWN=bench_v1` → 旧数据归档到 `sandbox.v0-20261107-130749`，8091 起来 mapVersion `鲸鱼大学城·v1.0 草图@6918f8018e93`、0 玩家、12 边、柜台库存满、冰箱 4（启动在 08:00 后补了一次）、当日自动出了一单委托（老渔夫 244）。旧 v0 图仍是默认 |
+| 6 | 文档 | ✅ | api-spec（物品 `stock`、`store` / `compose` / `make_video`、库存与产出链小节、新 reason、export external 新 kind、ws `produce` / `commission`、QQ 亲密度、`/admin/income stream`、`/admin/commission`、`/commissions`、地图开关）、data-models（商店与库存 / 产出链 / 委托）、README（W11 段 + 地图开关与重置） |
+
+## 2. 测试命令与结果
+
+```bash
+cd back_end
+uv run pytest -q                                   # 288 passed（W10 的 279 + 9）
+scripts/world_reset.sh --map v1 --data /home/shan-dw/Project/run/data/bench_v1/sandbox --port 8091 -- --no-sync --scenario --env SANDBOX_TOWN=bench_v1
+```
+
+| 新增 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/test_w11_production.py` | 9 | 钓位 40 分钟掷一次（p=1 必中、鱼饵消耗、p=0 不中、external `produce` 行）；灶台无食材拒绝 / 消耗 / 30 分钟产 2 便当且只产一次 / 提前走不产 / 便当可吃；compose 需在 pc_music 且满 30 分钟、`/admin/commission`、公告栏读到委托、`give song` 交付 → +200 金币 + 委托人亲密度 15、无委托时只是转交；make_video 满 60 分钟出文稿、每日 08:00 出单一次；直播收入公式 27 = 40×0.5+7、没 amount 400、下播 synthetic 20–60 一行、关 synthetic 不入账；QQ 未读 2h 内不扣 → −1 → 日上限 −5 → 读 +1 → 回 +1 → 群不计；商店 `out_of_stock`、`shop[].stock`、次日补到水位、同日一次；冰箱 use 减到空 → `empty`、`store` 不超 4 / `storage_full` / `not_storable`、08:00 +2 不超 4、检查点保留；`SANDBOX_MAP` 解析（v1 / v0 / 不存在 / `SANDBOX_MAP_DIR` 优先） |
+| `tests/test_w10_economy.py` 改 1 | — | `shop[].stock` 从 null 变 10 |
+| conftest | — | 测试里默认 `commissions.daily_p = 0`（要的测试自己设 1.0），避免随机出单打乱计数 |
+
+注：`tests/test_w8_q1.py::test_replay_same_second_join_and_actions_unambiguous` 偶发（同一毫秒内 action 与 state 行的墙钟 ts 相等，断言用的是严格 `>`），与本轮无关，重跑即过；留着下轮把断言改成 `>=` + 行序。
+
+## 3. 假设（都在配置里，冻结后改数不改代码）
+
+- 产出链：钓鱼 40 min / 50% / 80%、灶台 30 min 产 2、compose 门槛 30 min、make_video 门槛 60 min（03 说「做视频 1–2 h」取下限）；C 的 agent 调 `compose` / `make_video` 前要先 `use` 对应物品并待够时间，否则 `not_ready`（带 `ready_in_min`）。
+- 委托：酬金 150–300 随机、每日 0.3 概率出一单、委托人从 4 个 NPC 里随机、open ≤ 3；交付匹配顺序 payload.commission_id → 歌的 meta.commission_id → 该委托人最早的 open 单。
+- 直播：synthetic 默认开；`gift_rate` 1.0（礼物按金币 1:1，07 说「礼物折算比例」待定）。
+- QQ：发件人不在线（NPC 没 player）不扣不加；`read_reply_bonus` 每次读每个发件人 +1（不是每条 +1）。
+- 库存：补货「只补不减」（卖给店多出来的不会被削回水位）；冰箱启动时若已过 08:00 会补一次；补货是确定性的，不记 external。
+- 重置脚本只管沙盒自己的数据目录；自我层数据、supervisor 由总控 / C 按冻结清单第 5 步处理。
 
 ---
 

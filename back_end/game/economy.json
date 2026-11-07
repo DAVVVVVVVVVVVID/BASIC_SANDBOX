@@ -1,18 +1,162 @@
 {
-  "_doc": "W10 ④ 金币（06-economy.md 草稿假设值，全部可改）。initial_gold 按 agent_id，human 用 default。wages：按日程由 tick 结算（kind daily 在 pay_at 一次结清；hourly 在 hours 区间内每满 1 游戏小时结一次）。prices 在 items.json。",
-  "initial_gold": {"default": 300, "whale": 300, "achan": 2000, "npc_xiaoqian": 400, "npc_rest_owner": 3000, "npc_grocer": 3000, "npc_fisher": 800},
+  "_doc": "W10 ④ 金币（06-economy.md 草稿假设值，全部可改）。initial_gold 按 agent_id，human 用 default。wages：按日程由 tick 结算（kind daily 在 pay_at 一次结清；hourly 在 hours 区间内每满 1 游戏小时结一次）。prices 在 items.json。 W11：production（产出链）、commissions（委托）、live_income（直播收入）、fridge（冰箱补货）、shops[].stock / restock_at（库存与每日补货）。",
+  "initial_gold": {
+    "default": 300,
+    "whale": 300,
+    "achan": 2000,
+    "npc_xiaoqian": 400,
+    "npc_rest_owner": 3000,
+    "npc_grocer": 3000,
+    "npc_fisher": 800
+  },
   "wages": {
-    "achan":          {"kind": "daily",  "amount": 150, "pay_at": "18:30", "label": "写代码日薪",   "requires_tag": null},
-    "npc_rest_owner": {"kind": "daily",  "amount": 100, "pay_at": "21:00", "label": "店主日薪"},
-    "npc_grocer":     {"kind": "daily",  "amount": 100, "pay_at": "20:00", "label": "店主日薪"},
-    "npc_fisher":     {"kind": "daily",  "amount": 80,  "pay_at": "17:00", "label": "渔夫日薪"},
-    "npc_xiaoqian":   {"kind": "hourly", "amount": 12,  "hours": ["13:00", "17:00"], "label": "打工时薪"}
+    "achan": {
+      "kind": "daily",
+      "amount": 150,
+      "pay_at": "18:30",
+      "label": "写代码日薪",
+      "requires_tag": null
+    },
+    "npc_rest_owner": {
+      "kind": "daily",
+      "amount": 100,
+      "pay_at": "21:00",
+      "label": "店主日薪"
+    },
+    "npc_grocer": {
+      "kind": "daily",
+      "amount": 100,
+      "pay_at": "20:00",
+      "label": "店主日薪"
+    },
+    "npc_fisher": {
+      "kind": "daily",
+      "amount": 80,
+      "pay_at": "17:00",
+      "label": "渔夫日薪"
+    },
+    "npc_xiaoqian": {
+      "kind": "hourly",
+      "amount": 12,
+      "hours": [
+        "13:00",
+        "17:00"
+      ],
+      "label": "打工时薪"
+    }
   },
   "meal_price": 20,
   "shops": {
-    "shop_counter": {"owner": "npc_grocer",     "sells": ["bread", "sweets", "ingredients", "bait", "gift"], "buys": []},
-    "fish_stall":   {"owner": "npc_fisher",     "sells": ["fish"],                                       "buys": ["fish"]},
-    "bar":          {"owner": "npc_rest_owner", "sells": [],                                             "buys": ["fish"]}
+    "shop_counter": {
+      "owner": "npc_grocer",
+      "sells": [
+        "bread",
+        "sweets",
+        "ingredients",
+        "bait",
+        "gift"
+      ],
+      "buys": [],
+      "stock": {
+        "bread": 10,
+        "sweets": 10,
+        "ingredients": 10,
+        "bait": 10,
+        "gift": 3
+      },
+      "restock_at": "08:00"
+    },
+    "fish_stall": {
+      "owner": "npc_fisher",
+      "sells": [
+        "fish"
+      ],
+      "buys": [
+        "fish"
+      ],
+      "stock": {
+        "fish": 5
+      },
+      "restock_at": "08:00"
+    },
+    "bar": {
+      "owner": "npc_rest_owner",
+      "sells": [],
+      "buys": [
+        "fish"
+      ],
+      "stock": {},
+      "restock_at": "08:00"
+    }
   },
-  "live_income_per_viewer": 0.5
+  "production": {
+    "_doc": "03-objects 3.1 假设值。fishing：每 interval_min 游戏分钟掷一次，p / 有鱼饵 p_bait（每次掷消耗 1 鱼饵）；stove：use 时消耗 consumes，满 minutes 后产 produces；compose / make_video：在 objects 类型物品上使用满 min_minutes 后动作成功产 item。",
+    "fishing": {
+      "interval_min": 40,
+      "p": 0.5,
+      "p_bait": 0.8,
+      "item": "fish",
+      "bait": "bait"
+    },
+    "stove": {
+      "consumes": {
+        "ingredients": 1
+      },
+      "produces": {
+        "bento": 2
+      },
+      "minutes": 30
+    },
+    "compose": {
+      "objects": [
+        "pc_music"
+      ],
+      "min_minutes": 30,
+      "item": "song"
+    },
+    "make_video": {
+      "objects": [
+        "pc",
+        "stream_desk",
+        "pc_desk"
+      ],
+      "min_minutes": 60,
+      "item": "script"
+    }
+  },
+  "commissions": {
+    "_doc": "写歌委托：fee 在 song_fee 区间随机；每日 refresh_at 以 daily_p 概率从 clients 随机出一单（open 不超过 max_open）；交付 give song 给委托人 → 酬金入账、委托人对她亲密度 +closeness_bonus。",
+    "song_fee": [
+      150,
+      300
+    ],
+    "closeness_bonus": 15,
+    "daily_p": 0.3,
+    "refresh_at": "08:00",
+    "max_open": 3,
+    "clients": [
+      "npc_rest_owner",
+      "npc_grocer",
+      "npc_xiaoqian",
+      "npc_fisher"
+    ]
+  },
+  "live_income": {
+    "_doc": "POST /admin/income source=stream：amount = viewers_avg × per_viewer + gifts × gift_rate；synthetic=true 时下播（leave 直播物品）按 synthetic_range 随机入账并标 synthetic:true（直播机接上后改 false）。",
+    "per_viewer": 0.5,
+    "gift_rate": 1.0,
+    "synthetic": true,
+    "synthetic_range": [
+      20,
+      60
+    ]
+  },
+  "fridge": {
+    "_doc": "冰箱库存：use 消耗 1 份 consumes（没有则 empty）；每日 restock_at 补 restock_qty 份，不超过 max；初始 initial 份。store 动作可放食材进去。",
+    "consumes": "ingredients",
+    "initial": 2,
+    "restock_qty": 2,
+    "max": 4,
+    "restock_at": "08:00"
+  }
 }

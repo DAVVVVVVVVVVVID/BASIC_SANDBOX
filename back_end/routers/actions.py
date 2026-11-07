@@ -11,7 +11,7 @@ from game.world_state import (
 )
 from game import external_effects, external_log
 from routers import economy_actions
-from game.time_state import game_now_iso
+from game.time_state import game_now_iso, game_now_ts
 from game.action_log import append_log
 
 BASE_MOVE_INTERVAL = 0.3  # 秒，与前端 BASE_MOVE_INTERVAL=300ms 对齐
@@ -182,9 +182,23 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
     ext = external_effects.external_keys(obj)
 
     if obj.get("prototype") == "instant":
+        if obj["type"] == "fridge" and obj.get("stock") is not None:            # W11 ④：冰箱按库存吃
+            from game import economy as _eco
+            fitem = _eco.cfg().get("fridge", {}).get("consumes", "ingredients")
+            if int(obj["stock"].get(fitem, 0)) < 1:
+                return ActionResponse(success=False, type="use", reason="empty",
+                                      result={"message": "冰箱空了，去杂货店买点食材吧。", "objectId": obj["id"], "stock": dict(obj["stock"])})
+            obj["stock"][fitem] = int(obj["stock"].get(fitem, 0)) - 1
         apply_instant_object(obj["id"], entity_id)
         record_object_use(entity_id, obj["id"])            # B10：没信号也算用过（有冷却）
         result = {"message": obj.get("successMessage"), "objectId": obj["id"]}
+        if obj.get("stock") is not None:
+            result["stock"] = dict(obj["stock"])
+        if obj["type"] == "notice_board":                                        # W11 ①：公告栏读到委托
+            from game import commissions
+            result["commissions"] = commissions.open_items()
+            if result["commissions"]:
+                result["message"] = (result["message"] or "") + " 公告栏上有委托：" + "；".join(f"{c['client_name']}《{c['title']}》{c['fee']} 金币" for c in result["commissions"])
         if "feed" in ext:                                   # B10 手机：拉自我层信息流摘要
             digest = external_effects.fetch_feed(_players.get(entity_id, player), game_now_iso())
             set_phone_feed(entity_id, digest)
@@ -245,6 +259,11 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
             )
         _players[entity_id]["game"] = g["game"]
 
+    from game import production as _prod
+    perr = _prod.on_enter(_players.get(entity_id, player), obj, game_now_ts())     # W11 ①：灶台消耗食材、钓位开始计时
+    if perr:
+        return ActionResponse(success=False, type="use", reason=perr,
+                              result={"message": "没有食材，先去杂货店买点。", "objectId": obj["id"]})
     enter_object(obj["id"], entity_id)
     record_object_use(entity_id, obj["id"])
     updated = get_player(entity_id)
@@ -471,6 +490,10 @@ _HANDLERS = {
     "sell":         economy_actions.handle_sell,
     "eat":          economy_actions.handle_eat,
     "give":         economy_actions.handle_give,
+    # W11 ①④
+    "store":        economy_actions.handle_store,
+    "compose":      economy_actions.handle_compose,
+    "make_video":   economy_actions.handle_make_video,
 }
 
 

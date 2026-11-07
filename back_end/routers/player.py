@@ -234,10 +234,12 @@ def admin_export(date: str, kinds: str = "actions,chat,state,external,qq,economy
 class IncomeBody(BaseModel):
     entity_id: Optional[str] = None       # player id
     account: Optional[str] = None         # 或账号（agent_id；人类 = player id）
-    amount: int
-    source: str = "external"              # song_fee / live_income / tip / adjust …
+    amount: Optional[int] = None          # source=stream 时可省（按 viewers_avg / gifts 折算）
+    source: str = "external"              # stream / song_fee / tip / adjust …
     label: Optional[str] = None
     meta: Optional[dict] = None
+    viewers_avg: Optional[float] = None   # W11 ②：source=stream
+    gifts: Optional[float] = None
 
 
 @router.post("/admin/income")
@@ -252,9 +254,44 @@ def admin_income(body: IncomeBody):
             p = next((q for q in _pl.values() if account_of(q) == body.account), None)
         if p is None:
             raise HTTPException(status_code=404, detail="player not found")
-        row = economy.ledger("income" if body.amount >= 0 else "expense", p, int(body.amount), source=body.source,
-                             label=body.label, meta=body.meta)
-    return {"ok": True, "entity_id": p["id"], "account": row["account"], "delta": row["delta"], "balance": row["balance"]}
+        extra = {}
+        amount = body.amount
+        if body.source == "stream":                                   # W11 ②：直播收入折算
+            if body.viewers_avg is not None or body.gifts is not None:
+                amount = economy.stream_income_amount(body.viewers_avg, body.gifts)
+            extra = {"viewers_avg": body.viewers_avg, "gifts": body.gifts, "synthetic": False}
+        if amount is None:
+            raise HTTPException(status_code=400, detail="amount required (or source=stream with viewers_avg / gifts)")
+        row = economy.ledger("income" if amount >= 0 else "expense", p, int(amount), source=body.source,
+                             label=body.label, meta=body.meta, **extra)
+    return {"ok": True, "entity_id": p["id"], "account": row["account"], "delta": row["delta"], "balance": row["balance"], **extra}
+
+
+class CommissionBody(BaseModel):
+    client: str                           # 委托人账号 / player id / 显示名
+    kind: str = "song"
+    fee: Optional[int] = None             # 缺省在 economy.json song_fee 区间随机
+    title: Optional[str] = None
+
+
+@router.post("/admin/commission")
+def admin_commission(body: CommissionBody):
+    """W11 ①：手动下一单写歌委托（C / 直播侧 / A 的夹具用）。每日自动出单见 economy.json commissions。"""
+    from game import commissions
+    from game.world_state import STATE_LOCK
+    with STATE_LOCK:
+        cm = commissions.create(body.client, kind=body.kind, fee=body.fee, title=body.title, source="admin")
+    return {"ok": True, "commission": cm}
+
+
+@router.get("/commissions")
+def list_commissions(player: Optional[str] = None, status: str = "open"):
+    """W11 ①：委托列表（open | all）。player 只用于校验存在。"""
+    from game import commissions
+    if player is not None and player not in _players:
+        raise HTTPException(status_code=404, detail=f"player not found: {player}")
+    items = commissions.open_items() if status == "open" else commissions.all_items()
+    return {"commissions": items, "count": len(items)}
 
 
 @router.get("/admin/self-sync")

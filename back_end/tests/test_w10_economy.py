@@ -45,7 +45,7 @@ def test_world_objects_carry_shop_listing(client):
     shop = objs[COUNTER]["shop"]
     assert [r["type"] for r in shop] == ["bait", "bread", "gift", "ingredients", "sweets"]
     bread = next(r for r in shop if r["type"] == "bread")
-    assert bread == {"type": "bread", "item": "bread", "name": "面包", "price": 5, "sell": None, "stock": None}
+    assert bread == {"type": "bread", "item": "bread", "name": "面包", "price": 5, "sell": None, "stock": 10}   # W11：库存
     assert objs[TABLE]["shop"] is None and objs[COUNTER]["openHours"] == [["09:00", "20:00"]]
 
 
