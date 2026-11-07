@@ -13,6 +13,7 @@ import type { SpectateParams } from '../../spectate/params'
 import { preloadGenAssets, createGenAnimations, charKeyFor } from '../assets'
 import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
+import { preloadAiAssets, getAiManifest, aiBackdropKey, aiEnabled, type AiBackdrop } from '../aiAssets'
 
 export interface SceneInitData {
   mode: 'play' | 'spectate'
@@ -109,6 +110,11 @@ export default class GameScene extends Phaser.Scene {
   private self: PlayerSprite | null = null
   private others: Map<string, OtherPlayerSprite> = new Map()
   private objectSprites: GameObjectSprite[] = []
+  private objectTiles: Position[] = []
+  /** W8 底图：name → image；roofed sectors = 有 exterior 底图的 sector */
+  private backdrops: { name: string; meta: AiBackdrop; img: Phaser.GameObjects.Image }[] = []
+  private roofedSectors = new Set<string>()
+  private insideSector: string | null = null   // 当前取景进入的 sector（室内视图）
   private inputSystem: InputSystem | null = null
   private unsubs: (() => void)[] = []
   private busHandlers: [string, (...args: never[]) => void][] = []
@@ -148,6 +154,7 @@ export default class GameScene extends Phaser.Scene {
 
   preload() {
     preloadGenAssets(this)
+    preloadAiAssets(this)
     preloadTileAssets(this, this.worldData.tiled)
     for (const obj of this.worldData.objects) {
       if (obj.sprite && !this.textures.exists(`obj_${obj.sprite}`)) {
@@ -260,6 +267,45 @@ export default class GameScene extends Phaser.Scene {
 
   // ── 地图 ─────────────────────────────────────────────────────────────────────
 
+  /** W8：按 manifest 放 AI 底图（32 px/格 → ×3），exterior 默认显示、interior 进入该屋时显示；2F 室内（没有 exterior 的）常显 */
+  private placeBackdrops() {
+    const m = getAiManifest()
+    if (!m || !aiEnabled()) return
+    for (const [name, meta] of Object.entries(m.backdrops)) {
+      const key = aiBackdropKey(name)
+      if (!this.textures.exists(key)) continue
+      const scale = TILE_SIZE / (meta.tile_px || m.tile_px || 32)
+      const img = this.add.image(meta.x0 * TILE_SIZE, meta.y0 * TILE_SIZE, key).setOrigin(0, 0).setScale(scale).setDepth(0.6)
+      this.backdrops.push({ name, meta, img })
+      if (meta.view === 'exterior') this.roofedSectors.add(meta.sector)
+    }
+    this.applyView(this.insideSector, true)
+  }
+
+  /** 两套视图：inside = 当前镜头进入的 sector（室内视图），其余有屋顶的 sector 显示屋顶、藏起屋内物品与人物 */
+  private applyView(inside: string | null, force = false) {
+    if (!force && inside === this.insideSector) return
+    this.insideSector = inside
+    for (const b of this.backdrops) {
+      const hasPair = this.roofedSectors.has(b.meta.sector)
+      if (!hasPair) { b.img.setVisible(true); continue }           // 只有一张（如 2F 室内）→ 常显
+      const showInterior = b.meta.sector === inside
+      b.img.setVisible(b.meta.view === 'interior' ? showInterior : !showInterior)
+    }
+    // 屋内物品：所在 sector 有屋顶且不是当前进入的 → 隐藏（只对 1F；2F 另有位置，照常）
+    this.objectSprites.forEach((o, i) => {
+      const t = this.tileIndex.get(`${this.objectTiles[i]?.x},${this.objectTiles[i]?.y}`)
+      const roofed = !!t?.sector && this.roofedSectors.has(t.sector) && t.sector !== inside && (this.focus?.floorOf(t) ?? 1) === 1
+      o.setVisible(!roofed)
+    })
+  }
+
+  /** 人物是否被屋顶挡住 */
+  private underRoof(tile: Position): boolean {
+    const t = this.tileIndex.get(`${tile.x},${tile.y}`)
+    return !!t?.sector && this.roofedSectors.has(t.sector) && t.sector !== this.insideSector && (this.focus?.floorOf(t) ?? 1) === 1
+  }
+
   /** 运行中换图：新 tileset 可能还没加载，先加载再重建 */
   private rebuildMap() {
     const world = this.worldData
@@ -276,6 +322,10 @@ export default class GameScene extends Phaser.Scene {
     this.tileMap?.destroy()
     for (const o of this.objectSprites) o.destroy()
     this.objectSprites = []
+    this.objectTiles = []
+    for (const b of this.backdrops) b.img.destroy()
+    this.backdrops = []
+    this.roofedSectors.clear()
     this.tileMap = new TileMap(this, world.tiles, world.tiled)
     this.tileMap.render()
     this.tileIndex = buildTileIndex(world.tiles)
@@ -284,7 +334,8 @@ export default class GameScene extends Phaser.Scene {
     this.focus.setMap({ tiles: world.tiles, edges: world.edges ?? extras.edges, floors: world.floors ?? extras.floors, access: world.access ?? extras.access, arenas: world.arenas ?? extras.arenas, map: world.map ?? extras.map } as Parameters<SceneFocus['setMap']>[0], Math.round(this.mapPx.w / TILE_SIZE) || 1, Math.round(this.mapPx.h / TILE_SIZE) || 1)
     const { w, h } = mapSize(world.tiles, world.tiled)
     this.mapPx = { w: w * TILE_SIZE, h: h * TILE_SIZE }
-    for (const obj of world.objects) this.objectSprites.push(new GameObjectSprite(this, obj))
+    for (const obj of world.objects) { this.objectSprites.push(new GameObjectSprite(this, obj)); this.objectTiles.push({ ...obj.position }) }
+    this.placeBackdrops()
 
     const cam = this.cameras.main
     // 全景 zoom：整张图放进画面，吸附到 1/6 的整数倍
@@ -489,6 +540,7 @@ export default class GameScene extends Phaser.Scene {
     }
     // W7 取景：进屋推近 + 屋外压暗
     const fr = this.focus.update(focusTile, dt, useGameStore.getState().worldState)
+    this.applyView(fr.indoor && focusTile ? (this.tileIndex.get(`${focusTile.x},${focusTile.y}`)?.sector ?? null) : null)
     if (this.params?.focus && !this.targetId && focusTile) {
       const want = fr.indoor && fr.zoom ? fr.zoom : this.followZoom
       if (want !== this.focusZoom) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
@@ -529,12 +581,15 @@ export default class GameScene extends Phaser.Scene {
       this.inputSystem?.update(time)
       this.self?.update(time, dt, speed)
       const p = this.self!.getPixelPosition()
-      this.focus.update(this.self!.getTile(), dt, store.worldState)
+      const fr0 = this.focus.update(this.self!.getTile(), dt, store.worldState)
+      const st0 = this.self!.getTile()
+      this.applyView(fr0.indoor ? (this.tileIndex.get(`${st0.x},${st0.y}`)?.sector ?? null) : null)
       this.centerClamped(p.x, p.y)
     } else {
       this.updateSpectateCamera(time, dt)
     }
-    for (const s of this.others.values()) s.update(time, dt, 1)
+    for (const s of this.others.values()) { s.update(time, dt, 1); if (this.roofedSectors.size) s.setHidden(this.underRoof(s.getTile())) }
+    if (this.self && this.roofedSectors.size) this.self.setHidden(this.underRoof(this.self.getTile()))
 
     // 标签 / 气泡在屏幕上恒定大小
     const ui = Phaser.Math.Clamp(1 / this.cameras.main.zoom, 1, 6)

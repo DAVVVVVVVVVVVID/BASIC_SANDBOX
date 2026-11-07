@@ -1,0 +1,13 @@
+{
+  "sector": "home",
+  "floor": 1,
+  "view": "exterior",
+  "x0": 1,
+  "y0": 20,
+  "w": 16,
+  "h": 15,
+  "px": 32,
+  "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+  "tile_px": 32,
+  "qa_score": 1.0
+}

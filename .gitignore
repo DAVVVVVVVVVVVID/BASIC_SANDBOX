@@ -30,3 +30,7 @@ back_end/data/
 # 第三方素材不入库（Sunnyside World 许可不允许再分发，见 front_end/WHALE_REPORT.md E6a）；自制素材在 front_end/public/assets/gen/
 front_end/public/assets/tilesets/
 front_end/public/assets/vendor/
+
+# W8 美术管线：原始生成图与中间件不入库（成品在 public/assets/gen-ai/）
+front_end/data/assets/gen-ai-raw/
+front_end/tools/.venv/

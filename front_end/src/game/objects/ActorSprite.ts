@@ -276,6 +276,16 @@ export default class ActorSprite {
     if (pose !== this.pose) { this.pose = pose; if (!this.moving) this.playAnim(false) }
   }
 
+  private hidden = false
+  /** 被屋顶挡住（W8 小镇视角房屋不镂空） */
+  setHidden(h: boolean) {
+    if (h === this.hidden) return
+    this.hidden = h
+    const v = !h
+    this.sprite.setVisible(v); this.nameText.setVisible(v); this.stateText.setVisible(v && !!this.stateLabel)
+    this.arrow?.setVisible(v); this.bubble?.setVisible(v); this.bar?.setVisible(v)
+  }
+
   /** 离线（agent 进程挂了但身体还在）→ 半透明 */
   setDimmed(dim: boolean) {
     if (dim === this.dimmed) return

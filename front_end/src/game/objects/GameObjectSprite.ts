@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { GameObject } from '../../types'
 import { tileToPixel, TILE_SIZE } from '../map/TileMap'
 import { objTextureKey } from '../assets'
+import { aiObjectKey, aiEnabled } from '../aiAssets'
 
 const COLOR_OBJECT = 0x8b6b3e
 const TYPE_ICON: [RegExp, string][] = [
@@ -44,7 +45,8 @@ export default class GameObjectSprite {
     const imgH = rows * TILE_SIZE
 
     // 优先自制图（按物品类型；bed_21 这类直接有同名图），其次后端给的旧图，借用占位图不用
-    const genKey = scene.textures.exists(objTextureKey(obj.type)) ? objTextureKey(obj.type)
+    const aiKey = aiEnabled() && scene.textures.exists(aiObjectKey(obj.type)) ? aiObjectKey(obj.type) : aiEnabled() && scene.textures.exists(aiObjectKey(obj.type.replace(/_\d+$/, ''))) ? aiObjectKey(obj.type.replace(/_\d+$/, '')) : null
+    const genKey = aiKey ? aiKey : scene.textures.exists(objTextureKey(obj.type)) ? objTextureKey(obj.type)
       : scene.textures.exists(objTextureKey(obj.type.replace(/_\d+$/, ''))) ? objTextureKey(obj.type.replace(/_\d+$/, '')) : null
     const spriteKey = genKey ?? (obj.sprite && !isBorrowedSprite(obj) ? `obj_${obj.sprite}` : null)
     let hit: Phaser.GameObjects.GameObject
@@ -85,6 +87,9 @@ export default class GameObjectSprite {
     hit.on('pointerover', () => tooltip.setVisible(true))
     hit.on('pointerout',  () => tooltip.setVisible(false))
   }
+
+  /** 室内物品在屋顶视图下隐藏（W8 两套视图） */
+  setVisible(v: boolean) { for (const n of this.nodes) (n as unknown as { setVisible?: (b: boolean) => void }).setVisible?.(v) }
 
   destroy() {
     for (const n of this.nodes) n.destroy()

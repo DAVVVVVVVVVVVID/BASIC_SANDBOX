@@ -8,6 +8,7 @@ import { useGameStore } from '../store/gameStore'
 import { parseSpectateParams } from './params'
 import { setArtVersion } from '../game/assets'
 import { setZoneNames } from '../game/map/zones'
+import { loadAiManifest } from '../game/aiAssets'
 import WorldInfoPanel from '../ui/WorldInfoPanel'
 import SpectateHud from './SpectateHud'
 
@@ -38,7 +39,7 @@ export default function SpectateApp() {
       // 一直重试直到后端可达
       for (let i = 0; !cancelled; i++) {
         try {
-          const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents()])
+          const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents(), loadAiManifest()])
           if (cancelled) return
           const s = useGameStore.getState()
           s.setWorldState(worldData.worldState)

@@ -15,9 +15,12 @@ import ConnectionBadge from './ui/ConnectionBadge'
 import SpectateApp from './spectate/SpectateApp'
 import ReplayApp from './replay/ReplayApp'
 import BrainApp from './brain/BrainApp'
+import FlatApp from './flat/FlatApp'
+import AssetsReviewApp from './review/AssetsReviewApp'
 import { isSpectateRoute } from './spectate/params'
 import type { Player } from './types'
 import { setZoneNames } from './game/map/zones'
+import { loadAiManifest } from './game/aiAssets'
 
 /** 操控模式（作者以阿蝉身份进入） */
 function PlayApp() {
@@ -32,7 +35,7 @@ function PlayApp() {
     setMyPlayerId(playerId)
     setPlayer(player)
     try {
-      const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents()])
+      const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents(), loadAiManifest()])
       setWorldState(worldData.worldState)
       setZoneNames(worldData.zone_names)
       setMap(worldData.tiles, worldData.tiled, worldData.worldState?.mapVersion, { edges: worldData.edges, floors: worldData.floors, access: worldData.access, arenas: worldData.arenas, map: worldData.map })
@@ -79,5 +82,7 @@ export default function App() {
   if (isSpectateRoute()) return <SpectateApp />
   if (/^\/replay\/?$/.test(window.location.pathname)) return <ReplayApp />
   if (/^\/brain\/?$/.test(window.location.pathname)) return <BrainApp />
+  if (/^\/flat\/?$/.test(window.location.pathname)) return <FlatApp />
+  if (/^\/assets-review\/?$/.test(window.location.pathname)) return <AssetsReviewApp />
   return <PlayApp />
 }

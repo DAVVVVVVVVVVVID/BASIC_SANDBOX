@@ -1,0 +1,48 @@
+{
+  "tile_px": 32,
+  "backdrops": {
+    "home_1f_interior": {
+      "sector": "home",
+      "floor": 1,
+      "view": "interior",
+      "x0": 1,
+      "y0": 20,
+      "w": 16,
+      "h": 15,
+      "px": 32,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 32,
+      "qa_score": 0.899
+    },
+    "home_1f_exterior": {
+      "sector": "home",
+      "floor": 1,
+      "view": "exterior",
+      "x0": 1,
+      "y0": 20,
+      "w": 16,
+      "h": 15,
+      "px": 32,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 32,
+      "qa_score": 1.0
+    },
+    "home_2f_interior": {
+      "sector": "home",
+      "floor": 2,
+      "view": "interior",
+      "x0": 1,
+      "y0": 35,
+      "w": 10,
+      "h": 8,
+      "px": 32,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 32,
+      "qa_score": 0.584
+    }
+  },
+  "objects": [
+    "bed",
+    "pc"
+  ]
+}
