@@ -38,6 +38,11 @@ export interface GameObject {
   useStateLabel: string
   effects: Effect[]
   advertise?: Record<string, number>
+  /** W9（B W10 任务 2）：使用者站位（相对格）与朝向 */
+  use_pos?: { x: number; y: number } | [number, number] | null
+  use_facing?: Facing | null
+  /** W9（B W10 任务 4）：商店物品（柜台 / 卖鱼摊） */
+  shop?: { type?: string; item?: string; name?: string; price?: number; stock?: number }[]
 }
 
 export type TimePeriod = 'morning' | 'day' | 'dusk' | 'night'
@@ -73,6 +78,9 @@ export interface OtherPlayer {
   tags?: string[]
   /** W5：坐标每次实际变化 +1 */
   pos_seq?: number
+  /** W9：金币与背包（假设 players[] 也带） */
+  gold?: number
+  inventory?: unknown[]
 }
 
 export interface TiledTilesetInfo {
@@ -151,6 +159,9 @@ export type NeedKey = typeof NEED_KEYS[number]
 export type NeedVars = Record<NeedKey, number>
 
 export interface Player extends Partial<NeedVars> {
+  /** W9（B W10 任务 4）：金币与背包；字段形状是假设，前端 normalizeInventory 宽容解析 */
+  gold?: number
+  inventory?: unknown[]
   id: string
   profile: PlayerProfile
   position: Position
@@ -250,6 +261,8 @@ export interface WsChatEvent {
   type?: string
   timestamp?: string
 }
-export interface WsAction { type: 'action'; ts: string; entity: string; action: string; object?: string | null; success: boolean; reason?: string | null }
+export interface WsAction { type: 'action'; ts: string; entity: string; action: string; object?: string | null; success: boolean; reason?: string | null; item?: string | null; item_name?: string | null; price?: number | null; gold_delta?: number | null; target?: string | null; target_name?: string | null; message?: string | null }
 export interface WsHeartbeat { type: 'heartbeat'; ts: string }
-export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat
+/** W9（B W10 任务 3）：QQ 消息推送，字段形状见 api/qq.ts normalizeMessage */
+export interface WsQQ { type: 'qq'; ts?: string; message?: unknown; [k: string]: unknown }
+export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ

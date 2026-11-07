@@ -120,6 +120,7 @@ export default function HUD() {
       </div>
       <Row label="年龄" value={profile?.age ?? '—'} />
       <Row label="ID"   value={<span style={{ color: '#718096', fontSize: 11 }}>{player.id}</span>} />
+      {typeof player.gold === 'number' && <Row label="金币" value={<span style={{ color: '#ffe9a8', fontWeight: 700 }}>💰 {player.gold}</span>} />}
 
       <Divider />
 

@@ -175,6 +175,9 @@ export function startWorldFeed(opts: { preferWs?: boolean } = {}): WorldFeedHand
         case 'action':
           EventBus.emit('action-event', msg)
           break
+        case 'qq':
+          EventBus.emit('qq-event', msg)
+          break
         case 'heartbeat':
           break
       }

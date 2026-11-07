@@ -63,6 +63,11 @@ interface GameStore {
   /** ws patch：按 id 合并 objects 的使用状态 */
   patchObjects: (partials: Partial<GameObject>[]) => void
   patchWorldState: (partial: Partial<WorldState>) => void
+  /** W9 QQ：按玩家 id 存联系人与消息（操控页存自己的，旁观页存跟随目标的） */
+  qq: { contacts: import('../api/qq').QQContact[]; messages: import('../api/qq').QQMessage[]; available: boolean | null }
+  setQQContacts: (c: import('../api/qq').QQContact[] | null) => void
+  mergeQQMessages: (m: import('../api/qq').QQMessage[]) => void
+  markQQRead: (peer: string) => void
 }
 
 export const BUBBLE_TTL_MS = 8000
@@ -129,6 +134,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     return { objects: s.objects.map(o => byId.has(o.id) ? { ...o, ...byId.get(o.id) } : o) }
   }),
   patchWorldState: (partial) => set((s) => ({ worldState: s.worldState ? { ...s.worldState, ...partial } : (partial as WorldState) })),
+  qq: { contacts: [], messages: [], available: null },
+  setQQContacts: (c) => set((s) => ({ qq: { ...s.qq, contacts: c ?? s.qq.contacts, available: c !== null } })),
+  mergeQQMessages: (m) => set((s) => {
+    if (!m.length) return {}
+    const byId = new Map(s.qq.messages.map(x => [x.id, x]))
+    for (const x of m) byId.set(x.id, { ...byId.get(x.id), ...x })
+    const all = [...byId.values()].sort((a, b) => a.ts.localeCompare(b.ts)).slice(-500)
+    return { qq: { ...s.qq, messages: all, available: true } }
+  }),
+  markQQRead: (peer) => set((s) => ({ qq: { ...s.qq, messages: s.qq.messages.map(x => (x.from === peer || x.group === peer) && !x.readAt ? { ...x, readAt: new Date().toISOString() } : x), contacts: s.qq.contacts.map(c => c.id === peer ? { ...c, unread: 0 } : c) } })),
   setConnection: (connection) => set((s) => ({
     connection,
     failures: connection === 'online' ? 0 : s.failures + (connection === 'offline' ? 1 : 0),

@@ -7,6 +7,7 @@ import { zoneLabel, buildTileIndex } from '../map/zones'
 import { deriveStateLabel } from '../scenes/GameScene'
 import { TOWN } from '../../api/client'
 import type { Tile } from '../../types'
+import { itemMeta, normalizeInventory } from '../items'
 
 const W = 300
 const PAD = 14
@@ -24,6 +25,7 @@ export default class InfoPanel {
   private sub: Phaser.GameObjects.Text
   private state: Phaser.GameObjects.Text
   private bars: Phaser.GameObjects.Graphics
+  private wallet: Phaser.GameObjects.Text
   private labels: Phaser.GameObjects.Text[] = []
   private values: Phaser.GameObjects.Text[] = []
   private x = 0
@@ -42,11 +44,12 @@ export default class InfoPanel {
     this.sub = scene.add.text(0, 0, '', f('14px', '#cbd5e0')).setDepth(10006).setResolution(2)
     this.state = scene.add.text(0, 0, '', f('17px', '#c3dafe')).setDepth(10006).setResolution(2)
     this.bars = scene.add.graphics().setDepth(10006)
+    this.wallet = scene.add.text(0, 0, '', f('14px', '#ffe9a8')).setDepth(10006).setResolution(2)
     for (const k of NEED_KEYS) {
       this.labels.push(scene.add.text(0, 0, `${NEED_LABELS[k]} ${NEED_FULL[k]}`, f('13px', '#e2e8f0')).setDepth(10006).setResolution(2))
       this.values.push(scene.add.text(0, 0, '', f('13px', '#ffffff')).setOrigin(1, 0).setDepth(10006).setResolution(2))
     }
-    this.h = PAD * 2 + 30 + 20 + 26 + NEED_KEYS.length * 20 + 6
+    this.h = PAD * 2 + 30 + 20 + 26 + NEED_KEYS.length * 20 + 6 + 22   // 末行：金币 + 背包（W9）
     this.layout()
     scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this)
   }
@@ -64,6 +67,7 @@ export default class InfoPanel {
       this.labels[i].setPosition(this.x + PAD, cy + i * 20)
       this.values[i].setPosition(this.x + W - PAD, cy + i * 20)
     })
+    this.wallet.setPosition(this.x + PAD, cy + NEED_KEYS.length * 20 + 4)
     this.redrawBars()
   }
 
@@ -101,19 +105,24 @@ export default class InfoPanel {
     const zone = zoneLabel(tile)
     const label = target ? (deriveStateLabel(target, s.objects) ?? (target.state === 'idle' ? '发呆中' : target.state)) : ''
     const online = target ? target.online !== false : false
-    const sig = JSON.stringify([target?.name, zone, label, online, vars?.vars, s.worldState?.time?.slice(0, 5), s.transport])
+    const inv = normalizeInventory(target?.inventory)
+    const sig = JSON.stringify([target?.name, zone, label, online, vars?.vars, s.worldState?.time?.slice(0, 5), s.transport, target?.gold, inv])
     if (sig === this.lastSig) return
     this.lastSig = sig
     if (!target) {
       this.name.setText(TOWN ? `${TOWN} · ${this.opts.follow ?? '全景'}` : (this.opts.follow ?? '鲸仔小镇'))
       this.sub.setText(this.opts.follow ? '目标不在场 · 全景' : `${s.players.length} 人在镇上`)
       this.state.setText('')
+      this.wallet.setText('')
       this.vals = null
       this.values.forEach(v => v.setText('–'))
     } else {
       this.name.setText(target.name)
       this.sub.setText(`${TOWN ? `[${TOWN}] ` : ''}${zone || '小镇'}${online ? '' : ' · 离线'}`)
       this.state.setText(label)
+      const gold = typeof target.gold === 'number' ? `💰 ${target.gold}` : ''
+      const bag = inv.slice(0, 8).map(it => { const m = itemMeta(it.type, it.name); return `${m.icon}${it.count > 1 ? it.count : ''}` }).join(' ')
+      this.wallet.setText([gold, bag].filter(Boolean).join('   '))
       this.vals = vars ? NEED_KEYS.map(k => vars.vars[k]) : null
       this.values.forEach((v, i) => v.setText(this.vals ? String(Math.round(this.vals[i])) : '–'))
     }
@@ -122,7 +131,7 @@ export default class InfoPanel {
 
   destroy() {
     this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this)
-    this.bg.destroy(); this.name.destroy(); this.sub.destroy(); this.state.destroy(); this.bars.destroy()
+    this.bg.destroy(); this.name.destroy(); this.sub.destroy(); this.state.destroy(); this.bars.destroy(); this.wallet.destroy()
     this.labels.forEach(t => t.destroy()); this.values.forEach(t => t.destroy())
   }
 }

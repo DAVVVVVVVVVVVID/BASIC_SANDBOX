@@ -5,6 +5,7 @@ import { loadAiManifest, aiEnabled, setAiEnabled, type AiManifest } from '../gam
  * `/assets-review`：W8 美术管线评审页。物品：旧自制像素图 vs gpt-image-2 新图并排；底图：平涂版式 / 原始输出 / 对齐 QA 叠图 / 量化后成品 + QA 分数。
  * 「一键替换」= 切 localStorage.aiAssets（旁观 / 操控 / 回放页读它决定用哪套）。生成日志（提示词 / 费用）读 public/assets/gen-ai/gen.jsonl（manifest 命令从 data/assets/gen.jsonl 同步）。
  */
+interface Rating { ts: string; kind: string; name: string; vote: 'up' | 'down'; note: string; by: string }
 interface GenRow { kind: string; name: string; quality?: string; attempt?: number; qa_score?: number; qa_pass?: boolean; cells_ok?: number; cost_usd_est?: number; usage?: { total_tokens?: number }; latency_s?: number; error?: string; prompt?: string; ts?: string }
 
 function hide(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = 'none' }
@@ -14,6 +15,13 @@ export default function AssetsReviewApp() {
   const [rows, setRows] = useState<GenRow[]>([])
   const [on, setOn] = useState(aiEnabled())
   const [showPrompt, setShowPrompt] = useState<string | null>(null)
+  const [ratings, setRatings] = useState<Rating[]>([])
+  const loadRatings = () => fetch('/review-api/ratings', { cache: 'no-store' }).then(r => r.ok ? r.json() : []).then((a: Rating[]) => setRatings(Array.isArray(a) ? a : [])).catch(() => {})
+  useEffect(() => { loadRatings() }, [])
+  const rate = async (kind: string, name: string, vote: 'up' | 'down', note: string) => {
+    const res = await fetch('/review-api/rate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, name, vote, note, by: 'streamer' }) })
+    if (res.ok) loadRatings()
+  }
   useEffect(() => {
     loadAiManifest().then(setM)
     fetch('assets/gen-ai/gen.jsonl', { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(t => {
@@ -33,7 +41,7 @@ export default function AssetsReviewApp() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 }}>
         <h1 style={{ fontSize: 22, margin: 0 }}>美术评审 · gpt-image-2 管线 v1.0</h1>
         <button onClick={() => { setAiEnabled(!on); setOn(!on) }} style={{ ...btn, background: on ? '#199e70' : '#5b5b58' }}>{on ? '✓ 已启用 AI 素材（点击切回像素版）' : '○ 使用像素版（点击一键替换为 AI 素材）'}</button>
-        <span style={{ color: '#8a897f', fontSize: 13 }}>{rows.length} 次生成 · 失败 {fails} · 估算 ${cost.toFixed(2)}{qaScores.length ? ` · 对齐 QA 中位 ${median(qaScores).toFixed(2)}（≥0.9 通过 ${qaScores.filter(s => s >= 0.9).length}/${qaScores.length}）` : ''}</span>
+        <span style={{ color: '#8a897f', fontSize: 13 }}>{ratings.length ? `主播评分 ${ratings.filter(r => r.vote === 'up').length} 👍 / ${ratings.filter(r => r.vote === 'down').length} 👎（写 data/assets/review.jsonl） · ` : ''}{rows.length} 次生成 · 失败 {fails} · 估算 ${cost.toFixed(2)}{qaScores.length ? ` · 对齐 QA 中位 ${median(qaScores).toFixed(2)}（≥0.9 通过 ${qaScores.filter(s => s >= 0.9).length}/${qaScores.length}）` : ''}</span>
       </div>
       {!m && <div style={{ color: '#8a897f' }}>还没有 manifest（跑 tools/gen_assets_ai.py 后出现）。</div>}
       {m && (
@@ -51,11 +59,12 @@ export default function AssetsReviewApp() {
                     <span style={{ marginLeft: 'auto', fontSize: 12, color: (b.qa_score ?? 0) >= 0.9 ? '#68d391' : '#f6ad55' }}>QA {b.qa_score?.toFixed(3) ?? '–'}{last ? ` · ${log.length} 次 · $${spent.toFixed(2)}` : ''}</span>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginTop: 8 }}>
-                    {[['平涂版式', `assets/gen-ai/review/${name}_input.png`], ['原始输出', `assets/gen-ai/review/${name}_raw.png`], ['对齐 QA（红=丢失）', `assets/gen-ai/review/${name}_qa.png`], ['成品（32px/格 ≤64 色）', `assets/gen-ai/backdrops/${name}.png`]].map(([lab, src]) => (
+                    {[['平涂版式', `assets/gen-ai/review/${name}_input.png`], ['原始输出', `assets/gen-ai/review/${name}_raw.png`], ['对齐 QA（红=丢失）', `assets/gen-ai/review/${name}_qa.png`], ['成品（96 px/格 · 高清）', `assets/gen-ai/backdrops/${name}.png`]].map(([lab, src]) => (
                       <div key={lab}><div style={{ fontSize: 11, color: '#8a897f', marginBottom: 3 }}>{lab}</div><img src={src} alt={lab} onError={hide} style={{ width: '100%', imageRendering: 'pixelated', background: '#222', borderRadius: 6 }} /></div>
                     ))}
                   </div>
                   {last?.prompt && <button onClick={() => setShowPrompt(last.prompt!)} style={{ ...btn, marginTop: 6, fontSize: 11 }}>看提示词</button>}
+                  <RateRow ratings={ratings} onRate={rate} kind="backdrop" name={name} />
                 </div>
               )
             })}
@@ -79,6 +88,7 @@ export default function AssetsReviewApp() {
                         <img src={`assets/gen-ai/review/char_${k}_raw.png`} alt="raw" onError={hide} style={{ height: 300, borderRadius: 4 }} />
                       </div>
                       {last?.prompt && <button onClick={() => setShowPrompt(last.prompt!)} style={{ ...btn, marginTop: 6, fontSize: 11 }}>看提示词</button>}
+                      <RateRow ratings={ratings} onRate={rate} kind="char" name={k} />
                     </div>
                   )
                 })}
@@ -90,12 +100,12 @@ export default function AssetsReviewApp() {
               <h2 style={h2}>地砖表 / 室外装饰（11-07 主播：小镇整体不好看 → 换 AI 地砖 + 撒花草 + 屋顶配色各异 + 建筑落地阴影）</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: 12 }}>
                 <div style={card}><b>地砖 4×4（32 px/格，草 ×4 / 路 ×2 / 石板 ×2 / 水 ×2 / 木板 / 公园 / 室内 3 种）</b>
-                  <div style={{ display: 'flex', gap: 10, marginTop: 8 }}><img src="assets/gen-ai/review/tiles_sheet.png" alt="tiles" onError={hide} style={{ width: 256, imageRendering: 'pixelated', borderRadius: 6 }} /><img src="assets/gen-ai/review/tiles_raw.png" alt="raw" onError={hide} style={{ width: 256, borderRadius: 6 }} /></div></div>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 8 }}><img src="assets/gen-ai/review/tiles_sheet.png" alt="tiles" onError={hide} style={{ width: 256, borderRadius: 6 }} /><img src="assets/gen-ai/review/tiles_raw.png" alt="raw" onError={hide} style={{ width: 256, borderRadius: 6 }} /></div><RateRow ratings={ratings} onRate={rate} kind="tiles" name="tiles" /></div>
                 <div style={card}><b>装饰 {m.deco.length} 件（草地按格哈希撒：灌木 / 野花 / 石头 / 树桩 / 小松树；路边路灯）</b>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 8, background: '#2a3a2a', padding: 8, borderRadius: 6 }}>
                     {m.deco.map(d => <img key={d} src={`assets/gen-ai/deco/${d}.png`} alt={d} title={d} onError={hide} style={{ height: 72, imageRendering: 'pixelated' }} />)}
                     <img src="assets/gen-ai/review/deco_raw.png" alt="raw" onError={hide} style={{ height: 160, marginLeft: 'auto', borderRadius: 6 }} />
-                  </div></div>
+                  </div><RateRow ratings={ratings} onRate={rate} kind="deco" name="deco" /></div>
               </div>
             </>
           )}
@@ -114,6 +124,7 @@ export default function AssetsReviewApp() {
                     <img src={`assets/gen-ai/review/obj_${t}_raw.png`} alt="raw" onError={hide} style={{ ...objImg, marginLeft: 'auto', borderRadius: 4, opacity: 0.9 }} />
                   </div>
                   {last?.prompt && <button onClick={() => setShowPrompt(last.prompt!)} style={{ ...btn, marginTop: 6, fontSize: 11 }}>看提示词</button>}
+                  <RateRow ratings={ratings} onRate={rate} kind="object" name={t} />
                 </div>
               )
             })}
@@ -125,6 +136,20 @@ export default function AssetsReviewApp() {
           <pre onClick={e => e.stopPropagation()} style={{ maxWidth: 900, whiteSpace: 'pre-wrap', background: '#1a1a19', padding: 16, borderRadius: 10, fontSize: 13, color: '#e2e2dc' }}>{showPrompt}</pre>
         </div>
       )}
+    </div>
+  )
+}
+function RateRow({ kind, name, ratings, onRate }: { kind: string; name: string; ratings: Rating[]; onRate: (kind: string, name: string, vote: 'up' | 'down', note: string) => void }) {
+  const mine = ratings.filter(r => r.kind === kind && r.name === name)
+  const last = mine[mine.length - 1]
+  const [note, setNote] = useState('')
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6, flexWrap: 'wrap' }}>
+      <button onClick={() => onRate(kind, name, 'up', note)} style={{ ...btn, background: last?.vote === 'up' ? '#199e70' : '#2c2c2a', fontSize: 12 }}>👍</button>
+      <button onClick={() => onRate(kind, name, 'down', note)} style={{ ...btn, background: last?.vote === 'down' ? '#c53030' : '#2c2c2a', fontSize: 12 }}>👎</button>
+      <input value={note} onChange={e => setNote(e.target.value)} placeholder="备注（哪里不对）" onKeyDown={e => { if (e.key === 'Enter') onRate(kind, name, last?.vote ?? 'down', note) }}
+        style={{ flex: 1, minWidth: 120, background: '#111', border: '1px solid #2c2c2a', borderRadius: 6, color: '#e2e2dc', padding: '3px 6px', fontSize: 11 }} />
+      {last && <span style={{ color: '#8a897f', fontSize: 11 }}>{last.vote === 'up' ? '👍' : '👎'} {last.note || ''} · {last.ts.slice(5, 16).replace('T', ' ')}</span>}
     </div>
   )
 }

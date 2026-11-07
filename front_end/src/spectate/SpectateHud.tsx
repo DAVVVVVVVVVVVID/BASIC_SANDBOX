@@ -2,6 +2,7 @@ import { useGameStore } from '../store/gameStore'
 import { NEED_KEYS } from '../types'
 import { NEED_LABELS } from '../game/objects/ActorSprite'
 import { resolveFollowTarget } from '../game/systems/TickSystem'
+import { itemMeta, normalizeInventory } from '../game/items'
 
 const NEED_CSS: Record<string, string> = {
   fullness: '#f6ad55', energy: '#63b3ed', social: '#b794f4', fun: '#68d391', mood: '#fbd38d',
@@ -40,6 +41,12 @@ export default function SpectateHud({ follow }: { follow: string | null }) {
           {NEED_KEYS.map(k => (
             <Row key={k} label={NEED_LABELS[k]} value={vars.vars[k]} color={NEED_CSS[k]} />
           ))}
+        </div>
+      )}
+      {target && (typeof target.gold === 'number' || (target.inventory && target.inventory.length > 0)) && (
+        <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          {typeof target.gold === 'number' && <span style={{ color: '#ffe9a8', fontWeight: 700 }}>💰 {target.gold}</span>}
+          {normalizeInventory(target.inventory).slice(0, 10).map((it, i) => { const m = itemMeta(it.type, it.name); return <span key={i} title={`${it.name ?? m.label} ×${it.count}`} style={{ background: '#2a2d3e', borderRadius: 4, padding: '0 5px' }}>{m.icon}{it.count > 1 ? `×${it.count}` : ''}</span> })}
         </div>
       )}
       {vars && vars.emotion_tags.length > 0 && (

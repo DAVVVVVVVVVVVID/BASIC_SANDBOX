@@ -14,6 +14,8 @@ export interface SpectateParams {
   thought: boolean
   /** 画布内基础信息面板（主播反馈：像游戏一样专门放基础信息），默认开 */
   panel: boolean
+  /** W9：QQ 面板（跟随目标的手机，只读；layout=live 收成图标） */
+  qq: boolean
   /** 形象版本：v1 按 persona 文字（默认，主播 11-06 选定）/ v2 按立绘 */
   art: 'v1' | 'v2'
   /** OBS 布局预设（E16）：live = 右下留 Live2D 安全区、面板左下、字幕底中；full = 全屏无保留 */
@@ -55,6 +57,7 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
     safe:   safe === 'br' || safe === 'bl' || safe === 'tr' || safe === 'tl' ? safe : null,
     thought: flag('thought', true),
     panel:  flag('panel', true),
+    qq:     flag('qq', true),
     art:    q.get('art') === 'v2' ? 'v2' : 'v1',
     layout,
     town,

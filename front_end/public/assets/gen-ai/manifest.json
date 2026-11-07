@@ -12,7 +12,7 @@
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
       "tile_px": 96,
-      "qa_score": 0.55
+      "qa_score": 0.899
     },
     "dock_1f_interior": {
       "sector": "dock",
@@ -231,7 +231,7 @@
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
       "tile_px": 96,
-      "qa_score": 1.0
+      "qa_score": 0.945
     },
     "owners_house_1f_interior": {
       "sector": "owners_house",
@@ -273,7 +273,7 @@
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
       "tile_px": 96,
-      "qa_score": 1.0
+      "qa_score": 0.999
     },
     "music_room_1f_exterior": {
       "sector": "music_room",

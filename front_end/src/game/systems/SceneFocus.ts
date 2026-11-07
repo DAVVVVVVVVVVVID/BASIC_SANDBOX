@@ -21,7 +21,7 @@ export default class SceneFocus {
   private dim: Phaser.GameObjects.Graphics
   private dimAlpha = 0
   private dimTarget = 0
-  private focusKey = ''
+  private focusKey: string | undefined = undefined   // undefined = 还没算过（首帧不触发过渡）
   private bbox: { x0: number; y0: number; x1: number; y1: number } | null = null
   private mapPx = { w: 0, h: 0 }
   private v2: MapV2
@@ -104,7 +104,7 @@ export default class SceneFocus {
   tileAt(x: number, y: number) { return this.tileIndex.get(`${x},${y}`) }
 
   /** 每帧：focus = 跟随目标 / 自己所在格；返回当前是否室内（给相机用） */
-  update(focus: { x: number; y: number } | null, dt: number, ws: WorldState | null): { indoor: boolean; zoom: number | null; label: string } {
+  update(focus: { x: number; y: number } | null, dt: number, ws: WorldState | null): { indoor: boolean; zoom: number | null; label: string; transition: 'enter' | 'exit' | 'floor' | 'move' | null } {
     // 标签在屏幕上保持可读大小
     const ls = Phaser.Math.Clamp(1 / this.scene.cameras.main.zoom, 1, 6)
     if (Math.abs(ls - this.labelScale) > 1e-3) { this.labelScale = ls; for (const l of this.labels) l.setScale(ls) }
@@ -131,7 +131,13 @@ export default class SceneFocus {
         if (b) { bbox = b; indoor = true; label = f > 1 ? `${f}F` : '' }
       }
     }
+    let transition: 'enter' | 'exit' | 'floor' | 'move' | null = null
     if (key !== this.focusKey) {
+      // W9 任务 4：进屋 / 出门 / 上下楼的过渡种类（GameScene 据此做黑场切换）；首帧（focusKey 还是 undefined）不算
+      if (this.focusKey !== undefined) {
+        const prevSector = (this.focusKey ?? '').split('|')[0], nextSector = key.split('|')[0]
+        transition = !this.focusKey ? 'enter' : !key ? 'exit' : prevSector === nextSector ? 'floor' : 'move'
+      }
       this.focusKey = key
       this.bbox = bbox
       this.dimTarget = indoor ? DIM_ALPHA : 0
@@ -151,7 +157,7 @@ export default class SceneFocus {
       const w = (bbox.x1 - bbox.x0 + 3) * TILE_SIZE, h = (bbox.y1 - bbox.y0 + 3) * TILE_SIZE
       zoom = this.opts.snap(Phaser.Math.Clamp(Math.min(cam.width / w, cam.height / h), this.opts.baseZoom(), MAX_FOCUS_ZOOM))
     }
-    return { indoor, zoom, label }
+    return { indoor, zoom, label, transition }
   }
 
   /** 相机想居中的点：室内时限制在场所包围盒内（画面别跑到屋外去） */

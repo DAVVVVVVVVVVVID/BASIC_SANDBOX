@@ -14,15 +14,47 @@ import { aiEnabled, getAiManifest, aiDecoKey } from '../aiAssets'
 export default class DecoLayer {
   private nodes: Phaser.GameObjects.Image[] = []
 
-  constructor(scene: Phaser.Scene, tiles: Tile[], objects: GameObject[], doorTiles: { x: number; y: number }[]) {
+  constructor(scene: Phaser.Scene, tiles: Tile[], objects: GameObject[], doorTiles: { x: number; y: number }[], decor: unknown[] = []) {
     const m = getAiManifest()
     if (!m || !aiEnabled() || !m.deco.length) return
+    // B W10 任务 1：地图自带的装饰层 decor[]（两块大草坪的小径 / 池塘 / 晾衣绳 / 树）。形状假设 {type, x, y} 或 {type, tiles:[{x,y}]}；
+    // 认得的类型用我们的装饰 / 物品图，pond → 水砖、path → 路砖（叠在地面上），认不出的跳过
+    const kk = TILE_SIZE / (m.tile_px || 32)
+    const DECOR_SPRITE: Record<string, string> = { tree: 'aiobj_tree', pine: 'aideco_pine', bush: 'aideco_bush', flower: 'aideco_flowers_pink', flowers: 'aideco_flowers_pink', rock: 'aideco_rock', stump: 'aideco_stump', lamp: 'aideco_lamp', fence: 'aideco_fence', signpost: 'aideco_signpost', flowerbed: 'aideco_flowerbed', mailbox: 'aideco_mailbox', barrel: 'aideco_barrel', crate: 'aideco_crate', pot_plant: 'aideco_pot_plant', clothesline: 'aideco_fence', bench: 'aiobj_bench' }
+    const decorTaken = new Set<string>()
+    for (const d of decor) {
+      if (!d || typeof d !== 'object') continue
+      const o = d as { type?: string; kind?: string; x?: number; y?: number; tiles?: { x: number; y: number }[]; position?: { x: number; y: number } }
+      const type = String(o.type ?? o.kind ?? '').toLowerCase()
+      const ts = o.tiles?.length ? o.tiles : (o.position ? [o.position] : typeof o.x === 'number' && typeof o.y === 'number' ? [{ x: o.x, y: o.y }] : [])
+      if (!type || !ts.length) continue
+      for (const t of ts) decorTaken.add(`${t.x},${t.y}`)
+      if (type === 'pond' || type === 'water' || type === 'path' || type === 'road') {
+        const tilesMeta = m.tiles; if (!tilesMeta || !scene.textures.exists('aitiles')) continue
+        const frames = tilesMeta.variants[type === 'pond' || type === 'water' ? 'water' : 'road'] ?? []
+        for (const t of ts) {
+          const f = tilesMeta.index[frames[(t.x + t.y) % Math.max(1, frames.length)]]
+          if (typeof f !== 'number') continue
+          const img = scene.add.image(t.x * TILE_SIZE, t.y * TILE_SIZE, 'aitiles', f).setOrigin(0, 0).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(0.3)
+          this.nodes.push(img)
+        }
+        continue
+      }
+      const key = DECOR_SPRITE[type]
+      if (!key || !scene.textures.exists(key)) { console.debug('[decor] unknown type', type); continue }
+      const xs = ts.map(t => t.x), ys = ts.map(t => t.y)
+      const cx = (Math.min(...xs) + Math.max(...xs) + 1) / 2, by = Math.max(...ys) + 1
+      const src = scene.textures.get(key).getSourceImage() as { width: number; height: number }
+      const img = scene.add.image(cx * TILE_SIZE, by * TILE_SIZE, key).setOrigin(0.5, 1).setDisplaySize(src.width * kk, src.height * kk).setDepth(by * TILE_SIZE - 2)
+      this.nodes.push(img)
+    }
     const has = (n: string) => m.deco.includes(n) && scene.textures.exists(aiDecoKey(n))
     const byKey = new Map<string, Tile>()
     for (const t of tiles) byKey.set(`${t.x},${t.y}`, t)
     const at = (x: number, y: number) => byKey.get(`${x},${y}`)
     const blocked = new Set<string>()
     for (const o of objects) for (const t of (o.tiles && o.tiles.length ? o.tiles : [o.position])) blocked.add(`${t.x},${t.y}`)
+    for (const k0 of decorTaken) blocked.add(k0)
     for (const d of doorTiles) for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [0, 2], [1, 1], [-1, 1]]) blocked.add(`${d.x + dx},${d.y + dy}`)
     const isRoad = (t: Tile | undefined) => !!t && (/street|lane|road/.test(t.arena ?? '') || t.type === 'road')
     const isWater = (t: Tile | undefined) => !!t && t.type === 'water'

@@ -12,6 +12,8 @@ import Minimap from './ui/Minimap'
 import JoinScreen from './ui/JoinScreen'
 import ChatPanel from './ui/ChatPanel'
 import ConnectionBadge from './ui/ConnectionBadge'
+import QQPanel from './ui/QQPanel'
+import BackpackPanel from './ui/BackpackPanel'
 import SpectateApp from './spectate/SpectateApp'
 import ReplayApp from './replay/ReplayApp'
 import BrainApp from './brain/BrainApp'
@@ -74,6 +76,8 @@ function PlayApp() {
       <Minimap />
       <ChatPanel />
       <ConnectionBadge />
+      <QQPanel playerId={myPlayerId} readOnly={false} compact inventory={useGameStore.getState().player?.inventory} style={{ top: 120, right: 16 }} />
+      <BackpackPanel />
     </div>
   )
 }

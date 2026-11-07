@@ -15,6 +15,7 @@ import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
 import { preloadAiAssets, getAiManifest, aiBackdropKey, aiEnabled, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
 import { arenaBBox } from '../map/mapv2'
+import { itemMeta } from '../items'
 import DecoLayer from '../systems/DecoLayer'
 import type { PoseAnchor, PoseAnchors } from '../objects/ActorSprite'
 
@@ -82,7 +83,23 @@ export function poseAnchorsFor(p: { id: string; position: Position; usingObjectI
     const b = box(bed)
     sleep = { x: (b.x0 + b.x1 + 1) / 2 * T, y: (b.y0 + b.y1 + 1) / 2 * T, angle: (b.x1 - b.x0) > (b.y1 - b.y0) ? -90 : 0, depth: (b.y1 + 1) * T + 1 }
   }
-  if (seat) {
+  const seatPosOf = (o: GameObject): { x: number; y: number; facing?: Facing } | null => {
+    // B W10 任务 2：use_pos 是相对物品 position 的格；若落在物品 3 格外就当成绝对格
+    const raw = o.use_pos; if (!raw) return null
+    const rx = Array.isArray(raw) ? raw[0] : raw.x, ry = Array.isArray(raw) ? raw[1] : raw.y
+    if (typeof rx !== 'number' || typeof ry !== 'number') return null
+    let x = o.position.x + rx, y = o.position.y + ry
+    if (Math.abs(rx - o.position.x) <= 3 && Math.abs(ry - o.position.y) <= 3 && (Math.abs(rx) > 3 || Math.abs(ry) > 3)) { x = rx; y = ry }
+    return { x, y, facing: o.use_facing ?? undefined }
+  }
+  if (bed && seatPosOf(bed)) {
+    const u = seatPosOf(bed)!, b = box(bed)
+    sleep = { x: (u.x + 0.5) * T, y: (u.y + 0.5) * T, angle: (b.x1 - b.x0) > (b.y1 - b.y0) ? -90 : 0, depth: (b.y1 + 1) * T + 1 }
+  }
+  if (seat && seatPosOf(seat)) {
+    const u = seatPosOf(seat)!, b = box(seat)
+    sit = { x: (u.x + 0.5) * T, y: (u.y + 0.5) * T, angle: 0, facing: u.facing, depth: (b.y1 + 1) * T + 1 }
+  } else if (seat) {
     const b = box(seat), ty = seat.type
     const col = Math.min(Math.max(p.position.x, b.x0), b.x1)
     const depth = (b.y1 + 1) * T + 1
@@ -111,6 +128,7 @@ export function deriveStateLabel(p: OtherPlayer, objects: GameObject[], tagsHint
   if (tags.includes('sleeping')) return '💤 睡觉中'
   if (tags.includes('eating'))   return '🍴 吃饭中'
   if (tags.includes('streaming')) return '📺 直播中'
+  if (tags.includes('reading') || tags.includes('phone')) return '📱 看手机'   // W9：读 QQ 消息（B 占 1 游戏分钟打 reading 标签）
   if (p.stateLabel) return iconize(p.stateLabel)
   if (p.state === 'talking') return '💬 聊天中'
   const obj = objects.find(o => o.userList?.includes(p.id))
@@ -264,10 +282,22 @@ export default class GameScene extends Phaser.Scene {
       const n = this.inputSystem?.walkToAdjacent({ x, y }) ?? 0
       EventBus.emit('walk-to-result', { steps: n })
     })
-    this.on('action-event', (msg: { entity?: string; action?: string; success?: boolean; reason?: string | null; object?: string | null }) => {
-      if (msg.reason && /lock/i.test(msg.reason) && msg.entity) {
-        useGameStore.getState().pushBubble(msg.entity, '咚咚咚……门锁着呢', 4000)
-      }
+    this.on('action-event', (msg: import('../../types').WsAction) => {
+      if (!msg.entity) return
+      const push = (t: string, ms = 4000) => useGameStore.getState().pushBubble(msg.entity, t, ms)
+      if (msg.reason && /lock/i.test(msg.reason)) { push('咚咚咚……门锁着呢'); return }
+      // W9 任务 3：买 / 吃 / 送 / 卖的反馈气泡（字段 item / price / gold_delta / target_name 是假设，缺了就只说动作）
+      const a = (msg.action ?? '').toLowerCase()
+      if (!/^(buy|eat|give|sell|use_item)$/.test(a)) return
+      const meta = itemMeta(msg.item ?? undefined, msg.item_name ?? undefined)
+      const name = msg.item_name ?? meta.label
+      const delta = typeof msg.gold_delta === 'number' ? msg.gold_delta : typeof msg.price === 'number' ? (a === 'sell' ? msg.price : -msg.price) : null
+      const money = delta === null ? '' : ` ${delta > 0 ? '+' : ''}${delta} 金币`
+      if (!msg.success) { push(/insufficient_funds|no_money|poor/i.test(msg.reason ?? '') ? `💸 钱不够，买不了${name}` : `✗ ${msg.reason ?? '没成功'}`); return }
+      if (a === 'buy') push(`🛒 买了${meta.icon}${name}${money}`)
+      else if (a === 'eat' || a === 'use_item') push(`${meta.icon} 吃了${name}`)
+      else if (a === 'give') push(`🎁 把${name}送给了${msg.target_name ?? msg.target ?? '对方'}`)
+      else if (a === 'sell') push(`💰 卖了${meta.icon}${name}${money}`)
     })
     this.on('chat-message', ({ entityId, content }: { entityId: string; content: string }) => {
       useGameStore.getState().pushBubble(entityId, content)
@@ -281,6 +311,7 @@ export default class GameScene extends Phaser.Scene {
       keys: () => this.inputSystem?.debugKeys() ?? null,
       focusLabels: () => this.focus?.debugLabels() ?? [],
       zoom: () => this.cameras.main.zoom,
+      setFocus: (sector: string | null, floor = 1) => { if (this.params) this.params.focus = sector ? { sector, floor } : null },   // W9 任务 4 录屏：运行时切取景
       others: () => [...this.others.entries()].map(([id, s]) => ({ id, px: s.getPixelPosition(), tile: s.getTile(), moving: s.isMoving() })),
     }
 
@@ -387,6 +418,27 @@ export default class GameScene extends Phaser.Scene {
     return !!k && k !== this.insideSector
   }
 
+  /** W9 任务 4：进屋 / 出门 / 上下楼的过渡——快速压黑（140 ms），黑场里直接切 zoom 与视图，再亮起（260 ms）；上下楼多一个「2F ↑ / 1F ↓」提示。
+   *  黑场期间不跑 zoomTo 渐变（两种动画叠着会抽），transition 结束后恢复正常跟随 */
+  private transitioning = false
+  private doorTransition(kind: 'enter' | 'exit' | 'floor' | 'move', zoom: number | null, label: string) {
+    const cam = this.cameras.main
+    if (this.transitioning) { if (zoom !== null) this.focusZoom = zoom; return }
+    this.transitioning = true
+    const outMs = kind === 'floor' ? 180 : 140, inMs = kind === 'floor' ? 320 : 260
+    cam.fadeOut(outMs, 0, 0, 0)
+    cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      if (zoom !== null) { this.focusZoom = zoom; cam.setZoom(zoom) }
+      cam.fadeIn(inMs, 0, 0, 0)
+      if (kind === 'floor') {
+        const t = this.add.text(cam.width / 2, cam.height / 2, label ? `${label} ↑` : '1F ↓', { fontFamily: 'system-ui, "PingFang SC", sans-serif', fontSize: '40px', color: '#ffffff', stroke: '#000000', strokeThickness: 6 })
+          .setOrigin(0.5).setScrollFactor(0).setDepth(20000).setAlpha(0).setResolution(2)
+        this.tweens.add({ targets: t, alpha: { from: 0, to: 1 }, y: cam.height / 2 - 30, duration: 300, yoyo: true, hold: 500, onComplete: () => t.destroy() })
+      }
+      cam.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, () => { this.transitioning = false })
+    })
+  }
+
   /** 运行中换图：新 tileset 可能还没加载，先加载再重建 */
   private rebuildMap() {
     const world = this.worldData
@@ -410,7 +462,8 @@ export default class GameScene extends Phaser.Scene {
     this.tileMap = new TileMap(this, world.tiles, world.tiled)
     this.tileMap.render()
     this.deco?.destroy()
-    this.deco = new DecoLayer(this, world.tiles, world.objects, this.focus?.doorTiles() ?? [])
+    const decor = ((world as unknown as { decor?: unknown[] }).decor ?? (world.map as unknown as { decor?: unknown[] } | undefined)?.decor ?? []) as unknown[]
+    this.deco = new DecoLayer(this, world.tiles, world.objects, this.focus?.doorTiles() ?? [], decor)
     this.tileIndex = buildTileIndex(world.tiles)
     if (!this.focus) this.focus = new SceneFocus(this, { enabled: (this.params?.scene ?? 'follow') === 'follow', baseZoom: () => this.mode === 'spectate' ? this.followZoom : this.currentZoom, snap: snapZoom })
     const extras = useGameStore.getState().mapExtras
@@ -627,7 +680,8 @@ export default class GameScene extends Phaser.Scene {
     this.applyView(fr.indoor ? this.insideKeyAt(focusTile) : null)
     if (this.params?.focus && !this.targetId && focusTile) {
       const want = fr.indoor && fr.zoom ? fr.zoom : this.followZoom
-      if (want !== this.focusZoom) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
+      if (fr.transition) this.doorTransition(fr.transition, want, fr.label)
+      else if (want !== this.focusZoom && !this.transitioning) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
       const k0 = 1 - Math.exp(-dt / CAMERA_LERP_MS)
       this.camX += (tx - this.camX) * k0; this.camY += (ty - this.camY) * k0
       const c0 = this.focus.clampCenter(this.camX, this.camY, cam.zoom)
@@ -636,7 +690,8 @@ export default class GameScene extends Phaser.Scene {
     }
     if (this.camMode === 'follow') {
       const want = fr.indoor && fr.zoom ? fr.zoom : this.followZoom
-      if (want !== this.focusZoom) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
+      if (fr.transition) this.doorTransition(fr.transition, want, fr.label)
+      else if (want !== this.focusZoom && !this.transitioning) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
       if (fr.indoor !== this.lastFocusIndoor) { this.lastFocusIndoor = fr.indoor; EventBus.emit('focus-changed', { indoor: fr.indoor, label: fr.label }) }
     }
     const k = 1 - Math.exp(-dt / CAMERA_LERP_MS)
@@ -668,6 +723,7 @@ export default class GameScene extends Phaser.Scene {
       const fr0 = this.focus.update(this.self!.getTile(), dt, store.worldState)
       const st0 = this.self!.getTile()
       this.applyView(fr0.indoor ? this.insideKeyAt(st0) : null)
+      if (fr0.transition) this.doorTransition(fr0.transition, null, fr0.label)
       this.centerClamped(p.x, p.y)
     } else {
       this.updateSpectateCamera(time, dt)

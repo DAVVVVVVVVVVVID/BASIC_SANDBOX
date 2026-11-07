@@ -602,24 +602,23 @@ def do_grid(args):
 
 
 def do_refinish(_args):
-    """底图从 raw 重新裁切导出（不花钱）：每个区域取 gen.jsonl 里 QA 最高的那次 raw，按当前 TILE_OUT 重采样"""
-    best: dict[str, tuple[float, int]] = {}
-    for l in LOG.read_text(encoding="utf-8").splitlines():
-        if not l.strip(): continue
-        r = json.loads(l)
-        if r.get("kind") != "backdrop" or r.get("error") or r.get("qa_score") is None: continue
-        if (RAW / f"{r['name']}_raw_{r['attempt']}.png").exists() and (r["name"] not in best or r["qa_score"] >= best[r["name"]][0]):
-            best[r["name"]] = (r["qa_score"], r["attempt"])
-    for name, (score, attempt) in sorted(best.items()):
+    """底图从 raw 重新裁切导出（不花钱）：每个区域把所有 raw 都按当前 QA 指标重算，取分最高的一张，按当前 TILE_OUT 重采样"""
+    names = sorted({re.sub(r"_raw_\d+$", "", r.stem) for r in RAW.glob("*_raw_*.png") if not r.stem.startswith(("char_", "tiles_", "deco_", "obj_", "old_"))})
+    for name in names:
         flat_p, meta_p = FLATS / f"{name}.png", FLATS / f"{name}.json"
         if not flat_p.exists(): print("skip (no flat)", name); continue
         meta = json.loads(meta_p.read_text()); flat = Image.open(flat_p).convert("RGBA")
         size = pick_size(flat.width, flat.height); _, box = letterbox(flat, size)
-        crop = Image.open(RAW / f"{name}_raw_{attempt}.png").crop(box).convert("RGBA")
-        out = crop.resize((meta["w"] * TILE_OUT, meta["h"] * TILE_OUT), Image.LANCZOS)
+        best = None
+        for raw in sorted(RAW.glob(f"{name}_raw_*.png")):
+            crop = Image.open(raw).crop(box).convert("RGBA")
+            score, _ = align_qa(flat, crop, meta)
+            if best is None or score > best[0]: best = (score, raw.name, crop)
+        if best is None: continue
+        out = best[2].resize((meta["w"] * TILE_OUT, meta["h"] * TILE_OUT), Image.LANCZOS)
         out.save(OUT / "backdrops" / f"{name}.png")
-        (OUT / "backdrops" / f"{name}.json").write_text(json.dumps({**meta, "tile_px": TILE_OUT, "qa_score": round(score, 3)}, ensure_ascii=False, indent=2))
-        print(f"{name}: attempt {attempt} qa={score:.3f} → {out.width}×{out.height}")
+        (OUT / "backdrops" / f"{name}.json").write_text(json.dumps({**meta, "tile_px": TILE_OUT, "qa_score": round(best[0], 3)}, ensure_ascii=False, indent=2))
+        print(f"{name}: {best[1]} qa={best[0]:.3f} → {out.width}×{out.height}")
 
 def do_qa(args):
     """对 data/assets/gen-ai-raw 里已有的 raw 重算对齐 QA（不花钱），刷新 backdrops/*.json 的 qa_score"""

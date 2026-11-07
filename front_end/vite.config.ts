@@ -2,6 +2,8 @@ import { defineConfig, loadEnv, Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 /** 读 run/towns.yaml 里 towns.<name>.k（最小解析，不引 yaml 依赖）：沙盒端口 = 8000 + 10k */
@@ -23,6 +25,34 @@ function readTowns(file: string): Record<string, number> {
     if (m2 && cur) out[cur] = Number(m2[1])
   }
   return out
+}
+
+/** W9 任务 5：评审页「主播评分」——POST /review-api/rate 追加一行到 front_end/data/assets/review.jsonl；GET /review-api/ratings 读回。只在 dev / preview 服务器里有 */
+function reviewApi(file: string): Plugin {
+  const handler = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    const url = (req.url || '').split('?')[0]
+    if (url === '/review-api/ratings' && req.method === 'GET') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.setHeader('Cache-Control', 'no-store')
+      try { res.end(JSON.stringify(fs.existsSync(file) ? fs.readFileSync(file, 'utf-8').split('\n').filter(Boolean).map(l => JSON.parse(l)) : [])) } catch { res.end('[]') }
+      return
+    }
+    if (url === '/review-api/rate' && req.method === 'POST') {
+      let body = ''
+      req.on('data', (c: Buffer) => { body += c.toString('utf-8'); if (body.length > 20000) req.destroy() })
+      req.on('end', () => {
+        try {
+          const r = JSON.parse(body) as Record<string, unknown>
+          const row = { ts: new Date().toISOString(), kind: String(r.kind ?? ''), name: String(r.name ?? ''), vote: r.vote === 'down' ? 'down' : 'up', note: String(r.note ?? '').slice(0, 500), by: String(r.by ?? 'streamer').slice(0, 40) }
+          if (!row.kind || !row.name) { res.statusCode = 400; res.end(); return }
+          fs.mkdirSync(path.dirname(file), { recursive: true }); fs.appendFileSync(file, JSON.stringify(row) + '\n')
+          res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(row))
+        } catch { res.statusCode = 400; res.end() }
+      })
+      return
+    }
+    next()
+  }
+  return { name: 'review-api', configureServer(server) { server.middlewares.use(handler) }, configurePreviewServer(server) { server.middlewares.use(handler) } }
 }
 
 /** 只读静态目录：/<prefix>/<相对路径> → 目录下的 .json / .jsonl / .png / .gif / .mp4 / .webm（回放页与游戏机小窗用） */
@@ -101,6 +131,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
+      reviewApi(path.resolve(__dirname, 'data/assets/review.jsonl')),
       readOnlyDir('/dataset', env.VITE_DATASET_DIR || '/home/shan-dw/Project/whale-self/data/dataset'),
       readOnlyDir('/sandboxdata', env.VITE_SANDBOX_DATA_DIR || '/home/shan-dw/Project/run/data/sandbox'),
       readOnlyDir('/gameruns', env.VITE_GAME_RUNS_DIR || '/home/shan-dw/Project/whale-game/runs'),

@@ -11,6 +11,16 @@ import { setZoneNames } from '../game/map/zones'
 import { loadAiManifest } from '../game/aiAssets'
 import WorldInfoPanel from '../ui/WorldInfoPanel'
 import SpectateHud from './SpectateHud'
+import QQPanel from '../ui/QQPanel'
+import { resolveFollowTarget } from '../game/systems/TickSystem'
+
+/** 旁观页的 QQ：跟随目标（鲸仔）的手机，只读；右上角时钟下方 */
+function SpectateQQ({ follow, compact }: { follow: string | null; compact: boolean }) {
+  const players = useGameStore((s) => s.players)
+  const target = resolveFollowTarget(players, follow)
+  if (!target) return null
+  return <QQPanel playerId={target.id} readOnly compact={compact} inventory={target.inventory} style={{ top: 120, right: 16 }} />
+}
 
 /**
  * 旁观模式 `/spectate?follow=<name|id|agent_id>&hud=0`：
@@ -99,6 +109,7 @@ export default function SpectateApp() {
           <SpectateHud follow={params.follow} />
         </>
       )}
+      {params.qq && params.follow && phase === 'running' && <SpectateQQ follow={params.follow} compact={params.layout === 'live' || !params.hud} />}
     </div>
   )
 }
