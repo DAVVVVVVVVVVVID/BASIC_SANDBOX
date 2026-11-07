@@ -123,6 +123,14 @@
 - 3/4 俯视墙体有高度、人站墙下一格会与墙面重叠：没动 depth 排序（人物与底图之间现在是人物恒在上；要「北墙前、南墙后」得把墙从底图拆成独立精灵，不是快修范围）。
 - 费用：本项 0 次 gpt-image-2 调用；累计仍约 $19。
 
+## 0d. 总控追加（11-08 早，主播截图）：「鲸仔边睡觉边行动」
+
+沙盒侧数据干净（sleeping 只在她 using 床时出现）；问题在前端：头顶标签把 `/state` 轮询来的 `tagsHint`、`players[].tags` 与 `objects[].userList` 反查合在一起，起床走开后后两者可能滞后几秒，标签仍「💤 睡觉中」，而睡姿贴床逻辑同样用 userList 兜底，于是睡姿跟着精灵滑。改法（`src/game/stateLabel.ts`，从 GameScene 拆出来的纯函数 + `tests/stateLabel.test.ts` 6 例）：
+
+- `state === walking` 时标签与姿势一律按走路：忽略 sleeping / eating / sitting 的 tags 与 userList 兜底（`walking_over` 仍显示「走过去聊」）；`tagsHint` 只在 `using / idle` 时参与；userList 反查只在 `using`（或老后端没有 state 字段）时信。
+- `ActorSprite`：服务器说在走（两步之间精灵可能短暂静止）就不播睡 / 坐帧、不贴床；走 ↔ 停切换时重算姿势。
+- 8091 复现（`/tmp/pw/sleepwalk.mjs`：人类玩家 use bed_whale → scenario release → move）：起身第一帧即站立 / 走路帧、`anchored=false`，沿途标签空；睡觉本身仍正常贴床显示「💤 睡觉中」。8091 的人类玩家数据没有滞后，所以旧版在这条路径上也看不出问题；真正的滞后只在主镇 agent 的 ws / 轮询时序上出现，按总控的分析改成「以 state 为准」后与数据时序无关。
+
 ## 1. 进度
 
 B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**上午还没落地**：8091 的门仍在北面、`/qq/contacts` 404、`/world` 物品没有 `use_pos`、玩家没有 `gold`。所以 1–3 按交接里的接口形状把前端做好、对字段名做了宽容解析，B 落地后只需对齐字段名；4、5 已完成。
