@@ -47,7 +47,14 @@
       "energy": 80,
       "fun": 0
     },
-    "cooldown_s": 0
+    "cooldown_s": 0,
+    "use_pos": [
+      [
+        0,
+        0
+      ]
+    ],
+    "use_facing": "down"
   },
   "bath": {
     "prototype": "continuous",
@@ -107,7 +114,14 @@
       "fun": 25,
       "energy": 30,
       "mood": 10
-    }
+    },
+    "use_pos": [
+      [
+        0,
+        0
+      ]
+    ],
+    "use_facing": "down"
   },
   "fridge": {
     "prototype": "instant",
@@ -196,7 +210,14 @@
       "fun": 5,
       "mood": 15,
       "social": 0
-    }
+    },
+    "use_pos": [
+      [
+        0,
+        1
+      ]
+    ],
+    "use_facing": "up"
   },
   "bed_21": {
     "prototype": "continuous",
@@ -245,7 +266,14 @@
       "energy": 70,
       "fun": 0
     },
-    "cooldown_s": 0
+    "cooldown_s": 0,
+    "use_pos": [
+      [
+        0,
+        0
+      ]
+    ],
+    "use_facing": "down"
   },
   "book": {
     "prototype": "instant",
@@ -327,7 +355,14 @@
       "fun": 5,
       "mood": 15,
       "social": 5
-    }
+    },
+    "use_pos": [
+      [
+        0,
+        2
+      ]
+    ],
+    "use_facing": "up"
   },
   "phone": {
     "prototype": "instant",
@@ -420,7 +455,14 @@
     "max_duration": 10800,
     "success_message": "直播开始了。",
     "failure_message": "直播台现在用不了。",
-    "leave_message": "直播结束，你关掉了摄像头。"
+    "leave_message": "直播结束，你关掉了摄像头。",
+    "use_pos": [
+      [
+        0,
+        1
+      ]
+    ],
+    "use_facing": "up"
   },
   "restaurant_table": {
     "prototype": "continuous",
@@ -490,6 +532,24 @@
         "17:00",
         "21:00"
       ]
+    ],
+    "use_pos": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        0,
+        -1
+      ],
+      [
+        1,
+        -1
+      ]
     ]
   },
   "bench": {
@@ -550,7 +610,18 @@
     "max_duration": 3600,
     "success_message": "你在长椅上坐下来。",
     "failure_message": "长椅坐满了。",
-    "leave_message": "你从长椅上站起来。"
+    "leave_message": "你从长椅上站起来。",
+    "use_pos": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "use_facing": "down"
   },
   "fishing_spot": {
     "prototype": "continuous",
@@ -710,7 +781,14 @@
     "max_duration": 7200,
     "success_message": "你打开游戏机，屏幕亮了起来。",
     "failure_message": "游戏机现在用不了。",
-    "leave_message": "你关掉游戏机，这一局结束了。"
+    "leave_message": "你关掉游戏机，这一局结束了。",
+    "use_pos": [
+      [
+        0,
+        1
+      ]
+    ],
+    "use_facing": "up"
   },
   "pc": {
     "prototype": "continuous",
@@ -767,7 +845,14 @@
     "failure_message": "直播台现在用不了。",
     "leave_message": "直播结束，你关掉了摄像头。",
     "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
+    "use_pos": [
+      [
+        0,
+        1
+      ]
+    ],
+    "use_facing": "up"
   },
   "pc_desk": {
     "prototype": "continuous",
@@ -824,7 +909,14 @@
       "social": 0
     },
     "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
+    "use_pos": [
+      [
+        0,
+        1
+      ]
+    ],
+    "use_facing": "up"
   },
   "stove": {
     "prototype": "continuous",
@@ -879,7 +971,14 @@
       "fullness": 30
     },
     "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
+    "use_pos": [
+      [
+        0,
+        1
+      ]
+    ],
+    "use_facing": "up"
   },
   "sofa_tv": {
     "prototype": "continuous",
@@ -940,7 +1039,18 @@
     "failure_message": "长椅坐满了。",
     "leave_message": "你从长椅上站起来。",
     "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
+    "use_pos": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "use_facing": "down"
   },
   "bar": {
     "prototype": "continuous",
@@ -1001,7 +1111,18 @@
     "failure_message": "长椅坐满了。",
     "leave_message": "你从长椅上站起来。",
     "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
+    "use_pos": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        1
+      ]
+    ],
+    "use_facing": "up"
   },
   "fish_stall": {
     "prototype": "instant",
@@ -1123,7 +1244,14 @@
       "mood": 10
     },
     "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
+    "use_pos": [
+      [
+        0,
+        1
+      ]
+    ],
+    "use_facing": "up"
   },
   "reading_desk": {
     "prototype": "continuous",
@@ -1179,7 +1307,17 @@
       "mood": 10
     },
     "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
+    "use_pos": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ]
+    ]
   },
   "classroom_desk": {
     "prototype": "continuous",
@@ -1235,7 +1373,14 @@
       "social": 10
     },
     "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
+    "use_pos": [
+      [
+        0,
+        1
+      ]
+    ],
+    "use_facing": "up"
   },
   "tree": {
     "prototype": "instant",

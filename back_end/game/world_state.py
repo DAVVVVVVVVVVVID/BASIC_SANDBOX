@@ -65,6 +65,8 @@ def _build_objects(raw: list[dict]) -> list[dict]:
             "description":    t["description"],
             "effects":        t["effects"],
             "advertise":      t.get("advertise"),       # B5：Sims 式广告值 {var: 0–100}
+            "usePos":         [{"x": x + dx, "y": y + dy} for dx, dy in t.get("use_pos", [])] or None,   # W10：使用者站位（绝对格，按使用顺序分配）
+            "useFacing":      t.get("use_facing"),      # W10：使用者朝向（None = 按站位相对物品推）
             "openHours":      t.get("open_hours"),      # B20：营业时间 [[start, end], ...]，None = 全天
             "successMessage": t["success_message"],
             "failureMessage": t["failure_message"],
@@ -379,8 +381,9 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
 
 
 def _position_valid(x: int, y: int) -> bool:
-    """可走且落在某个 arena 内（§3.14：换地图后旧坐标可能在墙里或在任何 arena 之外）。"""
-    return is_tile_walkable(x, y) and _ZONE_LOOKUP.get((x, y), {}).get("arena") is not None
+    """可走（或是某物品的使用者站位）且落在某个 arena 内（§3.14：换地图后旧坐标可能在墙里或在任何 arena 之外）。"""
+    on_use_pos = any(any(s["x"] == x and s["y"] == y for s in (o.get("usePos") or [])) for o in _OBJECTS)
+    return (is_tile_walkable(x, y) or on_use_pos) and _ZONE_LOOKUP.get((x, y), {}).get("arena") is not None
 
 
 def _ensure_valid_position(player: dict) -> bool:
@@ -428,6 +431,7 @@ def remove_player(player_id: str) -> None:
         _last_used.pop(player_id, None)
         _use_history.pop(player_id, None)
         _last_input.pop(player_id, None)
+        _pre_use_pos.pop(player_id, None)
         _phone_feed.pop(player_id, None)
         _recent_events.pop(player_id, None)
     from game import self_sync
@@ -504,6 +508,7 @@ def get_world() -> dict:
         "tiled":      _MAP_DATA.get("tiled"),
         "zone_names": _MAP_DATA.get("zone_names", {}),   # W7 E：区域中文名，只读
         "map": map_graph_summary(),                      # W9：v2 的 edges / floors / access（v1 地图为空）
+        "decor": _MAP_DATA.get("decor", []),             # W10：装饰层（小径 / 池塘 / 晾衣绳 / 花坛），不可交互
     }
 
 
@@ -847,6 +852,7 @@ def enter_object(obj_id: str, entity_id: str) -> None:
     player["stateLabel"]    = obj["useStateLabel"].replace("{entity}", player["name"])
     player["usingObjectId"] = obj_id
     _use_start_times[entity_id] = time.time() if obj.get("maxDuration") is not None else None
+    _move_to_use_pos(player, obj)             # W10：坐进去 / 躺上去
 
     # continuous 物品：buff（persistent 到 leave 为止 / timed）、tag、以及进入时的一次性 instant_effect
     apply_effects(player, obj["effects"], source=obj_id)
@@ -984,6 +990,48 @@ def apply_effects_to_player(entity_id: str, effects: list[dict], scene: str | No
         return {"summary": summary, "player": copy.deepcopy(player)}
 
 
+_pre_use_pos: dict[str, dict] = {}        # entity -> use 前的 {x, y, facing}（leave 时回去）
+
+
+def _facing_toward(fx: int, fy: int, obj: dict) -> str:
+    """站位朝物品中心的方向。"""
+    cx = sum(t["x"] for t in obj["tiles"]) / len(obj["tiles"]); cy = sum(t["y"] for t in obj["tiles"]) / len(obj["tiles"])
+    dx, dy = cx - fx, cy - fy
+    if abs(dx) < 1e-9 and abs(dy) < 1e-9:
+        return "down"
+    return ("left" if dx < 0 else "right") if abs(dx) > abs(dy) else ("up" if dy < 0 else "down")
+
+
+def _move_to_use_pos(player: dict, obj: dict) -> None:
+    """按物品 usePos 给使用者一个格（按使用顺序，已被占的跳过）；没有 usePos 的物品原地不动。"""
+    spots = obj.get("usePos") or []
+    if not spots:
+        return
+    taken = {(_players[u]["position"]["x"], _players[u]["position"]["y"]) for u in obj["userList"] if u != player["id"] and u in _players}
+    spot = next((s for s in spots if (s["x"], s["y"]) not in taken), spots[-1])
+    _pre_use_pos[player["id"]] = {"x": player["position"]["x"], "y": player["position"]["y"], "facing": player["facing"]}
+    player["position"] = {"x": spot["x"], "y": spot["y"]}
+    player["pos_seq"] = int(player.get("pos_seq", 0)) + 1
+    player["facing"] = obj.get("useFacing") or _facing_toward(spot["x"], spot["y"], obj)
+
+
+def _restore_pre_use_pos(player: dict) -> None:
+    pre = _pre_use_pos.pop(player["id"], None)
+    x, y = player["position"]["x"], player["position"]["y"]
+    if pre is None:
+        if not is_tile_walkable(x, y):                # 没记录（旧检查点）且站在物品格上 → 挪到相邻可走格
+            for dx, dy in ((0, 1), (0, -1), (-1, 0), (1, 0)):
+                if is_tile_walkable(x + dx, y + dy):
+                    player["position"] = {"x": x + dx, "y": y + dy}
+                    player["pos_seq"] = int(player.get("pos_seq", 0)) + 1
+                    break
+        return
+    if (player["position"]["x"], player["position"]["y"]) != (pre["x"], pre["y"]) and is_tile_walkable(pre["x"], pre["y"]):
+        player["position"] = {"x": pre["x"], "y": pre["y"]}
+        player["pos_seq"] = int(player.get("pos_seq", 0)) + 1
+    player["facing"] = pre["facing"]
+
+
 def leave_object(entity_id: str) -> dict | None:
     player = _players.get(entity_id)
     if player is None:
@@ -1021,6 +1069,7 @@ def leave_object(entity_id: str) -> dict | None:
     player["stateLabel"]    = None
     player["usingObjectId"] = None
     _use_start_times[entity_id] = None
+    _restore_pre_use_pos(player)              # W10：回到 use 前站的格
     return obj
 
 
@@ -1205,6 +1254,7 @@ def export_runtime() -> dict:
                 "last_seen":       _last_seen.get(pid),
                 "last_used":       dict(_last_used.get(pid, {})),
                 "use_history":     [list(x) for x in _use_history.get(pid, [])],
+                "pre_use_pos":     _pre_use_pos.get(pid),            # W10：use 前站位
             }
             for pid, p in _players.items()
         }
@@ -1225,7 +1275,7 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
     from game import self_sync
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
-        _last_used.clear(); _use_history.clear()
+        _last_used.clear(); _use_history.clear(); _pre_use_pos.clear()
         for pid, row in (data.get("players") or {}).items():
             player = row["player"]
             _ensure_player_fields(player)
@@ -1238,6 +1288,8 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
             _last_used[pid] = {k: float(v) for k, v in (row.get("last_used") or {}).items()}
             _last_input[pid] = now
             _use_history[pid] = [(float(t), o) for t, o in (row.get("use_history") or [])]
+            if row.get("pre_use_pos"):
+                _pre_use_pos[pid] = dict(row["pre_use_pos"])
             if player.get("controller") == "agent":
                 self_sync.register(pid, game_now_ts())
         from game import state_log
@@ -1258,7 +1310,7 @@ def _reset_for_tests() -> None:
     """清空全部运行时状态（测试用）。"""
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
-        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear()
+        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear(); _pre_use_pos.clear()
         for o in _OBJECTS:
             o["currentUsers"] = 0
             o["userList"] = []

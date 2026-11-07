@@ -41,7 +41,7 @@ def test_roundtrip_players_objects_time(client, fake_clock):
     assert info is not None and info["players"] == 1
 
     p = world_state._players[pid]
-    assert p["position"] == {"x": BED_STAND[0], "y": BED_STAND[1]}
+    assert p["position"] == {"x": 3, "y": 3}          # W10：use 后躺在床格上
     assert p["usingObjectId"] == BED_ID
     assert p["state"] == "using"
     assert p["closeness"] == {"achan": 72.0}

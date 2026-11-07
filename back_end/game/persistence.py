@@ -71,7 +71,8 @@ def save_checkpoint(path: Path | None = None) -> dict:
                 "INSERT INTO players (id, player, pending_message, use_start_time, last_seen, extra) VALUES (?,?,?,?,?,?)",
                 [(pid, json.dumps(r["player"], ensure_ascii=False), r["pending_message"],
                   r["use_start_time"], r["last_seen"],
-                  json.dumps({"last_used": r.get("last_used", {}), "use_history": r.get("use_history", [])}))
+                  json.dumps({"last_used": r.get("last_used", {}), "use_history": r.get("use_history", []),
+                              "pre_use_pos": r.get("pre_use_pos")}))
                  for pid, r in rt["players"].items()],
             )
             conn.execute("DELETE FROM object_runtime")
@@ -142,6 +143,7 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
                 "player": json.loads(pj), "pending_message": pm,
                 "use_start_time": ust, "last_seen": ls,
                 "last_used": ex.get("last_used", {}), "use_history": ex.get("use_history", []),
+                "pre_use_pos": ex.get("pre_use_pos"),
             }
         objects = {
             oid: {"currentUsers": cu, "userList": json.loads(ul)}

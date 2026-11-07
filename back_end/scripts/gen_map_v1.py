@@ -142,14 +142,15 @@ access["fisher_bedroom"] = {"owner": ["npc_fisher"], "locked": "always"}
 access["fisher_kitchen"] = {"owner": ["npc_fisher"], "locked": "always"}
 
 # ── 合租房 1F（x2–15,y21–33）与 2F（x2–9,y36–41）──────────────────────────────
-house(2, 21, 15, 33, "home", rooms=[(3, 22, 8, 27, "whale_room"), (10, 22, 14, 32, "living_room"), (3, 29, 8, 32, "kitchen")], doors=[(12, 21)])
+house(2, 21, 15, 33, "home", rooms=[(3, 22, 8, 27, "whale_room"), (10, 22, 14, 32, "living_room"), (3, 29, 8, 32, "kitchen")], doors=[(12, 33)])   # 南门（W10：所有建筑南面进门）
+arena[33][12] = R("living_room")                          # 门格归它所邻的客厅
 wall(9, 22, 9, 32, door=(9, 24), ar="whale_room")       # 鲸仔房 ↔ 客厅
 tiles[30][9] = "f"                                       # 厨房 ↔ 客厅
 wall(3, 28, 8, 28, ar="whale_room")                      # 鲸仔房 ↔ 厨房 之间的墙
 obj("bed_whale", "bed", 3, 22); obj("pc_whale", "pc", 8, 22); obj("shelf_whale", "book", 8, 27)
 obj("table_home", "restaurant_table", 11, 23); obj("sofa_tv", "sofa_tv", 11, 27)
 obj("fridge_home", "fridge", 3, 29); obj("stove", "stove", 8, 29)
-edge("door_home", "door", (12, 20), (12, 21), "合租房大门")
+edge("door_home", "door", (12, 34), (12, 33), "合租房大门")
 house(2, 36, 9, 41, "home", rooms=[(3, 37, 8, 40, "achan_room")])     # 2F：画布另一处，无门
 obj("bed_achan", "bed_21", 3, 40); obj("pc_achan", "pc_desk", 8, 37); obj("shelf_achan", "book", 8, 40)
 edge("stairs_home", "stairs", (14, 32), (3, 37), "合租房楼梯")
@@ -167,29 +168,57 @@ obj("bench_square_1", "bench", 33, 23); obj("bench_square_2", "bench", 42, 23); 
 obj("notice_board_square", "notice_board", 33, 29)
 
 # ── 餐厅（x46–56,y22–30）门朝广场 (46,25) ──────────────────────────────────────
-house(46, 22, 56, 30, "restaurant", rooms=[(47, 23, 52, 29, "dining"), (54, 23, 55, 29, "rest_kitchen")], doors=[(46, 25)])
+house(46, 22, 56, 30, "restaurant", rooms=[(47, 23, 52, 29, "dining"), (54, 23, 55, 29, "rest_kitchen")], doors=[(51, 30)])   # 南门
 wall(53, 23, 53, 29, door=(53, 26), ar="dining")
 obj("table_rest_1", "restaurant_table", 48, 23); obj("table_rest_2", "restaurant_table", 48, 28); obj("bar", "bar", 51, 25); obj("fridge_rest", "fridge", 55, 23)
-edge("door_restaurant", "door", (45, 25), (46, 25), "餐厅门", open_hours=[["11:00", "14:00"], ["17:00", "21:00"]])
+edge("door_restaurant", "door", (51, 31), (51, 30), "餐厅门", open_hours=[["11:00", "14:00"], ["17:00", "21:00"]])
 
 # ── 杂货店（x46–56,y32–38）门朝小巷 (50,32) ────────────────────────────────────
-house(46, 32, 56, 38, "grocery", rooms=[(47, 33, 55, 37, "grocery_shop")], doors=[(50, 32)])
+house(46, 32, 56, 38, "grocery", rooms=[(47, 33, 55, 37, "grocery_shop")], doors=[(51, 38)])   # 南门
 obj("counter", "shop_counter", 55, 35); obj("shelf_1", "shelf", 47, 33); obj("shelf_2", "shelf", 47, 37); obj("shelf_3", "shelf", 55, 33)
-edge("door_grocery", "door", (50, 31), (50, 32), "杂货店门", open_hours=[["09:00", "20:00"]])
+fill(46, 39, 57, 39, "F", "outside", "lane")             # 杂货店门前小巷
+edge("door_grocery", "door", (51, 39), (51, 38), "杂货店门", open_hours=[["09:00", "20:00"]])
 
 # ── 小千家（x12–20,y36–41）与店主们的家（x22–29,y36–46）────────────────────────
-house(12, 36, 20, 41, "xiaoqian_house", rooms=[(13, 37, 16, 40, "xiaoqian_room"), (18, 37, 19, 40, "xiaoqian_kitchen")], doors=[(14, 36)])
+house(12, 36, 20, 41, "xiaoqian_house", rooms=[(13, 37, 16, 40, "xiaoqian_room"), (18, 37, 19, 40, "xiaoqian_kitchen")], doors=[(16, 41)])   # 南门
 wall(17, 37, 17, 40, door=(17, 39), ar="xiaoqian_room")
 obj("bed_xiaoqian", "bed", 13, 37); obj("fridge_xiaoqian", "fridge", 19, 37)
-edge("door_xiaoqian", "door", (14, 35), (14, 36), "小千家门", allow=["owner"], owner=["npc_xiaoqian"])
+fill(12, 42, 29, 42, "F", "outside", "lane"); fill(22, 47, 29, 47, "F", "outside", "lane")   # 小千家 / 店主家门前小巷
+edge("door_xiaoqian", "door", (16, 42), (16, 41), "小千家门", allow=["owner"], owner=["npc_xiaoqian"])
 access["xiaoqian_room"] = {"owner": ["npc_xiaoqian"], "locked": "always"}
 access["xiaoqian_kitchen"] = {"owner": ["npc_xiaoqian"], "locked": "always"}
-house(22, 36, 29, 46, "owners_house", rooms=[(23, 37, 28, 39, "owner_rest_room"), (23, 41, 28, 42, "owners_kitchen"), (23, 44, 28, 45, "owner_grocer_room")], doors=[(26, 36)])
+house(22, 36, 29, 46, "owners_house", rooms=[(23, 37, 28, 39, "owner_rest_room"), (23, 41, 28, 42, "owners_kitchen"), (23, 44, 28, 45, "owner_grocer_room")], doors=[(26, 46)])   # 南门
+arena[46][26] = R("owner_grocer_room")                    # 门格归它所邻的杂货店主房
 wall(23, 40, 28, 40, door=(25, 40), ar="owner_rest_room"); wall(23, 43, 28, 43, door=(25, 43), ar="owners_kitchen")
 obj("bed_owner_rest", "bed_21", 27, 37); obj("fridge_owners", "fridge", 23, 41); obj("bed_owner_grocer", "bed_21", 27, 45)
-edge("door_owners", "door", (26, 35), (26, 36), "店主家门", allow=["owner"], owner=["npc_rest_owner", "npc_grocer"])
+edge("door_owners", "door", (26, 47), (26, 46), "店主家门", allow=["owner"], owner=["npc_rest_owner", "npc_grocer"])
 for a_ in ("owner_rest_room", "owners_kitchen", "owner_grocer_room"):
     access[a_] = {"owner": ["npc_rest_owner", "npc_grocer"], "locked": "always"}
+
+# ── 装饰层 decor[]（W10，E 的外观底图参考；不可交互。path / pond 同时改 tile，其余只记位置）──
+decor: list[dict] = []
+def path_tiles(pts, arena_id="grass"):
+    for x, y in pts:
+        if tiles[y][x] == "#":
+            tiles[y][x] = "F"
+    decor.append({"id": f"path_{len(decor)+1}", "kind": "path", "tiles": [{"x": x, "y": y} for x, y in pts]})
+def pond(x0, y0, x1, y1):
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            tiles[y][x] = "b"
+    decor.append({"id": f"pond_{len(decor)+1}", "kind": "pond", "tiles": [{"x": x, "y": y} for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)]})
+# 西草坪 x0–29 y9–17：小径从街道斜到合租房前，小池塘，晾衣绳（合租房门口附近），几棵树
+path_tiles([(29, 12), (28, 12), (27, 13), (26, 13), (25, 14), (24, 14), (23, 15), (22, 15), (21, 16), (20, 16), (19, 17), (18, 17)])
+pond(8, 11, 10, 13)
+decor.append({"id": "clothesline_home", "kind": "clothesline", "tiles": [{"x": 4, "y": 16}, {"x": 5, "y": 16}, {"x": 6, "y": 16}]})
+for i, (x, y) in enumerate([(3, 10), (14, 10), (16, 15), (12, 16), (25, 10)]):
+    obj(f"tree_w{i+1}", "tree", x, y)
+# 东草坪 x32–51 y9–17：小径从校门斜到码头巷，小池塘，花坛（只记位置），几棵树
+path_tiles([(33, 10), (34, 10), (35, 11), (36, 11), (37, 12), (38, 12), (39, 13), (40, 13), (41, 14), (42, 14), (43, 15), (44, 15), (45, 16), (46, 16), (47, 17), (48, 17), (49, 17), (50, 17), (51, 17)])
+pond(40, 9, 42, 10)
+decor.append({"id": "flowerbed_e", "kind": "flowerbed", "tiles": [{"x": 36, "y": 15}, {"x": 37, "y": 15}, {"x": 36, "y": 16}, {"x": 37, "y": 16}]})
+for i, (x, y) in enumerate([(34, 14), (46, 11), (50, 13), (43, 9)]):
+    obj(f"tree_e{i+1}", "tree", x, y)
 
 # ── 码头栈道边（主街 ↔ 小巷无门，不设边）──
 PLAYER_START = {"x": 5, "y": 25, "facing": "down"}       # 鲸仔房间
@@ -229,6 +258,7 @@ def build(out_dir: Path) -> dict:
         "floors": FLOORS,
         "access": access,
         "homes": HOMES,
+        "decor": decor,
         "tiled": build_tiled(out_dir),
     }
 
@@ -248,7 +278,7 @@ def main():
     (out / "objects.json").write_text(json.dumps(objects, ensure_ascii=False, indent=2), encoding="utf-8")
     if args.print:
         print("\n".join(data["tiles"]))
-    print(f"wrote {out} ({W}x{H}, format 2), {len(objects)} objects, {len(edges)} edges, {len(access)} access rules, floors={FLOORS}")
+    print(f"wrote {out} ({W}x{H}, format 2), {len(objects)} objects, {len(edges)} edges, {len(access)} access rules, floors={FLOORS}, decor={len(decor)}")
 
 
 if __name__ == "__main__":

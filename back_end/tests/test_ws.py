@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from game import world_state, chat_state
-from tests.conftest import BED_ID, BED_STAND, place, action
+from tests.conftest import BED_ID, BED_STAND, BED_STAND2, place, action
 
 
 def _recv(ws, want_type, timeout=3.0, pred=None):
@@ -57,9 +57,9 @@ def test_patches_follow_player_object_and_chat_changes(live):
         assert action(live, a, "use")["success"]
         p = _recv(ws, "patch", pred=lambda m: any(o["id"] == BED_ID for o in m.get("objects", [])))
         assert next(o for o in p["objects"] if o["id"] == BED_ID) == {"id": BED_ID, "currentUsers": 1, "userList": [a], "open": True}
-        # 聊天 → chat 推送（含招呼与回复），事件也推
+        # 聊天 → chat 推送（含招呼与回复），事件也推（W10：a 躺到床格 (3,3)，b 站到床另一侧）
+        place(b, *BED_STAND2)
         rid = live.post("/chat/request", json={"from_entity_id": b, "to_entity_ids": [a], "greeting": "hi"}).json()["request_id"]
-        place(b, *BED_STAND)
         live.post("/chat/respond", json={"entity_id": a, "request_id": rid, "accept": True, "message": "yo"})
         p = _recv(ws, "patch", pred=lambda m: "chat" in m)
         contents = [c["content"] for c in p["chat"] if c["kind"] == "message"]

@@ -3,7 +3,7 @@ import pytest
 
 from game import world_state
 from game.needs import LABELS, TAG_LABELS, MOOD_LOW_LABEL
-from tests.conftest import BED_ID, BED_STAND, join, action, place
+from tests.conftest import BED_ID, BED_STAND, BED_STAND2, join, action, place
 
 
 def test_state_endpoint_shape(client):
@@ -80,7 +80,7 @@ def test_perceive_needs_text_not_numbers(client):
 
 def test_perceive_closeness_tiers_and_recent_uses(client):
     me = join(client, "me"); other = join(client, "other"); far = join(client, "far")
-    place(me, *BED_STAND); place(other, 4, 5, "up"); place(far, 40, 30, "up")
+    place(me, *BED_STAND); place(other, *BED_STAND2); place(far, 40, 30, "up")   # W10：use 后 me 躺到 (3,3)，other 站床另一侧
     world_state._players[me]["closeness"] = {other: 72.0}
     assert action(client, me, "use")["success"]
     r = client.get("/agent/perceive", params={"entity_id": me, "vision_size": 3}).json()

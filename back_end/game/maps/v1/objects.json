@@ -414,5 +414,77 @@
       "x": 27,
       "y": 45
     }
+  },
+  {
+    "id": "tree_w1",
+    "type": "tree",
+    "position": {
+      "x": 3,
+      "y": 10
+    }
+  },
+  {
+    "id": "tree_w2",
+    "type": "tree",
+    "position": {
+      "x": 14,
+      "y": 10
+    }
+  },
+  {
+    "id": "tree_w3",
+    "type": "tree",
+    "position": {
+      "x": 16,
+      "y": 15
+    }
+  },
+  {
+    "id": "tree_w4",
+    "type": "tree",
+    "position": {
+      "x": 12,
+      "y": 16
+    }
+  },
+  {
+    "id": "tree_w5",
+    "type": "tree",
+    "position": {
+      "x": 25,
+      "y": 10
+    }
+  },
+  {
+    "id": "tree_e1",
+    "type": "tree",
+    "position": {
+      "x": 34,
+      "y": 14
+    }
+  },
+  {
+    "id": "tree_e2",
+    "type": "tree",
+    "position": {
+      "x": 46,
+      "y": 11
+    }
+  },
+  {
+    "id": "tree_e3",
+    "type": "tree",
+    "position": {
+      "x": 50,
+      "y": 13
+    }
+  },
+  {
+    "id": "tree_e4",
+    "type": "tree",
+    "position": {
+      "x": 43,
+      "y": 9
+    }
   }
 ]

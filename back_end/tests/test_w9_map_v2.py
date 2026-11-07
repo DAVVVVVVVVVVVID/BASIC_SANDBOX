@@ -33,7 +33,7 @@ def _agent(client, aid, name=None):
 
 def test_v1_map_loads_format2_and_world_exposes_graph(client, v1):
     assert world_state.MAP_FORMAT == 2 and world_state.MAP_W == 64 and world_state.MAP_H == 48
-    assert len(world_state._OBJECTS) == 52 and len(world_state._EDGES) == 12
+    assert len(world_state._OBJECTS) == 61 and len(world_state._EDGES) == 12   # W10：+9 棵装饰树
     w = client.get("/world", params={"fields": "map,zone_names,worldState"}).json()
     assert w["map"]["format"] == 2 and w["map"]["floors"] == {"achan_room": 2}
     assert {e["kind"] for e in w["map"]["edges"]} == {"door", "gate", "stairs"}

@@ -5,7 +5,7 @@ from models.world import WorldData
 from game.world_state import get_world
 
 router = APIRouter()
-_FIELDS = ("tiles", "objects", "worldState", "players", "tiled", "zone_names", "map")
+_FIELDS = ("tiles", "objects", "worldState", "players", "tiled", "zone_names", "map", "decor")
 
 
 @router.get("/world", response_model=WorldData)

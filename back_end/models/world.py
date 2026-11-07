@@ -42,6 +42,8 @@ class GameObject(BaseModel):
     open: Optional[bool] = None                     # B20：当前是否营业（无营业时间的物品恒 true）
     opensAt: Optional[str] = None                   # B20：关门时下次开门 "HH:MM"，开门时 null
     openHours: Optional[List[List[str]]] = None     # B20：[["11:00","14:00"],["17:00","21:00"]]
+    usePos: Optional[List[Position]] = None         # W10：使用者站位（绝对格，按使用顺序分配）；null = 原地
+    useFacing: Optional[str] = None                 # W10：使用者朝向；null = 面向物品
     successMessage: Optional[str] = None
     failureMessage: Optional[str] = None
     currentUsers: int
@@ -94,3 +96,4 @@ class WorldData(BaseModel):
     tiled: Optional[Any] = None
     zone_names: Optional[dict] = None    # W7 E：{world:{id:name}, sector:{...}, arena:{...}}
     map: Optional[dict] = None           # W9：{format, edges[], floors{}, access{}}
+    decor: Optional[List[dict]] = None   # W10：装饰层
