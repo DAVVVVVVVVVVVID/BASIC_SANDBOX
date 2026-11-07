@@ -66,7 +66,7 @@ def _compute_facing(current: dict, target_x: int, target_y: int) -> str:
 
 def _blocked_detail(start: tuple[int, int], goals: set[tuple[int, int]], mover: dict | None) -> dict:
     """§3.36：no_path 时给首个阻塞原因与位置（忽略锁能到 → locked / closed + 格；否则纯 no_path）。"""
-    from game.world_state import bfs_path, crossing_block, edge_block, arena_block, game_now_ts, _STAIRS, _ZONE_LOOKUP
+    from game.world_state import bfs_path, crossing_block, edge_block, arena_cross_block, game_now_ts, _STAIRS
     p2 = bfs_path(start, goals, mover, ignore_locks=True)
     if p2 is None:
         return {"blocked_reason": "no_path", "blocked_at": None, "opens_at": None}
@@ -76,7 +76,7 @@ def _blocked_detail(start: tuple[int, int], goals: set[tuple[int, int]], mover: 
         if blk is None and abs(prev[0] - n[0]) + abs(prev[1] - n[1]) != 1:
             for m, e in _STAIRS.get(prev, []):
                 if m == n:
-                    blk = edge_block(e, mover, ts, frm=prev) or arena_block(_ZONE_LOOKUP.get(n, {}).get("arena"), mover, ts)
+                    blk = edge_block(e, mover, ts, frm=prev) or arena_cross_block(prev, n, mover, ts)
         if blk is not None:
             return {"blocked_reason": blk[0], "blocked_at": {"x": n[0], "y": n[1]}, "opens_at": blk[1]}
         prev = n

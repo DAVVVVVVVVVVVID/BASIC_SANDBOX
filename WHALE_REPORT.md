@@ -45,6 +45,14 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5f. §3.39 合租房门禁（「为什么老渔夫在我家」）—— 完成
+
+- **原因**：v1 的 `access` 只有渔夫 / 小千 / 店主 / 阿蝉房，合租房三间与 `door_home` 没有任何规则，谁都能进（老渔夫 05:34 走进厨房、模板期睡过 `bed_whale`）。
+- **改**（`gen_map_v1.py`，按 02-map §2.3）：`access.whale_room = {owner [whale], locked always, allow_when_locked [achan, npc_xiaoqian]}`、`living_room / kitchen = {owner [whale, achan], locked always, allow_when_locked [npc_xiaoqian]}`；`door_home` 加 `owner [whale, achan]`、`allow ["owner", "npc_xiaoqian"]`。小千按总控意见放进 allow（主播改口再去）。出门照 §3.38 放行。核过各家大门：渔夫屋 / 小千家 / 店主家本来就有 owner，餐厅 / 杂货店 §3.38 加了，现在六扇门都有 `owner`。v1 图重出（tiles / 物品不变，mapVersion 不变；access 11 条）。
+- **「出门永远放行」的室内推广** `arena_cross_block`：站在自己不被允许的场所里的人，往同一 sector 相邻场所走一律放行（否则老渔夫会被锁在厨房——厨房 → 客厅跨的是 arena 不是门边）；出了门就回不来。所有跨场所判定（相邻格、楼梯、走路、首阻塞）走这一个函数。
+- **副作用请知悉**：人类玩家（操控页）不在名单，出生在鲸仔房间，走出去后回不来（`locked`）；如需放行人类，加一个 `"human"` 关键字很容易，等主播定。另：家里的最短路（`/admin/path`、`path_table.py`）要带 `mover=whale`，x1-fixtures 的数字本来就是按鲸仔算的，不变。
+- **测试** `tests/test_w11_home_access.py` 2 例：老渔夫街道 `go_to kitchen` → `no_path/locked/blocked_at (12,33)`；小千进客厅、再去鲸仔房间；阿蝉进鲸仔房间；老渔夫已在厨房能走出去、回不来；鲸仔随时进；人类单格 `locked`；六扇门 owner 与三条 access 规则进了 `/world.map`。既有 1 例改（x1 的 `/admin/path` 家里加 `mover=whale`）。
+
 ## 5e. §3.38 门禁只管「进」不管「出」、主人随时双向 —— 完成
 
 - **根因**（C / 总控查出）：21:00 餐厅门关后，店主从吧台回卧室要先出门 (51,30)→(51,31)，`edge_block` 不分方向、按 open_hours 判 `closed`，店主被锁在自己店里。

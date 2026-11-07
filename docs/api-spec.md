@@ -72,6 +72,8 @@
 
 `floors`：`{arena: 楼层}`，缺省 1；2F 画在画布另一处，只靠 `stairs` 边相连。`homes`（map.json，不下发）：`{agent_id: arena}` 决定 agent 出生点（覆盖代码里的 `AGENT_HOME_ARENA`）。
 
+**合租房门禁（§3.39，02-map §2.3，主播 11-08）：** `whale_room` = `{owner: [whale], locked: "always", allow_when_locked: [achan, npc_xiaoqian]}`；`living_room` / `kitchen` = `{owner: [whale, achan], locked: "always", allow_when_locked: [npc_xiaoqian]}`；`door_home` = `owner [whale, achan]`、`allow ["owner", "npc_xiaoqian"]`。其他人（含人类玩家）进 → `no_path / locked`（人类单格 direction 直接 `locked`）；出门照 §3.38 永远放行，**室内推广**：站在自己本就不被允许的场所里的人（闯入者 / 旧世界遗留）往同一 sector 的相邻场所走一律放行（厨房 → 客厅 → 大门出去），出了门就回不来。各家大门边现在都带 `owner`（渔夫屋 / 小千家 / 店主家 / 餐厅 / 杂货店）。
+
 **v1.0 草图**（`game/maps/v1/`，`scripts/gen_map_v1.py`，按 `docs/world-bible/02-map.md`）：64×48，8 个 sector（小镇 / 鲸鱼大学 / 老渔夫家 / 合租房 / 餐厅 / 杂货店 / 小千家 / 店主们的家）、26 个 arena、52 个物品、12 条边、8 条访问规则（阿蝉房 09:00–18:30 锁、四户 NPC 家常锁 owner-only）。物品按 `03-objects.md` 3.1 位置摆，类型沿用旧表或占位类型（`placeholder: true`，数值不改）。`run_town.sh --map game/maps/v1` 起；旧图在 `game/maps/legacy_v0/`（默认目录仍是 v0，主镇不切）。`tiled` 的 tileset 现为 E 交付的自制 CC0 地砖 `gen/tiles.png`（`game/maps/tile_gids.json` 覆盖 gid 与 `_tileset`）。
 
 **最短路（W11 维护，X1 实验给 A 算步数比）：** `GET /admin/path?from=x,y&to=x,y | to_object=<id> | to_arena=<id>[&ignore_locks=true][&mover=<agent_id 或 player id>]`（所有实例都开，只读）→ `{from, goals, ignore_locks, mover, game_time, mapVersion, reachable, length, path[]}`。BFS 走 `map.edges`（楼梯算一步），按**当前游戏时刻**的营业时间与门禁；`to_object` 的目标 = 它的 `usePos`（不可走的床类退到相邻可走格），`to_arena` = 该 arena 全部可走格；`mover` 不在线也能按身份算门禁；起点不可走 400，目标集合为空 404。离线整表：`cd back_end && uv run python scripts/path_table.py --map v1 --at 11:30 --as whale --points 客厅=12,26 --objects fridge_home --arenas dining [--pairs 客厅:fridge_home] [--format md|csv|json]`。

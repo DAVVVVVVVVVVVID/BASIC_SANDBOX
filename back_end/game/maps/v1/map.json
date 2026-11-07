@@ -444,7 +444,15 @@
         "arena": "living_room",
         "x": 12,
         "y": 33
-      }
+      },
+      "allow": [
+        "owner",
+        "npc_xiaoqian"
+      ],
+      "owner": [
+        "whale",
+        "achan"
+      ]
     },
     {
       "id": "stairs_home",
@@ -572,6 +580,36 @@
         "npc_fisher"
       ],
       "locked": "always"
+    },
+    "whale_room": {
+      "owner": [
+        "whale"
+      ],
+      "locked": "always",
+      "allow_when_locked": [
+        "achan",
+        "npc_xiaoqian"
+      ]
+    },
+    "living_room": {
+      "owner": [
+        "whale",
+        "achan"
+      ],
+      "locked": "always",
+      "allow_when_locked": [
+        "npc_xiaoqian"
+      ]
+    },
+    "kitchen": {
+      "owner": [
+        "whale",
+        "achan"
+      ],
+      "locked": "always",
+      "allow_when_locked": [
+        "npc_xiaoqian"
+      ]
     },
     "achan_room": {
       "owner": [

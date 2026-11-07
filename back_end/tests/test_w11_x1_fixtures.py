@@ -65,9 +65,9 @@ def test_move_kicks_user_and_reset_restores(client, v1, bench, fake_clock):
 def test_admin_path_endpoint(client, v1, fake_clock):
     from tests.test_w9_map_v2 import _at
     _at(fake_clock, 12, 0)
-    r = client.get("/admin/path", params={"from": "55,13", "to_arena": "whale_room"}).json()           # 码头 → 鲸仔房间
+    r = client.get("/admin/path", params={"from": "55,13", "to_arena": "whale_room", "mover": "whale"}).json()   # 码头 → 鲸仔房间（§3.39 家里按身份算）
     assert r["reachable"] and r["length"] > 30 and r["path"][-1] in [{"x": t["x"], "y": t["y"]} for t in world_state._TILES if t.get("arena") == "whale_room"]
-    r2 = client.get("/admin/path", params={"from": "12,26", "to_object": "fridge_home"}).json()        # 客厅 → 冰箱站位
+    r2 = client.get("/admin/path", params={"from": "12,26", "to_object": "fridge_home", "mover": "whale"}).json()   # 客厅 → 冰箱站位（§3.39 家里按鲸仔身份算）
     assert r2["reachable"] and 0 < r2["length"] < 30 and r2["goals"] >= 1
     r3 = client.get("/admin/path", params={"from": "55,13", "to": "55,13"}).json()
     assert r3["reachable"] and r3["length"] == 0

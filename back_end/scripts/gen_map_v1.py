@@ -150,7 +150,11 @@ wall(3, 28, 8, 28, ar="whale_room")                      # 鲸仔房 ↔ 厨房 
 obj("bed_whale", "bed", 3, 22); obj("pc_whale", "pc", 8, 22); obj("shelf_whale", "book", 8, 27)
 obj("table_home", "restaurant_table", 11, 23); obj("sofa_tv", "sofa_tv", 11, 27)
 obj("fridge_home", "fridge", 3, 29); obj("stove", "stove", 8, 29)
-edge("door_home", "door", (12, 34), (12, 33), "合租房大门")
+edge("door_home", "door", (12, 34), (12, 33), "合租房大门", allow=["owner", "npc_xiaoqian"], owner=["whale", "achan"])   # §3.39：两位住户 + 闺蜜小千；其他人 locked
+# §3.39（02-map §2.3，主播 11-08）：鲸仔房间「她的；阿蝉可进」，客厅 / 厨房「两人」；小千是闺蜜放进 allow。出门按 §3.38 永远放行
+access["whale_room"] = {"owner": ["whale"], "locked": "always", "allow_when_locked": ["achan", "npc_xiaoqian"]}
+access["living_room"] = {"owner": ["whale", "achan"], "locked": "always", "allow_when_locked": ["npc_xiaoqian"]}
+access["kitchen"] = {"owner": ["whale", "achan"], "locked": "always", "allow_when_locked": ["npc_xiaoqian"]}
 house(2, 36, 9, 41, "home", rooms=[(3, 37, 8, 40, "achan_room")])     # 2F：画布另一处，无门
 obj("bed_achan", "bed_21", 3, 40); obj("pc_achan", "pc_desk", 8, 37); obj("shelf_achan", "book", 8, 40)
 edge("stairs_home", "stairs", (14, 32), (3, 37), "合租房楼梯")

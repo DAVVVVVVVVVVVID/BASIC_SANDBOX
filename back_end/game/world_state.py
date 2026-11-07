@@ -967,17 +967,30 @@ def arena_block(arena: str | None, mover: dict | None, game_ts: float) -> tuple[
     return ("locked", None)
 
 
+def arena_cross_block(t1: tuple[int, int], t2: tuple[int, int], mover: dict | None, game_ts: float) -> tuple[str, str | None] | None:
+    """跨场所（t1 的 arena → t2 的 arena）按目标场所访问规则判。
+    §3.38 / §3.39「出门永远放行」的室内推广：mover 站在一个自己**本就不被允许**的场所里（闯入者 / 旧世界遗留），
+    往同一 sector 的相邻场所走一律放行（这是在往外走），否则会被锁在屋里；出了门就回不来。"""
+    a1 = _ZONE_LOOKUP.get(t1, {}).get("arena"); a2 = _ZONE_LOOKUP.get(t2, {}).get("arena")
+    if a2 is None or a2 == a1:
+        return None
+    blk = arena_block(a2, mover, game_ts)
+    if blk is None:
+        return None
+    s1 = _ZONE_LOOKUP.get(t1, {}).get("sector"); s2 = _ZONE_LOOKUP.get(t2, {}).get("sector")
+    if a1 is not None and s1 == s2 and arena_block(a1, mover, game_ts) is not None:
+        return None
+    return blk
+
+
 def crossing_block(t1: tuple[int, int], t2: tuple[int, int], mover: dict | None, game_ts: float) -> tuple[str, str | None] | None:
-    """从 t1 走到 t2：相邻两格之间若有边按边判；跨场所再按目标场所访问规则判。"""
+    """从 t1 走到 t2：相邻两格之间若有边按边判（有向，只判进）；跨场所再按目标场所访问规则判（含「往外走放行」）。"""
     e = _EDGE_BY_PAIR.get(frozenset((t1, t2)))
     if e is not None:
         b = edge_block(e, mover, game_ts, frm=t1)                # §3.38：有向——只判「进」
         if b:
             return b
-    a1 = _ZONE_LOOKUP.get(t1, {}).get("arena"); a2 = _ZONE_LOOKUP.get(t2, {}).get("arena")
-    if a2 is not None and a2 != a1:
-        return arena_block(a2, mover, game_ts)
-    return None
+    return arena_cross_block(t1, t2, mover, game_ts)
 
 
 def neighbors(x: int, y: int, mover: dict | None = None, game_ts: float | None = None, ignore_locks: bool = False):
@@ -995,10 +1008,7 @@ def neighbors(x: int, y: int, mover: dict | None = None, game_ts: float | None =
             continue
         blk = None
         if not ignore_locks:
-            blk = edge_block(e, mover, ts, frm=(x, y))
-            if blk is None:
-                a2 = _ZONE_LOOKUP.get(n, {}).get("arena")
-                blk = arena_block(a2, mover, ts) if a2 != _ZONE_LOOKUP.get((x, y), {}).get("arena") else None
+            blk = edge_block(e, mover, ts, frm=(x, y)) or arena_cross_block((x, y), n, mover, ts)
         out.append((n, blk))
     return out
 
@@ -1035,7 +1045,7 @@ def first_block_on_path(start: tuple[int, int], path: list[tuple[int, int]], mov
         if blk is None and abs(prev[0] - n[0]) + abs(prev[1] - n[1]) != 1:
             for m, e in _STAIRS.get(prev, []):
                 if m == n:
-                    blk = edge_block(e, mover, ts, frm=prev) or arena_block(_ZONE_LOOKUP.get(n, {}).get("arena"), mover, ts)
+                    blk = edge_block(e, mover, ts, frm=prev) or arena_cross_block(prev, n, mover, ts)
         if blk is not None:
             return blk
         prev = n
@@ -1141,7 +1151,7 @@ def walk_tick(gts: float) -> int:
                 if blk is None and abs(cur[0] - nxt[0]) + abs(cur[1] - nxt[1]) != 1:        # 楼梯
                     for m, e in _STAIRS.get(cur, []):
                         if m == nxt:
-                            blk = edge_block(e, p, gts, frm=cur) or arena_block(_ZONE_LOOKUP.get(nxt, {}).get("arena"), p, gts)
+                            blk = edge_block(e, p, gts, frm=cur) or arena_cross_block(cur, nxt, p, gts)
             if blk is not None:
                 _walks.pop(pid, None)
                 row = _finish_walk(pid, w, "blocked", blk[0])
