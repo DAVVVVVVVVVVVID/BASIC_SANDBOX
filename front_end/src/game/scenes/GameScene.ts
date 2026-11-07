@@ -276,6 +276,14 @@ export default class GameScene extends Phaser.Scene {
       if (msg.reason && /lock/i.test(msg.reason)) { push('咚咚咚……门锁着呢'); return }
       // W9 任务 3：买 / 吃 / 送 / 卖的反馈气泡（字段 item / price / gold_delta / target_name 是假设，缺了就只说动作）
       const a = (msg.action ?? '').toLowerCase()
+      // W11 新失败原因（use / buy）
+      if (!msg.success && msg.reason) {
+        const r = msg.reason
+        if (r === 'empty') { push('🧊 冰箱空了……'); return }
+        if (r === 'no_ingredients') { push('🥬 没有食材，做不了饭'); return }
+        if (r === 'out_of_stock') { push('📦 卖完了'); return }
+      }
+      if (a === 'store' && msg.success) { push(`🧊 把${msg.item_name ?? itemMeta(msg.item ?? undefined).label}放进了冰箱`); return }
       if (!/^(buy|eat|give|sell|use_item)$/.test(a)) return
       const meta = itemMeta(msg.item ?? undefined, msg.item_name ?? undefined)
       const name = msg.item_name ?? meta.label
@@ -286,6 +294,21 @@ export default class GameScene extends Phaser.Scene {
       else if (a === 'eat' || a === 'use_item') push(`${meta.icon} 吃了${name}`)
       else if (a === 'give') push(`🎁 把${name}送给了${msg.target_name ?? msg.target ?? '对方'}`)
       else if (a === 'sell') push(`💰 卖了${meta.icon}${name}${money}`)
+    })
+    // W11：产出与委托
+    this.on('produce-event', (msg: import('../../types').WsProduce) => {
+      if (!msg.entity) return
+      const meta = itemMeta(msg.item ?? undefined, msg.item_name ?? undefined), name = msg.item_name ?? meta.label, n = msg.qty && msg.qty > 1 ? ` ×${msg.qty}` : ''
+      const verb = msg.via === 'fishing' ? '🎣 钓到了' : msg.via === 'stove' ? '🍳 做好了' : msg.via === 'compose' ? '🎼 写完了' : msg.via === 'make_video' ? '🎬 做完了' : '✨ 得到了'
+      useGameStore.getState().pushBubble(msg.entity, `${verb}${meta.icon}${name}${n}`, 5000)
+    })
+    this.on('commission-event', (msg: import('../../types').WsCommission) => {
+      // 委托没有 entity 时挂在鲸仔（委托都是给她的）头上
+      const whale = useGameStore.getState().players.find(p => /鲸|whale/.test(p.name))
+      const who = msg.entity ?? whale?.id
+      if (!who) return
+      const title = msg.title ? `《${msg.title}》` : '一首歌', fee = typeof msg.fee === 'number' ? ` ${msg.fee} 金币` : ''
+      useGameStore.getState().pushBubble(who, msg.event === 'deliver' ? `✅ 交付了${title}给${msg.client_name ?? '委托人'}${fee ? ` +${fee.trim()}` : ''}` : `📋 新委托：${msg.client_name ?? '有人'}想要${title}${fee}`, 6000)
     })
     this.on('chat-message', ({ entityId, content }: { entityId: string; content: string }) => {
       useGameStore.getState().pushBubble(entityId, content)

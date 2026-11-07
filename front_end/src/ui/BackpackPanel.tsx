@@ -70,13 +70,14 @@ export default function BackpackPanel() {
         <div style={{ marginTop: 8, borderTop: '1px solid #2d3748', paddingTop: 6 }}>
           <div style={{ color: '#90cdf4', marginBottom: 4 }}>🛒 {shop.name}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {shop.shop!.map((s, i) => {
+            {shop.shop!.filter(s => s.price !== null && s.price !== undefined || s.sell == null).map((s, i) => {
               const t = s.type ?? s.item ?? s.name ?? `item${i}`; const m = itemMeta(t, s.name)
               return (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ flex: 1 }}>{m.icon} {s.name ?? m.label}</span>
                   <span style={{ color: '#ffe9a8' }}>{s.price ?? m.price ?? '?'} 金币</span>
-                  <button disabled={!!busy || (gold !== null && (s.price ?? m.price ?? 0) > gold)} onClick={() => act(`买 ${s.name ?? m.label}`, 'buy', { item: t, object_id: shop.id, qty: 1 })} style={sb}>买</button>
+                  {typeof s.stock === 'number' && <span style={{ color: s.stock > 0 ? '#718096' : '#fc8181', fontSize: 11 }}>{s.stock > 0 ? `余 ${s.stock}` : '卖完'}</span>}
+                  <button disabled={!!busy || (gold !== null && (s.price ?? m.price ?? 0) > gold) || s.stock === 0} onClick={() => act(`买 ${s.name ?? m.label}`, 'buy', { item: t, object_id: shop.id, qty: 1 })} style={sb}>买</button>
                 </div>
               )
             })}

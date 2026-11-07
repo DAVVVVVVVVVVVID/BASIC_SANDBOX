@@ -41,7 +41,9 @@ export interface GameObject {
   /** W10（B c0e75ef）：使用者站位（**绝对格**，按使用顺序分配）与朝向；后端 use 时已把人挪到该格并转向，null = 原地不动 */
   usePos?: { x: number; y: number }[] | null
   useFacing?: Facing | null
-  /** W10：商店物品（shop_counter / fish_stall / bar）；price = 卖价（null 不卖）、sell = 收购价、stock null = 不限量 */
+  /** W11：库存（商店 / 冰箱 {item: n}，其余 null） */
+  stock?: Record<string, number> | null
+  /** W10：商店物品（shop_counter / fish_stall / bar）；price = 卖价（null 不卖）、sell = 收购价、stock W11 起是实数 */
   shop?: { type?: string; item?: string; name?: string; price?: number | null; sell?: number | null; stock?: number | null }[] | null
 }
 
@@ -265,4 +267,7 @@ export interface WsAction { type: 'action'; ts: string; entity: string; action: 
 export interface WsHeartbeat { type: 'heartbeat'; ts: string }
 /** W9（B W10 任务 3）：QQ 消息推送，字段形状见 api/qq.ts normalizeMessage */
 export interface WsQQ { type: 'qq'; ts?: string; message?: unknown; [k: string]: unknown }
-export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ
+/** W11（B fc051f1）：产出（钓到鱼 / 做好便当 / 写完歌 / 做完文稿）与委托（开出 / 交付） */
+export interface WsProduce { type: 'produce'; entity: string; via?: 'fishing' | 'stove' | 'compose' | 'make_video' | string; item?: string; item_name?: string; qty?: number; object?: string | null }
+export interface WsCommission { type: 'commission'; event: 'open' | 'deliver' | string; id?: string; client?: string; client_name?: string; fee?: number; title?: string; status?: string; entity?: string | null }
+export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ | WsProduce | WsCommission
