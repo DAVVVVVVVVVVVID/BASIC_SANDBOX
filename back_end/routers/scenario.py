@@ -288,11 +288,37 @@ def op_produce(step: dict) -> dict:
     return {"player": p["id"], "via": via, "item": item, "qty": qty, "inventory": inventory.view(p)}
 
 
+def op_move_object(step: dict) -> dict:
+    """X1 N5：物品挪位 {id, to:{x,y}} 或 {id, x, y}。目标脚印须可走且没人站着；正在用的人被请离。"""
+    to = step.get("to") or {}
+    x = to.get("x", step.get("x")); y = to.get("y", step.get("y"))
+    if x is None or y is None:
+        raise StepError("to {x, y} required")
+    try:
+        return world_state.move_object(step.get("id") or step.get("object") or "", int(x), int(y))
+    except ValueError as e:
+        raise StepError(str(e))
+
+
+def op_remove_object(step: dict) -> dict:
+    """X1 N5：撤掉物品 {id}（脚下变地板，restore_object 放回）。"""
+    try:
+        return world_state.remove_object(step.get("id") or step.get("object") or "")
+    except (ValueError, StopIteration):
+        raise StepError(f"object not found: {step.get('id') or step.get('object')}")
+
+
+def op_restore_object(step: dict) -> dict:
+    """恢复 {id?}：撤掉的放回、挪过的挪回；不给 id = 全部（reset 也会做）。"""
+    return world_state.restore_object(step.get("id") or step.get("object"))
+
+
 OPS = {
     "reset": op_reset, "set_time": op_set_time, "spawn": op_spawn, "remove": op_remove, "teleport": op_teleport,
     "set_vars": op_set_vars, "effects": op_effects, "occupy": op_occupy, "release": op_release,
     "invite": op_invite, "respond": op_respond, "say": op_say, "exit_chat": op_exit_chat, "clear_cooldowns": op_clear_cooldowns,
     "give_item": op_give_item, "produce": op_produce,          # W11 维护
+    "move_object": op_move_object, "remove_object": op_remove_object, "restore_object": op_restore_object,   # X1 N5
 }
 _SAMPLE_OPS = {"spawn", "teleport", "set_vars", "effects", "occupy", "release", "give_item", "produce"}
 

@@ -38,6 +38,13 @@
 
 Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5（api-spec 全文核对）下两轮各做一项。
 
+## 5b. 总控（whale-68）X1 导航实验夹具 —— 完成
+
+- **`docs/x1-fixtures.md`**（本仓库）：S01 / S02 / S03 / N1 / N2 / N3 / N4 / N5 在 v1 图上的 `POST /admin/scenario` 步骤、终止条件、关键坐标、每场景的最短路步数（按场景时刻与鲸仔身份算）。总控若要放进 `whale/docs/`，直接拷这个文件。
+- **N5 需要的新 op**：`move_object {id, to{x,y}}`、`remove_object {id}`、`restore_object {id?}`——只改内存（tile 字符改地板 / 物品、`_OBJECTS` 重建保留 userList / stock、`usePos` 跟着算、`mapVersion` 重算，正在用的人请离），`reset` 与重启还原；恢复后 `mapVersion` 回到原值（按原顺序放回）。
+- **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
+- 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
+
 ## 5. 总控（whale-68）两条
 
 - **agent_id 全线统一**（04-npcs.md）：`whale / achan / npc_xiaoqian / npc_rest_owner / npc_grocer / npc_fisher`。核对：v1 `homes`、`economy.json`（初始金币 / 日薪 / 店主）、`qq_config.json`（显示名 / 通讯录 / 群）、`commissions.clients` 全部已是这组，无别名；只有 v0 兜底表 `AGENT_HOME_ARENA` 里还是旧名（`npc_cook` / `npc_regular`…）——已补上 `npc_rest_owner → cook_bedroom`、`npc_xiaoqian → regular_bedroom`，旧名保留给老检查点。

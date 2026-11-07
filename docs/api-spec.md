@@ -73,6 +73,8 @@
 
 **v1.0 草图**（`game/maps/v1/`，`scripts/gen_map_v1.py`，按 `docs/world-bible/02-map.md`）：64×48，8 个 sector（小镇 / 鲸鱼大学 / 老渔夫家 / 合租房 / 餐厅 / 杂货店 / 小千家 / 店主们的家）、26 个 arena、52 个物品、12 条边、8 条访问规则（阿蝉房 09:00–18:30 锁、四户 NPC 家常锁 owner-only）。物品按 `03-objects.md` 3.1 位置摆，类型沿用旧表或占位类型（`placeholder: true`，数值不改）。`run_town.sh --map game/maps/v1` 起；旧图在 `game/maps/legacy_v0/`（默认目录仍是 v0，主镇不切）。`tiled` 的 tileset 现为 E 交付的自制 CC0 地砖 `gen/tiles.png`（`game/maps/tile_gids.json` 覆盖 gid 与 `_tileset`）。
 
+**最短路（W11 维护，X1 实验给 A 算步数比）：** `GET /admin/path?from=x,y&to=x,y | to_object=<id> | to_arena=<id>[&ignore_locks=true][&mover=<agent_id 或 player id>]`（所有实例都开，只读）→ `{from, goals, ignore_locks, mover, game_time, mapVersion, reachable, length, path[]}`。BFS 走 `map.edges`（楼梯算一步），按**当前游戏时刻**的营业时间与门禁；`to_object` 的目标 = 它的 `usePos`（不可走的床类退到相邻可走格），`to_arena` = 该 arena 全部可走格；`mover` 不在线也能按身份算门禁；起点不可走 400，目标集合为空 404。离线整表：`cd back_end && uv run python scripts/path_table.py --map v1 --at 11:30 --as whale --points 客厅=12,26 --objects fridge_home --arenas dining [--pairs 客厅:fridge_home] [--format md|csv|json]`。
+
 **地图开关（W11 ⑤，冻结用）：** 环境变量 `SANDBOX_MAP=v1`（或 `m1c` / `legacy_v0`）让 `game/maps/<name>` 成为默认图；`SANDBOX_MAP_DIR`（目录）优先级更高；两者都没有 = v0。`scripts/run_town.sh --map v1` 同义；`scripts/world_reset.sh --map v1 --data <dir> --port <p> [-- run_town 其余参数]` 一键停实例 → 归档旧数据目录（`<dir>.v0-<时间戳>`）→ 空目录起新世界。
 
 **瘦身（W5 E③）：** `GET /world?fields=players,objects,worldState` 只回这些顶层键（可选值：`tiles` / `objects` / `worldState` / `players` / `tiled`），形状与全量相同（同一响应模型）；全量约 300 KB，`players,objects,worldState` 约 10 KB。`tiled`（**E⑤**）现在非空：`{tilesets: [Sunnyside 信息], layers: [ground, structures]}`，gid 映射为假设值，见 `scripts/gen_map.py` 的 `TILE_GIDS`（可用 `game/maps/tile_gids.json` 覆盖）。
@@ -1225,6 +1227,9 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `clear_cooldowns` | `player?` | 清物品冷却 / 使用计数与对话冷却 |
 | `give_item` | `player`, `item`, `qty?=1`, `meta?` | **W11 维护** 直接往背包放 `items.json` 里的物品（联调 buy / sell / store / give / QQ 发文件用）；满包 → 错 |
 | `produce` | `player`, `via?=fishing`, `item?=fish`, `qty?=1`, `object?` | **W11 维护** 模拟一次产出：加进背包 + ws `produce` 事件 + `external` `produce` 行（`scenario: true`）+ `pendingMessage`（联调产出气泡用） |
+| `move_object` | `id`, `to {x, y}`（或 `x`, `y`） | **X1 N5** 把物品挪到新左上角：目标脚印须全是当前可走格且没人站着；原地变地板、新地变物品格，`usePos` 跟着算；正在用的人被请离（`kicked[]`）；`worldState.mapVersion` 变（前端据此重拉 tiles / objects）。只改内存，重启或 `reset` 还原 |
+| `remove_object` | `id` | **X1 N5** 撤掉物品（脚下变地板），`/world.objects` 里消失；`restore_object` 放回原位（库存一起回来） |
+| `restore_object` | `id?` | 恢复：撤掉的放回、挪过的挪回；不给 `id` = 全部（`reset` 也会做）。恢复后 `mapVersion` 回到原值 |
 
 **可见性：** 每步写一条 `external` 日志（`kind: "scenario"`，含 label / step / op / args / result），`spawn / teleport / set_vars / effects / occupy / release` 另给受影响玩家立即写一行 state（`kind: "scenario"`）。回放把 scenario 行当外部输入重现。
 

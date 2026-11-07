@@ -62,6 +62,182 @@ def _initial_stock(obj_type: str) -> dict | None:
     return initial_stock(obj_type)
 
 
+# ── 运行时改物品（W11 维护：X1 N5「记忆过期」夹具）。只改内存：挪位 / 撤掉 / 恢复，重算 tiles / mapVersion；不进地图文件，重启即还原 ──
+_OBJ_ORIG_POS: dict[str, dict] = {}        # id -> 最初位置 {x, y}（restore 用）
+_REMOVED_OBJECTS: dict[str, dict] = {}     # id -> 撤掉的 raw inst
+
+
+def _object_char() -> str:
+    for ch, t in _TILE_CHARS.items():
+        if t == "object":
+            return ch
+    return "a"
+
+
+def _set_tile_char(x: int, y: int, ch: str) -> None:
+    row = _TILE_ROWS[y]
+    _TILE_ROWS[y] = row[:x] + ch + row[x + 1:]
+
+
+def _floor_char_near(x: int, y: int) -> str:
+    """物品挪走后脚下该是什么：取 4 邻里最近的可走格字符（同 arena 优先），兜底 'f'。"""
+    from collections import deque
+    arena = _ZONE_LOOKUP.get((x, y), {}).get("arena")
+    seen = {(x, y)}; q = deque([(x, y)]); fallback = None
+    while q:
+        cx, cy = q.popleft()
+        for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            nx, ny = cx + dx, cy + dy
+            if (nx, ny) in seen or not (0 <= nx < MAP_W and 0 <= ny < MAP_H):
+                continue
+            seen.add((nx, ny))
+            ch = _TILE_ROWS[ny][nx]
+            if TILE_TYPES.get(_TILE_CHARS.get(ch, "grass"), {}).get("walkable_default"):
+                if _ZONE_LOOKUP.get((nx, ny), {}).get("arena") == arena:
+                    return ch
+                fallback = fallback or ch
+            if len(seen) > 400:
+                break
+            q.append((nx, ny))
+    return fallback or "f"
+
+
+def _rebuild_objects_keep_runtime() -> None:
+    old = {o["id"]: o for o in _OBJECTS}
+    _OBJECTS[:] = _build_objects(_OBJECTS_RAW)
+    for o in _OBJECTS:
+        po = old.get(o["id"])
+        if po is not None:
+            o["userList"] = list(po["userList"]); o["currentUsers"] = po["currentUsers"]
+            if po.get("stock") is not None:
+                o["stock"] = dict(po["stock"])
+    _TILES[:] = _generate_tiles()
+    _TILE_LOOKUP.clear(); _TILE_LOOKUP.update({(t["x"], t["y"]): t for t in _TILES})
+    global MAP_VERSION
+    MAP_VERSION = _compute_map_version()
+    refresh_shop_views()
+    for p in _players.values():
+        _ensure_valid_position(p)
+
+
+def _kick_users(obj: dict) -> list[str]:
+    kicked = []
+    for uid in list(obj["userList"]):
+        if uid in _players:
+            leave_object(uid); kicked.append(uid)
+    obj["userList"] = []; obj["currentUsers"] = 0
+    return kicked
+
+
+def _footprint(obj_type: str, x: int, y: int) -> list[tuple[int, int]]:
+    w, h = OBJECT_TYPES[obj_type]["size"]
+    return [(x + dx, y + dy) for dy in range(h) for dx in range(w)]
+
+
+def move_object(obj_id: str, x: int, y: int) -> dict:
+    """把物品挪到 (x, y)（左上角）。目标脚印必须全部是当前可走格且没人站着（或是它自己原来的格）。返回 {id, from, to, kicked}。"""
+    with STATE_LOCK:
+        obj = get_object_by_id(obj_id)
+        if obj is None:
+            raise ValueError(f"object not found: {obj_id}")
+        own = {(t["x"], t["y"]) for t in obj["tiles"]}
+        occupied = {(p["position"]["x"], p["position"]["y"]) for p in _players.values()}
+        for tx, ty in _footprint(obj["type"], x, y):
+            if not (0 <= tx < MAP_W and 0 <= ty < MAP_H):
+                raise ValueError(f"target tile ({tx},{ty}) out of map")
+            if (tx, ty) not in own and not is_tile_walkable(tx, ty):
+                raise ValueError(f"target tile ({tx},{ty}) not walkable")
+            if (tx, ty) in occupied:
+                raise ValueError(f"player standing at ({tx},{ty})")
+        kicked = _kick_users(obj)
+        frm = dict(obj["position"])
+        _OBJ_ORIG_POS.setdefault(obj_id, frm)
+        for tx, ty in own:
+            _set_tile_char(tx, ty, _floor_char_near(tx, ty))
+        for tx, ty in _footprint(obj["type"], x, y):
+            _set_tile_char(tx, ty, _object_char())
+        for inst in _OBJECTS_RAW:
+            if inst["id"] == obj_id:
+                inst["position"] = {"x": x, "y": y}
+        _rebuild_objects_keep_runtime()
+        return {"id": obj_id, "from": frm, "to": {"x": x, "y": y}, "kicked": kicked, "mapVersion": MAP_VERSION}
+
+
+def remove_object(obj_id: str) -> dict:
+    """撤掉物品（脚下变地板）。返回 {id, position, kicked}。"""
+    with STATE_LOCK:
+        obj = get_object_by_id(obj_id)
+        if obj is None:
+            raise ValueError(f"object not found: {obj_id}")
+        kicked = _kick_users(obj)
+        _OBJ_ORIG_POS.setdefault(obj_id, dict(obj["position"]))
+        for t in obj["tiles"]:
+            _set_tile_char(t["x"], t["y"], _floor_char_near(t["x"], t["y"]))
+        inst = next(i for i in _OBJECTS_RAW if i["id"] == obj_id)
+        _REMOVED_OBJECTS[obj_id] = {**inst, "_stock": obj.get("stock"), "_index": _OBJECTS_RAW.index(inst)}   # 记原顺序：mapVersion 指纹按顺序算
+        _OBJECTS_RAW[:] = [i for i in _OBJECTS_RAW if i["id"] != obj_id]
+        _rebuild_objects_keep_runtime()
+        return {"id": obj_id, "position": dict(obj["position"]), "kicked": kicked, "mapVersion": MAP_VERSION}
+
+
+def restore_object(obj_id: str | None = None) -> dict:
+    """恢复：撤掉的放回原位、挪过的挪回原位；不给 id = 全部。返回 {restored: [...]}。"""
+    with STATE_LOCK:
+        ids = [obj_id] if obj_id else sorted(set(_REMOVED_OBJECTS) | set(_OBJ_ORIG_POS))
+        done = []
+        for oid in ids:
+            if oid in _REMOVED_OBJECTS:
+                inst = _REMOVED_OBJECTS.pop(oid); stock = inst.pop("_stock", None); idx = inst.pop("_index", len(_OBJECTS_RAW))
+                pos = _OBJ_ORIG_POS.get(oid, inst["position"])
+                inst["position"] = dict(pos)
+                for tx, ty in _footprint(inst["type"], pos["x"], pos["y"]):
+                    _set_tile_char(tx, ty, _object_char())
+                _OBJECTS_RAW.insert(min(idx, len(_OBJECTS_RAW)), inst)
+                _rebuild_objects_keep_runtime()
+                if stock is not None:
+                    get_object_by_id(oid)["stock"] = stock; refresh_shop_views()
+                _OBJ_ORIG_POS.pop(oid, None); done.append(oid)
+            elif oid in _OBJ_ORIG_POS:
+                pos = _OBJ_ORIG_POS[oid]
+                cur = get_object_by_id(oid)
+                if cur is not None and (cur["position"]["x"], cur["position"]["y"]) != (pos["x"], pos["y"]):
+                    move_object(oid, pos["x"], pos["y"])
+                _OBJ_ORIG_POS.pop(oid, None); done.append(oid)
+        return {"restored": done, "mapVersion": MAP_VERSION}
+
+
+def path_query(start: tuple[int, int], goals: set[tuple[int, int]], mover: dict | None = None,
+               ignore_locks: bool = False) -> dict:
+    """任意两格（或到一组目标格）的 BFS 长度（走 edges，按当前游戏时刻的门禁）。"""
+    path = bfs_path(start, goals, mover=mover, ignore_locks=ignore_locks)
+    if path is None:
+        return {"reachable": False, "length": None, "path": None}
+    return {"reachable": True, "length": len(path), "path": [{"x": x, "y": y} for x, y in path]}
+
+
+def goal_tiles_for(to: tuple[int, int] | None = None, to_object: str | None = None, to_arena: str | None = None) -> set[tuple[int, int]]:
+    """目标格集合：某格 / 某物品的使用站位（usePos 或相邻可走格）/ 某 arena 全部可走格。"""
+    if to is not None:
+        return {to}
+    if to_object:
+        o = get_object_by_id(to_object)
+        if o is None:
+            return set()
+        if o.get("usePos"):
+            walk = {(s["x"], s["y"]) for s in o["usePos"] if is_tile_walkable(s["x"], s["y"])}
+            if walk:
+                return walk                      # 桌类：站位在物品旁；床 / 沙发的站位就是物品格（不可走）→ 落到下面取相邻格
+        goals = set()
+        for t in o["tiles"]:
+            for dx, dy in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+                if is_tile_walkable(t["x"] + dx, t["y"] + dy):
+                    goals.add((t["x"] + dx, t["y"] + dy))
+        return goals
+    if to_arena:
+        return {(t["x"], t["y"]) for t in _TILES if t["walkable"] and t.get("arena") == to_arena}
+    return set()
+
+
 def _shop_listing(obj_type: str, stock: dict | None = None) -> list[dict] | None:
     from game.economy import shop_listing
     rows = shop_listing(obj_type, stock)
@@ -1394,6 +1570,9 @@ def _reset_for_tests() -> None:
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
         _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear(); _pre_use_pos.clear(); _use_start_game_ts.clear()
+        if _REMOVED_OBJECTS or _OBJ_ORIG_POS:
+            restore_object()
+        _REMOVED_OBJECTS.clear(); _OBJ_ORIG_POS.clear()
         for o in _OBJECTS:
             o["stock"] = _initial_stock(o["type"])
         refresh_shop_views()
