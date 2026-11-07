@@ -1,8 +1,49 @@
-分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `1bfe54d`。只改了 `front_end/`。截图在 `front_end/report_shots/`。
+分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `41b42dd`。只改了 `front_end/`。截图在 `front_end/report_shots/`（v1 地图评审包在 `report_shots/v1map/`）。
 
 ---
 
-# W6 · 2026-11-06：维护节奏第 1 轮 + Q0 她的脑子 + Q1 回顾视频
+# W7 · 2026-11-07：世界 v1.0 地图呈现（按区域取景、二楼、锁门、评审包）
+
+## 1. 进度
+
+| # | 任务 | 状态 | 做了什么 |
+|---|---|---|---|
+| 1 | 按区域取景 | 完成 | 跟随目标（或操控的自己）所在格属于室内 sector 时：相机推近到「该 sector 同一楼层的包围盒 + 1 格」（zoom 吸附到 1/6 倍数，上限 1.5）、屋外用深色遮罩压暗（4 块矩形围住包围盒，0.42 s 渐变），相机中心限制在屋内不露屋外；出门还原到默认 zoom、遮罩渐隐。`&scene=world` 关掉。**回放页同样**：她在室内时地图上屋外压暗（不推近，整图保持可读）。实测主镇：阿蝉在小仓库 → 推近到阿蝉家、外面压暗（`focus_indoor`）；走到街道 → 还原（`focus_outdoor`） |
+| 2 | 二楼 | 完成 | 按 B 格式 v2 的 `map.floors`（`{achan_room: 2}`）与 `tiles[].floor`：楼层进区域名（「合租房 · 阿蝉房间（2F）· 2F」）、取景包围盒按楼层算（上楼只框 2F 那块），楼梯边（`kind: stairs`，a/b 两格）两端画楼梯图示 + 「1F↔2F」。2F 在 B 的画布上是另一处（不叠在 1F 上），所以不需要图层开关 |
+| 3 | 锁门 | 完成 | 门 / 校门边（`kind: door|gate`）带 `open_hours` 的，在时段外画成关着的门 + 「🔒 开 HH:MM–HH:MM」；场所 `access.locked` 为时段或 `always` 的，门口画「🔒 锁 HH:MM–HH:MM（场所名）」/「🔒 常锁（渔夫的卧室）」；每分钟按游戏时间刷新。ws `action` 事件 `reason` 含 `lock` 时在她头顶出气泡「咚咚咚……门锁着呢」4 s（B 的 `locked` 原因落地后自动生效，未实测） |
+| 4 | 视觉评审包 | 完成（待主播定） | `tools/v1map_review.mjs --api http://127.0.0.1:8091` 一条命令：自己起临时 Vite、读 `/world` 挑 sector / arena、出 6 张 1920×1080 截图 + 30 s 旁观录屏 → `report_shots/v1map/`：`01_overview`（全景 64×48，1/6 zoom 正好 1024×768 居中）、`02_house_1f`、`03_house_2f`、`04_campus`、`05_square`、`06_dock`、`spectate_30s.webm`。8091 草图镇当时没有 agent，录屏是全景无人物。**主播看后定 64×48 够不够** |
+| 5 | UI 位置草图 | 完成 | `report_shots/v1map/ui_sketch_qq_wallet.png`：在 1920×1080 旁观画面上标出现有元素（stats / 时钟 / 信息面板 / 字幕 / 游戏机小窗 / Live2D 安全区）和新增位置——A 金币 + 背包（信息面板右侧，6 格）、B QQ 面板（右上时钟下、游戏机小窗同位，最近 5 条消息；`layout=live` 时收成小图标）、C 锁门 / 敲门提示、D 区域 / 楼层标签 |
+
+## 2. 对接 B 的地图格式 v2（真实形状，11-07 8091 读到）
+
+`/world.map = { format: 2, edges: [{ id, kind: gate|door|stairs, name, a: {arena,x,y}, b: {arena,x,y}, open_hours: [["06:00","23:00"]] }], floors: { achan_room: 2 }, access: { <arena>: { owner: [...], locked: "always" | [["09:00","18:30"]], allow_when_locked: [] } } }`，另有 `zone_names`。前端 `src/game/map/mapv2.ts` 宽容解析（同时接受我之前猜的几种写法），门画在 b（内侧）格；`open_hours` 多段时只用第一段（**假设**）。`zone_names` 现在直接用 `/world` 给的，`zones.ts` 的内置表只作兜底。
+
+**B 把 `tile_gids.json` 用上了**（tileset 已是 `gen/tiles.png`，6 个按类型的 gid）。但按类型的 gid 画不出街道 / 广场 / 公园 / 码头 / 厨房瓷砖 / 餐厅红毯，所以前端**首选按「类型 + arena」的自制地砖渲染**，B 的 tiled 层只作兜底。新增 arena 映射：`street` / `lane` → 街道，`campus` → 石板，其余沿用。
+
+v1.0 的新物品（pc / pc_desk / pc_music / classroom_desk / reading_desk / shelf / stove / sofa_tv / bar / boat / fish_stall / notice_board / piano / fountain）各给了一张自制图（船、鱼摊、公告栏、钢琴、喷泉新画，其余复用近似物），画面里 **0 个占位块**。
+
+## 3. 评审包观感（给主播定规模的参考）
+
+- 64×48 在 1920×1080 全景只能用 1/6 zoom（1024×768，占屏 53%），房子里的物品能认出来、人物是 6 px 小点；进屋取景后 1 栋房子铺满画面，物品 / 人物清楚。再大（80×60）全景就得滚动或拆成两屏；再小（48×36）全景可到 2/6 但室内会挤。
+- 街道两格宽、校园石板、广场喷泉 + 长椅、公园树丛、码头两钓位 + 船 + 鱼摊、河 6 格宽，层次分得开；合租房 1F 三间 + 2F 一间（2F 画在左下另一处，靠楼梯图示提示）。
+- 没放人物（8091 无 agent），人物比例与 W4–W6 截图一致（16×24 帧 ×4 = 一格高 2/3 格宽）。
+
+## 4. 给其他会话
+
+1. **B**：① `locked` 原因落到 `POST /action` / ws `action` 事件的 `reason` 里时请含 `lock` 字样（我按 `/lock/i` 匹配）；② `open_hours` 多段我只画第一段，若餐厅 11–14 / 17–21 两段都要显示请知会；③ 2F 画在另一处很好，不需要改。
+2. **总控**：运行台 5173 可切到 `84ed9cd`（主镇不受影响：主镇没有 `map.format 2`，只是多了室内取景与字幕只跟鲸仔）；评审包随本提交进仓库。
+
+## 5. 提交号
+
+| 项 | 值 |
+|---|---|
+| 代码 | `whale-frontend` @ `84ed9cd`（基于 B 的 `41b42dd`） |
+| 新增参数 | `&scene=world`（关取景）、`&focus=<sector或arena>[:floor]`（不跟人直接取景，评审截图用） |
+| 新增文件 | `src/game/map/mapv2.ts`、`src/game/systems/SceneFocus.ts`、`tools/v1map_review.mjs`、`report_shots/v1map/*`、新物品图 |
+
+---
+
+# W6 · 2026-11-06：维护节奏第 1 轮 + Q0 她的脑子 + Q1 回顾视频（原报告）
 
 ## 每天一轮
 
