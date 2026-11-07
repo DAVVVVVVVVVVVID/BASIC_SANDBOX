@@ -12,6 +12,8 @@ import { loadAiManifest } from '../game/aiAssets'
 import WorldInfoPanel from '../ui/WorldInfoPanel'
 import SpectateHud from './SpectateHud'
 import QQPanel from '../ui/QQPanel'
+import SpectateControls from './SpectateControls'
+import { EventBus } from '../game/EventBus'
 import { resolveFollowTarget } from '../game/systems/TickSystem'
 
 /** 旁观页的 QQ：跟随目标（鲸仔）的手机，只读；右上角时钟下方 */
@@ -31,6 +33,8 @@ export default function SpectateApp() {
   const gameRef = useRef<Phaser.Game | null>(null)
   const [phase, setPhase] = useState<'connecting' | 'running'>('connecting')
   const [attempt, setAttempt] = useState(0)
+  const [liveFollow, setLiveFollow] = useState<string | null>(params.follow)
+  useEffect(() => { const h = (s: { follow: string | null }) => setLiveFollow(s.follow); EventBus.on('spectate-state', h); return () => { EventBus.off('spectate-state', h) } }, [])
 
   useEffect(() => {
     const store = useGameStore.getState()
@@ -106,10 +110,11 @@ export default function SpectateApp() {
       {params.hud && phase === 'running' && (
         <>
           <WorldInfoPanel />
-          <SpectateHud follow={params.follow} />
+          <SpectateHud follow={liveFollow} />
         </>
       )}
-      {params.qq && params.follow && phase === 'running' && <SpectateQQ follow={params.follow} compact={params.layout === 'live' || !params.hud} />}
+      {params.qq && liveFollow && phase === 'running' && <SpectateQQ follow={liveFollow} compact={params.layout === 'live' || !params.hud} />}
+      {params.hud && params.layout !== 'live' && phase === 'running' && <SpectateControls initialMode={params.mode} initialFollow={params.follow} />}
     </div>
   )
 }

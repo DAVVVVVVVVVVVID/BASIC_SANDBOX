@@ -19,7 +19,16 @@ const MINIMAP_MAX_H  = 160
 const BORDER_RADIUS  = 6
 const PADDING        = 8
 
-export default function Minimap() {
+interface Props {
+  /** W9 任务 0：旁观页用——点一格跳过去；viewport = 当前镜头覆盖的格（画白框） */
+  onClickTile?: (x: number, y: number) => void
+  viewport?: { x0: number; y0: number; x1: number; y1: number } | null
+  followId?: string | null
+  /** 旁观页：在面板内部排版（不用 fixed 居右） */
+  inline?: boolean
+}
+
+export default function Minimap({ onClickTile, viewport, followId, inline }: Props = {}) {
   const tiles  = useGameStore((s) => s.tiles)
   const player = useGameStore((s) => s.player)
   const players = useGameStore((s) => s.players)
@@ -67,7 +76,7 @@ export default function Minimap() {
 
     for (const op of players) {
       if (op.id === myId) continue
-      ctx.fillStyle = OTHER_COLOR
+      ctx.fillStyle = op.id === followId ? PLAYER_COLOR : OTHER_COLOR
       ctx.globalAlpha = op.online === false ? 0.4 : 1
       ctx.beginPath()
       ctx.arc(op.position.x * cell + cell / 2, op.position.y * cell + cell / 2, Math.max(2, cell * 0.6), 0, Math.PI * 2)
@@ -84,12 +93,21 @@ export default function Minimap() {
       ctx.arc(px, py, r, 0, Math.PI * 2)
       ctx.fill()
     }
-  }, [tiles, player, players, myId, canvasW, canvasH, cell, mapW])
+    if (viewport) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 1.5
+      ctx.strokeRect(viewport.x0 * cell, viewport.y0 * cell, (viewport.x1 - viewport.x0) * cell, (viewport.y1 - viewport.y0) * cell)
+    }
+  }, [tiles, player, players, myId, canvasW, canvasH, cell, mapW, viewport, followId])
 
   if (mapW === 0) return null
 
+  const onClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!onClickTile) return
+    const r = e.currentTarget.getBoundingClientRect()
+    onClickTile(Math.floor((e.clientX - r.left) / cell), Math.floor((e.clientY - r.top) / cell))
+  }
   return (
-    <div style={{
+    <div style={inline ? { background: 'rgba(0,0,0,0.65)', borderRadius: BORDER_RADIUS, padding: 4, border: '1px solid rgba(255,255,255,0.15)', display: 'inline-block' } : {
       position: 'fixed',
       top: '50%',
       right: PADDING,
@@ -98,9 +116,9 @@ export default function Minimap() {
       borderRadius: BORDER_RADIUS,
       padding: 4,
       border: '1px solid rgba(255,255,255,0.15)',
-      pointerEvents: 'none',
+      pointerEvents: onClickTile ? 'auto' : 'none',
     }}>
-      <canvas ref={canvasRef} width={canvasW} height={canvasH} />
+      <canvas ref={canvasRef} width={canvasW} height={canvasH} onClick={onClick} style={{ cursor: onClickTile ? 'crosshair' : 'default', display: 'block' }} />
     </div>
   )
 }

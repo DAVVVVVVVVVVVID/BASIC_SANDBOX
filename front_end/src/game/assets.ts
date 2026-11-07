@@ -40,7 +40,7 @@ export const OBJ_KEYS = [
 export const objTextureKey = (type: string) => `objgen_${type}`
 export const charTextureKey = (key: CharKey) => `char_${key}`
 
-const NPC_POOL: CharKey[] = ['cook', 'grocer', 'fisher', 'regular', 'villager']
+const NPC_POOL: CharKey[] = ['cook', 'grocer', 'fisher', 'regular']   // 主播 11-07 评分：「为什么会有村民」→ villager 下线，不再分给任何人
 
 /** 按名字 / 身份挑角色外观：鲸仔、阿蝉固定，NPC 先按关键词，否则按名字哈希稳定分配 */
 export function charKeyFor(name: string, controller?: string): CharKey {

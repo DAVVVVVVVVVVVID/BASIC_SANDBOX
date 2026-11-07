@@ -14,7 +14,10 @@ import { preloadGenAssets, createGenAnimations, charKeyFor } from '../assets'
 import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
 import { preloadAiAssets, getAiManifest, aiBackdropKey, aiEnabled, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
-import { arenaBBox } from '../map/mapv2'
+import { arenaBBox, isIndoor } from '../map/mapv2'
+
+/** 自由镜头命令（React 控件 / 小地图 / 画布点击 → 场景） */
+export type FreeCmd = { cmd: 'free' } | { cmd: 'world' } | { cmd: 'follow'; id: string } | { cmd: 'jump'; x: number; y: number } | { cmd: 'enter'; sector: string; floor: number } | { cmd: 'exit' }
 import { itemMeta } from '../items'
 import DecoLayer from '../systems/DecoLayer'
 import type { PoseAnchor, PoseAnchors } from '../objects/ActorSprite'
@@ -168,7 +171,12 @@ export default class GameScene extends Phaser.Scene {
   private camX = 0
   private camY = 0
   private currentZoom = 1
-  private camMode: 'follow' | 'pan' = 'follow'
+  private camMode: 'follow' | 'pan' | 'free' = 'follow'
+  /** W9 任务 0 自由镜头 */
+  private freeZoom = FOLLOW_ZOOM
+  private drag: { x: number; y: number; moved: boolean } | null = null
+  private keys: Record<string, Phaser.Input.Keyboard.Key> | null = null
+  private lastCamEmit = 0
   private targetId: string | null = null
   private targetLostAt = 0
   private lastTargetPx: { x: number; y: number } | null = null
@@ -233,6 +241,8 @@ export default class GameScene extends Phaser.Scene {
       cam.setZoom(this.panZoom)
       this.camX = this.mapPx.w / 2; this.camY = this.mapPx.h / 2
       cam.centerOn(this.camX, this.camY)
+      this.setupFreeCamera()
+      if (this.params?.mode === 'free') this.enterFree()
     }
 
     // ── store 订阅 ──
@@ -273,7 +283,16 @@ export default class GameScene extends Phaser.Scene {
     this.on('action-event', (msg: import('../../types').WsAction) => {
       if (!msg.entity) return
       const push = (t: string, ms = 4000) => useGameStore.getState().pushBubble(msg.entity, t, ms)
-      if (msg.reason && /lock/i.test(msg.reason)) { push('咚咚咚……门锁着呢'); return }
+      // §3.36（B 910506f）：无路统一 reason no_path，锁门 / 关门在 blocked_reason（人类单格 direction 仍直接 locked / closed）
+      const ext = msg as unknown as { blocked_reason?: string; outcome?: string; result?: { blocked_reason?: string; opens_at?: string | null } ; opens_at?: string | null }
+      const br = ext.blocked_reason ?? ext.result?.blocked_reason ?? msg.reason ?? ''
+      if (/lock/i.test(br)) { push('咚咚咚……门锁着呢'); return }
+      if (/^closed$/i.test(br)) { push(`🚪 还没开门${ext.opens_at ?? ext.result?.opens_at ? `（${ext.opens_at ?? ext.result?.opens_at} 开）` : ''}`); return }
+      if ((msg.action ?? '') === 'move_done') {
+        if (ext.outcome === 'blocked') push(br === 'no_path' ? '🚧 这边走不过去' : '🚧 被挡住了')
+        return
+      }
+      if (!msg.success && msg.reason === 'walking') { push('🚶 还在走呢，先到地方再说'); return }
       // W9 任务 3：买 / 吃 / 送 / 卖的反馈气泡（字段 item / price / gold_delta / target_name 是假设，缺了就只说动作）
       const a = (msg.action ?? '').toLowerCase()
       // W11 新失败原因（use / buy）
@@ -322,6 +341,7 @@ export default class GameScene extends Phaser.Scene {
       keys: () => this.inputSystem?.debugKeys() ?? null,
       focusLabels: () => this.focus?.debugLabels() ?? [],
       zoom: () => this.cameras.main.zoom,
+      state: () => ({ camMode: this.camMode, focus: this.params?.focus ?? null, follow: this.params?.follow ?? null, keyboard: !!this.input.keyboard }),
       setFocus: (sector: string | null, floor = 1) => { if (this.params) this.params.focus = sector ? { sector, floor } : null },   // W9 任务 4 录屏：运行时切取景
       others: () => [...this.others.entries()].map(([id, s]) => ({ id, px: s.getPixelPosition(), tile: s.getTile(), moving: s.isMoving() })),
     }
@@ -540,12 +560,17 @@ export default class GameScene extends Phaser.Scene {
       } else {
         const end = s.getPathEnd()
         if (end.x !== op.position.x || end.y !== op.position.y) {
-          const cur = s.getTile()
-          const dist = Math.abs(cur.x - op.position.x) + Math.abs(cur.y - op.position.y)
-          if (dist > 12) s.snapTo(op.position, op.facing)                       // 瞬移 / 重生：直接贴
-          else for (const p of this.pathBetween(end, op.position)) s.pushWaypoint(p)  // 在现有路径末端续接
+          // W9 任务 0b（§3.36）：服务器 1 格 / 游戏秒逐格推进，前端只续接相邻一格；跨 ≥ 2 格（瞬移 / 重生 / 漏 tick）直接贴齐，不再「先横后竖」猜路（会穿墙）
+          const dist = Math.abs(end.x - op.position.x) + Math.abs(end.y - op.position.y)
+          if (dist === 1) s.pushWaypoint(op.position)
+          else s.snapTo(op.position, op.facing)
         }
         if (!s.isMoving()) s.setFacing(op.facing)
+      }
+      {
+        const speed = useGameStore.getState().worldState?.speed || 1
+        s.setStepMs(op.controller === 'human' ? 300 : 1000 / speed)
+        s.setServerWalking(op.state === 'walking' || op.state === 'walking_over')
       }
       s.setDimmed(op.online === false)
       s.setStateLabel(deriveStateLabel(op, objects))
@@ -558,14 +583,6 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /** 从 from（不含）到 to 的网格路点：曼哈顿折线（先横后竖），不做寻路（后端已保证合法） */
-  private pathBetween(from: Position, to: Position): Position[] {
-    const pts: Position[] = []
-    let x = from.x, y = from.y
-    while (x !== to.x) { x += Math.sign(to.x - x); pts.push({ x, y }) }
-    while (y !== to.y) { y += Math.sign(to.y - y); pts.push({ x, y }) }
-    return pts
-  }
-
   private syncVars() {
     const { playerVars } = useGameStore.getState()
     // 有信息面板时跟随目标的数值在面板里，头顶不再重复画小条；bars=all 仍画全员
@@ -645,7 +662,130 @@ export default class GameScene extends Phaser.Scene {
 
   // ── 相机（旁观） ──────────────────────────────────────────────────────────────
 
+  // ── 自由镜头（W9 任务 0）──────────────────────────────────────────────────────
+
+  private setupFreeCamera() {
+    const cam = this.cameras.main
+    this.keys = this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC') as Record<string, Phaser.Input.Keyboard.Key> | null
+    this.input.keyboard?.on('keydown-ESC', () => this.freeCmd({ cmd: 'exit' }))
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { this.drag = { x: p.x, y: p.y, moved: false } })
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (!this.drag || !p.isDown) return
+      const dx = p.x - this.drag.x, dy = p.y - this.drag.y
+      if (!this.drag.moved && Math.hypot(dx, dy) < 5) return
+      if (!this.drag.moved) { this.drag.moved = true; if (this.camMode !== 'free') this.enterFree() }
+      this.camX -= dx / cam.zoom; this.camY -= dy / cam.zoom
+      this.drag.x = p.x; this.drag.y = p.y
+    })
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      const d = this.drag; this.drag = null
+      if (!d || d.moved) return
+      this.clickAt(p)
+    })
+    this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, deltaY: number) => {
+      if (this.camMode !== 'free') this.enterFree()
+      const before = cam.getWorldPoint(p.x, p.y)
+      const z = snapZoom(Phaser.Math.Clamp(this.freeZoom + (deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP), MIN_ZOOM, MAX_ZOOM))
+      if (z === this.freeZoom) return
+      this.freeZoom = z; cam.setZoom(z)
+      const after = cam.getWorldPoint(p.x, p.y)
+      this.camX += before.x - after.x; this.camY += before.y - after.y   // 以鼠标为中心缩放
+      this.centerClamped(this.camX, this.camY)
+    })
+    this.on('spectate-cmd', (c: FreeCmd) => this.freeCmd(c))
+  }
+
+  /** 切到自由镜头：保留当前镜头中心与 zoom */
+  private enterFree() {
+    const cam = this.cameras.main
+    this.camX = cam.midPoint.x; this.camY = cam.midPoint.y
+    this.freeZoom = snapZoom(Phaser.Math.Clamp(cam.zoom, MIN_ZOOM, MAX_ZOOM))
+    cam.setZoom(this.freeZoom)
+    this.camMode = 'free'
+    if (this.params) this.params.follow = null
+    this.targetId = null; this.lastTargetPx = null; this.focusZoom = null
+    this.syncVars(); this.emitSpectateState()
+  }
+
+  private freeCmd(c: FreeCmd) {
+    if (!this.params) return
+    const cam = this.cameras.main
+    switch (c.cmd) {
+      case 'free': this.enterFree(); this.params.focus = null; break
+      case 'world': this.params.follow = null; this.params.focus = null; this.camMode = 'pan'; this.focusZoom = null; cam.zoomTo(this.panZoom, 600, 'Sine.easeInOut', true); break
+      case 'follow': this.params.focus = null; this.params.follow = c.id; this.camMode = 'follow'; this.focusZoom = this.followZoom; cam.zoomTo(this.followZoom, 500, 'Sine.easeInOut', true); break
+      case 'jump': if (this.camMode !== 'free') this.enterFree(); this.camX = (c.x + 0.5) * TILE_SIZE; this.camY = (c.y + 0.5) * TILE_SIZE; this.params.focus = null; break
+      case 'enter': if (this.camMode !== 'free') this.enterFree(); this.params.focus = { sector: c.sector, floor: c.floor }; break
+      case 'exit':
+        if (this.params.focus) { this.params.focus = null; if (this.camMode !== 'free') this.enterFree() }
+        else if (this.camMode === 'follow') this.enterFree()
+        break
+    }
+    this.emitSpectateState()
+  }
+
+  /** 点一下：点到人 → 跟随；点到室内格 → 进那栋楼（含 2F）；在屋里点屋外 → 回小镇 */
+  private clickAt(p: Phaser.Input.Pointer) {
+    if (this.mode !== 'spectate') return
+    const w = this.cameras.main.getWorldPoint(p.x, p.y)
+    for (const [id, s] of this.others) { if (s.containsPoint(w.x, w.y)) { this.freeCmd({ cmd: 'follow', id }); return } }
+    const tx = Math.floor(w.x / TILE_SIZE), ty = Math.floor(w.y / TILE_SIZE)
+    const t = this.tileIndex.get(`${tx},${ty}`)
+    if (t && isIndoor(t) && t.sector) {
+      const floor = this.focus?.floorOf(t) ?? 1
+      const cur = this.params?.focus
+      if (cur && cur.sector === t.sector && cur.floor === floor) return
+      this.freeCmd({ cmd: 'enter', sector: t.sector, floor })
+    } else if (this.params?.focus) {
+      this.freeCmd({ cmd: 'exit' })
+    }
+  }
+
+  private emitSpectateState() {
+    EventBus.emit('spectate-state', { mode: this.camMode === 'pan' ? 'world' : this.camMode, follow: this.params?.follow ?? null, focus: this.params?.focus ?? null })
+  }
+
+  private updateFreeCamera(dt: number) {
+    const cam = this.cameras.main
+    // WASD / 方向键平移（屏幕像素速度恒定）
+    if (this.keys) {
+      const v = 900 / cam.zoom * dt / 1000
+      if (this.keys.W?.isDown || this.keys.UP?.isDown) this.camY -= v
+      if (this.keys.S?.isDown || this.keys.DOWN?.isDown) this.camY += v
+      if (this.keys.A?.isDown || this.keys.LEFT?.isDown) this.camX -= v
+      if (this.keys.D?.isDown || this.keys.RIGHT?.isDown) this.camX += v
+    }
+    let focusTile: Position | null = null
+    if (this.params?.focus) {
+      const c = this.focus.sectorCenter(this.params.focus.sector, this.params.focus.floor)
+      if (c) focusTile = c
+    }
+    const fr = this.focus.update(focusTile, dt, useGameStore.getState().worldState)
+    this.applyView(fr.indoor ? this.insideKeyAt(focusTile) : null)
+    if (fr.indoor && focusTile) {
+      const want = fr.zoom ?? this.freeZoom
+      if (fr.transition) { this.doorTransition(fr.transition, want, fr.label); this.camX = (focusTile.x + 0.5) * TILE_SIZE; this.camY = (focusTile.y + 0.5) * TILE_SIZE }
+      else if (want !== this.focusZoom && !this.transitioning) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
+      const c0 = this.focus.clampCenter(this.camX, this.camY, cam.zoom)
+      this.camX = c0.x; this.camY = c0.y
+      this.centerClamped(c0.x, c0.y)
+    } else {
+      if (fr.transition) this.doorTransition(fr.transition, this.freeZoom, fr.label)
+      else if (!this.transitioning && Math.abs(cam.zoom - this.freeZoom) > 1e-4 && this.focusZoom !== this.freeZoom) { this.focusZoom = this.freeZoom; cam.zoomTo(this.freeZoom, 200, 'Sine.easeInOut', true) }
+      this.centerClamped(this.camX, this.camY)
+      // clamp 后把中心写回，免得按住键一直往外推
+      this.camX = cam.midPoint.x; this.camY = cam.midPoint.y
+    }
+    const now = performance.now()
+    if (now - this.lastCamEmit > 120) {
+      this.lastCamEmit = now
+      const vw = cam.width / cam.zoom / TILE_SIZE, vh = cam.height / cam.zoom / TILE_SIZE
+      EventBus.emit('spectate-camera', { x0: cam.midPoint.x / TILE_SIZE - vw / 2, y0: cam.midPoint.y / TILE_SIZE - vh / 2, x1: cam.midPoint.x / TILE_SIZE + vw / 2, y1: cam.midPoint.y / TILE_SIZE + vh / 2 })
+    }
+  }
+
   private updateSpectateCamera(time: number, dt: number) {
+    if (this.camMode === 'free') { this.updateFreeCamera(dt); return }
     const { players, playerVars } = useGameStore.getState()
     const target = resolveFollowTarget(players, this.params?.follow ?? null)
     const alive = !!target && target.online !== false && this.others.has(target.id)
@@ -711,6 +851,12 @@ export default class GameScene extends Phaser.Scene {
     const c = fr.indoor ? this.focus.clampCenter(this.camX, this.camY, cam.zoom) : { x: this.camX, y: this.camY }
     this.centerClamped(c.x, c.y)
     void playerVars
+    const now = performance.now()
+    if (now - this.lastCamEmit > 120) {
+      this.lastCamEmit = now
+      const vw = cam.width / cam.zoom / TILE_SIZE, vh = cam.height / cam.zoom / TILE_SIZE
+      EventBus.emit('spectate-camera', { x0: cam.midPoint.x / TILE_SIZE - vw / 2, y0: cam.midPoint.y / TILE_SIZE - vh / 2, x1: cam.midPoint.x / TILE_SIZE + vw / 2, y1: cam.midPoint.y / TILE_SIZE + vh / 2 })
+    }
   }
 
   /** 居中到 (x, y)，但视野比地图小时不露出地图外的黑边；比地图大时居中整张图 */

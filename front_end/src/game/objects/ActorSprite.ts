@@ -145,6 +145,14 @@ export default class ActorSprite {
   /** 路径终点（没有路径时就是当前格） */
   getPathEnd(): Position { return this.path.length ? { ...this.path[this.path.length - 1] } : { ...this.tile } }
   isMoving() { return this.moving }
+  /** 像素点是否落在精灵身上（自由镜头点人跟随） */
+  containsPoint(x: number, y: number) { return this.sprite.visible && Phaser.Geom.Rectangle.Contains(this.sprite.getBounds(), x, y) }
+  /** W9 任务 0b：服务器说它在 walking（逐格推进）→ 路点空档也保持走路帧，不闪回待机 */
+  private serverWalking = false
+  setServerWalking(w: boolean) { if (w !== this.serverWalking) { this.serverWalking = w; if (!w && this.path.length === 0 && this.moving) { this.setMoving(false); this.idleAt = 0 } } }
+  /** 每格用时（ms）：人类键盘 300；agent 按服务器 1 格 / 游戏秒 × 镇倍速 */
+  private stepMs = BASE_STEP_MS
+  setStepMs(ms: number) { this.stepMs = Math.max(60, ms) }
 
   /** 追加一个相邻路点（预测步 / 轮询差分） */
   pushWaypoint(p: Position) {
@@ -223,7 +231,7 @@ export default class ActorSprite {
       }
 
       const catchup = this.path.length > CATCHUP_PATH ? Math.min(4, this.path.length / CATCHUP_PATH) : 1
-      const pxPerMs = (TILE_SIZE / BASE_STEP_MS) * Math.max(0.1, speedMul) * catchup
+      const pxPerMs = (TILE_SIZE / this.stepMs) * Math.max(0.1, speedMul) * catchup
       let budget = pxPerMs * dt
       const dist = Math.hypot(dx, dy)
       if (dist <= budget) {
@@ -247,8 +255,9 @@ export default class ActorSprite {
       this.idleAt = 0
     } else if (this.moving) {
       this.facingLocked = false
-      // 短暂滞后再切 idle，避免连走时帧间抖动
-      if (this.idleAt === 0) this.idleAt = _time + 90
+      // 短暂滞后再切 idle，避免连走时帧间抖动；服务器仍在 walking 时等下一格（最多 1.5 s）
+      const grace = this.serverWalking ? 1500 : 90
+      if (this.idleAt === 0) this.idleAt = _time + grace
       else if (_time >= this.idleAt) { this.setMoving(false); this.idleAt = 0 }
     }
     this.layout()

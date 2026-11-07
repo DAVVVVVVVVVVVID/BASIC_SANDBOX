@@ -1,4 +1,4 @@
-分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `e82ac17`（W10 已联调）。只改了 `front_end/`。截图在 `front_end/report_shots/`（W9 在 `report_shots/w9/`，美术在 `report_shots/v1art/`）。
+分支 `whale-frontend`，worktree `own-repos/BASIC_SANDBOX-fe/`，已 rebase 到 B 的 `489062a`（§3.36 `910506f` 之后；W10 / W11 / 走路都已联调）。只改了 `front_end/`。截图在 `front_end/report_shots/`（W9 在 `report_shots/w9/`，美术在 `report_shots/v1art/`）。
 
 ---
 
@@ -19,6 +19,37 @@
 **B 的 W11（`fc051f1`，只加字段）也接了**：ws `produce` 事件 → 头顶气泡「🎣 钓到了🐟鱼 / 🍳 做好了🍱便当 ×2 / 🎼 写完了🎵歌 / 🎬 做完了📄文稿」；ws `commission` 事件 → 鲸仔头顶「📋 新委托：餐厅老板想要《…》200 金币 / ✅ 交付了《…》+200 金币」；`use` / `buy` 新失败原因 `empty`（🧊 冰箱空了）/ `no_ingredients`（🥬 没有食材）/ `out_of_stock`（📦 卖完了）；`store` 成功气泡；商店列表显示 `shop[].stock`（实数）、0 时「卖完」并禁用买。B 随后加了 scenario op `produce` / `give_item` 与 `POST /admin/commission`，已实测：钓鱼产出 → 头顶「🎣 钓到了🐟鱼」+ 背包出现鱼（`W9_integ_w11_produce`）；往背包放一首歌 → QQ 面板下拉出现「🎵 歌（文件）」→ 发给阿蝉成功，inbox 里 `kind: file, file_ref.item: song`（`W9_integ_w11_qq_file`；第一次 422 是我把 `file_ref` 发成了字符串，按 B 的 schema 改成 `{item, name, meta}` 对象）；开委托 → 鲸仔头顶「📋 新委托：餐厅老板想要《店里要一首背景歌》 200 金币」（`W9_integ_w11_commission`，8091 没有鲸仔玩家，用名字带「鲸」的人类演示）。交付也测了（B 用 scenario `spawn` 造了餐厅老板实例）：开委托 → 背包放歌 → 传送到老板旁 → 点背包面板「送餐厅」→ 金币 300 → 488、歌离开背包、面板回显「完成委托《冒烟委托》，收到 188 金币」（匹配到的是沙盒每日自动开出的另一单，不是我那单 200 的）、头顶气泡（`W9_integ_w11_deliver`）。一个小瑕疵：give 的 action 气泡和 commission deliver 气泡几乎同时到，同一人头顶只留最后一条，所以截图里看到的是「把歌送给了餐厅老板」而不是「交付了…+188」；两条合并成一条留给下轮。`out_of_stock` / `empty` / `no_ingredients` 提示未实测。另修了一处：操控页 QQ 面板的背包下拉之前取的是渲染时的快照，不跟背包变化，改成订阅 store。
 
 **按 B 的差异表改的**：`usePos` 是绝对格数组 + `useFacing`（不是相对偏移）→ 坐姿交给服务器位置；ws `qq` 事件平铺且分 `event: message | read`（read 只刷状态）；`decor` 用 `kind` 字段、`tiles[]`；`shop[]` 另有 `sell`（收购价）。perceive 的 `phone` 形状变化与前端无关。
+
+## 0b. 总控追加（11-07 晚）：任务 0 自由镜头、0b 走路跟服务器、主播评分处理
+
+全部完成，截图 `report_shots/w9/W9_free_*.jpg`、`W9_rating_*.jpg`、录屏 `W9_walk_server_20s.webm`。主镇 8000（world-v1.0 地图、六个 agent）上验的，只读。
+
+**任务 0 自由镜头**（`/spectate?mode=free|follow|world`，默认有 `follow=` 就跟随、否则全景）
+
+| 操作 | 实现 | 验证 |
+|---|---|---|
+| 拖动平移 | 画布上按住拖（> 5 px 才算拖，否则算点击）；任何拖动 / 滚轮都从跟随 / 全景切到自由镜头，保留当前镜头中心与 zoom | `W9_free_2_drag` |
+| 滚轮缩放 | 以鼠标为中心缩放，档位沿用 `snapZoom`，边界 `centerClamped` | `W9_free_3_wheel_zoom` |
+| WASD / 方向键 | 900 px/s ÷ zoom | `W9_free_4_wasd` |
+| 小地图点哪跳哪 | 右下角内嵌小地图（`Minimap` 加 `inline / onClickTile / viewport`），画当前视口框 | `W9_free_5_minimap_jump` |
+| 点建筑进屋 | 点到室内格 → `focus={sector, floor}`，走任务 4 的进屋过渡；2F 按 `SceneFocus.floorOf` 判层；在屋里点屋外 / Esc / 「🚪 出」→ 回小镇 | `W9_free_6_click_enter_home` / `W9_free_7_esc_exit` |
+| 点角色跟随 | 点到人（`ActorSprite.containsPoint`）→ 跟随她；右下「跟随（点名字）」列表同样 | `W9_free_8_list_follow` |
+| 全景 | 「🗺 全景」按钮 → 原来的 pan 镜头 | `W9_free_9_world` |
+
+控件 `SpectateControls.tsx` 放右下，`layout=live` 或 `hud=0` 时不渲染、也不吃键盘（Phaser 键盘只在带控件的旁观页开——这是本轮修的一个 bug：旁观页原来整体关了键盘，WASD / Esc 都没反应）。镜头状态通过 EventBus `spectate-state` 给 React（HUD 的「旁观 · 跟随 小千 / 全景」标题跟着变），`spectate-camera` 给小地图画视口框。`__whaleDebug.state()` 看 camMode / focus / follow。
+
+**任务 0b 走路跟服务器（B §3.36 `910506f`）**：删掉前端 `pathBetween` 猜路；`syncOthers` 收到相邻一格就 `pushWaypoint`、跳格才 `snapTo`；步速 `setStepMs(1000 / 小镇倍速)`（人类单格 300 ms），`setServerWalking(state === 'walking')` 时走路帧不因两 tick 之间的空档回 idle（1.5 s 宽限）。在 8091 加人类玩家 `move` 到 (44,24)：`path_len 60`，20 s 内采样全部相邻、最大跳 1 格、在走的比例 0.82，录屏 `W9_walk_server_20s.webm`。气泡按 §3.36 的新字段：`blocked_reason: locked` → 「咚咚咚…锁着」、`closed` → 「🚪 还没开门」、`no_path` / `move_done{outcome: blocked}` → 「🚧 走不过去」、走路中 use / interact 被拒（`reason: walking`）→ 「🚶 还在走」。
+
+**主播评分（`data/assets/review.jsonl`，59 条，👎 4 项）**
+
+| 评 | 处理 |
+|---|---|
+| `villager` 为什么会有村民、和阿蝉重复 | 删掉 `chars/villager.png`，NPC 池改为 cook / grocer / fisher / regular；manifest 6 张角色表 |
+| `regular`（小千）应是淡紫色长发、白+淡紫衣服、个子高、御姐、腼腆 | 重写描述重出一张（`W9_rating_xiaoqian_sheet`，游戏里 `W9_rating_xiaoqian_ingame`）；小千 / 小满都映射到 `regular` |
+| 路灯顶部被截 | 路灯改用 `objects/lamp.png` 整张（96×192）单独素材，`deco --reslice` 不再覆盖它（之前被覆盖过一次） |
+| `desk_long` 桌子应侧着用、椅子在侧面 | 重出：椅子在左长边（`W9_rating_desk_long`）。注：现在地图里没有物品类型用到这张，只在评审页里 |
+
+费用：本轮 2 次调用，累计约 $19 / 200 张预算。
 
 ## 1. 进度
 
@@ -50,7 +81,8 @@ B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**
 |---|---|
 | 代码 | `whale-frontend` @ 本提交（基于 B 的 `e82ac17`） |
 | 新增文件 | `src/ui/QQPanel.tsx`、`src/ui/BackpackPanel.tsx`、`src/api/qq.ts`、`src/game/items.ts`、`report_shots/w9/*` |
-| 新增参数 | `&qq=0`（旁观页关 QQ 面板）；`__whaleDebug.setFocus()` |
+| 新增参数 | `&qq=0`（旁观页关 QQ 面板）；`mode=free|follow|world`；`__whaleDebug.setFocus()` / `.state()` |
+| 新增文件（0b 后） | `src/spectate/SpectateControls.tsx`、`report_shots/w9/W9_free_*`、`W9_rating_*`、`W9_walk_server_20s.webm` |
 
 ---
 

@@ -26,6 +26,8 @@ export interface SpectateParams {
   scene: 'follow' | 'world'
   /** 不跟人、直接取景到某个 sector（评审截图用）：`&focus=achan_house` 或 `&focus=achan_house:2`（楼层） */
   focus: { sector: string; floor: number } | null
+  /** W9 任务 0（主播 11-07 晚）：free = 自由镜头（拖动 / WASD / 滚轮 / 点建筑进屋 / 点人跟随）；follow = 跟随 follow= 的人；world = 全景。缺省：有 follow 则 follow，否则 world */
+  mode: 'free' | 'follow' | 'world'
 }
 
 export function parseSpectateParams(search = window.location.search): SpectateParams {
@@ -63,6 +65,7 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
     town,
     scene:  q.get('scene') === 'world' ? 'world' : 'follow',
     focus:  (() => { const f = q.get('focus'); if (!f) return null; const [sector, fl] = f.split(':'); return /^[\w-]+$/.test(sector) ? { sector, floor: Number(fl) || 1 } : null })(),
+    mode:   (() => { const m = q.get('mode'); if (m === 'free' || m === 'follow' || m === 'world') return m; return q.get('follow') ? 'follow' : 'world' })(),
   }
 }
 

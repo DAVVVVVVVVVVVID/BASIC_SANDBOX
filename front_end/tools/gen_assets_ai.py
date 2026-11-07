@@ -86,7 +86,7 @@ CHARS: dict[str, tuple[str, str, list]] = {
     "cook": ("餐厅老板", "a cheerful middle-aged male chef: short brown hair, warm brown eyes, white chef jacket with a red neckerchief, dark trousers, a white chef hat", REF_NPC),
     "grocer": ("杂货店老板（女）", "a warm, friendly middle-aged woman who runs the grocery store: chestnut-brown hair tied in a low bun with a cream headscarf, gentle brown eyes, a beige blouse with rolled sleeves under a green apron with a front pocket, a long brown skirt, flat shoes", REF_NPC),   # 主播 11-07：杂货铺老板是女的
     "fisher": ("老渔夫", "an old fisherman: short gray hair, a weathered kind face, a yellow raincoat, blue trousers, a yellow bucket hat, a small pipe", REF_NPC),
-    "regular": ("千小满（小千）", "Xiaoqian, a lively university girl and Jingzai's best friend: shoulder-length auburn hair with a side braid, warm brown eyes, a red-brown cardigan over a white blouse, a dark pleated skirt, loafers", REF_NPC),
+    "regular": ("千小满（小千）", "Xiaoqian, a tall, elegant and slightly shy university girl (Jingzai's best friend): long straight pale lavender hair, soft violet eyes, a white blouse with a light lavender cardigan, a long white skirt, white flats; calm 'onee-san' presence, slender and taller than Jingzai", REF_NPC),   # 主播 11-07 评分：淡紫长发、白+淡紫衣、个子高、御姐、腼腆
     "villager": ("村民", "a generic young townsperson: short purple hair, a lavender hoodie with white drawstrings, dark pants, sneakers", REF_NPC),
 }
 TALL_OBJECTS = {"tree", "fridge", "shelf", "lamp"}   # 1×1 footprint 但要向上长出格子的，用竖画布
@@ -117,7 +117,7 @@ OBJECTS: dict[str, tuple[int, int, str]] = {   # type: (w_tiles, h_tiles, descri
     "tree": (1, 1, "a leafy green tree, clearly taller than wide: a big round canopy above a short brown trunk whose base covers one floor tile"),
     "fountain": (2, 2, "a round stone fountain with a two-tier basin and blue water, footprint 2 by 2 tiles"),
     "lamp": (1, 1, "an old-fashioned black iron street lamp post with a warm glowing glass lantern on top, clearly taller than wide, the whole lamp fully inside the picture with empty margin above the lantern"),
-    "desk_long": (1, 2, "a long wooden desk seen from above with a laptop, a desk lamp and a stack of books, a chair tucked in at the bottom end; footprint 1 tile wide by 2 tiles tall"),
+    "desk_long": (1, 2, "a long wooden desk seen from above with a laptop, a desk lamp and a stack of books; the chair is on the LEFT long side of the desk (the desk is used from the side, not from the end); footprint 1 tile wide by 2 tiles tall"),   # 主播：桌子应侧着用、椅子在侧面
     "shelf": (1, 1, "a wooden bookshelf full of colorful books"),
 }
 
@@ -570,6 +570,8 @@ def finish_deco(raw: Image.Image) -> dict:
         if name in ("fence",): sc = TILE_OUT / im.width
         sm = im.resize((max(1, round(im.width * sc)), max(1, round(im.height * sc))), Image.LANCZOS)
         canvas = Image.new("RGBA", (TILE_OUT, max(TILE_OUT, sm.height)), (0, 0, 0, 0)); canvas.paste(sm, ((TILE_OUT - sm.width) // 2, canvas.height - sm.height), sm)
+        if name == "lamp" and (OUT / "objects" / "lamp.png").exists():   # 路灯单独出过图（4×4 表里顶部被格线截了），不要覆盖
+            import shutil; shutil.copy(OUT / "objects" / "lamp.png", OUT / "deco" / "lamp.png"); ok += 1; continue
         canvas.save(OUT / "deco" / f"{name}.png"); ok += 1
     return {"deco_ok": ok, "deco_needed": len(DECO_CELLS)}
 
