@@ -21,7 +21,7 @@
 |---|---|---|
 | E（W10 联调回报，`e0be69a`） | ① ws `qq` 的 `read` 事件只当刷新信号；② 旁观面板要 `unread_total` 的位置 | ① 可以；② `GET /agent/perceive` 的 `phone.unread_total`，或 `GET /qq/inbox?player=` 顶层 `unread_total`——已回 |
 | E（W11 回报） | produce / commission 事件 8091 上没法手动触发，想要 scenario op | **已加** `POST /admin/scenario` 两个 op：`give_item {player, item, qty?, meta?}`（往背包放物品）、`produce {player, via?, item?, qty?}`（模拟一次产出：背包 + ws `produce` + external 行 + pendingMessage）；commission 事件用 `POST /admin/commission` 即可触发 `open`，`give song` 给委托人触发 `deliver`。8091 已重起带上 |
-| E（W11 回报 2，`dcaf304`） | 用两个 op 实测：produce → 头顶「🎣 钓到了鱼」+ 背包；give_item song → QQ 发文件成功；/admin/commission → 「📋 新委托」气泡。交付没测（8091 没有 NPC 实例当 target） | 已回：scenario `spawn` 直接造 `npc_rest_owner` agent 实例（不需要 brain）即可走 give song 交付；E 之前把 `file_ref` 发成字符串 422，已自己改成对象 |
+| E（W11 回报 2，`dcaf304`） | 用两个 op 实测：produce → 头顶「🎣 钓到了鱼」+ 背包；give_item song → QQ 发文件成功；/admin/commission → 「📋 新委托」气泡。交付没测（8091 没有 NPC 实例当 target） | 已回：scenario `spawn` 直接造 `npc_rest_owner` agent 实例（不需要 brain）即可走 give song 交付；E 之前把 `file_ref` 发成字符串 422，已自己改成对象。**随后 E 测通交付**：gold 300→488、「完成委托《冒烟委托》收到 188」、ws action + commission deliver 都到——匹到的是我冒烟留下的最早 open 单（匹配顺序 payload.commission_id → 歌的 meta.commission_id → 最早 open），已确认给 E |
 | D（report-D W10 回应） | 4b 字段一致，联调一局等 8000 切版本；perceive 时才拉 `/game/state` 同意 | 无需改 |
 | A（W12 交接 / report-A） | 「B 的 export 字段」已在 W9 第 0 项落地；无新条目 | — |
 | C | 报告停在 11-06，无新条目（v1 profile 接 QQ / buy / compose 时的字段问题优先答） | 等 |
