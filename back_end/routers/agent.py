@@ -170,8 +170,24 @@ def perceive(
         "players_in_view": players_in_view,
         "needs":           needs,
         "phone":           _phone_view(entity_id),      # B10 digest 字段 + W10 ③ unread{显示名: 条数} / unread_total（不给正文、不给坐标）
+        "knocks":          _knocks_view(entity_id),     # §3.40：主人——我家待回应的敲门 [{id, visitor_name, home_name, expires_at}]
+        "door_request":    _door_request_view(entity_id),   # §3.40：访客——我最近一次敲门的状态
         "game":            _game_view(entity_id),       # B18：游戏机局内状态（无则 null）
     }
+
+
+def _knocks_view(entity_id: str) -> list[dict]:
+    from game import doors
+    p = _players.get(entity_id)
+    if p is None:
+        return []
+    return [{"id": k["id"], "visitor_name": k["visitor_name"], "home_name": k["home_name"], "expires_at": k["expires_at"]} for k in doors.pending_for_owner(p)]
+
+
+def _door_request_view(entity_id: str) -> dict | None:
+    from game import doors
+    v = doors.visitor_view(entity_id)
+    return {"id": v["id"], "home_name": v["home_name"], "status": v["status"], "expires_at": v["expires_at"]} if v else None
 
 
 def _phone_view(entity_id: str) -> dict:

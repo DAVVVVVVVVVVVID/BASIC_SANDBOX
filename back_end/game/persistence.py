@@ -121,6 +121,7 @@ def save_checkpoint(path: Path | None = None) -> dict:
                  ("economy", json.dumps(__import__("game.economy", fromlist=["x"]).export_state())),
                  ("production", json.dumps(__import__("game.production", fromlist=["x"]).export_state())),
                  ("commissions", json.dumps(__import__("game.commissions", fromlist=["x"]).export_state(), ensure_ascii=False)),
+                 ("doors", json.dumps(__import__("game.doors", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("schema_version", str(SCHEMA_VERSION)),
                  ("chat_cooldowns", json.dumps({"last_chat_end": chat["last_chat_end"],
                                                 "last_pair_end": chat["last_pair_end"]}))],   # B9 ③
@@ -184,6 +185,8 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         economy.import_state(json.loads(meta.get("economy") or "{}"))
         production.import_state(json.loads(meta.get("production") or "{}"))
         commissions.import_state(json.loads(meta.get("commissions") or "{}"))
+        from game import doors
+        doors.import_state(json.loads(meta.get("doors") or "{}"))
         qc = json.loads(meta.get("qq_contacts") or "{}")
         qq.import_state({
             "messages": [json.loads(d) for (d,) in conn.execute("SELECT data FROM qq_messages")],

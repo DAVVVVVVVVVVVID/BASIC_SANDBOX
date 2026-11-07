@@ -55,6 +55,17 @@ _ACCESS: dict[str, dict] = {}                             # arena -> {owner:[...
 _EDGE_BY_PAIR: dict[frozenset, dict] = {}                 # {(x,y),(x,y)} -> edge（门 / 路口：相邻两格之间）
 _STAIRS: dict[tuple[int, int], list[tuple[tuple[int, int], dict]]] = {}   # 楼梯：非相邻邻接
 _HOMES: dict[str, str] = {}                               # agent_id -> 家 arena（map.json homes，覆盖 AGENT_HOME_ARENA）
+_ARENA_SECTOR: dict[str, str] = {}                        # arena -> sector（load_map 时建）
+
+
+def sector_of_arena(arena: str | None) -> str | None:
+    return _ARENA_SECTOR.get(arena or "")
+
+
+def zone_display_name(level: str, zid: str) -> str:
+    names = (_MAP_DATA.get("zone_names") or {}).get(level) or {}
+    v = names.get(zid)
+    return (v.get("name") if isinstance(v, dict) else v) or zid
 
 
 def _initial_stock(obj_type: str) -> dict | None:
@@ -381,6 +392,7 @@ def load_map(map_dir: Path | str) -> None:
     TILE_TYPES.clear(); TILE_TYPES.update({name: {"walkable_default": d["walkable"]} for name, d in tt_raw.items()})
     _OBJECTS[:] = _build_objects(objs_raw)
     _ZONE_LOOKUP.clear(); _ZONE_LOOKUP.update(_build_zone_lookup())
+    _ARENA_SECTOR.clear(); _ARENA_SECTOR.update({z["arena"]: z["sector"] for z in _ZONE_LOOKUP.values() if z.get("arena")})
     _TILES[:] = _generate_tiles()
     _TILE_LOOKUP.clear(); _TILE_LOOKUP.update({(t["x"], t["y"]): t for t in _TILES})
     _EVENTS[:] = data.get("events", [])
@@ -742,6 +754,10 @@ def get_player(player_id: str) -> dict | None:
     data["inventory"] = _inv_view(player)             # W10 ④：[{type, name, class, count, meta?}]
     data["gold"] = int(player.get("gold", 0))
     data["walk"] = walk_view(player_id)                # §3.36：走路中 {remaining, path_len, eta_game_s, target, next, started_at}，否则 null
+    from game import doors
+    data["door_request"] = doors.visitor_view(player_id)      # §3.40：我最近一次敲门 {id, home, status: pending|accepted|declined|no_answer, expires_at…}
+    data["pending_knocks"] = doors.pending_for_owner(player)  # §3.40：我家待回应的敲门 [{id, visitor, visitor_name, home, door, expires_at}]
+    data["door_passes"] = doors.passes_of(player_id)          # §3.40：我持有的临时通行 [{home, expires_at, …}]
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -921,6 +937,11 @@ def _edge_owners(edge: dict) -> set[str]:
     return owners
 
 
+def _has_door_pass(entity_id: str | None, sector: str | None, game_ts: float) -> bool:
+    from game import doors
+    return doors.has_pass(entity_id, sector, game_ts)
+
+
 def edge_block(edge: dict, mover: dict | None, game_ts: float, frm: tuple[int, int] | None = None) -> tuple[str, str | None] | None:
     """这条边此刻对 mover 是否不可过：None=可过；否则 ("closed"|"locked", opens_at)。
     §3.38（主播 11-07 定）：① 营业时间与门锁只管「进」（a→b，外→内），从内侧 b 走出去任何人任何时候放行——打烊时店里的客人能走；
@@ -931,6 +952,8 @@ def edge_block(edge: dict, mover: dict | None, game_ts: float, frm: tuple[int, i
     owners = _edge_owners(edge)
     if _mover_ids(mover) & owners:
         return None                                              # 主人：随时
+    if mover and _has_door_pass(mover.get("id"), _ZONE_LOOKUP.get(b_tile, {}).get("sector"), game_ts):
+        return None                                              # §3.40：敲门获准的访客
     is_open, opens_at = _hours_state(edge.get("open_hours"), game_ts)
     if not is_open:
         return ("closed", opens_at)
@@ -947,6 +970,8 @@ def arena_block(arena: str | None, mover: dict | None, game_ts: float) -> tuple[
     owners = acc.get("owner") or []
     if _mover_ids(mover) & set(owners):
         return None
+    if mover and _has_door_pass(mover.get("id"), sector_of_arena(arena), game_ts):
+        return None                                              # §3.40：敲门获准的访客（2 游戏小时 / 离家失效）
     locked_spans = acc.get("locked")
     if locked_spans == "always" or locked_spans is True:
         ok = bool(acc.get("allow_when_locked")) and _allowed(acc.get("allow_when_locked"), mover, owners)
@@ -1628,6 +1653,8 @@ def _run_buff_tick_all(delta: float) -> None:
         production.on_tick(gts, _players)               # W11 ①：钓位出鱼、灶台出便当
         commissions.on_tick(gts)                        # W11 ①：每日委托
         qq.on_tick(gts, _players)                       # W11 ③：未读消息的亲密度惩罚
+        from game import doors
+        doors.on_tick(gts, _players)                    # §3.40：敲门超时 / 通行证失效
         update_weather(gts)
         _kick_closed_objects()
         from game import state_log

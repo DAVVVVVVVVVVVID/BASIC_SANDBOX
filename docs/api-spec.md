@@ -453,6 +453,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 | `eat` | **W10 ④** 吃背包里的食物（随处吃），按 `items.json` 的 `eat` 加需求值 | `{ item \| item_id }` | agent / E |
 | `give` | **W10 ④** 当面给别人（2 格内）；`gift` 类按 `items.json` 的 `give` 给对方亲密度 / 心情；**W11** 给委托人一首 `song` = 交付委托（酬金入账、委托人亲密度 +15） | `{ target, item \| item_id, qty?=1, commission_id? }`（`target` = player id / agent_id / 名字） | agent / E |
 | `store` | **W11 ④** 把食材放进冰箱（相邻；不超过 `fridge.max` 4） | `{ item?="ingredients", qty?=1, object_id? }` | agent |
+| `knock` | **§3.40** 在上锁的家门外敲门（见「敲门」一节） | `{ door_id }` 或 `{ target_tile {x,y} }` 或 `{ home: <sector> }` | agent / E |
 | `compose` | **W11 ①** 在琴房电脑（`pc_music`）上用满 `min_minutes`（30）后产一首「歌」（文件类，`meta.title / commission_id / text…` 由 C 填） | `{ title?, commission_id?, text?, meta? }` | agent |
 | `make_video` | **W11 ①** 在电脑（`pc` / `pc_desk` / `stream_desk`）上用满 60 分钟后产一份「电台文稿」 | `{ title?, text?, meta? }` | agent |
 
@@ -1407,6 +1408,41 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 ### 数据
 
 `data/qq/<date>.jsonl` 每行：`kind: "message"`（`id, ts, game_time, town, map_version, seed, from, from_name, to, group, msg_kind: text|file, text, file_ref, read_at: null`）或 `kind: "read"`（`account, peer, ids[], count, busy_game_seconds`）。`GET /admin/export?kinds=qq` 导出。检查点表 `qq_messages`（含 read_at / read_by）、`qq_groups`、meta `qq_contacts`。弹幕原文不进任何消息。
+
+---
+
+## 11. 敲门（§3.40，主播 2026-11-08 06:50 定）
+
+**家** = 带锁定访问规则（`map.access[*].locked`）的 sector：合租房 `home`、渔夫家 `fisher_house`、小千家 `xiaoqian_house`、店主家 `owners_house`。商店不走敲门（按营业时间）。**主人** = 这家各 arena 的 `access.owner` ∪ 大门 `edge.owner` ∪ `homes` 住在里面的人。物品不设归属：进了屋就能用、能吃。
+
+### POST /action `knock`
+
+访客站在**家门外侧**（离门外格 `a` 或所指的格 ≤ 2 格，且不在这家里面）：`{ "door_id": "door_home" }`，或 `{ "target_tile": {"x": 12, "y": 33} }`（家里任一格），或 `{ "home": "home" }`（sector id；门取离访客最近的一扇）。
+
+**成功：** `result: { message: "咚咚咚。", request_id, expires_at, home, door {id, x, y}, notified: [在家且清醒的主人 id], request: {...} }`。生成 `door_request {id, visitor, visitor_name, visitor_account, home, home_name, owners[], door, created_at, expires_at(+90 游戏秒), status: "pending"}`；在家且清醒（无 `sleeping` 标签、`scene ≠ live`、在场）的主人收到 `pendingMessage`「X 在敲门。」并在 `GET /player` `pending_knocks[]` / perceive `knocks[]` 里看到；ws 推 `{type:"knock", request_id, visitor, visitor_name, home, home_name, door{x,y,id}, owners, expires_at, notified}`（E 画门口气泡）。动作日志一行 `knock`（payload = request）。
+
+**失败 `reason`：** `unknown_door` / `missing_door_or_target` / `not_a_home`（商店等）/ `already_inside` / `is_owner` / `no_door` / `too_far`（`result.door`、`range: 2`）/ `already_knocking`（`result.request_id`）/ `already_has_pass` / `walking`。
+
+### POST /door/respond
+
+```json
+{ "request_id": "k1a2b3c4d5", "entity_id": "阿蝉_1a2b3c", "accept": true }
+```
+只限这家的主人（`not_owner`）；请求须 pending（`not_pending:<status>`）；404 = 实体 / 请求不存在。**响应：** `{ success, reason, request: {..., status: "accepted" | "declined", responded_by, responded_at} }`。
+- `accept` → 访客获得 **door_pass**：对这家**全部 arena** 的临时通行，`edge_block` / `arena_block` 同一判定；**2 游戏小时**或**访客进屋后再离开该 sector**即失效（先到为准）。日志 `door_pass_granted`（访客行）；失效时 `door_pass_expired {reason: timeout | left}`。访客 `pendingMessage`「X 给你开了门。」
+- `decline` → 访客 `door_request.status = "declined"`，`pendingMessage`「X 没让你进。」
+- 90 游戏秒无人回应（没人在家 / 都在睡 / 不想开）→ `no_answer`：日志 `door_respond {outcome: no_answer}`（访客行，`success: false, reason: no_answer`），访客 `pendingMessage`「敲了半天没人应门。」
+- 每次回应日志 `door_respond {request_id, visitor, home, outcome}`（主人行）；ws `{type:"door", event: accepted | declined | no_answer | pass_expired, request_id, visitor, visitor_name, home, by, door}`。
+
+### 查询字段
+
+| 哪里 | 字段 |
+|---|---|
+| `GET /player/{id}` | `door_request`（访客视角，最近一次：`{id, home, home_name, status: pending \| accepted \| declined \| no_answer, expires_at, responded_by, door}`，没敲过 `null`）；`pending_knocks[]`（主人视角：`{id, visitor, visitor_name, home, home_name, door, expires_at}`）；`door_passes[]`（`{home, granted_at, expires_at, by, request_id, entered}`） |
+| `GET /agent/perceive` | `knocks[]`（主人：`{id, visitor_name, home_name, expires_at}`，不给坐标）、`door_request`（访客：`{id, home_name, status, expires_at}`） |
+| `GET /door/requests?player=` | 三者合一 `{pending_knocks, door_request, door_passes}` |
+
+通行证与请求进检查点（meta `doors`）。常量：`doors.KNOCK_EXPIRE_S = 90`、`PASS_S = 7200`、`KNOCK_RANGE = 2`。
 
 ---
 

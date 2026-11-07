@@ -50,3 +50,6 @@ class Player(BaseModel):
     game: Optional[dict] = None                 # B18：游戏机局内状态
     pos_seq: int = 0
     walk: Optional[dict] = None                 # §3.36：走路中 {remaining, path_len, eta_game_s, target, next, started_at}；否则 null
+    door_request: Optional[dict] = None         # §3.40：访客视角——最近一次敲门 {id, home, home_name, status, expires_at, responded_by, door}
+    pending_knocks: List[dict] = []             # §3.40：主人视角——待回应的敲门
+    door_passes: List[dict] = []                # §3.40：持有的临时通行

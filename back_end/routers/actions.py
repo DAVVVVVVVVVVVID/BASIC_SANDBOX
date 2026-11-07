@@ -501,6 +501,21 @@ async def handle_go_to(entity_id: str, payload: dict) -> ActionResponse:
     return ActionResponse(success=res.success, type="go_to", reason=res.reason, result=res.result)
 
 
+def handle_knock(entity_id: str, payload: dict) -> ActionResponse:
+    """§3.40：访客在上锁家门外敲门 {door_id | target_tile | home}。"""
+    from game import doors
+    from game.world_state import STATE_LOCK
+    g = _walking_guard(entity_id, "knock")
+    if g:
+        return g
+    with STATE_LOCK:
+        req, reason, detail = doors.knock(entity_id, payload)
+    if reason:
+        return ActionResponse(success=False, type="knock", reason=reason, result=detail)
+    return ActionResponse(success=True, type="knock", result={"message": "咚咚咚。", "request": req, "request_id": req["id"],
+                                                             "expires_at": req["expires_at"], "door": req["door"], "home": req["home"], "notified": req["notified"]})
+
+
 _HANDLERS = {
     "move":         handle_move,
     "move_n":       handle_move_n,
@@ -518,6 +533,7 @@ _HANDLERS = {
     "give":         economy_actions.handle_give,
     # W11 ①④
     "store":        economy_actions.handle_store,
+    "knock":        handle_knock,                 # §3.40
     "compose":      economy_actions.handle_compose,
     "make_video":   economy_actions.handle_make_video,
 }
@@ -557,7 +573,7 @@ async def dispatch(body: ActionRequest):
     except Exception:
         pass
 
-    if not body.skipLog:
+    if not body.skipLog and not (body.action.type == "knock" and result.success):   # §3.40：knock 成功时 doors.knock 已写一行完整 request
         append_log(
             entity_id=body.entityId,
             action_type=body.action.type,
