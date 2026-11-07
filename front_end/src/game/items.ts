@@ -2,7 +2,7 @@
  * W9：背包物品表（`docs/world-bible/03-objects.md` 3.2）。后端的物品类型名尚未定稿（B W10 任务 4），
  * 这里按中英文都认，认不出的用 📦 + 原名显示。
  */
-export interface ItemMeta { icon: string; label: string; kind: 'food' | 'material' | 'gift' | 'file' | 'other'; price?: number }
+export interface ItemMeta { icon: string; label: string; kind: 'food' | 'material' | 'gift' | 'file' | 'key' | 'other'; price?: number }
 
 const META: Record<string, ItemMeta> = {
   bread: { icon: '🍞', label: '面包', kind: 'food', price: 5 },
@@ -19,7 +19,7 @@ const META: Record<string, ItemMeta> = {
   script: { icon: '📄', label: '电台文稿', kind: 'file' },
   radio_script: { icon: '📄', label: '电台文稿', kind: 'file' },
   image: { icon: '🖼', label: '图片', kind: 'file' },
-  key: { icon: '🔑', label: '钥匙', kind: 'other' },   // §3.41 敲门新方案：钥匙物品（「合租房钥匙」），送钥匙走现有「送」
+  key: { icon: '🔑', label: '钥匙', kind: 'key' },   // §3.41：钥匙物品 {type:'key', meta:{door_id, name}}，显示 meta.name（合租房大门钥匙）；送钥匙走「送」带 door_id
 }
 const CN: Record<string, string> = { 面包: 'bread', 甜食: 'sweet', 便当: 'bento', 食材: 'ingredient', 鱼: 'fish', 鱼饵: 'bait', 小礼物: 'gift', 礼物: 'gift', 歌: 'song', 电台文稿: 'script', 文稿: 'script', 图片: 'image', 钥匙: 'key' }
 
@@ -49,3 +49,5 @@ export function normalizeInventory(raw: unknown): InventoryItem[] {
   return out
 }
 export const isFileItem = (it: InventoryItem) => it.kind === 'file' || itemMeta(it.type, it.name).kind === 'file'
+/** 条目显示名：钥匙等带 meta.name 的用 meta.name（「合租房大门钥匙」） */
+export const itemDisplayName = (it: InventoryItem) => (typeof it.meta?.name === 'string' && it.meta.name) || it.name || itemMeta(it.type, it.name).label

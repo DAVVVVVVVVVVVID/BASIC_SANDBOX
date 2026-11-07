@@ -131,13 +131,21 @@
 - `ActorSprite`：服务器说在走（两步之间精灵可能短暂静止）就不播睡 / 坐帧、不贴床；走 ↔ 停切换时重算姿势。
 - 8091 复现（`/tmp/pw/sleepwalk.mjs`：人类玩家 use bed_whale → scenario release → move）：起身第一帧即站立 / 走路帧、`anchored=false`，沿途标签空；睡觉本身仍正常贴床显示「💤 睡觉中」。8091 的人类玩家数据没有滞后，所以旧版在这条路径上也看不出问题；真正的滞后只在主镇 agent 的 ws / 轮询时序上出现，按总控的分析改成「以 state 为准」后与数据时序无关。
 
-## 0e. 总控追加（11-08）：敲门 §3.40 前端初版（§3.41 改版待 B 定稿后调整）
+## 0e. 总控追加（11-08）：门禁 §3.41——钥匙 / 开门 / 敲门（B c3808ad，api-spec §11）
 
-按 B 70fc870 / api-spec §11 做了：ws `knock` → 门口「🚪 咚咚咚！X 在敲合租房的门」气泡（90 游戏秒 ÷ 倍速，画在门格上方、盖过屋顶）+ 访客头顶「咚咚咚！」；ws `door` → 门口反馈气泡（🔓 开门 / 🙅 没让进 / 😶 没人应门 / 🔒 通行证到期，6 s）+ 访客头顶；操控页 `KnockPanel`（顶部居中）：`GET /player.pending_knocks[]` + ws knock（notified / owners 含我）即时弹「X 在敲门」→ 开门 / 不开 → `POST /door/respond`；行为日志把 `knock / door_respond / door_pass_granted / door_pass_expired` 翻成文案。8091 实测截图 `W9_knock_*.jpg`（访客 E访客 敲 door_home；用 scenario `spawn agent_id=achan` 的阿蝉开门）。
+先按 §3.40 做了一版（远程放行），主播改方案后按 §3.41 重做，8091 全流程实测（截图 `W9_door_*.jpg`）：
 
-**给 B / 总控的发现**：沙盒目前**不把人类玩家算主人**——人类 `E主人测` 站在客厅里，敲门 `notified` 只有阿蝉 agent，`/door/respond` 回 `not_owner`；只有 `agent_id=achan` 的实例能回应。总控说「人类玩家属 owner（阿蝉）」，§3.41 定稿时请 B 明确人类（操控页）算不算主人，否则操控页的弹窗只能看、按了会报「你不是这家的主人」（面板已这样提示）。
+| 哪里 | 做了什么 |
+|---|---|
+| 旁观门口气泡（`GameScene`） | ws `knock` → 「🚪 咚咚咚！X 在敲合租房大门」90 游戏秒 ÷ 倍速（画在门外侧格上方、盖过屋顶）+ 访客头顶「咚咚咚！」；ws `door`：`answered` → 「💬 阿蝉：「谁呀？稍等」」（喊话原文 9 s）+ 喊话人头顶原文 + 访客头顶「👂 门里有人应了」；`declined` 🙅 / `no_answer` 😶 / `opened` 「🔓 X 把合租房大门打开了」/ `closed` 「🔒 合租房大门落锁了」/ `visitor_entered` 「🚶 X 进门了」 |
+| 门的开关态 | `/world.map.doors[]` 初始 + ws door opened / closed：敞开时在门内侧格叠一扇向屋内转开的门（`door_closed` 贴图绕门轴转 −70°）+ 门外「🔓 敞开中」，60 游戏秒 ÷ 倍速或收到 closed 撤掉 |
+| 操控页 `KnockPanel`（顶部居中） | `GET /player.pending_knocks[]` + ws knock（notified 含我）→ 「X 在敲合租房大门」：「隔门回一句」输入 → `POST /door/respond {text}`；「不开」→ `{decline:true}`；没站到门边时提示「走到门边开门 (12,33)」；站在门内侧格或相邻格时出「开门」→ `POST /action open_door {door_id}`（`not_inside_door` 按 `result.inside` 提示该站哪格）；没人敲门但站在自家门边也出「开门」；自己敲了别人家 → 显示状态与屋里人的回话（`door_request.answers`） |
+| 背包 | 钥匙 `{type:key, meta:{door_id,name}}` 显示 🔑 + `meta.name`（合租房大门钥匙）；「送」钥匙带 `door_id`（走现有 give） |
+| 行为日志 | `knock / door_respond(answered·opened·declined·no_answer·closed) / open_door / door_locked / key_issued` 文案 |
 
-§3.41 收到的方向（等字段）：弹窗按钮改「隔门回一句」（输入 → respond text）/「不开」+「走到门边开门」提示，站门内侧相邻格出「开门」→ `POST /action open_door`；旁观门口气泡加主人喊话原文与门敞开 / 落锁（ws door `opened | closed`）；背包钥匙物品（`type: key`，已先加 🔑 图标）；门敞开 60 游戏秒期间可换开门态贴图。另修了操控页背包面板盖住行为日志的布局问题（背包挪到日志右边）。
+8091 流程：人类 `E阿蝉测` 加入即领到合租房大门钥匙（背包 🔑）→ 没钥匙的访客（scenario `spawn agent_id=npc_grocer`，人类访客 join 会自动领钥匙、敲门回 `has_key`）敲 `door_home` → 操控页弹面板、旁观门口「咚咚」→ 面板「隔门回一句」「谁呀？稍等」→ 旁观门口与头顶出原文、访客 `door_request.status=answered` → 传送到门内侧 (12,32) 面板出「开门」→ 点开门 → `map.doors.door_home.open=true`、旁观门转开 + 「敞开中」→ 访客 move 进屋成功、`status=opened`、旁观「🚶 E 访客进门了」。
+
+§3.40 版留下的两处仍有效：`__whaleDebug.emit(evt, payload)` 可模拟 ws 事件；操控页背包挪到行为日志右边。
 
 ## 1. 进度
 

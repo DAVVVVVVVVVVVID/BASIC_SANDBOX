@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { sendAction } from '../api/world'
-import { itemMeta, normalizeInventory, type InventoryItem } from '../game/items'
+import { itemMeta, normalizeInventory, itemDisplayName, type InventoryItem } from '../game/items'
 import type { GameObject } from '../types'
 
 /**
@@ -46,7 +46,7 @@ export default function BackpackPanel() {
           const m = it ? itemMeta(it.type, it.name) : null
           return (
             <div key={i} title={it ? `${m!.label} ×${it.count}` : '空'} style={{ height: 46, background: '#1a1b2e', border: '1px solid #2d3748', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-              {it && <><span style={{ fontSize: 18 }}>{m!.icon}</span><span style={{ fontSize: 10, color: '#a0aec0' }}>{(it.name ?? m!.label).slice(0, 4)}</span>{it.count > 1 && <span style={{ position: 'absolute', right: 3, top: 1, fontSize: 10, color: '#ffe9a8' }}>×{it.count}</span>}</>}
+              {it && <><span style={{ fontSize: 18 }}>{m!.icon}</span><span style={{ fontSize: 10, color: '#a0aec0' }}>{itemDisplayName(it).replace(/钥匙$/, '🔑').slice(0, 5)}</span>{it.count > 1 && <span style={{ position: 'absolute', right: 3, top: 1, fontSize: 10, color: '#ffe9a8' }}>×{it.count}</span>}</>}
             </div>
           )
         })}
@@ -57,9 +57,9 @@ export default function BackpackPanel() {
             const m = itemMeta(it.type, it.name); const key = it.id ?? it.type
             return (
               <div key={key} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <span style={{ flex: 1 }}>{m.icon} {it.name ?? m.label} ×{it.count}</span>
+                <span style={{ flex: 1 }}>{m.icon} {itemDisplayName(it)} ×{it.count}</span>
                 {(m.kind === 'food') && <button disabled={!!busy} onClick={() => act(`吃 ${m.label}`, 'eat', { item: it.type, item_id: it.id })} style={sb}>吃</button>}
-                {neighbours.map(n => <button key={n.id} disabled={!!busy} onClick={() => act(`送 ${m.label} 给 ${n.name}`, 'give', { item: it.type, item_id: it.id, target: n.id, target_id: n.id, ...(typeof it.meta?.commission_id === 'string' ? { commission_id: it.meta.commission_id } : {}) })} style={sb}>送{n.name.slice(0, 2)}</button>)}
+                {neighbours.map(n => <button key={n.id} disabled={!!busy} onClick={() => act(`送 ${itemDisplayName(it)} 给 ${n.name}`, 'give', { item: it.type, item_id: it.id, target: n.id, target_id: n.id, ...(typeof it.meta?.commission_id === 'string' ? { commission_id: it.meta.commission_id } : {}), ...(typeof it.meta?.door_id === 'string' ? { door_id: it.meta.door_id } : {}) })} style={sb}>送{n.name.slice(0, 2)}</button>)}
                 {shop && <button disabled={!!busy} onClick={() => act(`卖 ${m.label}`, 'sell', { item: it.type, item_id: it.id, object_id: shop.id })} style={sb}>卖</button>}
               </div>
             )

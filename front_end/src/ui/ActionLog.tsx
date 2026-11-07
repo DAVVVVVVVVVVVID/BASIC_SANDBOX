@@ -6,9 +6,12 @@ function knockLabel(e: { type: string; payload: Record<string, unknown>; success
   const p = e.payload ?? {}
   const str = (k: string) => (typeof p[k] === 'string' ? (p[k] as string) : undefined)
   if (e.type === 'knock') return `🚪 敲了${str('home_name') ?? str('home') ?? ''}的门`
-  if (e.type === 'door_respond') { const o = str('outcome'); return o === 'accepted' ? `🔓 给${str('visitor_name') ?? str('visitor') ?? '访客'}开了门` : o === 'declined' ? `🙅 没让${str('visitor_name') ?? str('visitor') ?? '访客'}进` : o === 'no_answer' ? '😶 敲门没人应' : `🚪 回应敲门：${o ?? ''}` }
+  if (e.type === 'door_respond') { const o = str('outcome'); const v = str('visitor_name') ?? str('visitor') ?? '访客'; return o === 'answered' ? `💬 隔门对${v}说：「${str('text') ?? ''}」` : o === 'opened' ? `🚶 ${v}进门了` : o === 'accepted' ? `🔓 给${v}开了门` : o === 'declined' ? `🙅 没让${v}进` : o === 'no_answer' ? '😶 敲门没人应' : o === 'closed' ? '🔒 门到期落锁' : `🚪 回应敲门：${o ?? ''}` }
   if (e.type === 'door_pass_granted') return `🔓 获准进入${str('home_name') ?? str('home') ?? ''}`
   if (e.type === 'door_pass_expired') return `🔒 通行证失效（${str('reason') === 'left' ? '离开了' : '到期'}）`
+  if (e.type === 'open_door') return e.success ? `🔓 打开了${str('name') ?? str('door_id') ?? '门'}` : `🚪 开门失败`
+  if (e.type === 'door_locked') return `🔒 ${str('name') ?? str('door_id') ?? '门'}落锁了`
+  if (e.type === 'key_issued') return `🔑 领到了${str('name') ?? '钥匙'}`
   return null
 }
 

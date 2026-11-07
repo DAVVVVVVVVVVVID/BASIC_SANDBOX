@@ -182,7 +182,8 @@ export interface Player extends Partial<NeedVars> {
   pendingMessage?: string | null
   /** §3.40：主人视角待回应的敲门；访客视角最近一次敲门 */
   pending_knocks?: PendingKnock[]
-  door_request?: { id: string; home?: string; home_name?: string; status?: string; expires_at?: string; responded_by?: string | null } | null
+  door_request?: { id: string; home?: string; home_name?: string; status?: string; expires_at?: string; responded_by?: string | null; answers?: { by: string; by_name?: string; text: string; at?: string }[]; door?: DoorRef | null } | null
+  keys?: unknown[]
   emotion_tags?: Buff[]
   closeness?: Record<string, number>
   controller?: Controller
@@ -273,9 +274,13 @@ export interface WsQQ { type: 'qq'; ts?: string; message?: unknown; [k: string]:
 /** W11（B fc051f1）：产出（钓到鱼 / 做好便当 / 写完歌 / 做完文稿）与委托（开出 / 交付） */
 export interface WsProduce { type: 'produce'; entity: string; via?: 'fishing' | 'stove' | 'compose' | 'make_video' | string; item?: string; item_name?: string; qty?: number; object?: string | null }
 export interface WsCommission { type: 'commission'; event: 'open' | 'deliver' | string; id?: string; client?: string; client_name?: string; fee?: number; title?: string; status?: string; entity?: string | null }
-/** §3.40 敲门（B 70fc870，api-spec §11）：访客在家门外敲门 → 门口气泡；主人回应 / 90 游戏秒没人应 / 通行证失效 → 反馈气泡 */
-export interface WsKnock { type: 'knock'; request_id: string; visitor: string; visitor_name?: string; home: string; home_name?: string; door?: { x: number; y: number; id?: string } | null; owners?: string[]; expires_at?: string; notified?: string[] }
-export interface WsDoor { type: 'door'; event: 'accepted' | 'declined' | 'no_answer' | 'pass_expired' | string; request_id?: string; visitor?: string; visitor_name?: string; home?: string; home_name?: string; by?: string | null; by_name?: string | null; door?: { x: number; y: number; id?: string } | null }
+/** §3.41 门禁：钥匙 / 开门 / 敲门（B c3808ad，api-spec §11）。ws knock：访客在家门外敲门 → 门口气泡；
+ *  ws door：answered（屋内有人隔门喊话，text）/ declined / no_answer / opened（有人站门内开门，敞开 60 游戏秒）/ closed（到期落锁）/ visitor_entered（访客进门） */
+export interface DoorRef { id?: string; door_id?: string; name?: string; x: number; y: number; inside?: { x: number; y: number } | null }
+export interface WsKnock { type: 'knock'; request_id: string; visitor: string; visitor_name?: string; home: string; home_name?: string; door?: DoorRef | null; owners?: string[]; expires_at?: string; notified?: string[] }
+export interface WsDoor { type: 'door'; event: 'answered' | 'declined' | 'no_answer' | 'opened' | 'closed' | 'visitor_entered' | 'accepted' | 'pass_expired' | string; request_id?: string; visitor?: string; visitor_name?: string; home?: string; home_name?: string; by?: string | null; by_name?: string | null; text?: string | null; door?: DoorRef | null; door_id?: string; name?: string; x?: number; y?: number; open_until?: string | null }
 export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ | WsProduce | WsCommission | WsKnock | WsDoor
-/** 主人视角的待回应敲门（GET /player.pending_knocks[]） */
-export interface PendingKnock { id: string; visitor?: string; visitor_name?: string; home?: string; home_name?: string; door?: { x: number; y: number; id?: string } | null; expires_at?: string }
+/** 屋内人视角的待回应敲门（GET /player.pending_knocks[]） */
+export interface PendingKnock { id: string; visitor?: string; visitor_name?: string; home?: string; home_name?: string; door?: DoorRef | null; status?: string; expires_at?: string }
+/** GET /world.map.doors[]：带 owner 的家门（x,y = 外侧格） */
+export interface MapDoor { door_id: string; name?: string; x: number; y: number; open?: boolean; open_until?: string | null; keys?: number; owners?: string[] }

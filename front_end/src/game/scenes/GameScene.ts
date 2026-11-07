@@ -10,7 +10,7 @@ import { sendAction } from '../../api/world'
 import { useGameStore } from '../../store/gameStore'
 import { resolveFollowTarget } from '../systems/TickSystem'
 import type { SpectateParams } from '../../spectate/params'
-import { preloadGenAssets, createGenAnimations, charKeyFor } from '../assets'
+import { preloadGenAssets, createGenAnimations, charKeyFor, objTextureKey } from '../assets'
 import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
 import { preloadAiAssets, getAiManifest, aiBackdropKey, aiEnabled, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
@@ -19,7 +19,7 @@ import { arenaBBox, isIndoor } from '../map/mapv2'
 /** 自由镜头命令（React 控件 / 小地图 / 画布点击 → 场景） */
 export type FreeCmd = { cmd: 'free' } | { cmd: 'world' } | { cmd: 'follow'; id: string } | { cmd: 'jump'; x: number; y: number } | { cmd: 'enter'; sector: string; floor: number } | { cmd: 'exit' }
 import { itemMeta } from '../items'
-import type { WsKnock, WsDoor } from '../../types'
+import type { WsKnock, WsDoor, MapDoor } from '../../types'
 import DecoLayer from '../systems/DecoLayer'
 
 export interface SceneInitData {
@@ -74,6 +74,9 @@ export default class GameScene extends Phaser.Scene {
   private debugWalls: Phaser.GameObjects.Graphics | null = null   // W9 0c：&debug=walls 叠层
   /** §3.40 敲门：门口气泡（按 request_id 键；敲门 90 游戏秒，回应 6 s） */
   private doorBubbles = new Map<string, { bg: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; until: number }>()
+  /** §3.41：带 owner 的家门（map.doors[]）敞开状态 → 门内侧格叠一扇转开的门 + 「敞开中」标签 */
+  private openDoors = new Map<string, { img: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text; until: number }>()
+  private mapDoors: MapDoor[] = []
   private debugTexts: Phaser.GameObjects.Text[] = []
   private deco: DecoLayer | null = null
   private roofedSectors = new Set<string>()
@@ -247,23 +250,39 @@ export default class GameScene extends Phaser.Scene {
     this.on('chat-message', ({ entityId, content }: { entityId: string; content: string }) => {
       useGameStore.getState().pushBubble(entityId, content)
     })
-    // §3.40 敲门（总控 11-08，B 70fc870 / api-spec §11）：ws knock → 门口「咚咚」气泡 90 游戏秒 + 访客头顶；ws door → 门口反馈气泡
+    // §3.41 门禁（总控 11-08，B c3808ad / api-spec §11）：ws knock → 门口「咚咚」气泡 90 游戏秒 + 访客头顶；
+    // ws door → answered 喊话原文 / declined / no_answer / opened（门转开 60 游戏秒）/ closed（落锁）/ visitor_entered
     this.on('knock-event', (msg: WsKnock) => {
       const who = msg.visitor_name ?? this.nameOf(msg.visitor) ?? '有人'
       if (msg.door) {
         const speed = useGameStore.getState().worldState?.speed || 1
-        this.showDoorBubble(`knock:${msg.request_id}`, msg.door, `🚪 咚咚咚！${who}在敲${msg.home_name ?? ''}的门`, Math.min(180_000, 90_000 / speed))
+        this.showDoorBubble(`knock:${msg.request_id}`, msg.door, `🚪 咚咚咚！${who}在敲${msg.door.name ?? (msg.home_name ? `${msg.home_name}的门` : '门')}`, Math.min(180_000, 90_000 / speed))
       }
       if (msg.visitor) useGameStore.getState().pushBubble(msg.visitor, '咚咚咚！', 4000)
     })
     this.on('door-event', (msg: WsDoor) => {
       const who = msg.visitor_name ?? this.nameOf(msg.visitor) ?? '访客'
-      const by = msg.by_name ?? this.nameOf(msg.by) ?? '主人'
-      const text = msg.event === 'accepted' ? `🔓 ${by}给${who}开了门` : msg.event === 'declined' ? `🙅 ${by}没让${who}进` : msg.event === 'no_answer' ? `😶 ${who}敲了半天没人应门` : msg.event === 'pass_expired' ? `🔒 ${who}的通行证到期了` : `🚪 ${msg.event}`
-      const key = `knock:${msg.request_id ?? ''}`
-      if (msg.door) this.showDoorBubble(key, msg.door, text, 6000)
-      else this.hideDoorBubble(key)
-      if (msg.visitor && msg.event !== 'pass_expired') useGameStore.getState().pushBubble(msg.visitor, msg.event === 'accepted' ? '🔓 门开了' : msg.event === 'declined' ? '🙅 没让进…' : '😶 没人应门…', 5000)
+      const by = msg.by_name ?? this.nameOf(msg.by) ?? '屋里的人'
+      const door = msg.door ?? (typeof msg.x === 'number' && typeof msg.y === 'number' ? { x: msg.x, y: msg.y, id: msg.door_id, name: msg.name } : null)
+      const doorId = msg.door_id ?? msg.door?.door_id ?? msg.door?.id
+      const name = msg.name ?? msg.door?.name ?? '门'
+      const key = `knock:${msg.request_id ?? doorId ?? ''}`
+      const speed = useGameStore.getState().worldState?.speed || 1
+      let text: string | null = null, mine: string | null = null, ms = 6000
+      switch (msg.event) {
+        case 'answered': text = `💬 ${by}：「${msg.text ?? ''}」`; mine = '👂 门里有人应了'; ms = 9000; if (msg.by) useGameStore.getState().pushBubble(msg.by, `「${msg.text ?? ''}」`, 7000); break
+        case 'declined': text = `🙅 ${by}没让${who}进${msg.text ? `：「${msg.text}」` : ''}`; mine = '🙅 没让进…'; break
+        case 'no_answer': text = `😶 ${who}敲了半天没人应门`; mine = '😶 没人应门…'; break
+        case 'opened': text = `🔓 ${by}把${name}打开了`; if (doorId) this.setDoorOpen(doorId, true, Math.min(180_000, 60_000 / speed)); break
+        case 'closed': text = `🔒 ${name}落锁了`; ms = 4000; if (doorId) this.setDoorOpen(doorId, false); break
+        case 'visitor_entered': text = `🚶 ${who}进门了`; mine = '🚶 进门了'; break
+        case 'accepted': text = `🔓 ${by}给${who}开了门`; mine = '🔓 门开了'; break
+        case 'pass_expired': text = `🔒 ${who}的通行证到期了`; break
+        default: text = `🚪 ${msg.event}`
+      }
+      if (door && text) this.showDoorBubble(key, door, text, ms)
+      else if (!door) this.hideDoorBubble(key)
+      if (mine && msg.visitor) useGameStore.getState().pushBubble(msg.visitor, mine, 5000)
     })
 
     // 调试 / 自动化测量用（Playwright 读）：自己的像素位置、在途请求数
@@ -295,6 +314,7 @@ export default class GameScene extends Phaser.Scene {
     this.busHandlers = []
     this.inputSystem?.destroy()
     for (const k of [...this.doorBubbles.keys()]) this.hideDoorBubble(k)
+    for (const k of [...this.openDoors.keys()]) this.setDoorOpen(k, false)
     this.others.forEach(s => s.destroy())
     this.others.clear()
     this.self?.destroy()
@@ -332,6 +352,33 @@ export default class GameScene extends Phaser.Scene {
     // 室内底图覆盖到的格：不再叠画像素楼梯图示
     const interiors = this.backdrops.filter(b => b.meta.view === 'interior')
     this.focus?.hideStairIcons((t) => interiors.some(b => t.x >= b.meta.x0 && t.x < b.meta.x0 + b.meta.w && t.y >= b.meta.y0 && t.y < b.meta.y0 + b.meta.h))
+  }
+
+  /** §3.41：门敞开 → 在门内侧格叠一扇向屋内转开的门（door_closed 贴图绕门轴转 -70°）+ 「🔓 敞开中」；到时 / 收到 closed 撤掉 */
+  private setDoorOpen(doorId: string, open: boolean, ms = 60_000) {
+    const cur = this.openDoors.get(doorId)
+    if (cur) { cur.img.destroy(); cur.label.destroy(); this.openDoors.delete(doorId) }
+    if (!open) return
+    const d = this.mapDoors.find(x => x.door_id === doorId)
+    if (!d) return
+    // 外侧格 (x,y) → 内侧格：edges 里以 (x,y) 为 a 的那条的 b；找不到就取上方一格
+    const edge = this.focus?.edges().find(e => e.tiles[0] && e.tiles[0].x === d.x && e.tiles[0].y === d.y)
+    const b = edge?.tiles[1] ?? { x: d.x, y: d.y - 1 }
+    const T = TILE_SIZE
+    const tex = this.textures.exists(objTextureKey('door_closed')) ? objTextureKey('door_closed') : null
+    const img = tex ? this.add.image(b.x * T + 6, (b.y + 1) * T - 4, tex).setOrigin(0, 1).setDisplaySize(T - 12, T - 8).setAngle(-70).setAlpha(0.95).setDepth((b.y + 1) * T + 2) : this.add.image(0, 0, '__DEFAULT').setVisible(false)
+    const label = this.add.text(d.x * T + T / 2, (d.y + 1) * T + 2, '🔓 敞开中', { fontFamily: 'system-ui, "PingFang SC", sans-serif', fontSize: '12px', color: '#c6f6d5', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(90000).setResolution(2)
+    this.openDoors.set(doorId, { img, label, until: performance.now() + ms })
+  }
+  private pruneOpenDoors(now: number) {
+    for (const [k, d] of this.openDoors) if (now >= d.until) this.setDoorOpen(k, false)
+  }
+  /** 从 /world.map.doors[] 读初始开关状态 */
+  private syncMapDoors(world: WorldData) {
+    const m = (world.map as { doors?: MapDoor[] } | undefined)?.doors ?? (world as unknown as { doors?: MapDoor[] }).doors ?? []
+    this.mapDoors = Array.isArray(m) ? m : []
+    const speed = useGameStore.getState().worldState?.speed || 1
+    for (const d of this.mapDoors) if (d.open) this.setDoorOpen(d.door_id, true, Math.min(180_000, 60_000 / speed)); else if (this.openDoors.has(d.door_id)) this.setDoorOpen(d.door_id, false)
   }
 
   private nameOf(id: string | null | undefined): string | undefined {
@@ -513,6 +560,7 @@ export default class GameScene extends Phaser.Scene {
     for (const obj of world.objects) { this.objectSprites.push(new GameObjectSprite(this, obj)); this.objectTiles.push({ ...obj.position }) }
     this.placeBackdrops()
     this.drawDebugWalls()
+    this.syncMapDoors(world)
 
     const cam = this.cameras.main
     // 全景 zoom：整张图放进画面，吸附到 1/6 的整数倍
@@ -881,6 +929,7 @@ export default class GameScene extends Phaser.Scene {
 
   update(time: number, dt: number) {
     if (this.doorBubbles.size) this.pruneDoorBubbles(performance.now())
+    if (this.openDoors.size) this.pruneOpenDoors(performance.now())
     const store = useGameStore.getState()
     const speed = store.player?.moveSpeed ?? 1
 
