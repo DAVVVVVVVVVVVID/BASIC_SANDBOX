@@ -149,7 +149,15 @@ export default class ActorSprite {
   containsPoint(x: number, y: number) { return this.sprite.visible && Phaser.Geom.Rectangle.Contains(this.sprite.getBounds(), x, y) }
   /** W9 任务 0b：服务器说它在 walking（逐格推进）→ 路点空档也保持走路帧，不闪回待机 */
   private serverWalking = false
-  setServerWalking(w: boolean) { if (w !== this.serverWalking) { this.serverWalking = w; if (!w && this.path.length === 0 && this.moving) { this.setMoving(false); this.idleAt = 0 } } }
+  setServerWalking(w: boolean) {
+    if (w === this.serverWalking) return
+    this.serverWalking = w
+    if (!w && this.path.length === 0 && this.moving) { this.setMoving(false); this.idleAt = 0 }
+    // 走 ↔ 停 切换时重算姿势：开始走立刻起身（解除贴床 / 贴椅、换走路 / 站立帧），停下再按标签摆姿
+    if (!this.moving) { this.playAnim(false); this.applyPoseAnchor() }
+  }
+  /** 调试：当前标签 / 姿势 / 是否贴在物品上 */
+  debugPose() { return { label: this.stateLabel, pose: this.pose, anchored: this.anchored, serverWalking: this.serverWalking } }
   /** 每格用时（ms）：人类键盘 300；agent 按服务器 1 格 / 游戏秒 × 镇倍速 */
   private stepMs = BASE_STEP_MS
   setStepMs(ms: number) { this.stepMs = Math.max(60, ms) }
@@ -200,8 +208,9 @@ export default class ActorSprite {
   private playAnim(moving: boolean) {
     if (this.hasGen) {
       this.sprite.setFlipX(false)
-      if (!moving && this.pose === 'sleep') { this.sprite.play(`${this.animKey}_sleep`, true); return }
-      if (!moving && this.pose === 'sit') { this.sprite.play(`${this.animKey}_sit_${this.facing}`, true); return }
+      const posed = !moving && !this.serverWalking   // 总控 11-08：服务器说在走（两步之间精灵可能短暂静止）就不摆睡 / 坐姿
+      if (posed && this.pose === 'sleep') { this.sprite.play(`${this.animKey}_sleep`, true); return }
+      if (posed && this.pose === 'sit') { this.sprite.play(`${this.animKey}_sit_${this.facing}`, true); return }
       this.sprite.play(`${this.animKey}_${moving ? 'walk' : 'idle'}_${this.facing}`, true)
     } else {
       this.sprite.setFlipX(this.facing === 'left')
@@ -322,7 +331,7 @@ export default class ActorSprite {
   private anchored = false
   private applyPoseAnchor() {
     const a = this.pose === 'sleep' ? this.poseAnchors.sleep : this.pose === 'sit' ? this.poseAnchors.sit : null
-    const want = !!a && !this.moving && this.animKey.startsWith('ai_')
+    const want = !!a && !this.moving && !this.serverWalking && this.animKey.startsWith('ai_')
     if (want && a) {
       this.anchor = a
       this.sprite.setPosition(a.x, a.y).setAngle(a.angle)

@@ -7,8 +7,8 @@ import { AI_TILES_KEY, aiEnabled, getAiManifest, tileHash } from '../aiAssets'
  * 一格的屏幕像素数。源图块为 16 px，96 = 16 × 6，相机 zoom 取 1/6 的整数倍时屏幕上是整数像素缩放。
  * （旧值 90 不是 16 的整数倍，像素会不均匀。）
  */
-export const TILE_SIZE = 96
-export const SOURCE_TILE = 16
+export { TILE_SIZE, SOURCE_TILE } from '../constants'
+import { TILE_SIZE, SOURCE_TILE } from '../constants'
 /** 背景按 chunk 分块烘焙，避免单张 4800×4800 超过 OBS/CEF 的纹理上限 */
 const CHUNK_TILES = 10
 
