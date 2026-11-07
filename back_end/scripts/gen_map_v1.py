@@ -171,13 +171,13 @@ obj("notice_board_square", "notice_board", 33, 29)
 house(46, 22, 56, 30, "restaurant", rooms=[(47, 23, 52, 29, "dining"), (54, 23, 55, 29, "rest_kitchen")], doors=[(51, 30)])   # 南门
 wall(53, 23, 53, 29, door=(53, 26), ar="dining")
 obj("table_rest_1", "restaurant_table", 48, 23); obj("table_rest_2", "restaurant_table", 48, 28); obj("bar", "bar", 51, 25); obj("fridge_rest", "fridge", 55, 23)
-edge("door_restaurant", "door", (51, 31), (51, 30), "餐厅门", open_hours=[["11:00", "14:00"], ["17:00", "21:00"]])
+edge("door_restaurant", "door", (51, 31), (51, 30), "餐厅门", open_hours=[["11:00", "14:00"], ["17:00", "21:00"]], owner=["npc_rest_owner"])   # §3.38：店主随时双向
 
 # ── 杂货店（x46–56,y32–38）门朝小巷 (50,32) ────────────────────────────────────
 house(46, 32, 56, 38, "grocery", rooms=[(47, 33, 55, 37, "grocery_shop")], doors=[(51, 38)])   # 南门
 obj("counter", "shop_counter", 55, 35); obj("shelf_1", "shelf", 47, 33); obj("shelf_2", "shelf", 47, 37); obj("shelf_3", "shelf", 55, 33)
 fill(46, 39, 57, 39, "F", "outside", "lane")             # 杂货店门前小巷
-edge("door_grocery", "door", (51, 39), (51, 38), "杂货店门", open_hours=[["09:00", "20:00"]])
+edge("door_grocery", "door", (51, 39), (51, 38), "杂货店门", open_hours=[["09:00", "20:00"]], owner=["npc_grocer"])   # §3.38
 
 # ── 小千家（x12–20,y36–41）与店主们的家（x22–29,y36–46）────────────────────────
 house(12, 36, 20, 41, "xiaoqian_house", rooms=[(13, 37, 16, 40, "xiaoqian_room"), (18, 37, 19, 40, "xiaoqian_kitchen")], doors=[(16, 41)])   # 南门

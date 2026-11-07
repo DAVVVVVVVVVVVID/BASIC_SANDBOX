@@ -62,6 +62,7 @@
 | `a`, `b` | `{arena, x, y}` 两端格子；门 / 路口的 a、b 四邻相邻；楼梯任意 |
 | `open_hours` | `[["HH:MM","HH:MM"], ...]` 游戏时间；不在时段内 → `closed` |
 | `allow` / `owner` | `allow` 为谁能过（agent_id / name / id，或 `"owner"` 配合 `owner[]`）；为空 = 所有人；不在名单 → `locked` |
+| **进 / 出语义（§3.38，主播 11-07 定）** | 边是**有向判断**的：`a` 外 `b` 内。`open_hours` 与 `allow` 只管**进**（a→b）；从 `b` 走到 `a`（出）任何人任何时候放行——打烊时还在店里的客人能走出去。**主人随时双向放行**：`edge.owner`、内侧场所的 `access.owner`、`homes` 里家在内侧场所的人，不受 `open_hours`（v1：`door_restaurant.owner = [npc_rest_owner]`、`door_grocery.owner = [npc_grocer]`）。`GET /admin/path`、BFS、逐格走路都按同一规则 |
 
 | `map.access[arena]` 字段 | 说明 |
 |---|---|

@@ -76,7 +76,7 @@ def _blocked_detail(start: tuple[int, int], goals: set[tuple[int, int]], mover: 
         if blk is None and abs(prev[0] - n[0]) + abs(prev[1] - n[1]) != 1:
             for m, e in _STAIRS.get(prev, []):
                 if m == n:
-                    blk = edge_block(e, mover, ts) or arena_block(_ZONE_LOOKUP.get(n, {}).get("arena"), mover, ts)
+                    blk = edge_block(e, mover, ts, frm=prev) or arena_block(_ZONE_LOOKUP.get(n, {}).get("arena"), mover, ts)
         if blk is not None:
             return {"blocked_reason": blk[0], "blocked_at": {"x": n[0], "y": n[1]}, "opens_at": blk[1]}
         prev = n

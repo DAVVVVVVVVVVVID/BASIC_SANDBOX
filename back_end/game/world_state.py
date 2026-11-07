@@ -909,12 +909,30 @@ def _allowed(allow: list | None, mover: dict | None, owners: list | None = None)
     return False
 
 
-def edge_block(edge: dict, mover: dict | None, game_ts: float) -> tuple[str, str | None] | None:
-    """这条边此刻对 mover 是否不可过：None=可过；否则 ("closed"|"locked", opens_at)。"""
+def _edge_owners(edge: dict) -> set[str]:
+    """§3.38：边的主人 = edge.owner ∪ 内侧（b）场所的 access.owner ∪ homes 里家在 b 场所的人。"""
+    owners = set(edge.get("owner") or [])
+    b_arena = (edge.get("b") or {}).get("arena")
+    if b_arena:
+        owners |= set((_ACCESS.get(b_arena) or {}).get("owner") or [])
+        owners |= {aid for aid, ar in _HOMES.items() if ar == b_arena}
+    return owners
+
+
+def edge_block(edge: dict, mover: dict | None, game_ts: float, frm: tuple[int, int] | None = None) -> tuple[str, str | None] | None:
+    """这条边此刻对 mover 是否不可过：None=可过；否则 ("closed"|"locked", opens_at)。
+    §3.38（主播 11-07 定）：① 营业时间与门锁只管「进」（a→b，外→内），从内侧 b 走出去任何人任何时候放行——打烊时店里的客人能走；
+    ② 主人（edge.owner / 内侧场所 access.owner / homes 住在里面的人）随时双向放行，不受 open_hours。frm = 出发格，None 当作「进」。"""
+    b_tile = ((edge.get("b") or {}).get("x"), (edge.get("b") or {}).get("y"))
+    if frm is not None and tuple(frm) == b_tile:
+        return None                                              # 出：总是放行
+    owners = _edge_owners(edge)
+    if _mover_ids(mover) & owners:
+        return None                                              # 主人：随时
     is_open, opens_at = _hours_state(edge.get("open_hours"), game_ts)
     if not is_open:
         return ("closed", opens_at)
-    if not _allowed(edge.get("allow"), mover, (edge.get("owner") or [])):
+    if not _allowed(edge.get("allow"), mover, sorted(owners)):
         return ("locked", None)
     return None
 
@@ -953,7 +971,7 @@ def crossing_block(t1: tuple[int, int], t2: tuple[int, int], mover: dict | None,
     """从 t1 走到 t2：相邻两格之间若有边按边判；跨场所再按目标场所访问规则判。"""
     e = _EDGE_BY_PAIR.get(frozenset((t1, t2)))
     if e is not None:
-        b = edge_block(e, mover, game_ts)
+        b = edge_block(e, mover, game_ts, frm=t1)                # §3.38：有向——只判「进」
         if b:
             return b
     a1 = _ZONE_LOOKUP.get(t1, {}).get("arena"); a2 = _ZONE_LOOKUP.get(t2, {}).get("arena")
@@ -977,7 +995,7 @@ def neighbors(x: int, y: int, mover: dict | None = None, game_ts: float | None =
             continue
         blk = None
         if not ignore_locks:
-            blk = edge_block(e, mover, ts)
+            blk = edge_block(e, mover, ts, frm=(x, y))
             if blk is None:
                 a2 = _ZONE_LOOKUP.get(n, {}).get("arena")
                 blk = arena_block(a2, mover, ts) if a2 != _ZONE_LOOKUP.get((x, y), {}).get("arena") else None
@@ -1017,7 +1035,7 @@ def first_block_on_path(start: tuple[int, int], path: list[tuple[int, int]], mov
         if blk is None and abs(prev[0] - n[0]) + abs(prev[1] - n[1]) != 1:
             for m, e in _STAIRS.get(prev, []):
                 if m == n:
-                    blk = edge_block(e, mover, ts) or arena_block(_ZONE_LOOKUP.get(n, {}).get("arena"), mover, ts)
+                    blk = edge_block(e, mover, ts, frm=prev) or arena_block(_ZONE_LOOKUP.get(n, {}).get("arena"), mover, ts)
         if blk is not None:
             return blk
         prev = n
@@ -1123,7 +1141,7 @@ def walk_tick(gts: float) -> int:
                 if blk is None and abs(cur[0] - nxt[0]) + abs(cur[1] - nxt[1]) != 1:        # 楼梯
                     for m, e in _STAIRS.get(cur, []):
                         if m == nxt:
-                            blk = edge_block(e, p, gts) or arena_block(_ZONE_LOOKUP.get(nxt, {}).get("arena"), p, gts)
+                            blk = edge_block(e, p, gts, frm=cur) or arena_block(_ZONE_LOOKUP.get(nxt, {}).get("arena"), p, gts)
             if blk is not None:
                 _walks.pop(pid, None)
                 row = _finish_walk(pid, w, "blocked", blk[0])

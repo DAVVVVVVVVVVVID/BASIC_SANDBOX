@@ -45,6 +45,13 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5e. §3.38 门禁只管「进」不管「出」、主人随时双向 —— 完成
+
+- **根因**（C / 总控查出）：21:00 餐厅门关后，店主从吧台回卧室要先出门 (51,30)→(51,31)，`edge_block` 不分方向、按 open_hours 判 `closed`，店主被锁在自己店里。
+- **改**：`edge_block(edge, mover, ts, frm)` 有向——出发格是边的内侧 `b` 即「出」，任何人任何时候放行；主人（`edge.owner` ∪ 内侧场所 `access.owner` ∪ `homes` 住在内侧的人）随时双向，不受 `open_hours` / `allow`；`crossing_block`、`neighbors`（楼梯）、`first_block_on_path`、走路 `walk_tick`、`_blocked_detail` 全部传出发格。`gen_map_v1.py`：`door_restaurant.owner=[npc_rest_owner]`、`door_grocery.owner=[npc_grocer]`，v1 图重出（tiles / 物品没变，mapVersion 不变）。
+- **测试** `tests/test_w11_access_direction.py` 2 例：21:30 店主从吧台到卧室可达（`/admin/path mover=npc_rest_owner` 与 `move_to_area` 真走到）、打烊后店主仍能回店；客人在店里能出（(51,30)→(51,31)）、出了进不来（`no_path/closed/11:00`）、从店里深处 `move_to_area square` 有路；小千家常锁外人能出不能进；杂货店关门后老板娘双向、外人 `closed`；边的 `owner` 进 `/world.map.edges`。既有用例全过。
+- api-spec `map.edges` 表加「进 / 出语义」一行。
+
 ## 5d. §3.36 移动改为「必须有路、按固定速度花游戏时间」（主播 11-07 20:55 定）—— 完成
 
 - **改法**（`game/world_state.py` 走路队列 + `routers/actions.py`）：`move / move_n / move_to_area / go_to` 统一先 BFS（复用 `bfs_path`，逐边判锁与时段）；有路 → `state="walking"`、路径入队、**立即返回** `{state:"walking", path_len, eta_game_s, position, facing, target}`；ticker 每 tick 按 **1 格 / 游戏秒**（`SANDBOX_WALK_TILE_SEC`，默认 1.0，env 可覆盖）逐格推进，每格到点前再查可走 / 门锁 / 时段 / `canMove`；到达 / 中断在动作日志写 `move_done {outcome: arrived|blocked|stopped, reason, position, path_len, steps_done, game_s, action, target, start}`（`success = arrived`）并推 ws `action` 事件；无路 → `no_path` + `result.{blocked_reason, blocked_at, opens_at}`（首个阻塞）。新 move 替换旧路径（`stopped/replaced`）；走路中 `use/interact` → `reason: walking`；`leave` 就地停；聊天接受进入 `walking_over` 的那一 tick 就地停（`stopped/state:walking_over`）；人类单格 `direction` 免排队（门锁照查，走路中按方向键 = 就地改手动）；夹具 `teleport` 取消路径；`usePos` 入座不变。`GET /player/{id}` 多 `walk: {remaining, path_len, eta_game_s, target, next, started_at, action}`。走路队列不进检查点（重启归 idle）；回放把 `move_done` 当位置同步点、回放中不写 move_done。
