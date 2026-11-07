@@ -241,6 +241,7 @@ export interface ChatBubble {
   entityId: string
   content: string
   until: number   // performance.now() 毫秒
+  ttl?: number    // 本条的时长（合并判断用）
 }
 
 export type ConnectionStatus = 'connecting' | 'online' | 'offline'

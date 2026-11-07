@@ -151,13 +151,13 @@
 
 ## 1. 进度
 
-B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**上午还没落地**：8091 的门仍在北面、`/qq/contacts` 404、`/world` 物品没有 `use_pos`、玩家没有 `gold`。所以 1–3 按交接里的接口形状把前端做好、对字段名做了宽容解析，B 落地后只需对齐字段名；4、5 已完成。
+（11-07 上午写的状态，当天下午 B 的 W10 落地后全部联调通过，见 §0；表里状态已刷新。）B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**上午还没落地**：8091 的门仍在北面、`/qq/contacts` 404、`/world` 物品没有 `use_pos`、玩家没有 `gold`。所以 1–3 按交接里的接口形状把前端做好、对字段名做了宽容解析，B 落地后只需对齐字段名；4、5 已完成。
 
 | # | 任务 | 状态 | 做了什么 |
 |---|---|---|---|
-| 1 | 美术收尾 | **等 B** | ① 南门：外观底图的门已全部画在南面墙正中，B 挪门边后不需要重出图，只需重导版式跑一次 QA（`flat_export` + `refinish`）；② `decor[]`：`DecoLayer` 已能渲染 B 的地图装饰层（假设形状 `{type, x, y}` 或 `{type, tiles}`；树 / 灌木 / 花 / 石 / 灯 / 围栏 / 信箱 / 木桶 / 花坛用现有图，`pond` 画水砖、`path` 画路砖，认不出的跳过并 console.debug）；③ 坐姿：`poseAnchorsFor` 优先读物品的 `use_pos`（相对格；落在 3 格外当绝对格）与 `use_facing`，没有才退回按类型猜；④ 角色问题帧：等主播挑 |
-| 2 | QQ 面板 | **做完等联调** | `src/ui/QQPanel.tsx` + `src/api/qq.ts`：联系人 / 群（👥）/ 未读角标、会话、发文字、发文件类物品（下拉只列背包里 kind=file 的歌 / 文稿；实物不列）、「标记已读」（占 1 游戏分钟）。操控页右上（收成图标）；旁观页只读看跟随目标的手机，`layout=live` 或 `hud=0` 收成 📱 图标 + 未读数，`&qq=0` 关。数据：ws `qq` 事件即时推 + 每 4 s 轮询 `/qq/inbox?player=&since=` 兜底；后端 404 时面板显示「后端还没开通」。她读消息时头顶 `📱 看手机`（按 B 的 `reading` 标签） |
-| 3 | 金币与背包 | **做完等联调** | 旁观：信息面板末行 `💰 余额 + 背包图标×数量`，React 面板同样一行；操控页：左下 `BackpackPanel` 10 格背包 + 金币，物品可「吃」「送（相邻的人）」「卖（站在柜台 / 卖鱼摊旁）」，站在带 `shop[]` 的物品旁列出可买项（价格、钱不够灰掉）；全部走 `POST /action {type: buy|eat|give|sell}`。反馈气泡：ws `action` 事件 → `🛒 买了🍞面包 -5 金币` / `🍞 吃了面包` / `🎁 把小礼物送给了小千` / `💰 卖了🐟鱼 +10 金币` / `💸 钱不够，买不了面包`（`insufficient_funds`）。物品表 `src/game/items.ts` 按 `03-objects.md` 3.2，中英文名都认 |
+| 1 | 美术收尾 | 完成（§0 联调过） | ① 南门：外观底图的门已全部画在南面墙正中，B 挪门边后不需要重出图，只需重导版式跑一次 QA（`flat_export` + `refinish`）；② `decor[]`：`DecoLayer` 已能渲染 B 的地图装饰层（假设形状 `{type, x, y}` 或 `{type, tiles}`；树 / 灌木 / 花 / 石 / 灯 / 围栏 / 信箱 / 木桶 / 花坛用现有图，`pond` 画水砖、`path` 画路砖，认不出的跳过并 console.debug）；③ 坐姿：`poseAnchorsFor` 优先读物品的 `use_pos`（相对格；落在 3 格外当绝对格）与 `use_facing`，没有才退回按类型猜；④ 角色问题帧：等主播挑 |
+| 2 | QQ 面板 | 完成（§0 联调过） | `src/ui/QQPanel.tsx` + `src/api/qq.ts`：联系人 / 群（👥）/ 未读角标、会话、发文字、发文件类物品（下拉只列背包里 kind=file 的歌 / 文稿；实物不列）、「标记已读」（占 1 游戏分钟）。操控页右上（收成图标）；旁观页只读看跟随目标的手机，`layout=live` 或 `hud=0` 收成 📱 图标 + 未读数，`&qq=0` 关。数据：ws `qq` 事件即时推 + 每 4 s 轮询 `/qq/inbox?player=&since=` 兜底；后端 404 时面板显示「后端还没开通」。她读消息时头顶 `📱 看手机`（按 B 的 `reading` 标签） |
+| 3 | 金币与背包 | 完成（§0 联调过；11-08 补：同一人 2 s 内两条气泡合成两行，不再互相覆盖） | 旁观：信息面板末行 `💰 余额 + 背包图标×数量`，React 面板同样一行；操控页：左下 `BackpackPanel` 10 格背包 + 金币，物品可「吃」「送（相邻的人）」「卖（站在柜台 / 卖鱼摊旁）」，站在带 `shop[]` 的物品旁列出可买项（价格、钱不够灰掉）；全部走 `POST /action {type: buy|eat|give|sell}`。反馈气泡：ws `action` 事件 → `🛒 买了🍞面包 -5 金币` / `🍞 吃了面包` / `🎁 把小礼物送给了小千` / `💰 卖了🐟鱼 +10 金币` / `💸 钱不够，买不了面包`（`insufficient_funds`）。物品表 `src/game/items.ts` 按 `03-objects.md` 3.2，中英文名都认 |
 | 4 | 室内视角过渡 | 完成 | 进屋 / 出门：140 ms 压黑 → 黑场里直接切 zoom 与屋顶 / 室内视图 → 260 ms 亮起（原来是 650 ms 的 zoom 渐变 + 压暗叠在一起，会抽）；上下楼：180 / 320 ms 并在屏幕中央弹 `2F ↑` / `1F ↓`；锁门提示沿用 W7。录屏 `report_shots/w9/W9_indoor_transition_20s.webm`（8091：广场 → 合租房 1F → 2F → 广场 → 教室 → 餐馆），`W9_transition_last.jpg`。调试钩子 `__whaleDebug.setFocus(sector, floor)` 运行时切取景（录屏用） |
 | 5 | 评审页主播评分 | 完成 | 每张底图 / 角色表 / 物品 / 地砖表 / 装饰下面 👍 👎 + 备注框（回车提交），写 `front_end/data/assets/review.jsonl`（一行 `{ts, kind, name, vote, note, by}`；**不进 git**，路径可用 `VITE_REVIEW_FILE` 指到总控的 `run/data/`——总控建议，11-07 晚改），页顶统计 👍/👎 数。写入靠 Vite dev / preview 的 `/review-api/rate` 中间件（`vite.config.ts`），生产静态托管下没有写入口——评审页本来就只在运行台开 |
 

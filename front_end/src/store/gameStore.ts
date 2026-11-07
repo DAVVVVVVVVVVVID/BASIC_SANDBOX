@@ -108,12 +108,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     else delete next[id]
     return { playerVars: next }
   }),
-  pushBubble: (entityId, content, ttlMs = BUBBLE_TTL_MS) => set((s) => ({
-    bubbles: [
-      ...s.bubbles.filter(b => b.entityId !== entityId),
-      { entityId, content, until: performance.now() + ttlMs },
-    ],
-  })),
+  // W9：同一人头顶 2 s 内连来两条（如 give 的动作气泡 + commission deliver）→ 合成两行一起显示，不再后到的盖掉先到的；更久的直接替换
+  pushBubble: (entityId, content, ttlMs = BUBBLE_TTL_MS) => set((s) => {
+    const now = performance.now()
+    const prev = s.bubbles.find(b => b.entityId === entityId)
+    const fresh = prev && prev.until - now > (prev.ttl ?? BUBBLE_TTL_MS) - 2000 && prev.content !== content && !prev.content.includes(content)
+    const merged = fresh ? `${prev!.content}\n${content}`.split('\n').slice(-3).join('\n') : content
+    return { bubbles: [...s.bubbles.filter(b => b.entityId !== entityId), { entityId, content: merged, until: now + Math.max(ttlMs, fresh ? prev!.until - now : 0), ttl: ttlMs }] }
+  }),
   pruneBubbles: (now) => {
     const cur = get().bubbles
     if (cur.length === 0) return
