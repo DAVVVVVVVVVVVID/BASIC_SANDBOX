@@ -1,6 +1,7 @@
 /**
  * 自制 CC0 素材清单（由 tools/gen_assets.py 生成到 public/assets/gen/）。改生成器时同步这里。
  */
+import { getAiManifest, aiEnabled, aiCharKey } from './aiAssets'
 export const GEN_DIR = 'assets/gen'
 export const GEN_TILES_KEY = 'gen_tiles'
 export const GEN_TILE = 16
@@ -49,7 +50,7 @@ export function charKeyFor(name: string, controller?: string): CharKey {
   if (/厨|cook|chef/.test(n)) return 'cook'
   if (/杂货|grocer|店/.test(n)) return 'grocer'
   if (/渔|fish/.test(n)) return 'fisher'
-  if (/常客|regular/.test(n)) return 'regular'
+  if (/小千|小满|xiaoqian|常客|regular/.test(n)) return 'regular'   // W8：regular 这套外观画成千小满（小千）
   if (controller === 'human') return 'achan'   // 作者进来操控默认是阿蝉
   let h = 0
   for (const ch of n) h = (h * 31 + ch.charCodeAt(0)) >>> 0
@@ -73,10 +74,22 @@ export function preloadGenAssets(scene: Phaser.Scene) {
 
 /** 角色与水面动画（幂等） */
 export function createGenAnimations(scene: Phaser.Scene) {
+  for (const k of CHAR_KEYS) createCharAnimations(scene, k, charTextureKey(k))
+  const m = getAiManifest()
+  if (m && aiEnabled()) for (const k of m.chars) createCharAnimations(scene, aiAnimPrefix(k), aiCharKey(k))
+  if (scene.textures.exists(GEN_TILES_KEY) && !scene.anims.exists('gen_water')) {
+    scene.anims.create({ key: 'gen_water', frames: scene.anims.generateFrameNumbers(GEN_TILES_KEY, { frames: WATER_FRAMES }), frameRate: 2, repeat: -1 })
+  }
+}
+
+/** AI 角色表的动画键前缀（与像素表 <key>_walk_<dir> 同形，前缀不同） */
+export const aiAnimPrefix = (k: string) => `ai_${k}`
+
+/** 一张 4 列 × 5 行四向表 → <prefix>_idle|walk_<dir>、<prefix>_sit_<dir>、<prefix>_sleep（幂等） */
+export function createCharAnimations(scene: Phaser.Scene, k: string, tex: string) {
   const anims = scene.anims
-  for (const k of CHAR_KEYS) {
-    const tex = charTextureKey(k)
-    if (!scene.textures.exists(tex)) continue
+  {
+    if (!scene.textures.exists(tex)) return
     for (const dir of ['down', 'left', 'right', 'up'] as const) {
       const row = CHAR_ROWS[dir] * 4
       if (!anims.exists(`${k}_idle_${dir}`)) anims.create({ key: `${k}_idle_${dir}`, frames: [{ key: tex, frame: row }], frameRate: 1, repeat: -1 })
@@ -90,8 +103,5 @@ export function createGenAnimations(scene: Phaser.Scene) {
       if (!anims.exists(`${k}_sit_${dir}`)) anims.create({ key: `${k}_sit_${dir}`, frames: [{ key: tex, frame: sitFrame[dir] }], frameRate: 1, repeat: -1 })
     }
     if (!anims.exists(`${k}_sleep`)) anims.create({ key: `${k}_sleep`, frames: [{ key: tex, frame: pr + 1 }], frameRate: 1, repeat: -1 })
-  }
-  if (scene.textures.exists(GEN_TILES_KEY) && !anims.exists('gen_water')) {
-    anims.create({ key: 'gen_water', frames: anims.generateFrameNumbers(GEN_TILES_KEY, { frames: WATER_FRAMES }), frameRate: 2, repeat: -1 })
   }
 }

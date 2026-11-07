@@ -14,6 +14,7 @@ import { preloadGenAssets, createGenAnimations, charKeyFor } from '../assets'
 import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
 import { preloadAiAssets, getAiManifest, aiBackdropKey, aiEnabled, type AiBackdrop } from '../aiAssets'
+import { arenaBBox } from '../map/mapv2'
 
 export interface SceneInitData {
   mode: 'play' | 'spectate'
@@ -58,6 +59,19 @@ const LABEL_ICON: [RegExp, string][] = [
   [/睡|sleep/i, '💤'], [/吃|饭|eat|food/i, '🍴'], [/直播|stream/i, '📺'], [/聊|talk|chat/i, '💬'], [/洗|bath|shower/i, '🛁'],
   [/钓|fish/i, '🎣'], [/看书|读|read|book/i, '📖'], [/手机|phone|刷/i, '📱'], [/休息|坐|rest|sit/i, '🛋'], [/工作|desk|work|写/i, '🖥'],
 ]
+
+/** W8：睡觉时要贴到哪张床上——优先 usingObjectId，其次 objects[].userList 反查，最后找相邻的床；返回床中心像素与朝向角（竖床 0°，横床 -90°，表里的睡觉帧是竖躺头朝上） */
+export function sleepAnchorFor(p: { id: string; position: Position; usingObjectId?: string | null }, objects: GameObject[]): { x: number; y: number; angle: number } | null {
+  const tilesOf = (o: GameObject) => (o.tiles && o.tiles.length ? o.tiles : [o.position])
+  const isBed = (o: GameObject) => /bed|sofa/i.test(o.type)
+  const obj = (p.usingObjectId ? objects.find(o => o.id === p.usingObjectId) : undefined)
+    ?? objects.find(o => o.userList?.includes(p.id))
+    ?? objects.filter(isBed).find(o => tilesOf(o).some(t => Math.abs(t.x - p.position.x) + Math.abs(t.y - p.position.y) <= 1))
+  if (!obj || !isBed(obj)) return null
+  const ts = tilesOf(obj)
+  const x0 = Math.min(...ts.map(t => t.x)), x1 = Math.max(...ts.map(t => t.x)), y0 = Math.min(...ts.map(t => t.y)), y1 = Math.max(...ts.map(t => t.y))
+  return { x: (x0 + x1 + 1) / 2 * TILE_SIZE, y: (y0 + y1 + 1) / 2 * TILE_SIZE, angle: (x1 - x0) > (y1 - y0) ? -90 : 0 }
+}
 
 /** 后端给的 stateLabel（W5 起 players[] 自带）前面配一个图标 */
 export function iconize(label: string): string {
@@ -210,9 +224,9 @@ export default class GameScene extends Phaser.Scene {
       this.player = player
       this.inputSystem?.applyServerSnapshot(player.position, player.facing, sentAt)
       this.inputSystem?.setEnabled(true)
-      this.self?.setStateLabel(deriveStateLabel(
-        { id: player.id, name: player.profile?.name ?? '', position: player.position, facing: player.facing, state: player.state, stateLabel: player.stateLabel, tags: player.tags, usingObjectId: player.usingObjectId },
-        useGameStore.getState().objects))
+      const me = { id: player.id, name: player.profile?.name ?? '', position: player.position, facing: player.facing, state: player.state, stateLabel: player.stateLabel, tags: player.tags, usingObjectId: player.usingObjectId }
+      this.self?.setStateLabel(deriveStateLabel(me, useGameStore.getState().objects))
+      this.self?.setSleepAnchor(sleepAnchorFor(me, useGameStore.getState().objects))
     })
     this.on('player-rejoined', ({ player }: { playerId: string; player: Player }) => {
       this.player = player
@@ -274,6 +288,7 @@ export default class GameScene extends Phaser.Scene {
     for (const [name, meta] of Object.entries(m.backdrops)) {
       const key = aiBackdropKey(name)
       if (!this.textures.exists(key)) continue
+      if (!this.backdropFits(meta)) { console.debug('[ai] backdrop skipped (map layout differs):', name); continue }
       const tp = meta.tile_px || m.tile_px || 32
       const scale = TILE_SIZE / tp
       const mg = meta.margin ?? 1   // 版式导出时四周多带的地面格：裁掉，只贴建筑本体（setCrop 用纹理坐标，图仍从 x0,y0 起放）
@@ -286,6 +301,15 @@ export default class GameScene extends Phaser.Scene {
     // 室内底图覆盖到的格：不再叠画像素楼梯图示
     const interiors = this.backdrops.filter(b => b.meta.view === 'interior')
     this.focus?.hideStairIcons((t) => interiors.some(b => t.x >= b.meta.x0 && t.x < b.meta.x0 + b.meta.w && t.y >= b.meta.y0 && t.y < b.meta.y0 + b.meta.h))
+  }
+
+  /** 底图是照 8091 草图镇某一版地图画的：当前地图里该 sector / arena 同层的包围盒必须与 manifest 一致才贴（主镇 / 改图后自动跳过，不会贴错位） */
+  private backdropFits(meta: AiBackdrop): boolean {
+    const mg = meta.margin ?? 1
+    const tiles = this.worldData.tiles.filter(t => (this.focus?.floorOf(t) ?? 1) === meta.floor)
+    const b = arenaBBox(tiles, meta.sector) ?? arenaBBox(tiles, null, meta.sector)
+    if (!b) return false
+    return b.x0 - mg === meta.x0 && b.y0 - mg === meta.y0 && b.x1 - b.x0 + 1 + 2 * mg === meta.w && b.y1 - b.y0 + 1 + 2 * mg === meta.h
   }
 
   /** 两套视图：inside = 当前镜头进入的 sector（室内视图），其余有屋顶的 sector 显示屋顶、藏起屋内物品与人物 */
@@ -423,6 +447,7 @@ export default class GameScene extends Phaser.Scene {
       }
       s.setDimmed(op.online === false)
       s.setStateLabel(deriveStateLabel(op, objects))
+      s.setSleepAnchor(sleepAnchorFor(op, objects))
     }
     for (const [id, sprite] of this.others) {
       if (!seen.has(id)) { sprite.destroy(); this.others.delete(id) }

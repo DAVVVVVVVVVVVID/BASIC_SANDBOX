@@ -2,16 +2,16 @@
 
 ---
 
-# W8 · 2026-11-07：美术管线 v1.0（gpt-image-2 底图 + 物品，任务 1–2 先交主播看）
+# W8 · 2026-11-07：美术管线 v1.0（gpt-image-2 底图 + 物品 + 角色，任务 1–5 全部完成）
 
-## 1. 进度（先做了任务 1、2，等主播看过再做 3–5）
+## 1. 进度（1–2 上午交主播看过，主播「没问题继续」后下午做完 3–5）
 
 | # | 任务 | 状态 | 做了什么 |
 |---|---|---|---|
 | 1 | 合租房外观 + 1F/2F 室内 | 完成 | 3 张底图：`home_1f_exterior`（16×15 格，宝可梦式 3/4 外观：蓝瓦屋顶 + 底边正面墙 + 门窗花箱）、`home_1f_interior`（三间 + 厨房瓷砖，内墙按 B 的版式）、`home_2f_interior`（阿蝉房，画在 B 画布的 2F 位置，常显） |
 | 2 | 校园三栋外观 + 室内、20 件核心物品 | 完成 | 教室 / 图书馆 / 音乐室各 1 外观 + 1 室内（共 6 张）；物品 21 件（任务书 20 件 + `door_closed`）：bed、pc、fridge、stove、restaurant_table、sofa_tv、pc_music、piano、reading_desk、classroom_desk、shelf、bar、shop_counter、fishing_spot、fish_stall、bench、notice_board、door_closed、stairs、tree、fountain。见 `report_shots/v1art/W8_objects_sheet.png` |
-| 3 | 鲸仔 / 阿蝉形象 | 未开始 | 等主播对 1–2 的画风拍板后再做（行走帧用 `images.edit` 一致性仍是风险，见 §5） |
-| 4 | 其余区域底图 + NPC | 未开始 | 餐馆 / 商店 / 渔夫屋 / 小千屋 / 餐厅老板屋 / 码头 / 广场 / 公园的底图和 NPC 形象 |
+| 3 | 鲸仔 / 阿蝉四向精灵 | 完成 | **按主播 11-07 下午给的新人设**（`ref/jingzai_design_sheet_v2.png`、`ref/achan_design_sheet_v2.png`：鲸仔不再是鲸鱼娘——音乐学本科生、白连帽开衫 + 藏青百褶裙 + 脖挂耳机；阿蝉没有猫耳猫尾）。一张 `images.edit` 出整张 4 列 × 5 行表（下 / 左 / 右 / 上各「站 走 站 走」+ 坐 / 睡 / 坐左 / 坐右），切格后 32×48/帧 → 游戏里 ×3 = 96×144（一格宽、一格半高）。旁观主镇截图 `W8_main_follow_whale.jpg`（对照像素版 `W8_main_follow_whale_pixel.jpg`）、30 s 录屏 `W8_spectate_30s.webm` |
+| 4 | 其余区域底图 + 5 NPC | 完成 | 13 张底图：渔夫屋 / 餐馆 / 杂货店 / 小千屋 / 两位老板的房子各外观 + 室内（10），广场 / 公园 / 码头地面（3，常显、物品另叠）；全镇 22 张底图齐了。5 个 NPC 四向表：餐厅老板（厨师）、杂货店老板（**女**，主播 11-07 改）、老渔夫、千小满（小千，复用 `regular` 这套外观键，`charKeyFor` 加了「小千 / 小满」匹配）、村民。全镇换装截图 `W8_overview.jpg`（对照 `W8_overview_pixel.jpg`），`W8_backdrops_task4.png` 13 张一览，`W8_chars_sheet.png` 7 套形象一览 |
 | 5 | 评审页 + 报告 | 完成（页）/ 本节 | `/assets-review`：底图四联（平涂版式 → 原始输出 → 对齐 QA 叠图 → 量化成品）+ QA 分 + 次数 + 费用；物品三联（旧像素 → 新 AI → 原始输出）；「一键替换」切 `localStorage.aiAssets`；每张可看提示词 |
 
 **主播补充三条全部按要求做了**：① 统一相机——室内俯视 3/4（参考 `ref/gpt-image-probe/house.png`），外观按主播 11-07 的话改成宝可梦式「看得见正面墙」；鲸仔 / 阿蝉动作表只作画风与配色参考喂给模型，没有照抄侧视；② 小镇视角房屋不镂空（屋顶 + 外墙），相机跟到的人进屋才切室内图；每栋都有外观 + 室内，2F 单独一张；③ 室外小物件（长椅、喷泉、树、公告栏、鱼摊、钓位）一套，室内物件只在室内视图出现（屋顶盖住时隐藏物品和人物）。
@@ -35,20 +35,27 @@ gen_assets_ai.py manifest   ──▶ public/assets/gen-ai/manifest.json + revie
 
 游戏接入：`src/game/aiAssets.ts` 读 manifest、`&ai=0` / `localStorage.aiAssets` 开关；`GameScene.placeBackdrops` 把底图贴在 `(x0,y0)` 格、`setCrop` 裁掉版式四周 1 格地面、深度 0.6（地砖之上、物品之下）；`applyView(inside)`：镜头进了某栋（按 backdrop 的 sector **或 arena** 匹配——校园三栋 sector 都是 `university`，按 arena 分）就显示它的室内图、其余有外观图的显示屋顶并隐藏屋内 1F 物品 / 人物；同层没有外观图的室内（2F）常显。物品精灵优先用 `aiobj_<type>`，别名表 `pc_desk→pc、book→shelf、cook→stove、desk→classroom_desk、bed_21→bed、desk_12→reading_desk、game_console→pc`；1×2 的床遇到 2×1 的占位时转 90°。
 
-## 3. 结果与费用（`data/assets/gen.jsonl`，57 次调用）
+## 3. 结果与费用（`data/assets/gen.jsonl`，全周 81 次调用）
 
 | 项 | 值 |
 |---|---|
-| 成功 / 失败 | 35 / 22（22 次失败全是参数 400：1 次 `input_fidelity`、21 次 `background=transparent`，**不计费**） |
-| 底图 | 9 张成品，14 次成功调用（home_2f 3 次、home_1f_int / classroom_int / library_int / home_1f_ext 各 2 次） |
+| 成功 / 失败 | **59 / 22**（22 次失败全在上午、全是参数 400：1 次 `input_fidelity`、21 次 `background=transparent`，**不计费**；下午任务 3–4 的 31 次调用 0 失败） |
+| 底图 | **22 张成品，29 次成功调用**：任务 1 的 9 张用了 14 次（home_2f 3 次、home_1f_int / classroom_int / library_int / home_1f_ext 各 2 次）；任务 4 的 13 张 13 次一次过，广场 / 公园因版式格线被画成浅色方块重出 1 次（共 15 次） |
 | 物品 | 21 张，21 次，一次过 |
-| 对齐 QA（最终成品） | 外观：home 1.000、classroom 1.000、music_room 1.000、library 0.965；室内：home_2f 0.972、library 0.949、music_room 0.946、classroom 0.914、**home_1f 0.899**（差 0.001，三间房 + 厨房的内墙全对上，缺的是门洞一角，放行，见评审页叠图） |
-| 时延 | 52–97 s / 张，均 74 s（high） |
-| token | 331,295（usage 字段汇总） |
-| 费用估算 | **$8.75**（35 × $0.25；$0.25/张 high 是**假设**，按 gpt-image-1 high 1024² 价；官方账单以 token 计，请总控按实际账单核） |
-| 预算 | 任务书 ≤ 200 张，用了 35 张（17.5%） |
+| 角色 | **7 套成品，9 次调用**：鲸仔第 1 版按旧人设（鲸鱼娘）出完后主播换了人设 → 重出 1 次；杂货店老板第 1 版画成男性 → 按主播改女性重出 1 次；其余 5 套一次过。切格 QA（5 行 × 4 列按空隙切出、15 个所需格全非空）9/9 通过 |
+| 对齐 QA（22 张成品） | 任务 1：外观 home / classroom / music_room 1.000、library 0.965；室内 home_2f 0.972、library 0.949、music_room 0.946、classroom 0.914、**home_1f 0.899**（差 0.001，缺的是门洞一角，放行）。任务 4：外观 fisher / restaurant / grocery / xiaoqian 1.000、owners 0.989；室内 fisher 0.995、grocery 0.982、xiaoqian 0.950、restaurant 0.927、owners 0.912；地面 park / dock 1.000、square 0.945。29 次调用里 ≥ 0.9 的 24 次，中位 0.982 |
+| 时延 | 52–105 s / 张，均 73 s（high） |
+| token | 558,131（usage 字段汇总，59 次成功调用） |
+| 费用估算 | **$14.75**（59 × $0.25；$0.25/张 high 是**假设**，按 gpt-image-1 high 1024² 价；官方账单以 token 计，请总控按实际账单核）。其中因人设 / 性别改动重出的 2 张 $0.50，广场公园重出 $0.50 |
+| 预算 | 任务书 ≤ 200 张，用了 59 张（29.5%） |
 
-截图（`report_shots/v1art/`，8091 草图镇，无人物）：`W8_overview.jpg` 全镇 1/6 zoom（屋顶版）与 `W8_overview_pixel.jpg`（`&ai=0` 像素版，同机位对照）、`W8_town_roofs.jpg` 合租房屋顶 + 公园广场物品、`W8_home_1f_ai.jpg` / `W8_home_2f_ai.jpg` 进屋取景、`W8_campus_ai.jpg`（镜头在图书馆：它显示室内、两侧教室 / 音乐室保持屋顶）、`W8_classroom_ai.jpg`、`W8_assets_review.jpg` 评审页整页、`W8_objects_sheet.png` 21 件物品一览。
+截图（`report_shots/v1art/`）。任务 3–4 新增：`W8_main_follow_whale.jpg`（主镇 8000 旁观跟随鲸仔：新人设、睡在床上）、`W8_main_follow_whale_pixel.jpg`（同机位像素版）、`W8_spectate_30s.webm`（主镇 30 s 录屏）、`W8_chars_sheet.png`（7 套四向表 ×3）、`W8_backdrops_task4.png`（13 张新底图）、`W8_restaurant_ai.jpg` / `W8_grocery_ai.jpg` / `W8_owners_ai.jpg`（进屋取景）、`W8_square_dock.jpg`（广场 + 公园 + 餐馆外观）；`W8_overview.jpg` 已重拍为全镇 22 张底图齐的版本。上午那批（8091 草图镇，无人物）：`W8_overview.jpg` 全镇 1/6 zoom（屋顶版）与 `W8_overview_pixel.jpg`（`&ai=0` 像素版，同机位对照）、`W8_town_roofs.jpg` 合租房屋顶 + 公园广场物品、`W8_home_1f_ai.jpg` / `W8_home_2f_ai.jpg` 进屋取景、`W8_campus_ai.jpg`（镜头在图书馆：它显示室内、两侧教室 / 音乐室保持屋顶）、`W8_classroom_ai.jpg`、`W8_assets_review.jpg` 评审页整页、`W8_objects_sheet.png` 21 件物品一览。
+
+## 3b. 任务 3–4 的做法
+
+**角色表**（`gen_assets_ai.py chars --keys whale,achan,...`）：姿态版式 = 现有像素表（鲸仔 / 阿蝉用 v1 文字版）每帧 ×9 放进 1024×1536 品红画布的 4 × 5 格里（睡觉格用左向站姿转 90° 平躺、不画床），第二张输入是新人设图；提示词说明行列含义（4 向 × 「站 走 站 走」+ 坐 / 睡 / 坐左 / 坐右）、只取人设图的角色与配色、2 头身、俯视 3/4、品红纯底。输出：品红抠像 → **按 alpha 投影的空隙切 5 行 × 4 列**（模型不严格落在格子里，脚常画到格线下，固定网格会切掉脚；切不出 5 × 4 就退回固定网格并判不过）→ 站姿帧统一比例（最高者 44 px）→ 32×48/帧、脚底对齐 → 右向整行 = 左向镜像、坐右 = 坐左镜像（左右一致）→ 睡觉帧顺时针转 90° 竖躺（头朝上）存表 → 整表 ≤ 64 色 → `public/assets/gen-ai/chars/<key>.png`；`--reslice` 从 raw 重切不花钱。NPC 没有立绘，用两张新人设图定画风 + 文字描述。
+
+**游戏接入**：`manifest.chars` 有的角色优先用 `aichar_<key>` 表（`ai_<key>_walk_<dir>` 等动画键与像素表同形），×3 显示 96×144（像素表 16×24 ×4 = 64×96；主播 11-07：「跟物品一比太小了」→ 放大到一格宽一格半高，头顶名字 / 状态 / 气泡的偏移按高度等比上移）。**睡觉贴床**（主播：「睡觉时候不应该显示在床上吗」）：后端把使用者放在床边一格，床和人现在是两张图，不贴会像睡在地板上 → `sleepAnchorFor`：按 `usingObjectId` → `objects[].userList` 反查 → 相邻的床 / 沙发，取床 footprint 中心，竖床 0°、横床 -90°，只对 AI 表生效（像素表的睡觉帧自带床）；醒来 / 移动即还原。**底图防错位**：底图是照 8091 某版地图画的，`backdropFits` 要求当前地图里该 sector / arena 同层包围盒与 manifest 完全一致才贴——主镇 8000 是旧地图，22 张全部自动跳过（console 有 `[ai] backdrop skipped`），物品和角色照常换新。
 
 ## 4. 踩过的坑（都已处理）
 
@@ -58,25 +65,29 @@ gen_assets_ai.py manifest   ──▶ public/assets/gen-ai/manifest.json + revie
 4. **QA 指标**：最初「所有边缘 IoU」把地板纹理也算进去，对齐良好的图只有 0.55；改成「版式的墙 / 门色块轮廓 → 生成图在同位置（±格宽/3）有没有边」的覆盖率，与肉眼一致。
 5. **外观视角**：第一版是纯俯视屋顶，主播要宝可梦式正面墙 → 版式底边加一行「外墙色」、提示词改写，4 张外观一次过（3 张 1.0）。
 6. **校园三栋不切室内**：tile 的 sector 是 `university`、底图按 arena 命名，匹配不到 → 改成 sector 或 arena 都认（§2）。
+7. **角色表固定网格切格切掉脚**（第 1 张鲸仔 16/20 格触边）→ 改按空隙切（§3b）。
+8. **人设变更**：鲸仔第 1 张按旧 `jingzai_action_sheet_q.png` 出成了鲸鱼娘（鱼鳍耳 + 女仆装）；主播给新人设后，旧动作表 / 全身图不再喂模型（会把鱼鳍带进去），底图 / 物品的画风参考也换成新人设图（配色同一套）。杂货店老板第 1 张默认画成男性，主播指正后改女性重出。
+9. **室外地面被画出浅色方块**：版式导出在广场 / 公园的物品格上画了淡格线，模型把它们画成石板上的浅色方块 → 室外 arena 不画格线，重出 2 张。
+10. **FlatApp 一行 `if` 被我追加的行注释吞掉**，`/flat` 500、两次版式导出超时；修好前差点让重出任务拿旧版式去生图（已及时杀掉，没花钱）。
 
 ## 5. 请主播 / 总控 / B 定
 
-1. **主播**：① 画风（蓝瓦 + 米墙 + 木家具、俯视 3/4）可以吗？② 外观的正面墙比例（约 1.5 格高）够不够「宝可梦」？③ 室内墙厚 1 格、门洞不画门扇（门用 `door_closed` 物品叠）是否接受？拍板后做任务 3（形象）和 4（其余区域）。
-2. **B（请总控转）**：合租房的入口在 **北边**（`door_home`：a=街道 (12,20)、b=鲸仔房 (12,21)，建筑顶边），而 3/4 外观只能把门画在南面正面墙上，现在从北门进屋在画面上是「从屋顶走进去」。建议 v1 地图把合租房门移到南侧（或所有带外观的建筑门都开在南 / 东西侧），校园三栋门已在南侧没问题。另外合租房的 2F 单独画在画布左下，前端当常显室内处理，不需要改。
+1. **主播**：画风 / 正面墙 / 门洞的三个问题上午已口头过（「没问题继续」）。新的两件请看：① `W8_chars_sheet.png` 7 套形象——鲸仔 / 阿蝉按新人设，NPC 的长相是我按 `04-npcs.md` 身份编的（厨师 / 女店主头巾绿围裙 / 黄雨衣老渔夫 / 红褐发小千 / 紫发村民），哪位要改说一声，一张 $0.25 重出；② 人物现在一格宽一格半高、睡觉贴床（`W8_main_follow_whale.jpg`），大小合适吗？
+2. **B（请总控转）**：① 睡觉 / 坐下时后端把人放在物品旁一格，前端现在只对床做了「贴到床上」的视觉处理；坐姿（电脑桌 / 阅览桌 / 餐桌）仍在旁边一格，若想坐进椅子需要物品带「使用者站位 / 朝向」字段或前端继续按物品类型猜。② 合租房的入口在 **北边**（`door_home`：a=街道 (12,20)、b=鲸仔房 (12,21)，建筑顶边），而 3/4 外观只能把门画在南面正面墙上，现在从北门进屋在画面上是「从屋顶走进去」。建议 v1 地图把合租房门移到南侧（或所有带外观的建筑门都开在南 / 东西侧），校园三栋门已在南侧没问题。另外合租房的 2F 单独画在画布左下，前端当常显室内处理，不需要改。
 3. **总控**：不切 5173（任务书要求）；本周的 `node_modules` 之外新增了 `front_end/tools/.venv`（openai / numpy / pillow，已 gitignore），其他机器跑管线要 `python -m venv tools/.venv && tools/.venv/bin/pip install openai numpy pillow`，密钥从 `~/.env` 读 `OPENAI_API_KEY`。
 
 ## 6. 假设（没有依据的决定）
 
 - 费用 $0.25/张（high）；底图 32 px/格、≤ 64 色；对齐阈值 0.9、重试 2 次。
 - 版式四周多带 1 格地面让模型画出屋檐 / 投影，贴图时裁掉。
-- 人物形象（任务 3）准备用 1024×1024 一张 4 向 × 3 帧的动作表 + 自动切格，和 v1 文字版同尺寸（16×24 帧）；若行走帧抖动大就只换立绘不换行走帧——等主播看完再定。
+- 角色表一张 1024×1536 出 20 格、右向用左向镜像；32×48/帧 ×3 显示；睡觉帧竖躺头朝上、横床转 -90°；贴床只认 `bed|sofa` 类型物品。NPC 长相、小千复用 `regular` 外观键，都是我定的。
 
 ## 7. 提交号
 
 | 项 | 值 |
 |---|---|
 | 代码 | `whale-frontend` @ 本提交（基于 B 的 `0d091e1`） |
-| 新增文件 | `tools/gen_assets_ai.py`、`tools/flat_export.mjs`、`src/flat/FlatApp.tsx`、`src/review/AssetsReviewApp.tsx`、`src/game/aiAssets.ts`、`public/assets/gen-ai/**`（9 底图 + 21 物品 + manifest + review 缩略图 + gen.jsonl）、`data/assets/{flats/,gen.jsonl}`、`report_shots/v1art/W8_*` |
+| 新增文件 | `tools/gen_assets_ai.py`、`tools/flat_export.mjs`、`src/flat/FlatApp.tsx`、`src/review/AssetsReviewApp.tsx`、`src/game/aiAssets.ts`、`public/assets/gen-ai/**`（22 底图 + 21 物品 + 7 角色表 + manifest + review 缩略图 + gen.jsonl）、`data/assets/{flats/,gen.jsonl}`、`ref/{jingzai,achan}_design_sheet_v2.png`（主播新人设）、`report_shots/v1art/W8_*` |
 | 新增参数 | `&ai=0`（旁观 / 操控 / 回放页关 AI 素材）、`/flat?sector=&floor=&view=&px=&margin=`、`/assets-review` |
 
 ---

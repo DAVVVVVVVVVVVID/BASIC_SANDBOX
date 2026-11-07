@@ -1,9 +1,12 @@
 import Phaser from 'phaser'
 import { Position, Facing, NeedVars, NEED_KEYS } from '../../types'
 import { tileCenter, TILE_SIZE } from '../map/TileMap'
-import { CharKey, charTextureKey, resolveCharKey } from '../assets'
+import { CharKey, charTextureKey, resolveCharKey, aiAnimPrefix } from '../assets'
+import { aiEnabled, aiCharKey, aiCharBase, getAiManifest, AI_CHAR_FRAME } from '../aiAssets'
+import { CHAR_FRAME } from '../assets'
 
 const SCALE = 4
+const AI_SCALE = 3                  // AI 表 32×48 → 96×144（主播 11-07：跟物品一比太小）
 const BASE_STEP_MS = 300            // 一格基准用时（与 InputSystem 一致）
 const ARROW_OFFSET = 30
 const NAME_Y   = -58
@@ -79,6 +82,12 @@ export default class ActorSprite {
   readonly isSelf: boolean
   private charKey: CharKey
   private hasGen: boolean
+  /** 动画键前缀：像素表 = charKey；AI 表（W8）= ai_<key>，帧 32×48 ×3 = 96×144（一格宽、一格半高；像素表 16×24 ×4 = 64×96） */
+  private animKey: string
+  /** 头顶文字 / 气泡的纵向偏移倍数（AI 形象更高） */
+  private labelMul = 1
+  /** 睡觉时贴到床上：床的像素中心 + 朝向角（竖床 0°，横床 -90°）；null = 站在自己格上 */
+  private sleepAnchor: { x: number; y: number; angle: number } | null = null
 
   constructor(scene: Phaser.Scene, position: Position, facing: Facing, opts: ActorOptions) {
     this.scene  = scene
@@ -87,11 +96,18 @@ export default class ActorSprite {
     this.name   = opts.name
     this.isSelf = !!opts.isSelf
     this.charKey = resolveCharKey(opts.charKey)
-    this.hasGen = scene.textures.exists(charTextureKey(this.charKey))
+    const aiBase = aiCharBase(this.charKey)
+    const aiTex = aiCharKey(aiBase)
+    const useAi = aiEnabled() && !!getAiManifest()?.chars.includes(aiBase) && scene.textures.exists(aiTex)
+    this.hasGen = useAi || scene.textures.exists(charTextureKey(this.charKey))
+    this.animKey = useAi ? aiAnimPrefix(aiBase) : this.charKey
+    const afh = (getAiManifest()?.char_frame ?? [AI_CHAR_FRAME.w, AI_CHAR_FRAME.h])[1]
+    const scale = useAi ? AI_SCALE : SCALE
+    this.labelMul = useAi ? (afh * AI_SCALE) / (CHAR_FRAME.h * SCALE) : 1
 
     const { x, y } = tileCenter(position.x, position.y)
-    this.sprite = scene.add.sprite(x, y, this.hasGen ? charTextureKey(this.charKey) : 'player_idle')
-      .setScale(SCALE)
+    this.sprite = scene.add.sprite(x, y, useAi ? aiTex : this.hasGen ? charTextureKey(this.charKey) : 'player_idle')
+      .setScale(scale)
       .setOrigin(0.5, 0.5)
       .setDepth(y)
     this.playAnim(false)
@@ -150,6 +166,7 @@ export default class ActorSprite {
   snapTo(p: Position, facing?: Facing) {
     this.path = []
     this.facingLocked = false
+    if (this.anchored) { this.anchored = false; this.sprite.setAngle(0) }
     this.tile = { ...p }
     const c = tileCenter(p.x, p.y)
     this.sprite.setPosition(c.x, c.y)
@@ -169,9 +186,9 @@ export default class ActorSprite {
   private playAnim(moving: boolean) {
     if (this.hasGen) {
       this.sprite.setFlipX(false)
-      if (!moving && this.pose === 'sleep') { this.sprite.play(`${this.charKey}_sleep`, true); return }
-      if (!moving && this.pose === 'sit') { this.sprite.play(`${this.charKey}_sit_${this.facing}`, true); return }
-      this.sprite.play(`${this.charKey}_${moving ? 'walk' : 'idle'}_${this.facing}`, true)
+      if (!moving && this.pose === 'sleep') { this.sprite.play(`${this.animKey}_sleep`, true); return }
+      if (!moving && this.pose === 'sit') { this.sprite.play(`${this.animKey}_sit_${this.facing}`, true); return }
+      this.sprite.play(`${this.animKey}_${moving ? 'walk' : 'idle'}_${this.facing}`, true)
     } else {
       this.sprite.setFlipX(this.facing === 'left')
       this.sprite.play(moving ? 'walk' : 'idle', true)
@@ -234,11 +251,11 @@ export default class ActorSprite {
     const d = y
     this.sprite.setDepth(d)
     if (this.arrow) { this.arrow.setDepth(d + 1); this.redrawArrow() }
-    const u = this.uiScale
-    this.nameText.setPosition(x, y + NAME_Y * u).setDepth(d + 2)
-    this.stateText.setPosition(x, y + STATE_Y * u).setDepth(d + 2)
-    if (this.bubble) this.bubble.setPosition(x, y + BUBBLE_Y * u).setDepth(d + 3)
-    if (this.bar) this.bar.setPosition(x - BAR_W / 2 * u, y + BAR_Y * u).setDepth(d + 2)
+    const u = this.uiScale, v = this.uiScale * this.labelMul
+    this.nameText.setPosition(x, y + NAME_Y * v).setDepth(d + 2)
+    this.stateText.setPosition(x, y + STATE_Y * v).setDepth(d + 2)
+    if (this.bubble) this.bubble.setPosition(x, y + BUBBLE_Y * v).setDepth(d + 3)
+    if (this.bar) this.bar.setPosition(x - BAR_W / 2 * u, y + BAR_Y * v).setDepth(d + 2)
   }
 
   private redrawArrow() {
@@ -273,7 +290,30 @@ export default class ActorSprite {
     if (label) this.stateText.setText(label).setVisible(true)
     else this.stateText.setVisible(false)
     const pose: typeof this.pose = !label ? 'stand' : /睡|sleep|躺/.test(label) ? 'sleep' : /坐|休息|玩游戏|看书|读|吃|用餐|钓|工作|直播|刷手机|sit|rest|gam/.test(label) ? 'sit' : 'stand'
-    if (pose !== this.pose) { this.pose = pose; if (!this.moving) this.playAnim(false) }
+    if (pose !== this.pose) { this.pose = pose; if (!this.moving) this.playAnim(false); this.applySleepAnchor() }
+  }
+
+  /** W8：睡觉时把人画到床上（后端把使用者放在床边一格；AI 形象床和人是两张图，不贴会像睡在地板上）。只对 AI 表生效：像素表的睡觉帧自带床 */
+  setSleepAnchor(a: { x: number; y: number; angle: number } | null) {
+    const same = (!a && !this.sleepAnchor) || (!!a && !!this.sleepAnchor && a.x === this.sleepAnchor.x && a.y === this.sleepAnchor.y && a.angle === this.sleepAnchor.angle)
+    if (same) return
+    this.sleepAnchor = a
+    this.applySleepAnchor()
+  }
+
+  private anchored = false
+  private applySleepAnchor() {
+    const want = this.pose === 'sleep' && !this.moving && !!this.sleepAnchor && this.animKey.startsWith('ai_')
+    if (want && this.sleepAnchor) {
+      this.sprite.setPosition(this.sleepAnchor.x, this.sleepAnchor.y).setAngle(this.sleepAnchor.angle)
+      this.anchored = true
+      this.layout()
+    } else if (this.anchored) {
+      this.anchored = false
+      this.sprite.setAngle(0)
+      if (!this.moving) { const c = tileCenter(this.tile.x, this.tile.y); this.sprite.setPosition(c.x, c.y) }
+      this.layout()
+    }
   }
 
   private hidden = false

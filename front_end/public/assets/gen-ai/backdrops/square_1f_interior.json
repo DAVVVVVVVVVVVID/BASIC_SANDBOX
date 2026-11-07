@@ -1,0 +1,14 @@
+{
+  "sector": "square",
+  "floor": 1,
+  "view": "interior",
+  "x0": 31,
+  "y0": 21,
+  "w": 16,
+  "h": 11,
+  "px": 32,
+  "margin": 1,
+  "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+  "tile_px": 32,
+  "qa_score": 0.945
+}

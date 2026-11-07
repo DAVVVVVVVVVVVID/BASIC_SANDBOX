@@ -4,6 +4,7 @@
 
   tools/.venv/bin/python tools/gen_assets_ai.py backdrops --regions home_1f_interior,home_1f_exterior [--quality high] [--attempts 2] [--dry-run]
   tools/.venv/bin/python tools/gen_assets_ai.py objects   --items bed,fridge [--quality high]
+  tools/.venv/bin/python tools/gen_assets_ai.py chars     --keys whale,achan [--attempts 2] [--reslice]   # 角色四向表（4 列 × 5 行，32×48/帧）
   tools/.venv/bin/python tools/gen_assets_ai.py manifest
 
 输入：data/assets/flats/<region>.png(+.json)（tools/flat_export.mjs 导出），风格参考 ref/jingzai_action_sheet_q.png + ref/gpt-image-probe/house.png。
@@ -21,7 +22,7 @@ FLATS = ROOT / "data/assets/flats"
 RAW = ROOT / "data/assets/gen-ai-raw"
 OUT = ROOT / "public/assets/gen-ai"
 LOG = ROOT / "data/assets/gen.jsonl"
-REF_STYLE = ROOT / "ref/jingzai_action_sheet_q.png"
+REF_STYLE = ROOT / "ref/jingzai_design_sheet_v2.png"   # 11-07 起用新人设图定画风（配色同一套）
 REF_ROOM = ROOT / "ref/gpt-image-probe/house.png"
 MODEL = "gpt-image-2"
 TILE_OUT = 32            # 输出 px/格（前端 ×3 nearest = 96）
@@ -44,7 +45,40 @@ REGIONS: dict[str, str] = {
     "library_1f_exterior": "a small university library building seen from outside: blue tiled roof with a skylight, pale stone outer walls, entrance door on the bottom side, campus pavement around it",
     "music_room_1f_interior": "a university music building interior: one practice hall with wooden floor and stone walls, a door on the bottom wall",
     "music_room_1f_exterior": "a small university music building seen from outside: blue tiled roof, pale stone outer walls, a round window, entrance door on the bottom side, campus pavement around it",
+    # W8 任务 4：其余区域（门的朝向按 8091 的 edges：渔夫屋南门，其余北 / 西门——外观一律把门画在正面墙，入口错位已报 B）
+    "fisher_house_1f_interior": "an old fisherman's cottage interior: one bedroom (left, larger) and a small kitchen with a tiled floor (right), wooden plank floor, stone walls, a door on the bottom wall",
+    "fisher_house_1f_exterior": "an old fisherman's small cottage by the river seen from outside: weathered blue-gray tiled roof, pale stone outer walls, a wooden front door and a hanging lantern on the bottom side, a lane and grass around it",
+    "restaurant_1f_interior": "a small-town restaurant interior: a dining hall with a red carpet floor (left, large) and a narrow kitchen with a tiled floor (right), stone walls, an entrance door on the left wall",
+    "restaurant_1f_exterior": "a small-town restaurant seen from outside: blue-gray tiled roof, warm cream outer walls, a striped awning and a wooden door on the bottom side, a blank signboard, a stone plaza to the left and grass around",
+    "grocery_1f_interior": "a grocery store interior: one open shop floor with wooden planks, stone walls, a door on the top wall",
+    "grocery_1f_exterior": "a small grocery store seen from outside: blue-gray tiled roof, cream outer walls, a striped awning, a wooden door and a crate of vegetables on the bottom side, a lane and grass around",
+    "xiaoqian_house_1f_interior": "a university girl's small house: a bedroom (left) and a tiny kitchen with a tiled floor (right), wooden floor, stone walls, a door on the top wall",
+    "xiaoqian_house_1f_exterior": "a small cozy cottage seen from outside: blue-gray tiled roof, cream outer walls, a wooden door and flower boxes on the bottom side, a lane and grass around",
+    "owners_house_1f_interior": "a house shared by two shopkeepers: the restaurant owner's bedroom (top, large), a kitchen with a tiled floor (middle) and the grocer's small bedroom (bottom), wooden floors, stone walls, a door on the top wall",
+    "owners_house_1f_exterior": "a two-family town house seen from outside: blue-gray tiled roof, cream outer walls, a wooden door and windows on the bottom side, a lane and grass around",
+    "square_1f_interior": "a town square: light stone paving with a subtle flagstone pattern and a grass border; keep it empty (benches and the fountain are placed later as separate sprites)",
+    "park_1f_interior": "a small town park: lush grass with flower patches and a few worn dirt paths; keep it empty (trees and benches are placed later as separate sprites)",
+    "dock_1f_interior": "a wooden pier on a river bank: weathered planks and mooring posts, the river water on the right side; keep it empty (the boat and the fish stall are placed later as separate sprites)",
 }
+OUTDOOR = {"square", "park", "dock"}   # 室外地面底图：没有屋顶 / 室内之分，常显，物品另叠
+
+# 角色：key → (显示名, 形象描述, 参考图列表)。NPC 没有立绘，用两张主角动作表定画风（2 头身 Q 版、柔和配色）
+REF_WHALE = [ROOT / "ref/jingzai_design_sheet_v2.png"]   # 11-07 新人设：不再是鲸鱼娘（旧 action_sheet / fullbody 不再喂模型，会把鱼鳍耳带进去）
+REF_ACHAN = [ROOT / "ref/achan_design_sheet_v2.png"]     # 11-07 新人设：没有猫耳 / 猫尾
+REF_NPC = [ROOT / "ref/jingzai_design_sheet_v2.png", ROOT / "ref/achan_design_sheet_v2.png"]
+CHARS: dict[str, tuple[str, str, list]] = {
+    "whale": ("鲸仔", "Jingzai, a 21-year-old university music student (a normal human girl, NO animal ears, NO fins, NO tail): very long wavy hair with a navy-to-light-blue gradient, a fluffy antenna strand on top, a blue ribbon bow on the left side of her head and two small white X hair clips on the right, big blue eyes, a white hooded cardigan with a tiny blue whale print on the white T-shirt underneath, a navy pleated skirt with a belt, blue headphones hanging around her neck, white slouch socks and blue-and-white sneakers; use the Q-version chibi on the reference sheet as the model", REF_WHALE),
+    "achan": ("阿蝉", "Achan, a calm young man who works as a stream director (a normal human, NO cat ears, NO tail): fluffy short white hair with two small dark hair clips on the right, gray-blue eyes, a white shirt with a black tie under an open denim-blue short-sleeve shirt, a black lanyard with a white badge, a black wristband, black trousers, blue-and-white sneakers; use the chibi on the reference sheet as the model", REF_ACHAN),
+    "cook": ("餐厅老板", "a cheerful middle-aged male chef: short brown hair, warm brown eyes, white chef jacket with a red neckerchief, dark trousers, a white chef hat", REF_NPC),
+    "grocer": ("杂货店老板（女）", "a warm, friendly middle-aged woman who runs the grocery store: chestnut-brown hair tied in a low bun with a cream headscarf, gentle brown eyes, a beige blouse with rolled sleeves under a green apron with a front pocket, a long brown skirt, flat shoes", REF_NPC),   # 主播 11-07：杂货铺老板是女的
+    "fisher": ("老渔夫", "an old fisherman: short gray hair, a weathered kind face, a yellow raincoat, blue trousers, a yellow bucket hat, a small pipe", REF_NPC),
+    "regular": ("千小满（小千）", "Xiaoqian, a lively university girl and Jingzai's best friend: shoulder-length auburn hair with a side braid, warm brown eyes, a red-brown cardigan over a white blouse, a dark pleated skirt, loafers", REF_NPC),
+    "villager": ("村民", "a generic young townsperson: short purple hair, a lavender hoodie with white drawstrings, dark pants, sneakers", REF_NPC),
+}
+CHAR_COLS, CHAR_ROWS = 4, 5
+CHAR_FRAME_OUT = (32, 48)   # 输出帧（前端 ×3 = 96×144，与 16×24 ×6 等大）
+CHAR_TEMPLATE = (1024, 1536)
+PIX_DIR = ROOT / "public/assets/gen"
 
 OBJECTS: dict[str, tuple[int, int, str]] = {   # type: (w_tiles, h_tiles, description)
     "bed": (1, 2, "a single bed with a light blue quilt and a white pillow, head at the top"),
@@ -182,12 +216,18 @@ def do_backdrops(args):
         meta = json.loads(meta_p.read_text()); flat = Image.open(flat_p).convert("RGBA")
         desc = REGIONS.get(name, name.replace("_", " "))
         view = "exterior" if name.endswith("exterior") else "interior"
-        prompt = (f"The first image is a flat-colored top-down layout of {desc}. Repaint it as finished 2D top-down game art, "
+        if name.split("_")[0] in OUTDOOR:
+            prompt = (f"The first image is a flat-colored top-down layout of {desc}. Repaint it as finished 2D top-down game ground art, "
+                      f"keeping every boundary between ground types (paving / grass / wood / water) exactly at the same position. "
+                      f"Do not add any objects, furniture, trees, benches, boats or people; only ground textures and small details like flowers, pebbles, planks. "
+                      + STYLE + " " + CAMERA_BACKDROP)
+        else:
+          prompt = (f"The first image is a flat-colored top-down layout of {desc}. Repaint it as finished 2D top-down game art, "
                   f"keeping every wall, door{'' if view == 'exterior' else ', doorway'} and room boundary exactly at the same position and size, "
                   f"and keeping the surrounding ground (grass / pavement) where it is. "
                   + ("Draw the building exterior in the classic Pokemon-style 3/4 top-down RPG view: the blue-gray area of the layout is a pitched tiled roof (ridge line, eaves, a chimney) "
-                     "and the lighter band along the bottom edge of the building is the FRONT WALL seen from the front, with windows, flower boxes and a wooden door; "
-                     "the small brown square in the layout marks where the entrance tile is. Keep the building footprint exactly the same; do not show the interior. "
+                     "and the lighter band along the bottom edge of the building is the FRONT WALL seen from the front, with windows, flower boxes and a wooden door centered on it; "
+                     "if the layout shows a small brown square it marks where the entrance tile is. Keep the building footprint exactly the same; do not show the interior. "
                      if view == "exterior" else "Do not add furniture; leave the floors empty so objects can be placed later. ")
                   + "The room layout must follow the first image exactly; do not copy or add rooms from any other image. "
                   + STYLE + " " + CAMERA_BACKDROP)
@@ -197,7 +237,7 @@ def do_backdrops(args):
         best = None
         for attempt in range(1, args.attempts + 1):
             row = {"kind": "backdrop", "name": name, "model": MODEL, "size": size, "quality": args.quality, "attempt": attempt, "prompt": prompt,
-                   "inputs": [str(tmp.relative_to(ROOT)), "ref/jingzai_action_sheet_q.png"], "seed": None, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
+                   "inputs": [str(tmp.relative_to(ROOT)), str(REF_STYLE.relative_to(ROOT))], "seed": None, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
             if args.dry_run: print(json.dumps(row, ensure_ascii=False)[:300]); break
             try:
                 img, info = call_edit(cli, [tmp, REF_STYLE], prompt, size, args.quality)   # 不再附房间参考图：小房间会被模型照着参考图画成三间（home_2f 第一轮踩过）
@@ -253,7 +293,7 @@ def do_objects(args):
                   f"Art style must match the attached character reference sheet (first image): soft pastel colors, clean cel-shaded chibi game look, gentle outlines. No text, no watermark, no characters, nothing else in the image.")
         size = "1024x1024" if w == h else ("1536x1024" if w > h else "1024x1536")
         row = {"kind": "object", "name": key, "model": MODEL, "size": size, "quality": args.quality, "attempt": 1, "prompt": prompt,
-               "inputs": ["ref/jingzai_action_sheet_q.png", "ref/gpt-image-probe/house.png"], "seed": None, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
+               "inputs": [str(REF_STYLE.relative_to(ROOT)), "ref/gpt-image-probe/house.png"], "seed": None, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
         if args.dry_run: print(json.dumps(row, ensure_ascii=False)[:300]); continue
         try:
             img, info = call_edit(cli, [REF_STYLE, REF_ROOM], prompt, size, args.quality)   # gpt-image-2 不支持 transparent，用品红抠像
@@ -264,6 +304,152 @@ def do_objects(args):
         bbox = finish_object(img, key, w, h)
         row["alpha_bbox"] = bbox; row["out_px"] = [w * TILE_OUT, h * TILE_OUT]
         log(row); print(f"{key}: ok ({info['latency_s']}s)")
+
+# ── 角色四向表 ────────────────────────────────────────────────────────────────
+
+def pixel_sheet_for(key: str) -> Image.Image:
+    """姿态版式来源：现有像素表（鲸仔 / 阿蝉用 v1 文字版）"""
+    p = PIX_DIR / f"char_{key}_v1.png"
+    if not p.exists(): p = PIX_DIR / f"char_{key}.png"
+    return Image.open(p).convert("RGBA")
+
+def make_char_template(key: str) -> Image.Image:
+    """1024×1536 品红画布，4 列 × 5 行格子（256×307），每格放大 ×9 的像素帧居中、脚底对齐；睡觉格用左向站姿转 90°（不画床）"""
+    W, H = CHAR_TEMPLATE; cw, ch = W // CHAR_COLS, H // CHAR_ROWS
+    sheet = pixel_sheet_for(key); fw, fh = sheet.width // CHAR_COLS, sheet.height // CHAR_ROWS
+    canvas = Image.new("RGBA", (W, H), (255, 0, 255, 255))
+    from PIL import ImageDraw
+    d = ImageDraw.Draw(canvas)
+    for i in range(1, CHAR_COLS): d.line([(i * cw, 0), (i * cw, H)], fill=(240, 0, 240, 255), width=3)
+    for j in range(1, CHAR_ROWS): d.line([(0, j * ch), (W, j * ch)], fill=(240, 0, 240, 255), width=3)
+    S = 9
+    for r in range(CHAR_ROWS):
+        for c in range(CHAR_COLS):
+            fr = sheet.crop((c * fw, r * fh, (c + 1) * fw, (r + 1) * fh))
+            if r == 4 and c == 1:   # 睡觉：左向站姿躺平
+                fr = sheet.crop((0, 1 * fh, fw, 2 * fh)).rotate(90, expand=True)
+            big = fr.resize((fr.width * S, fr.height * S), Image.NEAREST)
+            x = c * cw + (cw - big.width) // 2
+            y = r * ch + (ch - big.height) // 2 if (r == 4 and c == 1) else (r + 1) * ch - 36 - big.height
+            canvas.alpha_composite(big, (x, y))
+    return canvas
+
+def char_prompt(key: str) -> str:
+    _, desc, _ = CHARS[key]
+    return (f"The first image is a sprite-sheet layout grid on a flat magenta background: 4 columns by 5 rows, each cell holds a rough pixel sketch that only defines the POSE, FACING and FEET POSITION. "
+            f"Rows 1-4 are the character facing DOWN (toward the viewer), LEFT, RIGHT and UP (back view); within these rows the 4 columns are a walk cycle: standing, left step, standing, right step. "
+            f"Row 5 is: sitting facing down, lying asleep on the side (no bed, no blanket), sitting facing left, sitting facing right. "
+            f"Redraw every cell with the SAME character: {desc}. The other attached image is the character design sheet (ignore its text, layout and background; take only the character design and color palette, and follow it exactly), "
+            f"as a 2-head-tall chibi game sprite, clean cel-shaded anime look with soft pastel colors and gentle outlines, seen from the game camera (top-down 3/4 view, the character slightly from above, light from the top-left). "
+            f"Keep each figure fully inside its cell, same size in every cell, feet on the same baseline as the sketch, standing frames identical except for the legs. "
+            f"Background must stay flat solid magenta (#FF00FF) everywhere outside the figures: no grid lines, no shadows, no text, no labels, no props.")
+
+def _bands(mask_1d: np.ndarray, min_gap: int, min_len: int) -> list[tuple[int, int]]:
+    """一维投影 → 非空区段列表；小于 min_gap 的空隙并进去，短于 min_len 的区段丢掉（闪光 / 碎屑）"""
+    on = mask_1d > 0
+    runs: list[list[int]] = []
+    i = 0
+    while i < len(on):
+        if on[i]:
+            j = i
+            while j < len(on) and on[j]: j += 1
+            if runs and i - runs[-1][1] < min_gap: runs[-1][1] = j
+            else: runs.append([i, j])
+            i = j
+        else: i += 1
+    return [(a, b) for a, b in runs if b - a >= min_len]
+
+def segment_cells(keyed: Image.Image) -> list[list[Image.Image]] | None:
+    """按 alpha 投影切 5 行 × 4 列：模型不一定严格落在版式格子里（脚常画到格线以下），用空隙切比固定网格稳；
+    返回 rows[r][c] 的裁好图；行数 / 列数不对 → None（退回固定网格）"""
+    a = np.asarray(keyed)[:, :, 3] > 32
+    rows = _bands(a.sum(axis=1), min_gap=12, min_len=40)
+    if len(rows) != CHAR_ROWS: return None
+    out: list[list[Image.Image]] = []
+    for (y0, y1) in rows:
+        cols = _bands(a[y0:y1].sum(axis=0), min_gap=18, min_len=24)
+        if len(cols) != CHAR_COLS: return None
+        out.append([keyed.crop((x0, y0, x1, y1)).crop(keyed.crop((x0, y0, x1, y1)).getbbox()) for (x0, x1) in cols])
+    return out
+
+def finish_char(raw: Image.Image, key: str) -> dict:
+    """品红抠像 → 按空隙切 5 行 × 4 列（退回固定网格）→ 统一比例（站姿帧最高者 44 px）→ 32×48/帧、脚底对齐；右向 = 左向镜像；量化 ≤ 64 色 → chars/<key>.png"""
+    W, H = CHAR_TEMPLATE; cw, ch = W // CHAR_COLS, H // CHAR_ROWS
+    raw = raw.convert("RGBA").resize((W, H), Image.LANCZOS) if raw.size != (W, H) else raw.convert("RGBA")
+    keyed = chroma_key(raw, tol=90, soft=40)
+    seg = segment_cells(keyed)
+    cells: dict[tuple[int, int], Image.Image | None] = {}
+    if seg is not None:
+        for r in range(CHAR_ROWS):
+            for c in range(CHAR_COLS): cells[(r, c)] = seg[r][c]
+        mode, clipped = "bands", 0
+    else:
+        mode, clipped = "grid", 0
+        for r in range(CHAR_ROWS):
+            for c in range(CHAR_COLS):
+                cell = keyed.crop((c * cw + 4, r * ch + 4, (c + 1) * cw - 4, (r + 1) * ch - 4))
+                bb = cell.getbbox()
+                if bb and (bb[0] <= 1 or bb[1] <= 1 or bb[2] >= cell.width - 1 or bb[3] >= cell.height - 1): clipped += 1
+                cells[(r, c)] = cell.crop(bb) if bb else None
+    stand = [im for (r, c), im in cells.items() if r < 4 and im is not None]
+    fw, fh = CHAR_FRAME_OUT
+    if not stand: return {"cells_ok": 0, "clipped": clipped, "mode": mode}
+    s = min(44 / max(im.height for im in stand), 30 / max(im.width for im in stand))
+    sheet = Image.new("RGBA", (fw * CHAR_COLS, fh * CHAR_ROWS), (0, 0, 0, 0))
+    def put(im: Image.Image, r: int, c: int, scale: float, center_v=False):
+        sm = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.LANCZOS)
+        x = c * fw + (fw - sm.width) // 2
+        y = r * fh + ((fh - sm.height) // 2 if center_v else fh - 2 - sm.height)
+        sheet.alpha_composite(sm, (x, y))
+    for (r, c), im in cells.items():
+        if im is None: continue
+        if r == 2: continue                       # 右向整行用左向镜像（左右一致，省一半不确定性）
+        if r == 4 and c == 3: continue             # 坐右 = 坐左镜像
+        if r == 4 and c == 1:                      # 睡觉：模型画的是横躺（头在左）→ 顺时针转 90° 竖躺（头在上）存表，竖床直接用、横床游戏里再转 -90°
+            im = im.rotate(-90, expand=True)
+            put(im, r, c, min(30 / im.width, 46 / im.height), center_v=True); continue
+        put(im, r, c, s)
+    left = sheet.crop((0, 1 * fh, fw * CHAR_COLS, 2 * fh)).transpose(Image.FLIP_LEFT_RIGHT)
+    # 镜像后列顺序反了（站 走A 站 走B → 走B 站 走A 站），按列重排
+    for c in range(CHAR_COLS):
+        src = left.crop(((CHAR_COLS - 1 - c) * fw, 0, (CHAR_COLS - c) * fw, fh)); sheet.alpha_composite(src, (c * fw, 2 * fh))
+    sheet.alpha_composite(sheet.crop((2 * fw, 4 * fh, 3 * fw, 5 * fh)).transpose(Image.FLIP_LEFT_RIGHT), (3 * fw, 4 * fh))
+    (OUT / "chars").mkdir(parents=True, exist_ok=True)
+    quantize(sheet).save(OUT / "chars" / f"{key}.png")
+    # 评审预览：×3 放在绿底上
+    prev = sheet.resize((sheet.width * 3, sheet.height * 3), Image.NEAREST)
+    bg = Image.new("RGBA", prev.size, (90, 140, 90, 255)); bg.alpha_composite(prev); bg.save(RAW / f"char_{key}_sheet.png")
+    ok = sum(1 for (r, c), im in cells.items() if im is not None and r != 2 and not (r == 4 and c == 3))
+    return {"cells_ok": ok, "cells_needed": 15, "clipped": clipped, "mode": mode, "scale": round(s, 4)}
+
+def do_chars(args):
+    cli = None if (args.dry_run or args.reslice) else client()
+    keys = args.keys.split(",") if args.keys else list(CHARS)
+    RAW.mkdir(parents=True, exist_ok=True)
+    for key in keys:
+        key = key.strip()
+        if key not in CHARS: print("unknown char", key); continue
+        tmpl = make_char_template(key); tmp = RAW / f"char_{key}_input.png"; tmpl.save(tmp)
+        if args.reslice:
+            raws = sorted(RAW.glob(f"char_{key}_raw_*.png"))
+            if not raws: print("no raw for", key); continue
+            print(key, "reslice", raws[-1].name, finish_char(Image.open(raws[-1]), key)); continue
+        prompt = char_prompt(key); refs = CHARS[key][2]
+        for attempt in range(1, args.attempts + 1):
+            row = {"kind": "char", "name": key, "model": MODEL, "size": f"{CHAR_TEMPLATE[0]}x{CHAR_TEMPLATE[1]}", "quality": args.quality, "attempt": attempt, "prompt": prompt,
+                   "inputs": [str(tmp.relative_to(ROOT))] + [str(p.relative_to(ROOT)) for p in refs], "seed": None, "ts": time.strftime("%Y-%m-%dT%H:%M:%S")}
+            if args.dry_run: print(json.dumps(row, ensure_ascii=False)[:400]); break
+            try:
+                img, info = call_edit(cli, [tmp] + refs, prompt, row["size"], args.quality)
+            except Exception as e:
+                row.update(error=str(e)[:400]); log(row); print("ERROR", key, e); break
+            row.update(info); row["cost_usd_est"] = PRICE.get(args.quality, 0.25)
+            img = img.convert("RGBA"); img.save(RAW / f"char_{key}_raw_{attempt}.png")
+            res = finish_char(img, key); row.update(res)
+            row["qa_pass"] = res.get("cells_ok", 0) >= 15 and res.get("mode") == "bands"
+            log(row); print(f"{key} attempt {attempt}: {res} {'PASS' if row['qa_pass'] else 'retry'} ({info['latency_s']}s)")
+            if row["qa_pass"]: break
+
 
 def do_qa(args):
     """对 data/assets/gen-ai-raw 里已有的 raw 重算对齐 QA（不花钱），刷新 backdrops/*.json 的 qa_score"""
@@ -282,7 +468,8 @@ def do_qa(args):
             j = json.loads(jp.read_text()); j["qa_score"] = round(score, 3); jp.write_text(json.dumps(j, ensure_ascii=False, indent=2))
 
 def do_manifest(_args):
-    m = {"tile_px": TILE_OUT, "backdrops": {}, "objects": sorted(p.stem for p in (OUT / "objects").glob("*.png"))}
+    m = {"tile_px": TILE_OUT, "backdrops": {}, "objects": sorted(p.stem for p in (OUT / "objects").glob("*.png")),
+         "chars": sorted(p.stem for p in (OUT / "chars").glob("*.png")), "char_frame": list(CHAR_FRAME_OUT)}
     for j in (OUT / "backdrops").glob("*.json"):
         m["backdrops"][j.stem] = json.loads(j.read_text())
     (OUT / "manifest.json").write_text(json.dumps(m, ensure_ascii=False, indent=2))
@@ -299,17 +486,25 @@ def do_manifest(_args):
     for key in m["objects"]:
         r = RAW / f"obj_{key}_raw.png"
         if r.exists(): thumb(r, rv / f"obj_{key}_raw.png", 256)
+    for key in m["chars"]:
+        inp = RAW / f"char_{key}_input.png"
+        if inp.exists(): thumb(inp, rv / f"char_{key}_input.png", 384)
+        raws = sorted(RAW.glob(f"char_{key}_raw_*.png"))
+        if raws: thumb(raws[-1], rv / f"char_{key}_raw.png", 384)
+        sh = RAW / f"char_{key}_sheet.png"
+        if sh.exists(): thumb(sh, rv / f"char_{key}_sheet.png", 720)
     if LOG.exists(): (OUT / "gen.jsonl").write_text(LOG.read_text(encoding="utf-8"), encoding="utf-8")
-    print("manifest:", len(m["backdrops"]), "backdrops,", len(m["objects"]), "objects")
+    print("manifest:", len(m["backdrops"]), "backdrops,", len(m["objects"]), "objects,", len(m["chars"]), "chars")
 
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("backdrops"); a.add_argument("--regions"); a.add_argument("--quality", default="high"); a.add_argument("--attempts", type=int, default=2); a.add_argument("--qa", type=float, default=0.9); a.add_argument("--dry-run", action="store_true")
     b = sub.add_parser("objects"); b.add_argument("--items"); b.add_argument("--quality", default="high"); b.add_argument("--dry-run", action="store_true")
+    c = sub.add_parser("chars"); c.add_argument("--keys"); c.add_argument("--quality", default="high"); c.add_argument("--attempts", type=int, default=2); c.add_argument("--reslice", action="store_true"); c.add_argument("--dry-run", action="store_true")
     sub.add_parser("manifest"); sub.add_parser("qa"); sub.add_parser("rekey")
     args = ap.parse_args()
-    {"backdrops": do_backdrops, "objects": do_objects, "manifest": do_manifest, "qa": do_qa, "rekey": do_rekey}[args.cmd](args)
+    {"backdrops": do_backdrops, "objects": do_objects, "chars": do_chars, "manifest": do_manifest, "qa": do_qa, "rekey": do_rekey}[args.cmd](args)
     if args.cmd != "manifest": do_manifest(args)
 
 if __name__ == "__main__":

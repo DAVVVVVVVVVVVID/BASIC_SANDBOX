@@ -5,7 +5,7 @@ import { loadAiManifest, aiEnabled, setAiEnabled, type AiManifest } from '../gam
  * `/assets-review`：W8 美术管线评审页。物品：旧自制像素图 vs gpt-image-2 新图并排；底图：平涂版式 / 原始输出 / 对齐 QA 叠图 / 量化后成品 + QA 分数。
  * 「一键替换」= 切 localStorage.aiAssets（旁观 / 操控 / 回放页读它决定用哪套）。生成日志（提示词 / 费用）读 public/assets/gen-ai/gen.jsonl（manifest 命令从 data/assets/gen.jsonl 同步）。
  */
-interface GenRow { kind: string; name: string; quality?: string; attempt?: number; qa_score?: number; qa_pass?: boolean; cost_usd_est?: number; usage?: { total_tokens?: number }; latency_s?: number; error?: string; prompt?: string; ts?: string }
+interface GenRow { kind: string; name: string; quality?: string; attempt?: number; qa_score?: number; qa_pass?: boolean; cells_ok?: number; cost_usd_est?: number; usage?: { total_tokens?: number }; latency_s?: number; error?: string; prompt?: string; ts?: string }
 
 function hide(e: React.SyntheticEvent<HTMLImageElement>) { e.currentTarget.style.display = 'none' }
 
@@ -60,6 +60,31 @@ export default function AssetsReviewApp() {
               )
             })}
           </div>
+          {m.chars.length > 0 && (
+            <>
+              <h2 style={h2}>角色四向表（{m.chars.length}）· 左旧像素表 → 新 AI 表（32×48/帧，4 列 × 5 行：下 / 左 / 右 / 上 / 坐睡）· 右：姿态版式与原始输出</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(560px, 1fr))', gap: 12 }}>
+                {m.chars.map(k => {
+                  const log = byName.get(`char:${k}`) ?? []
+                  const last = log[log.length - 1]
+                  const spent = log.reduce((a, r) => a + (r.error ? 0 : (r.cost_usd_est ?? 0)), 0)
+                  return (
+                    <div key={k} style={card}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}><b>{k}</b><span style={{ color: '#8a897f', fontSize: 12 }}>{CHAR_NAMES[k] ?? ''}</span><span style={{ marginLeft: 'auto', color: '#8a897f', fontSize: 12 }}>{last ? `${log.length} 次 · $${spent.toFixed(2)} · 格 ${last.cells_ok ?? '–'}/15` : ''}</span></div>
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginTop: 8, background: '#2a3a2a', padding: 8, borderRadius: 6 }}>
+                        <img src={`assets/gen/char_${k === 'whale' || k === 'achan' ? `${k}_v1` : k}.png`} alt="old" onError={hide} style={{ height: 300, imageRendering: 'pixelated' }} />
+                        <span style={{ color: '#8a897f', alignSelf: 'center' }}>→</span>
+                        <img src={`assets/gen-ai/chars/${k}.png`} alt="new" onError={hide} style={{ height: 300, imageRendering: 'pixelated' }} />
+                        <img src={`assets/gen-ai/review/char_${k}_input.png`} alt="input" onError={hide} style={{ height: 300, marginLeft: 'auto', borderRadius: 4, opacity: 0.8 }} />
+                        <img src={`assets/gen-ai/review/char_${k}_raw.png`} alt="raw" onError={hide} style={{ height: 300, borderRadius: 4 }} />
+                      </div>
+                      {last?.prompt && <button onClick={() => setShowPrompt(last.prompt!)} style={{ ...btn, marginTop: 6, fontSize: 11 }}>看提示词</button>}
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
           <h2 style={h2}>物品（{m.objects.length}）· 左旧右新 · 最右原始输出</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
             {m.objects.map(t => {
@@ -89,6 +114,7 @@ export default function AssetsReviewApp() {
     </div>
   )
 }
+const CHAR_NAMES: Record<string, string> = { whale: '鲸仔', achan: '阿蝉', cook: '餐厅老板', grocer: '杂货店老板（女）', fisher: '老渔夫', regular: '千小满（小千）', villager: '村民' }
 const btn: React.CSSProperties = { padding: '6px 12px', borderRadius: 6, border: 'none', background: '#2c2c2a', color: '#f0efec', fontSize: 13, cursor: 'pointer' }
 const objImg: React.CSSProperties = { height: 96, maxWidth: '34%', objectFit: 'contain', objectPosition: 'bottom', flex: '0 1 auto' }
 const card: React.CSSProperties = { background: '#1a1a19', border: '1px solid #2c2c2a', borderRadius: 10, padding: 12 }

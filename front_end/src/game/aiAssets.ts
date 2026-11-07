@@ -4,7 +4,9 @@
  * 开关：URL `&ai=0` 或 localStorage.aiAssets === 'off' 关闭（评审页「一键替换」切这个）。
  */
 export interface AiBackdrop { sector: string; floor: number; view: 'interior' | 'exterior'; x0: number; y0: number; w: number; h: number; px: number; tile_px: number; qa_score?: number; margin?: number }
-export interface AiManifest { tile_px: number; backdrops: Record<string, AiBackdrop>; objects: string[] }
+export interface AiManifest { tile_px: number; backdrops: Record<string, AiBackdrop>; objects: string[]; chars: string[]; char_frame: [number, number] }
+/** AI 角色表帧尺寸（4 列 × 5 行，行列含义与自制像素表相同，见 assets.ts CHAR_ROWS / POSE_ROW） */
+export const AI_CHAR_FRAME = { w: 32, h: 48 }
 
 let manifest: AiManifest | null = null
 export function aiEnabled(): boolean {
@@ -24,7 +26,7 @@ export async function loadAiManifest(): Promise<AiManifest | null> {
     if (!res.ok) return null
     const m = (await res.json()) as AiManifest
     if (!m || typeof m !== 'object' || !m.backdrops) return null
-    manifest = { tile_px: m.tile_px || 32, backdrops: m.backdrops || {}, objects: Array.isArray(m.objects) ? m.objects : [] }
+    manifest = { tile_px: m.tile_px || 32, backdrops: m.backdrops || {}, objects: Array.isArray(m.objects) ? m.objects : [], chars: Array.isArray(m.chars) ? m.chars : [], char_frame: Array.isArray(m.char_frame) && m.char_frame.length === 2 ? m.char_frame : [AI_CHAR_FRAME.w, AI_CHAR_FRAME.h] }
     return manifest
   } catch { return null }
 }
@@ -35,6 +37,9 @@ export function aiObjectTypeFor(type: string): string { return AI_OBJECT_ALIAS[t
 
 export const aiBackdropKey = (name: string) => `aibg_${name}`
 export const aiObjectKey = (type: string) => `aiobj_${type}`
+export const aiCharKey = (key: string) => `aichar_${key}`
+/** 像素表的 _v1 / _v2 后缀不区分，AI 表只有一套 */
+export const aiCharBase = (key: string) => key.replace(/_v\d+$/, '')
 
 /** 预加载（幂等）；没 manifest 或开关关着就什么都不加载 */
 export function preloadAiAssets(scene: Phaser.Scene) {
@@ -44,5 +49,9 @@ export function preloadAiAssets(scene: Phaser.Scene) {
   }
   for (const t of manifest.objects) {
     if (!scene.textures.exists(aiObjectKey(t))) scene.load.image(aiObjectKey(t), `assets/gen-ai/objects/${t}.png`)
+  }
+  const [fw, fh] = manifest.char_frame
+  for (const k of manifest.chars) {
+    if (!scene.textures.exists(aiCharKey(k))) scene.load.spritesheet(aiCharKey(k), `assets/gen-ai/chars/${k}.png`, { frameWidth: fw, frameHeight: fh })
   }
 }

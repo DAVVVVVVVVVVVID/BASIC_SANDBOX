@@ -54,13 +54,15 @@ export default function FlatApp() {
         }
         g.fillStyle = col; g.fillRect(tx * px, ty * px, px, px)
         // 室内地板画淡格线，帮模型保持网格；屋顶画斜向瓦线
-        if (t && view === 'interior' && (t.type === 'floor' || t.type === 'object') && inSector(t)) { g.strokeStyle = 'rgba(0,0,0,0.07)'; g.strokeRect(tx * px + 0.5, ty * px + 0.5, px - 1, px - 1) }
+        // 室外地面（广场 / 公园 / 码头 / 校园 / 街道）不画格线：模型会把格线画成浅色方块
+        if (t && view === 'interior' && (t.type === 'floor' || t.type === 'object') && inSector(t) && !/square|park|dock|campus|street|lane/.test(t.arena ?? '')) { g.strokeStyle = 'rgba(0,0,0,0.07)'; g.strokeRect(tx * px + 0.5, ty * px + 0.5, px - 1, px - 1) }
       }
       // 门 / 楼梯口
       for (const e of v2.edges) {
         for (const p of e.tiles) {   // 门：a 外 b 内；楼梯：a 1F b 2F —— 在本区域内的那一端画出来
           const t = idx.get(`${p.x},${p.y}`)
           if (!t || !inSector(t)) continue
+          if (view === 'exterior' && p.y !== facadeRow) continue   // 外观只标正面墙上的门；北 / 西门在 3/4 视角里画不出来（入口错位已报 B）
           g.fillStyle = e.type === 'stairs' ? COLORS.stairs : COLORS.door
           g.fillRect((p.x - x0) * px + px * 0.15, (p.y - y0) * px + px * 0.15, px * 0.7, px * 0.7)
         }
