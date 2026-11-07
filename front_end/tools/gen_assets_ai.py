@@ -113,6 +113,7 @@ OBJECTS: dict[str, tuple[int, int, str]] = {   # type: (w_tiles, h_tiles, descri
     "bench": (2, 1, "a wooden park bench"),
     "notice_board": (1, 1, "a wooden community notice board with pinned papers"),
     "door_closed": (1, 1, "a closed wooden house door with a small brass handle, seen from above"),
+    "door_open": (1, 1, "the same wooden house door with a small brass handle, but standing OPEN: swung inward on its hinges about 70 degrees so the door leaf is seen edge-on at an angle and the empty doorway with a dark door frame is visible behind it, seen from above; footprint 1 tile"),   # §3.41 门敞开态（总控 11-08 批准，六扇门共用）
     "stairs": (1, 1, "a short wooden staircase going up, seen from above"),
     "tree": (1, 1, "a leafy green tree, clearly taller than wide: a big round canopy above a short brown trunk whose base covers one floor tile"),
     "fountain": (2, 2, "a round stone fountain with a two-tier basin and blue water, footprint 2 by 2 tiles"),

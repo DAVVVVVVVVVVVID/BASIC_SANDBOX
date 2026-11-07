@@ -13,7 +13,7 @@ import type { SpectateParams } from '../../spectate/params'
 import { preloadGenAssets, createGenAnimations, charKeyFor, objTextureKey } from '../assets'
 import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
-import { preloadAiAssets, getAiManifest, aiBackdropKey, aiEnabled, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
+import { preloadAiAssets, getAiManifest, aiBackdropKey, aiObjectKey, aiEnabled, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
 import { arenaBBox, isIndoor } from '../map/mapv2'
 
 /** 自由镜头命令（React 控件 / 小地图 / 画布点击 → 场景） */
@@ -365,8 +365,12 @@ export default class GameScene extends Phaser.Scene {
     const edge = this.focus?.edges().find(e => e.tiles[0] && e.tiles[0].x === d.x && e.tiles[0].y === d.y)
     const b = edge?.tiles[1] ?? { x: d.x, y: d.y - 1 }
     const T = TILE_SIZE
-    const tex = this.textures.exists(objTextureKey('door_closed')) ? objTextureKey('door_closed') : null
-    const img = tex ? this.add.image(b.x * T + 6, (b.y + 1) * T - 4, tex).setOrigin(0, 1).setDisplaySize(T - 12, T - 8).setAngle(-70).setAlpha(0.95).setDepth((b.y + 1) * T + 2) : this.add.image(0, 0, '__DEFAULT').setVisible(false)
+    // 优先 AI 的开门态素材（objects/door_open.png，总控 11-08 批准出图、六扇门共用）：底边贴门内侧格底边、自然尺寸；没有就用 door_closed 贴图绕门轴转开
+    const aiOpen = aiEnabled() && this.textures.exists(aiObjectKey('door_open')) ? aiObjectKey('door_open') : null
+    const tex = aiOpen ?? (this.textures.exists(objTextureKey('door_closed')) ? objTextureKey('door_closed') : null)
+    const img = !tex ? this.add.image(0, 0, '__DEFAULT').setVisible(false)
+      : aiOpen ? this.add.image(b.x * T + T / 2, (b.y + 1) * T, tex).setOrigin(0.5, 1).setScale(T / (getAiManifest()?.tile_px || 96)).setDepth((b.y + 1) * T + 2)
+      : this.add.image(b.x * T + 6, (b.y + 1) * T - 4, tex).setOrigin(0, 1).setDisplaySize(T - 12, T - 8).setAngle(-70).setAlpha(0.95).setDepth((b.y + 1) * T + 2)
     const label = this.add.text(d.x * T + T / 2, (d.y + 1) * T + 2, '🔓 敞开中', { fontFamily: 'system-ui, "PingFang SC", sans-serif', fontSize: '12px', color: '#c6f6d5', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(90000).setResolution(2)
     this.openDoors.set(doorId, { img, label, until: performance.now() + ms })
   }

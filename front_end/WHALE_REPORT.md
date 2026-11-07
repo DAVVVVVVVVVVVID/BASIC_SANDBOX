@@ -147,6 +147,8 @@
 
 §3.40 版留下的两处仍有效：`__whaleDebug.emit(evt, payload)` 可模拟 ws 事件；操控页背包挪到行为日志右边。
 
+**门敞开态素材（总控 11-08 批准）**：`objects/door_open.png`（gpt-image-2 一张，$0.25，六扇门共用；`tools/gen_assets_ai.py objects --items door_open`）——门框 + 向屋内转开约 70° 的门扇，俯视 3/4。门 opened 时贴在门内侧格（底边贴格底、自然尺寸），closed / 到期撤掉；没有这张时退回 door_closed 贴图绕门轴旋转。截图 `W9_door_open_sprite.jpg`。费用累计 83 次成功调用 ≈ **$20.75**（`data/assets/gen.jsonl` 估算）。
+
 ## 1. 进度
 
 B 的 W10（南门 / `decor[]` / `use_pos` / `/qq/*` / `gold` + `inventory`）**上午还没落地**：8091 的门仍在北面、`/qq/contacts` 404、`/world` 物品没有 `use_pos`、玩家没有 `gold`。所以 1–3 按交接里的接口形状把前端做好、对字段名做了宽容解析，B 落地后只需对齐字段名；4、5 已完成。
