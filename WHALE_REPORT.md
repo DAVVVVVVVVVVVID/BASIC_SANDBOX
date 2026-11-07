@@ -1,6 +1,69 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W9 世界 v1.0 地图原型（2026-11-07）**；W8、W7–W1 记录在后。
+分支：`whale-integration`。最新：**W10 南门 / 站位 / QQ / 金币（2026-11-07）**；W9、W8、W7–W1 记录在后。
+
+---
+
+# W10 · 2026-11-07：南门与装饰层、使用者站位、QQ 消息、金币与背包、游戏机正式接口
+
+提交：`17d6747`（①②）、`c0e75ef`（③④ + 4b + 文档）、本报告提交见 git log 最新。主镇 8000 未切（仍 v0 图 / 旧代码进程）；草图镇 **8091 已用新代码重起**（`run/data/bench_v1/sandbox`，v1 图，scenario 开，no-sync），E 可直接联调。
+
+## 1. 进度（① ② ③ 4b ④ ⑤ 全部完成）
+
+| # | 任务 | 状态 | 做了什么 |
+|---|---|---|---|
+| ① | v1 地图南门 + 装饰层 | ✅ | `gen_map_v1.py`：`door_home (12,34)→(12,33)`、`door_restaurant (51,31)→(51,30)`、`door_grocery (51,39)→(51,38)`、`door_xiaoqian (16,42)→(16,41)`、`door_owners (26,47)→(26,46)`，全部 a 外（小巷 `lane`）b 内（门格归所邻房间：合租房门归客厅、店主家门归杂货店主房），门前补小巷格；渔夫屋与校园三栋不动。`decor[]` 6 项：西草坪小径（街→合租房前，12 格）+ 3×3 池塘 + 晾衣绳；东草坪小径（校门→码头巷，19 格）+ 3×2 池塘 + 2×2 花坛；另加 9 棵 `tree` 物品（`tree_w1–5`、`tree_e1–4`）。小径改成可走地板、池塘改成水；其余只记位置。`GET /world.decor` 下发（`?fields=decor` 可单取）。61 物品 / 12 边 / 8 访问规则，BFS 全可达测试仍过 |
+| ② | 使用者站位与朝向 | ✅ | `object_types.json` 加 `use_pos: [[dx,dy],…]`（相对格）与 `use_facing`：床 / 浴缸 `[[0,0]]` down（躺在床格上）、长椅 / 沙发 `[[0,0],[1,0]]` down、餐桌 4 座（南北各两格，朝向按相对位置推）、吧台 `[[0,1],[1,1]]` up、桌类（desk / pc / pc_desk / pc_music / reading_desk / classroom_desk / stream_desk / game_console / stove）南侧一格朝 up、`desk_12` `[[0,2]]`。`GET /world` 物品带 **绝对格 `usePos: [{x,y}]`** 与 `useFacing`（没站位的物品 `null`）；perceive 不带。**后端 `use` 时真的把人挪到站位并转向**（按使用顺序分配，已占的跳过），`leave` 回 use 前的格与朝向，`pos_seq` 各 +1；use 前位置进检查点（`extra.pre_use_pos`），旧检查点没有记录时 leave 落到相邻可走格。回填时站在物品格上算合法位置 |
+| ③ | QQ 消息存储与接口 | ✅ | `game/qq.py` + `routers/qq.py` + `game/qq_config.json`：账号 = agent_id（人类 = player id），不在线也能收；`POST /qq/send`（text / file；file 只允许 `items.json` `class: file` 的 song / script / image，实物 `not_transferable`；文件是**复制**，在线收件人背包加一份）、`GET /qq/inbox?player=&since=&peer=&unread_only=`（含 `direction`、群消息按成员各自 read_at）、`POST /qq/read`（标已读、返回正文、加 timed buff `reading` 60 游戏秒：`canMove/canUse=false`、`tags` 带 `reading`，到期自动摘）、`GET /qq/contacts`（初始通讯录：鲸仔 = 阿蝉 / 小千 / 餐厅老板 / 杂货店老板；群 `g_live`「鲸仔直播组」= 鲸仔 + 阿蝉；`online` = 在场）。perceive `phone.unread: {显示名: 条数}` + `unread_total`（**`phone` 从「没刷过为 null」改为总是对象**）。睡觉 / 直播中 `phone_unavailable`。每条消息 / 每次读一行 `data/qq/<date>.jsonl`；ws 推 `{type:"qq", event: message|read, …平铺}`；检查点表 `qq_messages` / `qq_groups` + meta `qq_contacts`；`/admin/export` 新 kind `qq`。每条消息发送者 / 阅读者 `social +2`（可配） |
+| 4b | 游戏机换 D 的正式接口 | ✅ | `external_effects.game_*` 改为：use 前置 **energy ≥ 25**（否则 `too_tired`）→ `GET /game/state`，`alive` 且有 `run_id` 就接着这局（`how: joined`），否则 `POST /game/start {"by":"sandbox"}` 后每 5 s 轮询到 `alive=true`（120 s 超时 `game_unavailable` / `start_timeout`）；局中 perceive 刷 `/game/state`（day / phase / health / hunger / sanity / goal / latest_png / usd_today…），新加一句话 `text`「饥荒第 6 天黄昏，HP 150，正在…」；leave → `POST /game/stop {"by":"sandbox","shutdown":false}`（不关服），记 `left_at_day` / `duration_s`，external 日志 `game/stop`。不再调 `/healthz` `/event` `/metrics`，不发 `/self/game/session`。**对真 brain 8110 联调 `scripts/verify_game.py` 7/7 PASS**（接上了 D 正在跑的 run-1794021101 第 6 天；stop 后 brain 仍 alive） |
+| ④ | 金币与背包数据层 | ✅ | `game/items.json`（10 种，03-objects 3.2）、`game/economy.json`（初始金币 鲸仔 300 / 阿蝉 2000 / 小千 400 / 店主 3000 / 渔夫 800；日薪阿蝉 150@18:30、店主 100@21:00 / 20:00、渔夫 80@17:00；小千 12/h 13–17 点每整点；餐价 20；商店目录与店主）、`game/inventory.py`（≤ 10 种，`{type, count, meta?}`，视图加 `name / class`）、`game/economy.py`（流水 `ledger` → `data/economy/<date>.jsonl` + ws `economy` 事件；`on_tick` 按日程结薪，已付键进检查点）。动作 `buy / sell / eat / give`（`routers/economy_actions.py`，payload `item|item_id / object_id / target / qty`）；买的钱进店主账（在线才有人收）；**use 餐桌扣 20**，钱不够 `insufficient_funds` 不坐下；`POST /admin/income`（写歌酬金 / 直播收入由外部调，`amount` 可负）。`GET /world` 物品 `shop: [{type,item,name,price,sell,stock:null}]`；players[] / `GET /player` 带 `gold` / `inventory`；state 行加 `gold`；导出 kind `economy` |
+| ⑤ | 文档 | ✅ | `docs/api-spec.md`（/world 新字段、行为表 + buy/sell/eat/give 节、错误 reason、perceive game/phone、external game 契约、export kinds、ws qq/economy 事件、新「9. QQ」「10. 金币与入账」两节）、`docs/data-models.md`（站位 / 装饰 / 商店 / 游戏机 / Player gold+inventory / InventoryEntry / QQMessage / 流水）、`README.md`（数据集两类、行为表、QQ / 金币一段、/admin/income）、`scripts/verify_game.py` |
+
+## 2. 测试命令与结果
+
+```bash
+cd back_end
+uv run pytest -q                                   # 279 passed（W9 的 256 + ①② 6 + QQ 7 + 经济 8 + 游戏机 +2）
+uv run python scripts/gen_map_v1.py               # 64x48, format 2, 61 objects, 12 edges, 8 access rules, floors={'achan_room': 2}, decor=6
+uv run python scripts/verify_game.py              # 对真 brain 8110：7/7 checks passed → PASS
+```
+
+| 新增 / 改动 | 用例 | 覆盖 |
+|---|---|---|
+| `tests/test_w10_map_use.py` | 6 | 五门全在南墙（a 在 b 正南、a 是小巷、b 是室内、门内一格是地板）、渔夫屋 / 校园不动；decor 下发且不是物品、小径可走池塘不可走、≥ 9 棵树；`usePos / useFacing` 下发、perceive 不含；use 挪到站位 + facing + pos_seq，leave 回原地并能走；多座位 / 无站位物品 |
+| `tests/test_w10_qq.py` | 7 | send → perceive 只给条数不给正文 → inbox → read 返回正文并 60 游戏秒不能走 / 用 → 到期摘 tag；群消息每成员各自已读；文件类才可转交（鱼 / 礼物拒绝，歌复制到对方背包）；参数 reason；睡觉 / 直播 `phone_unavailable`；人类通讯录与给离线账号发；JSONL + 导出 + 检查点往返（seq 续号）；ws `qq` 事件 |
+| `tests/test_w10_economy.py` | 8 | 初始金币按配置并在 players[] / `GET /player` 下发；`shop[]`；buy（含 `object_id` / `item_id` 写法、店主入账）/ eat（饱腹 +25）/ sell reason / `insufficient_funds`；营业时间 `shop_closed` + `opens_at`；give 礼物（对方亲密度 +8、心情 +5）、距离、满包不扣；餐桌扣餐价与钱不够；`/admin/income`、阿蝉 18:30 日薪一次、小千 4 个整点各 12、state 行 `gold`；检查点保留 gold / 背包 / 已付 |
+| `tests/test_w6_game.py` 改 | 6（+2） | 假 brain 换成 `/game/state` `/game/start` `/game/stop`：alive 的局直接接（不发 start）、leave 发 stop 不关服；没活局 → start + `how: regenerated`；轮询到 alive 与 2 s 超时 `start_timeout`；energy < 25 `too_tired`；刷新失败保留旧值 |
+| 既有用例改 5 处 | — | use 后躺到床格（persistence / effects / ws 三处按新站位摆人）、v1 物品数 52→61、导出默认 6 类、perceive `phone` 不再 null、ws upsert 字段集 + gold / inventory |
+
+8091 冒烟（新代码）：阿蝉 `POST /qq/send` → 鲸仔 perceive `phone.unread {"阿蝉": 1}` → `POST /qq/read` 拿到正文、鲸仔 `tags: ["reading"]`，此时 `buy` 返回 `use_disabled`（符合「读消息期间不可做别的」）；阿蝉 teleport 到杂货店柜台 `buy bread×2` → gold 1990、背包 `[{type: bread, count: 2}]` → `eat` fullness 94.9；`/admin/income` whale +150；`/admin/export?kinds=qq,economy` 计数 2 / 2。
+
+## 3. 给 E（字段名对齐 report-E.md §2 的差异）
+
+| E 的假设 | 实际 | 说明 |
+|---|---|---|
+| `GET /qq/contacts` → `{contacts:[{id,name,unread}], groups:[{id,name,members,unread}]}` | **一致**（超集）：contacts 另有 `account`（= id）、`online`、`player_id`；groups 另有 `member_names`；顶层另有 `account` / `name` | — |
+| `GET /qq/inbox` → `{messages:[{id,ts,from,to\|group,kind,text,file_ref,read_at}]}` | **一致**，另有 `from_name`、`game_time`、`direction: in\|out`；顶层另有 `account` / `unread` / `unread_total` | `since` 是 ISO 时间戳（不含） |
+| `POST /qq/send {from, to\|group, kind, text\|file_ref+item}` | **接受**：`from` = `entity_id`，`item` 平铺 = `file_ref.item`，不给 `kind` 自动判 | 规范写法是 `entity_id` + `file_ref{item,…}` |
+| `POST /qq/read {player, from\|group}` | **接受**：`player` = `entity_id`，`from` / `group` = `peer` | — |
+| ws `{type:'qq', message:{…}}` 或平铺 | **平铺**：`{type:"qq", event:"message"\|"read", id, from, from_name, to, group, kind, text, file_ref, read_at, …}` | 另有 `{type:"economy", kind, account, delta, balance, item, …}` |
+| `players[]` / `GET /player` 带 `gold:number`、`inventory:[{type,name,count}]` | **一致**，inventory 元素另有 `class`、可选 `meta` | — |
+| `objects[].shop:[{type\|item, name, price, stock}]` | **一致**：`type` 与 `item` 都给（同值），另有 `sell`（收购价），`stock: null` = 不限量 | 只有 `shop_counter` / `fish_stall` / `bar` 有，其余 `null` |
+| `POST /action` buy/eat/give/sell payload `item / item_id / object_id / target / qty` | **一致**，都接受；`object_id` 缺省 = 面前的物品 | `insufficient_funds` 在 `reason`，`result` 带 `price` / `gold` / `message` |
+| ws `action` 事件带 `item / item_name / price\|gold_delta / target_name` | **一致**：`item, item_name, qty, price, gold_delta, gold, target, target_name`（有则带） | — |
+| `use_pos` 相对物品 `position`、`use_facing` 四向 | **差异**：下发的是**绝对格** `usePos: [{x,y}]`（已换算）+ `useFacing`；相对偏移只在 `object_types.json` 里 | 而且后端 `use` 时已把人挪到该格并转向，E 的 `poseAnchorsFor` / `sleepAnchorFor` 可以退掉：人物就站（躺）在服务器给的位置，朝向跟服务器 |
+| `decor[]` 在 `/world.decor` | **一致**：`/world.decor`，`[{id, kind: path\|pond\|clothesline\|flowerbed, tiles:[{x,y}]}]` | 树是普通 `tree` 物品 |
+| `reading` 标签名 | **确认** `reading`（`tags` 里，60 游戏秒） | — |
+| perceive `phone` | 以前没刷过为 `null`，现在总是 `{…digest?, unread, unread_total}` | 旁观页若按 `phone === null` 判「没手机」要改成看 `unread_total` |
+
+## 4. 假设与未做
+
+- 数值全是 06-economy / 03-objects 的草稿值（`economy.json` / `items.json` / `qq_config.json` 改即生效，不用改代码）。
+- 日薪「人要在线才发」（不在线的 NPC 没有 player 实例，没处记）；重启后同日不重发（已付键进检查点）。
+- 未做：钓鱼得鱼 / 灶台出便当 / 琴房产 `song` / 直播收入自动折算（配置 `live_income_per_viewer` 0.5 已留，直播侧回传后走 `/admin/income`）、「长时间不回消息降亲密度」（数值未定）、`stock` 库存（现在不限量）。
+- QQ 文件转交是复制（发送者保留）；实物只能 `give`（2 格内）。
+- 游戏机 `GAME_POLL_S` / `GAME_START_TIMEOUT_S` 环境变量可调；use 期间不主动每 20 s 拉状态，perceive 时才刷（她看一眼才更新，省 brain 的请求）。
+- `phone` 形状从 `null | digest` 变成总是对象，是 W10 唯一一处「对外形状」变化（只加键），E / C 侧请注意。
 
 ---
 
