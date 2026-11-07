@@ -131,9 +131,21 @@ type ContinuousObject = {
 
 Object 类型可带 `open_hours: [["HH:MM","HH:MM"], ...]`（游戏时间）。运行时每个物品视图带 `open / opensAt / openHours`，关门时 `advertise` 全 0，use 返回 `closed`，到点自动请出使用者。
 
-### 游戏机（B18，W6）
+### 使用者站位（W10 ②）
 
-`player.game`：`{status: "playing" | "ended", started_at, ended_at?, brain_run_id, run_id, ticks, day, phase, health, hunger, sanity, deaths}`，由 `game_console` 的 use / leave 维护；指标来自 D 的 brain `GET /metrics`。
+Object 类型可带 `use_pos: [[dx, dy], ...]`（相对物品 `position` 的格偏移，按使用顺序分配）与 `use_facing`（四向之一，缺省 = 面向物品中心）。运行时视图下发**绝对格** `usePos: [{x,y}]` / `useFacing`；`use` 时后端把人挪到该格并转向（床 / 沙发 / 长椅躺坐在物品格上，桌类坐在南侧一格朝 up），`leave` 回 use 前的格与朝向（检查点带 `pre_use_pos`）。没有 `use_pos` 的物品原地不动。perceive 不含这两个字段。
+
+### 装饰层（W10 ①）
+
+`map.json` 可带 `decor: [{id, kind: path|pond|clothesline|flowerbed, tiles: [{x,y}]}]`，`GET /world.decor` 原样下发；`path` 生成时把草改成地板（可走），`pond` 改成水（不可走），其余只记位置。不是物品、不可交互。
+
+### 商店（W10 ④）
+
+`economy.json` 的 `shops: {物品类型: {owner, sells[], buys[]}}` 决定哪些类型是商店；运行时视图带 `shop: [{type, item, name, price, sell, stock: null}]`（非商店 `null`），价格来自 `items.json`。营业时间沿用 `open_hours`。
+
+### 游戏机（B18，W6；W10-4b）
+
+`player.game`：`{status: "playing" | "ended", started_at, ended_at?, how, brain_run_id, run_id, alive, deaths, day, phase, time_in_phase, health, hunger, sanity, is_in_light, goal, latest_png, usd_today, text, left_at_day?, duration_s?}`，由 `game_console` 的 use / leave 维护（W10-4b：`GET /game/state` 接局或 `POST /game/start` 开局并轮询到 alive，leave `POST /game/stop` 不关服；use 前置 energy ≥ 25）；指标来自 D 的 brain `GET /game/state`。
 
 ### 整树感知（W5）
 
@@ -197,6 +209,8 @@ type Player = {
   agent_id: string | null                    // 自我层 agent id（controller=agent 时）
   last_tick_ts: string                       // 上次 buff tick 的游戏时刻，ISO 8601 含时区
   usingObjectId: string | null               // 当前使用的 object id
+  gold: number                               // W10 ④：金币（economy.json 初值按 agent_id）
+  inventory: InventoryEntry[]                // W10 ④：背包 ≤ 10 种；API 视图 [{type, name, class, count, meta?}]（内部存 {type, count, meta?}）
   buffs: Buff[]                              // 当前 buff 实例列表
   tags: string[]                             // 当前 tag 列表
   // 状态控制字段（每 tick 重置为 true，buff handler 可设为 false）
@@ -288,6 +302,32 @@ Buff 分三类，处理位置和机制不同：
 - 当前仅展示，不参与运算
 
 ---
+
+### 背包物品（W10 ④，`back_end/game/items.json`，03-objects 3.2 假设值）
+
+```typescript
+type InventoryEntry = { type: ItemType; count: number; meta?: Record<string, unknown> }   // meta：歌名等
+type ItemType = "bread" | "sweets" | "bento" | "ingredients" | "fish" | "bait" | "gift" | "song" | "script" | "image"
+// items.json 每项：{ name, class: food|material|consumable|gift|file, price: 买价|null, sell: 收购价|null, eat?: {var: delta}, give?: {closeness|mood: delta} }
+```
+`class: file`（song / script / image）可走 QQ 转交（复制）；其余只能 `give`。
+
+### QQ 消息（W10 ③，`game/qq.py`）
+
+```typescript
+type QQMessage = { id: string; ts: string; game_time: string; from: Account; from_name: string;
+                   to: Account | null; group: string | null;          // 二选一
+                   kind: "text" | "file"; text: string; file_ref: { item: ItemType; name?: string; ref?: string; meta?: object } | null;
+                   read_at: string | null;                             // 1:1 的已读时刻；群消息每个成员各自记（read_by，接口里折成自己的 read_at）
+                   item_delivered_to?: Account[] }
+type Account = string   // agent 的 agent_id；人类玩家的 player id
+type QQGroup = { id: string; name: string; members: Account[] }
+```
+持久化：检查点表 `qq_messages`（`id, ts, from_id, to_id, group_id, kind, text, file_ref, read_at, data`）、`qq_groups`、meta `qq_contacts`；数据集 `data/qq/<date>.jsonl`（`kind: message | read`）。
+
+### 金币流水（W10 ④，`game/economy.py`）
+
+`data/economy/<date>.jsonl` 每行：`{kind: buy|sell|income|expense|wage, ts, game_time, town, map_version, seed, account, entity, delta, balance, item?, qty?, price?, shop?, shop_type?, peer?, source?, label?, schedule?, hour?, meta?}`。`state` 行新增 `gold`。日薪 / 时薪由 ticker 按 `economy.json` 的 `wages` 结算，已付键进检查点 meta `economy`。
 
 ## 5. 世界状态（WorldState）
 

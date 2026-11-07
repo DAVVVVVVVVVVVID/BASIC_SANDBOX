@@ -55,7 +55,7 @@ def test_admin_export_counts_match_files(client, fake_clock):
     d = r.json()
     assert d["schema"] == "sandbox-0.1" and d["town"] == "main" and d["map_version"] == world_state.MAP_VERSION and d["date"] == today
     counts = d["manifest"]["counts"]
-    assert counts == {"actions": len(d["actions"]), "chat": len(d["chat"]), "state": len(d["state"]), "external": len(d["external"])}
+    assert counts == {k: len(d[k]) for k in ("actions", "chat", "state", "external", "qq", "economy")}   # W10：默认多出 qq / economy
     assert counts["actions"] == 3 and counts["chat"] == 3 and counts["state"] == 2 and counts["external"] == 0
     for kind in ("actions", "chat", "state"):
         fp = data_dir() / kind / f"{today}.jsonl"
@@ -65,7 +65,7 @@ def test_admin_export_counts_match_files(client, fake_clock):
     only = client.get("/admin/export", params={"date": today, "kinds": "chat"}).json()
     assert "actions" not in only and only["manifest"]["counts"] == {"chat": 3}
     empty = client.get("/admin/export", params={"date": "2001-01-01"}).json()
-    assert empty["manifest"]["counts"] == {"actions": 0, "chat": 0, "state": 0, "external": 0} and empty["actions"] == []
+    assert empty["manifest"]["counts"] == {"actions": 0, "chat": 0, "state": 0, "external": 0, "qq": 0, "economy": 0} and empty["actions"] == []
     assert client.get("/admin/export", params={"date": "20011-1-1"}).status_code == 400
     # 旧行（没有数据集字段）回填并标记
     fp = data_dir() / "actions" / f"{today}.jsonl"
@@ -95,4 +95,4 @@ def test_export_backfills_state_tags_and_reports_field_sets(client, fake_clock):
     new = next(r for r in rows if r["player_id"] == a)
     assert "backfilled" not in new and isinstance(new["tags"], list) and new["kind"] == "join"
     assert all(set(EXPORT_FIELDS["actions"]) <= set(r) for r in d["actions"])
-    assert d["manifest"]["fields"]["state"][-1] == "tags" and set(d["manifest"]["fields"]) == {"actions", "chat", "state", "external"}
+    assert d["manifest"]["fields"]["state"][-2:] == ["tags", "gold"] and set(d["manifest"]["fields"]) == {"actions", "chat", "state", "external", "qq", "economy"}

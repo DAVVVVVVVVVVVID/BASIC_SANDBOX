@@ -184,7 +184,9 @@ BASIC_SANDBOX/
 - `state/YYYY-MM-DD.jsonl`：每个 player 每 30 游戏秒一行七变量快照（W6）
 - `sandbox.db`：SQLite 检查点（当前状态，非历史）
 - `external/YYYY-MM-DD.jsonl`：外部效果与不确定性输入（自我层种入 / 纠偏、`/effects` 推送、freeform 裁决、feed / live / game 调用结果、切倍率）（W7）
-- 每行带 `town / map_version / seed`；`GET /admin/export?date=` 一次给出当日四类 + manifest（供总控 `dataset_export.py`）；`scripts/dataset_fetch.py` 对账
+- `qq/YYYY-MM-DD.jsonl`：QQ 每条消息一行（含正文、file_ref、read_at）+ 每次读一行（W10）
+- `economy/YYYY-MM-DD.jsonl`：每笔金币变动一行（buy / sell / income / expense / wage，含 balance）（W10）
+- 每行带 `town / map_version / seed`；`GET /admin/export?date=` 一次给出当日六类 + manifest（供总控 `dataset_export.py`）；`scripts/dataset_fetch.py` 对账
 - **可复现回放**（B19）：`scripts/replay.py --date --town --data-dir` 从 seed + actions + external 重放一天，末态与 state 最后一行差 < 0.5
 
 ### 需求值与自我层
@@ -250,6 +252,13 @@ POST /action
 | `interact` | 读取正前方 Object 的描述文本 |
 | `use` | 进入正前方 Object，触发 effects |
 | `leave` | 离开当前 Object，清除 persistent buff |
+| `buy` / `sell` | **W10** 在商店（`shop_counter` / `fish_stall` / `bar`，营业时间内）买卖 `items.json` 里的物品；钱不够 `insufficient_funds` |
+| `eat` | **W10** 吃背包里的食物（随处吃） |
+| `give` | **W10** 当面（2 格内）给别人物品；小礼物加对方亲密度 |
+
+**W10 QQ（沙盒内手机）：** `POST /qq/send`（文字或文件类物品引用，实物拒绝）、`GET /qq/inbox`、`POST /qq/read`（占 1 游戏分钟，`reading` 标签）、`GET /qq/contacts`；perceive 的 `phone.unread` 只给条数。配置 `game/qq_config.json`。
+
+**W10 金币：** 玩家 `gold` / `inventory`（≤ 10 种）；初始金币、日薪时薪（tick 按日程结算）、餐价、商店目录在 `game/economy.json`，物品在 `game/items.json`（全是 06-economy / 03-objects 的假设值）；外部入账 `POST /admin/income`。
 
 ---
 
@@ -283,6 +292,7 @@ POST /action
 | `POST /admin/checkpoint` | 立即写一份 SQLite 检查点 |
 | `GET /admin/self-sync` | 自我层同步状态（发送 / 失败 / drift / 待发） |
 | `GET /admin/metrics` | tick 耗时 / 间隔分位、玩家数、WS 订阅数、RSS |
+| `POST /admin/income` | **W10** 外部入账（写歌酬金 / 直播收入；`amount` 可负） |
 | `POST /admin/scenario` | 行为验收夹具：一次摆世界（teleport / 七变量 / 时间 / 放撤 NPC / 占物品 / 代发邀请发言 / 重置），仅 `SANDBOX_SCENARIO=1`（`run_town.sh --scenario`） |
 
 > 当 Agent 循环意外中断导致玩家被 `no_move` / `no_interact` / `no_use` buff 卡住时，调用 `force-reset` 即可恢复。

@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS time_state (
 CREATE TABLE IF NOT EXISTS chat_requests (request_id TEXT PRIMARY KEY, data TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS chat_rooms (chat_room_id TEXT PRIMARY KEY, data TEXT NOT NULL, seq INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS qq_messages (id TEXT PRIMARY KEY, ts TEXT, from_id TEXT, to_id TEXT, group_id TEXT, kind TEXT, text TEXT, file_ref TEXT, read_at TEXT, data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS qq_groups (id TEXT PRIMARY KEY, data TEXT NOT NULL);
 """
 
 
@@ -61,6 +63,8 @@ def save_checkpoint(path: Path | None = None) -> dict:
     """写一份完整检查点。返回摘要 {players, rooms, requests, saved_at}。"""
     rt    = world_state.export_runtime()
     chat  = chat_state.export_state()
+    from game import qq
+    qqs   = qq.export_state()
     ts    = time_state.export_state()
     now   = time_state.now_real()
     conn  = _connect(path)
@@ -96,9 +100,21 @@ def save_checkpoint(path: Path | None = None) -> dict:
                 [(rid, json.dumps(r, ensure_ascii=False), chat["seq"].get(rid, 0))
                  for rid, r in chat["rooms"].items()],
             )
+            conn.execute("DELETE FROM qq_messages")
+            conn.executemany(
+                "INSERT INTO qq_messages VALUES (?,?,?,?,?,?,?,?,?,?)",
+                [(m["id"], m["ts"], m["from"], m.get("to"), m.get("group"), m["kind"], m.get("text"),
+                  json.dumps(m.get("file_ref"), ensure_ascii=False) if m.get("file_ref") else None, m.get("read_at"),
+                  json.dumps(m, ensure_ascii=False)) for m in qqs["messages"]],
+            )
+            conn.execute("DELETE FROM qq_groups")
+            conn.executemany("INSERT INTO qq_groups VALUES (?,?)",
+                             [(gid, json.dumps(g, ensure_ascii=False)) for gid, g in qqs["groups"].items()])
             conn.executemany(
                 "INSERT OR REPLACE INTO meta VALUES (?,?)",
                 [("last_tick_ts", repr(now)), ("saved_at", repr(now)),
+                 ("qq_contacts", json.dumps({"contacts": qqs["contacts"], "seq": qqs["seq"]})),
+                 ("economy", json.dumps(__import__("game.economy", fromlist=["x"]).export_state())),
                  ("schema_version", str(SCHEMA_VERSION)),
                  ("chat_cooldowns", json.dumps({"last_chat_end": chat["last_chat_end"],
                                                 "last_pair_end": chat["last_pair_end"]}))],   # B9 ③
@@ -157,6 +173,14 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
             "rooms":    {rid: json.loads(d) for rid, d, _ in conn.execute("SELECT chat_room_id, data, seq FROM chat_rooms")},
             "seq":      {rid: s for rid, _, s in conn.execute("SELECT chat_room_id, data, seq FROM chat_rooms")},
             **cooldowns,
+        })
+        from game import qq, economy
+        economy.import_state(json.loads(meta.get("economy") or "{}"))
+        qc = json.loads(meta.get("qq_contacts") or "{}")
+        qq.import_state({
+            "messages": [json.loads(d) for (d,) in conn.execute("SELECT data FROM qq_messages")],
+            "groups":   {gid: json.loads(d) for gid, d in conn.execute("SELECT id, data FROM qq_groups")},
+            "contacts": qc.get("contacts", {}), "seq": qc.get("seq", 0),
         })
     finally:
         conn.close()

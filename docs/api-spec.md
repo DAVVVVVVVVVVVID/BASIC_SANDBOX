@@ -80,6 +80,10 @@
 | objects[] 新增字段 | 说明 |
 |------|------|
 | `advertise` | **B5** Sims 式广告值 `{ fullness \| energy \| social \| fun \| mood: 0–100 }`，供规划器做软偏好打分；来自 `object_types.json` 的 `advertise`，可能为空对象 |
+| `usePos` / `useFacing` | **W10 ②** 使用者站位与朝向。`usePos: [{x,y}]` 是**绝对格**（由 `object_types.json` 的 `use_pos: [[dx,dy],…]` 相对物品 `position` 换算），按使用顺序分配（第 1 个使用者拿第 1 格，已占的跳过）；`null` = 原地不动（冰箱、柜台等）。`useFacing`: `up/down/left/right`，`null` = 面向物品中心。**后端在 `use` 时真的把人挪到该格并转向**（床 / 沙发 / 长椅 = 躺坐在物品格上；桌类 = 物品南侧一格朝 up；餐桌 4 座南北各两格），`leave` 回到 use 前的格与朝向，`pos_seq` 各 +1。perceive 不带这两个字段。E 的假设写的是相对格偏移 `use_pos`——实现下发的是**绝对格 `usePos`**，前端直接画在该格即可 |
+| `shop` | **W10 ④** 商店物品 `[{type, item, name, price, sell, stock}]`（`type` 与 `item` 同值 = `items.json` 键；`price` 买价、`sell` 收购价，`null` = 不卖 / 不收；`stock: null` = 不限量）。只有 `economy.json` 的 `shops` 里的类型（`shop_counter` / `fish_stall` / `bar`）有，其余 `null`。营业时间沿用物品的 `openHours` |
+
+**顶层新增（W10 ①）：** `decor`：装饰层 `[{id, kind, tiles: [{x,y}]}]`，`kind`: `path`（小径，可走）/ `pond`（池塘，不可走）/ `clothesline` / `flowerbed`（只记位置，不改 tile）。**不可交互、不是物品**；树是普通 `tree` 物品（`placeholder`）。`?fields=decor` 可单取。v0 图为空数组。
 
 | players[] 字段 | 说明 |
 |------|------|
@@ -90,6 +94,7 @@
 | `away` | **W8 Q0e** human 连续 120 s 无输入（动作 / `GET /player` / `POST heartbeat` / 聊天请求、响应、发言）→ `true`，任一输入即清；agent 恒 `false`。away 的人**不算在场**：perceive 的 `players_in_view` / `needs.closeness` 与 `GET /chat/nearby` 不列出，`POST /chat/request` 邀请到 away 的人返回 `{success:false, reason:"target_away", away:[ids]}`。`/ws/world` 的 `players.upsert` 同步带 |
 | `stateLabel` / `usingObjectId` / `tags` | **W5 E①** 与 `GET /player` 同义；前端叠加层（睡觉 / 吃饭 / 直播中）直接读，不必反查 userList |
 | `pos_seq` | **W5 E⑥** 位置单调序号：每次坐标实际变化 +1（转向不变），重启后保留；客户端预测校正用它排乱序 |
+| `gold` / `inventory` | **W10 ④** 金币余额（整数）与背包 `[{type, name, class, count, meta?}]`（≤ 10 种；`type` = `items.json` 键，`class`: food / material / consumable / gift / file）。`GET /player/{id}` 同形状 |
 
 ---
 
@@ -414,6 +419,23 @@
 | `leave` | 退出当前正在使用的对象 | `{}` | `Q` |
 | `freeform` | **B12（W5）** 自然语言动作，由自我层 `POST /self/adjudicate` 裁决后把效果落到 player | `{ text, target?, context? }` | agent |
 | `go_to` | **W9** `move_to_area` 的别名：`{ area_id | target, area_type?="arena" }`，响应 `type: "go_to"`，其余同 move_to_area | agent |
+| `buy` | **W10 ④** 在商店买 | `{ item \| item_id, qty?=1, object_id? }`（缺 `object_id` = 面前的物品；给了须相邻） | agent / E |
+| `sell` | **W10 ④** 卖给商店（`shop[].sell` 非空的物品） | `{ item \| item_id, qty?=1, object_id? }` | agent / E |
+| `eat` | **W10 ④** 吃背包里的食物（随处吃），按 `items.json` 的 `eat` 加需求值 | `{ item \| item_id }` | agent / E |
+| `give` | **W10 ④** 当面给别人（2 格内）；`gift` 类按 `items.json` 的 `give` 给对方亲密度 / 心情 | `{ target, item \| item_id, qty?=1 }`（`target` = player id / agent_id / 名字） | agent / E |
+
+### buy / sell / eat / give（W10 ④）
+
+数值全部来自 `back_end/game/economy.json`（初始金币、日薪时薪、餐价、商店目录）与 `back_end/game/items.json`（物品：名、class、买价 `price`、收购价 `sell`、`eat` / `give` 效果），都是 `06-economy.md` / `03-objects.md` 3.2 的**假设值**，改配置即生效。
+
+| 项 | 说明 |
+|---|---|
+| 成功响应 `result` | `buy`: `{message, objectId, item, item_name, qty, price(总价), gold_delta, gold, inventory}`；`sell`: 同形（`gold_delta` 为正）；`eat`: `{message, item, item_name, qty, effects, vars(吃后的值), inventory}`；`give`: `{message, item, item_name, qty, target, target_name, target_effects{closeness?, mood?}, inventory}` |
+| 失败 `reason` | `insufficient_funds`（`result` 带 `price` / `gold` / `message`）、`no_object`（面前没物品）、`object_too_far`、`no_shop`（不是商店）、`shop_closed`（`result.opens_at`）、`not_for_sale` / `not_buying`、`unknown_item`、`no_item`（`result.have`）、`inventory_full`（≤ 10 种；give 时是对方满包，自己不扣）、`not_edible`、`target_not_found`、`target_too_far`（> 2 格）、`use_disabled`（reading / no_use 中） |
+| 店主入账 | 买东西的钱进店主账户（`economy.json` `shops[].owner`：`shop_counter` → `npc_grocer`，`fish_stall` → `npc_fisher`，`bar` → `npc_rest_owner`），店主在线才有人收；卖给商店同理从店主扣。**餐厅吃饭**：`use` 餐桌（`restaurant_table`）时扣 `meal_price`（20），钱不够 `use` 失败 `insufficient_funds`，不坐下 |
+| 流水 | 每笔金币变动一行 `data/economy/<date>.jsonl`（`kind`: buy / sell / income / expense / wage；`account, entity, delta, balance, item?, qty?, price?, shop?, peer?, source?, label?`），`GET /admin/export?kinds=economy` 导出；ws 推 `{type:"economy", ...同行}` |
+| ws `action` 事件 | buy / sell / eat / give 另带 `item, item_name, qty, price, gold_delta, gold, target, target_name`（有则带），给 E 的气泡 |
+| QQ 转交 | 文件类物品（`class: file`：song / script / image）走 `POST /qq/send kind=file`，是**复制**（发送者保留）；实物只能 `give` |
 
 **地图 v2 的寻路与门禁（W9）：** `move` / `move_n` / `move_to_area` / `go_to` 都按 `map.edges` 走（楼梯是非相邻邻接），每一步跨场所时检查该边的 `open_hours` / `allow` 与目标场所的 `access`。被挡时：`move` 返回 `reason: "closed"`（门不在开放时段，`result.opens_at`）或 `"locked"`（访问规则，`result.opens_at` 为解锁时刻或 `null` = 常锁）；`move_n` 在该步停下；`move_to_area` / `go_to` 若忽略门禁能到而带门禁不能到，返回 `locked` / `closed` + `opens_at`，否则 `no_path`。
 
@@ -682,7 +704,8 @@
 | `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message`。**W8 Q0e：床类（`bed` / `bed_21`）无冷却**（类型级 `cooldown_s: 0`），其余仍 30 分钟 |
 | `feed_unavailable` | **B10** 手机（`external: feed`）拉自我层 `GET /self/feed` 失败（不可达 / 超时 3 s）。`result.message` 为「手机没信号…」，`result.phone.status = "no_signal"`；物品仍算使用过（有冷却），其余 instant 效果已结算 |
 | `live_unavailable` | **B11** 直播台（`external: live`）向自我层 `POST /self/live/start` 失败，**或使用者是人类玩家（没有 `agent_id`，§3.11 B4：阿蝉不能替她开播）**。不进入物品、不计冷却，`result.error` 为错误摘要 |
-| `game_unavailable` | **B18（W6）** 游戏机（`external: game`）向 D 的 brain `GET {GAME_URL}/healthz` / `POST /event` 失败（不可达 / 超时 3 s / ok=false）。不进入物品、不计冷却，`result.error` 为错误摘要 |
+| `game_unavailable` | **B18（W6；W10-4b）** 游戏机（`external: game`）向 D 的 brain `GET /game/state` 不可达，或 `POST /game/start` 后 120 s 内没等到 `alive=true`。不进入物品、不计冷却，`result.error` 为 `brain_unreachable` / `start_timeout` / 异常摘要 |
+| `too_tired` | **W10-4b** 游戏机 use 前置 `energy ≥ 25`（`result.energy_min`） |
 | `closed` | **B20（W7）** 物品不在营业时间（按游戏时间）。`result` 含 `opens_at`（下次开门 `"HH:MM"`）、`openHours`、`objectId`、`message`。不计冷却。营业中途关门时还在用的玩家被自动请出（`pendingMessage` = `leaveMessage`） |
 
 **手机 use 成功时** `result` 多两个字段：`message` = digest 文字（「手机上有 N 条新动态：…」/「手机上没有新消息。」），`phone` = 与 `GET /agent/perceive` 的 `phone` 相同的 digest 对象。
@@ -735,6 +758,8 @@
 | 400 | 请求参数错误（entityId 缺失、action.type 不合法等） |
 | 404 | 实体不存在 |
 | 500 | 服务器内部错误 |
+
+**W10 新增业务 `reason`：** `insufficient_funds`、`no_shop`、`shop_closed`、`not_for_sale`、`not_buying`、`unknown_item`、`no_item`、`inventory_full`、`not_edible`、`target_not_found`、`target_too_far`、`object_too_far`（buy / sell / eat / give）；`too_tired`（游戏机 energy < 25）；QQ 的 `phone_unavailable` / `not_transferable` / `unknown_recipient` / `unknown_group` / `not_member` / `self_message` / `empty_text` / `need_to_or_group` / `bad_kind` 见「QQ」节。
 
 ---
 
@@ -861,8 +886,9 @@
 - `vision_tiles`：以实体当前位置为中心，边长 `vision_size`（偶数自动取奇）的正方形内所有合法 tile，超出地图边界的 tile 不返回
 - `front_object`：正前方一格的 object 信息，无 object 时为 `null`
 - `players_in_view`（**B13**）：视野正方形内的其他 player
-- `game`（**B18，W6**）：游戏机局内状态 `{status: "playing" | "ended", started_at, ended_at?, brain_run_id, run_id, ticks, day, phase, health, hunger, sanity, deaths}`，没玩过为 `null`；`playing` 时每次 perceive 向 brain `GET /metrics` 刷新一次（3 s 超时，失败保留旧值）。`GET /player/{id}` 与 `/state` 也带 `game`
-- `phone`（**B10**）：最近一次刷手机的信息流摘要，没刷过为 `null`：`{"status": "ok" | "no_signal", "items": [{"ts", "topic", "sentiment", "is_question", "is_song_request", "summary", "injection"}], "digest_ts", "fetched_at", "for"}`。只有自我层 Quarantine 后的 digest 字段，**不含 id / source / author / 原文**（沙盒侧再做一次白名单过滤）
+- `game`（**B18，W6；W10-4b 改接 D 的正式接口**）：游戏机局内状态 `{status: "playing" | "ended", started_at, ended_at?, how: "joined" | "regenerated" | "server_started", brain_run_id, run_id, alive, deaths, day, phase, time_in_phase, health, hunger, sanity, is_in_light, goal, latest_png, usd_today, server, tick_age_s, text, left_at_day?, duration_s?}`，没玩过为 `null`；`text` 是给她看的一句话「饥荒第 {day} 天{白天/黄昏/夜里}，HP {health}，正在{goal}」（ended 后 `null`）；`playing` 时每次 perceive 向 brain `GET /game/state` 刷新一次（3 s 超时，失败保留旧值）。`GET /player/{id}` 与 `/state` 也带 `game`
+- `phone.unread`（**W10 ③**）：`phone` 现在**总是对象**（以前没刷过为 `null`）：`{...B10 的 digest 字段（刷过手机才有）, "unread": {"阿蝉": 2, "鲸仔直播组": 1}, "unread_total": 3}`——按发件人 / 群**显示名**计未读条数，**不给正文**；读要用 `POST /qq/read`（占 1 游戏分钟）
+- `phone`（**B10**）：最近一次刷手机的信息流摘要（W10 起没刷过时只有 `unread` / `unread_total` 两键）：`{"status": "ok" | "no_signal", "items": [{"ts", "topic", "sentiment", "is_question", "is_song_request", "summary", "injection"}], "digest_ts", "fetched_at", "for"}`。只有自我层 Quarantine 后的 digest 字段，**不含 id / source / author / 原文**（沙盒侧再做一次白名单过滤）
 - `needs`（**B13**）：**只给分档文字，不给数值**（报告 §4.3）。阈值 low 25 / critical 15 / emergency 10；文案与自我层 `state.py` 的 `LABELS` 同源（沿用 mood.py `label()`）。`<var>` 未越阈值为 `"还好"`；`mood` < 35 为「有点委屈…」、> 75 为「开心」；`lines` 是越过阈值的全部文字（含 emotion_tags），`hard` 是 `<var><15` 的硬约束；`closeness` 对视野内 player 分档，形状固定为 **`{entity_id: {"name", "tier"}}`**（§3.11 第 9 条；tier ≥70 很亲近 / ≥40 熟悉 / ≥15 认识 / 其余 陌生，阈值为假设，整个 `needs` 块里没有任何数值）；`recent_uses` 同 `GET /player/{id}/state`
 
 ---
@@ -1011,7 +1037,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `buff` | continuous | 进入时创建，离开/计时结束时移除 | 见上方 Buff 结构；mode 可为 `persistent` 或 `timed` |
 | `instant_effect` | instant / continuous | 进入时一次性结算，不进 buff 列表 | `key` 为七变量之一（`fullness` / `energy` / `social` / `fun` / `mood`；`hp` 视为 `fullness`），`value` 为变化量，结果 clamp 到 0–100 |
 | `tag` | continuous | 进入时加入，离开时移除 | 纯标记字符串，不参与运算 |
-| `external` | instant / continuous | use 时调自我层 | **B10 / B11** `key = "feed"`：`GET {SELF_URL}/self/feed?for=<agent_id>&n=8`，结果进 `result.phone` 与 perceive 的 `phone`；`key = "live"`：use → `POST /self/live/start`（失败则 use 失败 `live_unavailable`），leave → `POST /self/live/stop`（后台发送、不可失败），使用期间 `player.scene = "live"`。没有 `agent_id` 的人类玩家：feed 用 player id 查；**live 直接 `live_unavailable`**（§3.11 B4）。**`key = "game"`（B18，W6，契约为假设——D12 未出）**：use → `GET {GAME_URL}/healthz` 须 ok，再 `POST {GAME_URL}/event {type:"sandbox_session_start", agent, player_id, ts, tick}`；成功后 `player.game = {status:"playing", started_at, brain_run_id, run_id, ticks, day, phase, health, hunger, sanity, deaths}`（后几项取自 brain `GET /metrics`，perceive 时刷新）；leave / 自动离开 / 删玩家 → `POST /event {type:"sandbox_session_end", agent, player_id, ts, started_at}`（后台、不可失败），`player.game.status = "ended"`。局的结果由 D 自己 `POST /self/game/session` 写自我层，沙盒不转发。`GAME_URL` 默认 `http://127.0.0.1:8110`。human 也能玩（agent 名用 player name） |
+| `external` | instant / continuous | use 时调自我层 | **B10 / B11** `key = "feed"`：`GET {SELF_URL}/self/feed?for=<agent_id>&n=8`，结果进 `result.phone` 与 perceive 的 `phone`；`key = "live"`：use → `POST /self/live/start`（失败则 use 失败 `live_unavailable`），leave → `POST /self/live/stop`（后台发送、不可失败），使用期间 `player.scene = "live"`。没有 `agent_id` 的人类玩家：feed 用 player id 查；**live 直接 `live_unavailable`**（§3.11 B4）。**`key = "game"`（B18，W6；W10-4b 按 D 的正式接口 report-D.md 5b / 6）**：use 前置 `energy ≥ 25`（否则 `too_tired`，不问 brain）；use → `GET {GAME_URL}/game/state`，`alive=true` 且有 `run_id` 就**接着这局玩**（`how: "joined"`），否则 `POST /game/start {"by":"sandbox"}` 后每 `GAME_POLL_S`（5 s）轮询 `/game/state` 直到 `alive=true`（`GAME_START_TIMEOUT_S` 120 s 超时 → use 失败 `game_unavailable`，`result.error: "start_timeout"`；brain 不可达 → `"brain_unreachable"`）；成功后 `player.game = {status:"playing", started_at, how, brain_run_id, run_id, alive, deaths, day, phase, time_in_phase, health, hunger, sanity, is_in_light, goal, latest_png, usd_today, server, tick_age_s, text}`（perceive / `GET /player/{id}/state` 时向 `/game/state` 刷新）；leave / 自动离开 / 删玩家 → `POST /game/stop {"by":"sandbox","shutdown":false}`（存档不关服；后台、不可失败），`player.game.status = "ended"`，另带 `left_at_day` / `duration_s`，`external` 日志记一行 `kind: game, action: stop`。局的开始 / 结束由 D 的 runner 自己写自我层，沙盒**不发** `/self/game/session`；`/healthz` `/event` `/metrics` 不再依赖。`GAME_URL` 默认 `http://127.0.0.1:8110`。human 也能玩 |
 
 > instant 原型的 `effects` 中，`buff` 只允许 `timed` mode 与一次性 key（`<var>_delta` / `emotion_tag` / `closeness_delta`）；`persistent` buff 和 `tag` 被忽略（没有 leave 时机）。
 
@@ -1128,7 +1154,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 **W6 任务 1（数据集 schema v0.2 的沙盒源）**：一次性给出当日 actions / chat / state 与 manifest，供总控 `dataset_export.py` 拉。只读。
 
-**Query：** `date=YYYY-MM-DD`（必填，400 校验）、`kinds=actions,chat,state`（默认全部）。
+**Query：** `date=YYYY-MM-DD`（必填，400 校验）、`kinds=actions,chat,state,external,qq,economy`（默认全部六种；**W10** 新增 `qq`——`data/qq/<date>.jsonl` 的 message / read 行，`economy`——`data/economy/<date>.jsonl` 的金币流水；`state` 行新增 `gold`）。
 
 ```json
 { "schema": "sandbox-0.1", "date": "2026-11-06", "town": "main", "map_version": "阿蝉家与小镇@1b824832ace2", "seed": null,
@@ -1245,8 +1271,105 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 `chat` 事件的 `kind: "message"` 带 `from_name`（E④，已实现）。
 
+**W10 新增即时事件（与 action 事件同一通道、先于同帧 patch）：**
+```json
+{ "type": "qq", "ts": "...", "event": "message", "id": "q000001_ab12cd", "from": "achan", "from_name": "阿蝉", "to": "whale", "group": null,
+  "kind": "text", "text": "今晚吃什么", "file_ref": null, "read_at": null, "game_time": "..." }
+{ "type": "qq", "ts": "...", "event": "read", "account": "whale", "entity": "鲸仔_a1b2c3", "peer": "achan", "count": 2, "ids": ["q000001_ab12cd", "q000002_ef34gh"] }
+{ "type": "economy", "ts": "...", "kind": "buy", "account": "whale", "entity": "鲸仔_a1b2c3", "delta": -10, "balance": 290, "item": "bread", "qty": 2, "price": 5, "shop": "counter_grocer" }
+```
+`qq` 事件平铺（E 的「`{type:'qq', message:{…}}` 或平铺」取后者）。`players.upsert` 元素现在还带 `gold` / `inventory`（W10 ④），余额或背包变了也会出 upsert。
+
 空闲 5 s 没有变化时发 `{"type": "heartbeat", "ts": ...}`。多个客户端共享同一份 diff 计算；没有订阅者时不计算。
 对账：`cd back_end && uv run python scripts/verify_ws.py --seconds 60`（订阅并叠加 patch，与每秒轮询 `GET /world` 比较，W4 实测 44 次比较 0 不一致）。
+
+---
+
+## 9. QQ（沙盒内手机消息，W10 ③）
+
+按 `docs/world-bible/08-phone-messaging.md`：每个 agent 随身一部手机；不在一处也能联系；消息异步、持久（检查点表 `qq_messages` / `qq_groups` + `data/qq/<date>.jsonl` 进数据集）、有未读；**读是一个动作**（占 1 游戏分钟）；只能转交**文件类**物品。配置 `back_end/game/qq_config.json`（显示名、初始通讯录、群、`read_game_seconds`、`social_per_message`）。
+
+| 概念 | 说明 |
+|---|---|
+| 账号 | agent 玩家 = `agent_id`（`whale` / `achan` / `npc_xiaoqian` / `npc_rest_owner` / `npc_grocer` / `npc_fisher`），人类玩家 = player id。账号在人不在线时也存在：发给不在线的阿蝉，消息存着等他上线来读。接口里凡是「账号」的地方也接受 player id / 显示名（「阿蝉」） |
+| 通讯录 | 初始：鲸仔 = 阿蝉、小千、餐厅老板、杂货店老板；群「鲸仔直播组」（`g_live`）= 鲸仔 + 阿蝉；其他 NPC 按 `qq_config.json`。互相可见；给谁发过就互加。人类玩家的通讯录 = 所有已知账号 |
+| 约束 | `sleeping` / `streaming` 标签中或 `scene = live` 时不能发也不能读 → `phone_unavailable`。读完 1 游戏分钟内 `canMove` / `canUse` 为 false、`tags` 带 `reading`（timed buff `reading`，`source: "qq"`），到期自动摘 |
+| 社交 | 每条消息给发送者 / 阅读者 `social +2`（`social_per_message`，可改）。「长时间不回降亲密度」未做（数值未定） |
+
+### POST /qq/send
+
+```json
+{ "entity_id": "阿蝉_1a2b3c", "to": "whale", "kind": "text", "text": "今晚吃什么" }
+{ "entity_id": "鲸仔_a1b2c3", "group": "g_live", "text": "今晚八点开播" }
+{ "entity_id": "鲸仔_a1b2c3", "to": "achan", "kind": "file", "text": "新歌 demo", "file_ref": { "item": "song", "name": "夜航", "meta": { "title": "夜航" } } }
+```
+也接受 E 的写法：`from`（= `entity_id`）、`item`（= `file_ref.item`）、不给 `kind`（有 `file_ref` / `item` 则 file，否则 text）。`to` 与 `group` 二选一。
+
+**响应：** `{ "success": true, "reason": null, "message": { id, ts, game_time, from, from_name, to, group, kind, text, file_ref, read_at, item_delivered_to? } }`；失败 `{ "success": false, "reason": ..., "message": null }`。实体不存在 404。
+
+| reason | 说明 |
+|---|---|
+| `phone_unavailable` | 睡觉 / 直播中 |
+| `not_transferable` | `kind=file` 但 `file_ref.item` 不是 `items.json` 里 `class: file` 的物品（歌 `song` / 电台文稿 `script` / 图片 `image`）；蛋糕、鱼、礼物等实物只能当面 `give` |
+| `unknown_recipient` / `unknown_group` / `not_member` / `self_message` | 收件人不认识 / 群不存在 / 不是群成员 / 发给自己 |
+| `empty_text` / `need_to_or_group` / `bad_kind` | 参数问题 |
+
+文件是**复制**：发送者不扣；在线的收件人（群发 = 每个在线成员）背包加一份（≤ 10 种，满了不加），`message.item_delivered_to` 列出加成功的账号。
+
+### GET /qq/inbox
+
+`?player=<entity_id>&since=<ISO ts，不含>&peer=<账号或群 id>&limit=100&unread_only=false`
+
+```json
+{ "account": "whale", "messages": [ { "id": "q000001_ab12cd", "ts": "2026-11-07T12:00:00.123", "game_time": "...", "from": "achan", "from_name": "阿蝉",
+    "to": "whale", "group": null, "kind": "text", "text": "今晚吃什么", "file_ref": null, "read_at": null, "direction": "in" } ],
+  "unread": { "阿蝉": 2 }, "unread_total": 2 }
+```
+与我有关的消息（1:1 收发 + 我所在群），时间序；`direction`: `in` / `out`；群消息的 `read_at` 是**我自己**的已读时刻（每个成员各自记）。**正文在这里给**——但 agent 应走 `POST /qq/read`，这个接口是给 E 面板 / C 工具看的。
+
+### POST /qq/read
+
+```json
+{ "entity_id": "鲸仔_a1b2c3", "peer": "achan" }        // peer 可省 = 读全部未读；也接受 E 的 { "player", "from" | "group" }
+```
+**响应：** `{ "success": true, "account": "whale", "messages": [...读到的（含正文）], "count": 2, "busy_game_seconds": 60, "unread": {} }`。把这些消息标已读（1:1 写 `read_at`，群写我的 `read_by`），并占用 1 游戏分钟（见上「约束」）。没有未读也成功（`count: 0`，仍占 1 分钟）。失败 `{ "success": false, "reason": "phone_unavailable" }`。
+
+### GET /qq/contacts
+
+`?player=<entity_id>`
+```json
+{ "account": "whale", "name": "鲸仔",
+  "contacts": [ { "id": "achan", "account": "achan", "name": "阿蝉", "online": true, "player_id": "阿蝉_1a2b3c", "unread": 2 }, ... ],
+  "groups":   [ { "id": "g_live", "name": "鲸仔直播组", "members": ["whale", "achan"], "member_names": ["鲸仔", "阿蝉"], "unread": 0 } ] }
+```
+（E 假设的 `{contacts:[{id,name,unread}], groups:[{id,name,members,unread}]}` 是其子集。）`online` = 在线且在场（human away 为 false）。
+
+### 数据
+
+`data/qq/<date>.jsonl` 每行：`kind: "message"`（`id, ts, game_time, town, map_version, seed, from, from_name, to, group, msg_kind: text|file, text, file_ref, read_at: null`）或 `kind: "read"`（`account, peer, ids[], count, busy_game_seconds`）。`GET /admin/export?kinds=qq` 导出。检查点表 `qq_messages`（含 read_at / read_by）、`qq_groups`、meta `qq_contacts`。弹幕原文不进任何消息。
+
+---
+
+## 10. 金币与入账（W10 ④）
+
+玩家 `gold`（整数）与 `inventory`（≤ 10 种）见 `GET /world` players[] / `GET /player/{id}`；动作 `buy / sell / eat / give` 见「统一行为接口」；每笔流水 `data/economy/<date>.jsonl`。
+
+| 项 | 配置（`back_end/game/economy.json`，06-economy 假设值） |
+|---|---|
+| 初始金币 | 鲸仔 300、阿蝉 2000、小千 400、两位店主各 3000、渔夫 800；human 300（`default`） |
+| 日薪（tick 自动结，`kind: wage`） | 阿蝉 150 @ 18:30、餐厅老板 100 @ 21:00、杂货店老板 100 @ 20:00、渔夫 80 @ 17:00（当日只发一次；人要在线。已付记录进检查点，重启不重发） |
+| 时薪 | 小千 12/h，13:00–17:00 每满一整点结一次（14 / 15 / 16 / 17 点，共 4 次） |
+| 餐价 | `meal_price` 20（use 餐桌时扣） |
+| 商店 | `shops`: `shop_counter`（杂货店主，卖 bread 5 / sweets 6 / ingredients 8 / bait 3 / gift 25）、`fish_stall`（渔夫，卖鱼 12 / 收鱼 10）、`bar`（餐厅老板，收鱼 10）。营业时间沿用物品 `openHours` |
+| 未做 | 直播收入自动折算（`live_income_per_viewer` 0.5 已留配置，直播侧回传后用 `/admin/income` 入账）、钓鱼得鱼、灶台出便当、写歌产出 `song`——等 03-objects 定稿 |
+
+### POST /admin/income
+
+```json
+{ "entity_id": "鲸仔_a1b2c3", "amount": 200, "source": "song_fee", "label": "《夜航》酬金", "meta": { "order": "n1" } }
+{ "account": "whale", "amount": -30, "source": "adjust" }
+```
+`entity_id` 或 `account`（agent_id；人类 = player id）其一；`amount` 可负。**响应：** `{ "ok": true, "entity_id", "account", "delta", "balance" }`；找不到人 404。流水 `kind: income`（负数 `expense`），`source` 原样记。写歌酬金、直播收入由自我层 / 直播侧调这个接口；日薪时薪沙盒自己结，不要再调。
 
 ---
 

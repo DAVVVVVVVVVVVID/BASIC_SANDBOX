@@ -204,6 +204,13 @@ def _handler_no_use(player: dict, buff: dict, delta: float) -> None:
 def _handler_move_speed(player: dict, buff: dict, delta: float) -> None:
     player["moveSpeed"] *= buff["value"]
 
+def _handler_reading(player: dict, buff: dict, delta: float) -> None:
+    """W10 ③：读 QQ 期间不可做别的（canMove / canUse=false，tags 带 reading；buff 到期由 run_tick 摘 tag）。"""
+    player["canMove"] = False
+    player["canUse"] = False
+    if "reading" not in player.get("tags", []):
+        player.setdefault("tags", []).append("reading")
+
 
 EFFECT_HANDLERS: dict = {
     **{f"{v}_regen": _make_regen(v) for v in NEED_VARS},
@@ -217,10 +224,11 @@ EFFECT_HANDLERS: dict = {
     "no_interact":     _handler_no_interact,
     "no_use":          _handler_no_use,
     "move_speed":      _handler_move_speed,
+    "reading":         _handler_reading,
 }
 
 
-CONTROL_KEYS = ("no_move", "no_interact", "no_use", "move_speed")
+CONTROL_KEYS = ("no_move", "no_interact", "no_use", "move_speed", "reading")
 
 
 def apply_control_flags(player: dict) -> None:
@@ -275,6 +283,8 @@ def run_tick(
 
     # ① 递减 timed 项
     player["buffs"] = _expire_timed(player["buffs"], delta)
+    if "reading" in player.get("tags", []) and not any(b.get("key") == "reading" for b in player["buffs"]):
+        player["tags"].remove("reading")                           # W10 ③：读完 1 游戏分钟摘 reading
     if "emotion_tags" in player:
         player["emotion_tags"] = _expire_timed(player["emotion_tags"], delta)
 

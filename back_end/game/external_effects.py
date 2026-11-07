@@ -10,6 +10,7 @@
 
 import logging
 import threading
+import time
 
 import httpx
 
@@ -107,78 +108,108 @@ def live_stop(player: dict, game_iso: str) -> None:
         threading.Thread(target=_live_stop_send, args=(agent, game_iso), name="live-stop", daemon=True).start()
 
 
-# ── B18 游戏机：D 的 brain API（假设契约，D12 未出；地址 GAME_URL，默认 http://127.0.0.1:8110） ─────────
-# use  → GET {GAME_URL}/healthz 必须 ok，再 POST {GAME_URL}/event {type:"sandbox_session_start", agent, player_id, ts}
-# leave → POST {GAME_URL}/event {type:"sandbox_session_end", ...}（后台发送，不可失败）
-# 局内状态：GET {GAME_URL}/metrics 的 run_id / day / phase / health / hunger / sanity 进 player["game"]（perceive 的 game 字段）
-# 结果由 D 自己 POST /self/game/session 写自我层，沙盒不转发。
+# ── B18 / W10-4b 游戏机：D 的 brain 正式接口（report-D.md 5b / 6；地址 GAME_URL，默认 http://127.0.0.1:8110） ──
+# use   → GET /game/state；alive=false 或 run_id 空 → POST /game/start {"by":"sandbox"}，每 GAME_POLL_S 轮询 /game/state
+#         直到 alive=true（GAME_START_TIMEOUT_S 超时 → use 失败 reason game_unavailable）
+# 局中  → GET /game/state（perceive / GET /player/{id}/state 时刷新，3 s 超时；失败保留旧值）
+# leave → POST /game/stop {"by":"sandbox","shutdown":false}（存档、不关服；后台发送，不可失败）
+# 局的开始 / 结束由 D 的 runner 自己写自我层（/self/game/session），沙盒不发；/healthz /event /metrics 仍可用但不再依赖。
 import os as _os
 GAME_URL = _os.environ.get("GAME_URL", "http://127.0.0.1:8110").rstrip("/")
 GAME_TIMEOUT = 3.0
 GAME_TRANSPORT = None          # 测试注入 httpx.MockTransport（假 D）
-GAME_FIELDS = ("run_id", "ticks", "day", "phase", "health", "hunger", "sanity", "deaths")
+GAME_POLL_S = float(_os.environ.get("GAME_POLL_S", "5"))
+GAME_START_TIMEOUT_S = float(_os.environ.get("GAME_START_TIMEOUT_S", "120"))
+GAME_FIELDS = ("run_id", "alive", "deaths", "day", "phase", "time_in_phase", "health", "hunger", "sanity",
+               "is_in_light", "goal", "latest_png", "usd_today", "server", "tick_age_s")
+GAME_ENERGY_MIN = 25.0         # use 前置：energy ≥ 中（低于 needs 的 low 阈值就不坐下）
 
 
 def _game_client() -> httpx.Client:
     return httpx.Client(base_url=GAME_URL, timeout=GAME_TIMEOUT, transport=GAME_TRANSPORT)
 
 
-def _game_metrics(c: httpx.Client) -> dict:
+def _game_state(c: httpx.Client) -> dict | None:
+    """GET /game/state → 只留 GAME_FIELDS；不可达 / 非 2xx → None。"""
     try:
-        r = c.get("/metrics")
+        r = c.get("/game/state")
         r.raise_for_status()
         m = r.json()
         return {k: m.get(k) for k in GAME_FIELDS if k in m}
     except Exception:
-        return {}
+        return None
+
+
+def game_text(g: dict | None) -> str | None:
+    """给感知的一句话：「饥荒第 {day} 天{phase}，HP {health}，正在{goal}」。"""
+    if not g or g.get("status") not in ("playing",):
+        return None
+    phase = {"day": "白天", "dusk": "黄昏", "night": "夜里"}.get(str(g.get("phase") or ""), str(g.get("phase") or ""))
+    parts = [f"饥荒第 {g.get('day')} 天{phase}" if g.get("day") is not None else "饥荒新一局"]
+    if g.get("health") is not None:
+        parts.append(f"HP {g['health']}")
+    if g.get("goal"):
+        parts.append(f"正在{g['goal']}")
+    if g.get("alive") is False:
+        parts.append("角色已死亡")
+    return "，".join(parts)
 
 
 def game_start(player: dict, game_iso: str) -> dict:
-    """返回 {"ok": bool, "game": {...}, "error"?}。"""
+    """返回 {"ok": bool, "game": {...}, "error"?}。alive 的局直接接着玩；否则开新局并轮询到 alive。"""
     try:
         with _game_client() as c:
-            h = c.get("/healthz")
-            h.raise_for_status()
-            hj = h.json()
-            if not hj.get("ok", True):
-                return {"ok": False, "error": "brain_not_ok"}
-            ev = {"type": "sandbox_session_start", "agent": player.get("agent_id") or player.get("name"),
-                  "player_id": player["id"], "ts": game_iso, "tick": hj.get("ticks", 0)}
-            r = c.post("/event", json=ev)
-            r.raise_for_status()
-            game = {"status": "playing", "started_at": game_iso, "brain_run_id": hj.get("run_id"), **_game_metrics(c)}
+            st = _game_state(c)
+            if st is None:
+                return {"ok": False, "error": "brain_unreachable"}
+            how = "joined"
+            if not st.get("alive") or not st.get("run_id"):
+                r = c.post("/game/start", json={"by": "sandbox"})
+                r.raise_for_status()
+                how = (r.json() or {}).get("how") or "started"
+                deadline = time.time() + GAME_START_TIMEOUT_S
+                st = _game_state(c)
+                while not (st and st.get("alive") and st.get("run_id")):
+                    if time.time() >= deadline:
+                        return {"ok": False, "error": "start_timeout"}
+                    time.sleep(GAME_POLL_S)
+                    st = _game_state(c)
+            game = {"status": "playing", "started_at": game_iso, "how": how, "brain_run_id": st.get("run_id"), **st}
+            game["text"] = game_text(game)
             return {"ok": True, "game": game}
     except Exception as e:
         log.warning("game.start failed: %s", e)
         return {"ok": False, "error": str(e)}
 
 
-def _game_end_send(ev: dict) -> None:
+def _game_stop_send(body: dict) -> None:
     try:
         with _game_client() as c:
-            c.post("/event", json=ev).raise_for_status()
+            c.post("/game/stop", json=body).raise_for_status()
     except Exception as e:
-        log.warning("game.end failed: %s", e)
+        log.warning("game.stop failed: %s", e)
 
 
 def game_end(player: dict, game_iso: str) -> None:
-    """结束一局：不可失败，后台发送（SYNC_STOP=True 同步，测试用）。"""
-    ev = {"type": "sandbox_session_end", "agent": player.get("agent_id") or player.get("name"),
-          "player_id": player["id"], "ts": game_iso, "started_at": (player.get("game") or {}).get("started_at")}
+    """结束一局：POST /game/stop {"by":"sandbox","shutdown":false}；不可失败，后台发送（SYNC_STOP=True 同步，测试用）。"""
+    body = {"by": "sandbox", "shutdown": False}
     if SYNC_STOP:
-        _game_end_send(ev)
+        _game_stop_send(body)
     else:
-        threading.Thread(target=_game_end_send, args=(ev,), name="game-end", daemon=True).start()
+        threading.Thread(target=_game_stop_send, args=(body,), name="game-stop", daemon=True).start()
 
 
 def game_refresh(player: dict) -> dict | None:
-    """局中刷新 D 的 metrics（perceive 时调用，3 s 超时；失败保留旧值）。"""
+    """局中刷新 D 的 /game/state（perceive 时调用，3 s 超时；失败保留旧值）。"""
     g = player.get("game")
     if not g or g.get("status") != "playing":
         return g
     try:
         with _game_client() as c:
-            g.update(_game_metrics(c))
+            st = _game_state(c)
+            if st:
+                g.update(st)
+                g["text"] = game_text(g)
     except Exception:
         pass
     return g

@@ -1,0 +1,18 @@
+{
+  "_doc": "W10 ③ QQ（沙盒内手机消息）。read_game_seconds：读一次占用的游戏秒；social_per_message：每条消息给发送者 / 阅读者的 social 增量；names：账号显示名；contacts：初始通讯录（互相可见）；groups：初始群。",
+  "read_game_seconds": 60,
+  "social_per_message": 2.0,
+  "names": {
+    "whale": "鲸仔", "achan": "阿蝉", "npc_xiaoqian": "小千",
+    "npc_rest_owner": "餐厅老板", "npc_grocer": "杂货店老板", "npc_fisher": "老渔夫"
+  },
+  "contacts": {
+    "whale": ["achan", "npc_xiaoqian", "npc_rest_owner", "npc_grocer"],
+    "achan": ["npc_xiaoqian"],
+    "npc_rest_owner": ["npc_grocer", "npc_fisher"],
+    "npc_xiaoqian": ["npc_grocer"]
+  },
+  "groups": [
+    {"id": "g_live", "name": "鲸仔直播组", "members": ["whale", "achan"]}
+  ]
+}

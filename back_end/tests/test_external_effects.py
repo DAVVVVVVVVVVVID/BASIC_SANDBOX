@@ -85,7 +85,7 @@ def test_phone_no_signal_when_self_down_still_cooldown(client, fake_self):
 
 def test_phone_empty_feed_and_perceive_null_before_use(client, fake_self):
     pid = _agent(client)
-    assert client.get("/agent/perceive", params={"entity_id": pid}).json()["phone"] is None
+    assert client.get("/agent/perceive", params={"entity_id": pid}).json()["phone"] == {"unread": {}, "unread_total": 0}   # W10 ③：没刷过手机也给未读数
     fake_self.items = []
     place(pid, *PHONE_STAND)
     res = action(client, pid, "use")

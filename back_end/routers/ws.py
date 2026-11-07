@@ -65,6 +65,13 @@ class Hub:
               "object": obj, "success": bool(success), "reason": reason}
         if extra:
             ev.update(extra)
+        self.push_event(ev)
+
+    def push_event(self, ev: dict) -> None:
+        """任意即时事件（W10：{type:"qq",...}）；与下一次 patch 一起推，没有订阅者时丢弃。"""
+        if not self._clients:
+            return
+        ev = {**ev, "ts": ev.get("ts") or game_now_iso()}
         self._actions.append(ev)
         if len(self._actions) > self._actions_max:
             del self._actions[: len(self._actions) - self._actions_max]

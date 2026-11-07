@@ -169,9 +169,16 @@ def perceive(
         "front_object":    front_object,
         "players_in_view": players_in_view,
         "needs":           needs,
-        "phone":           get_phone_feed(entity_id),   # B10：最近一次刷手机的 digest（无则 null）
+        "phone":           _phone_view(entity_id),      # B10 digest 字段 + W10 ③ unread{显示名: 条数} / unread_total（不给正文、不给坐标）
         "game":            _game_view(entity_id),       # B18：游戏机局内状态（无则 null）
     }
+
+
+def _phone_view(entity_id: str) -> dict:
+    from game import qq
+    d = dict(get_phone_feed(entity_id) or {})
+    d.update(qq.phone_view(entity_id) or {"unread": {}, "unread_total": 0})
+    return d
 
 
 def _game_view(entity_id: str) -> dict | None:

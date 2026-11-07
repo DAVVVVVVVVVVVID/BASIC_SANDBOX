@@ -44,6 +44,7 @@ class GameObject(BaseModel):
     openHours: Optional[List[List[str]]] = None     # B20：[["11:00","14:00"],["17:00","21:00"]]
     usePos: Optional[List[Position]] = None         # W10：使用者站位（绝对格，按使用顺序分配）；null = 原地
     useFacing: Optional[str] = None                 # W10：使用者朝向；null = 面向物品
+    shop: Optional[List[dict]] = None               # W10 ④：商店物品 [{type,item,name,price,sell,stock}]；非商店 null
     successMessage: Optional[str] = None
     failureMessage: Optional[str] = None
     currentUsers: int
@@ -86,6 +87,8 @@ class OtherPlayer(BaseModel):
     usingObjectId: Optional[str] = None  # E①
     tags: List[str] = []               # E①
     pos_seq: int = 0                   # E⑥
+    gold: Optional[int] = None         # W10 ④
+    inventory: Optional[List[dict]] = None   # W10 ④：[{type, name, class, count, meta?}]
 
 
 class WorldData(BaseModel):

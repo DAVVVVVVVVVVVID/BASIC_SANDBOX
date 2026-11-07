@@ -15,6 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
+from game import qq, economy  # noqa: E402
 
 
 class FakeClock:
@@ -37,6 +38,7 @@ def isolated_state(tmp_path, monkeypatch):
     self_sync.configure(enabled=False)        # 默认不碰网络；需要的测试自己 configure(transport=...)
     world_state._reset_for_tests()
     chat_state._reset_for_tests()
+    qq._reset_for_tests(); economy._reset_for_tests()
     time_state._reset_for_tests()
     time_state.set_clock(None)
     action_log._reset_for_tests()
@@ -44,6 +46,7 @@ def isolated_state(tmp_path, monkeypatch):
     yield
     world_state._reset_for_tests()
     chat_state._reset_for_tests()
+    qq._reset_for_tests(); economy._reset_for_tests()
     time_state._reset_for_tests()
     time_state.set_clock(None)
     action_log._reset_for_tests()

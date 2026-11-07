@@ -1,0 +1,18 @@
+{
+  "_doc": "W10 ④ 金币（06-economy.md 草稿假设值，全部可改）。initial_gold 按 agent_id，human 用 default。wages：按日程由 tick 结算（kind daily 在 pay_at 一次结清；hourly 在 hours 区间内每满 1 游戏小时结一次）。prices 在 items.json。",
+  "initial_gold": {"default": 300, "whale": 300, "achan": 2000, "npc_xiaoqian": 400, "npc_rest_owner": 3000, "npc_grocer": 3000, "npc_fisher": 800},
+  "wages": {
+    "achan":          {"kind": "daily",  "amount": 150, "pay_at": "18:30", "label": "写代码日薪",   "requires_tag": null},
+    "npc_rest_owner": {"kind": "daily",  "amount": 100, "pay_at": "21:00", "label": "店主日薪"},
+    "npc_grocer":     {"kind": "daily",  "amount": 100, "pay_at": "20:00", "label": "店主日薪"},
+    "npc_fisher":     {"kind": "daily",  "amount": 80,  "pay_at": "17:00", "label": "渔夫日薪"},
+    "npc_xiaoqian":   {"kind": "hourly", "amount": 12,  "hours": ["13:00", "17:00"], "label": "打工时薪"}
+  },
+  "meal_price": 20,
+  "shops": {
+    "shop_counter": {"owner": "npc_grocer",     "sells": ["bread", "sweets", "ingredients", "bait", "gift"], "buys": []},
+    "fish_stall":   {"owner": "npc_fisher",     "sells": ["fish"],                                       "buys": ["fish"]},
+    "bar":          {"owner": "npc_rest_owner", "sells": [],                                             "buys": ["fish"]}
+  },
+  "live_income_per_viewer": 0.5
+}

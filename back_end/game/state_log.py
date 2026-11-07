@@ -39,6 +39,7 @@ def _row(player: dict, game_iso: str, kind: str = "sample") -> dict:
         "online": player.get("online", True),
         "position": dict(player["position"]), "facing": player.get("facing"), "using": player.get("usingObjectId"),
         "tags": list(player.get("tags", [])),                                      # W8 Q0d：sleeping / fishing / streaming…（S02 / S07 判分）
+        "gold": int(player.get("gold", 0)),                                        # W10 ④
     }
 
 

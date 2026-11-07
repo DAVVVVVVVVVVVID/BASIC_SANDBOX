@@ -167,16 +167,18 @@ EXPORT_FIELDS = {
                  "town", "map_version", "seed"),
     "chat":     ("kind", "ts", "game_time", "town", "map_version", "seed"),            # message 行另有 room_id/seq/from/from_name/to/text/controller；event 行另有 event/room_id/request_id/participants
     "state":    ("kind", "ts", "game_time", "town", "map_version", "seed", "player_id", "agent_id", "controller", "scene",
-                 "mood_base", "vars", "emotion_tags", "closeness", "online", "position", "facing", "using", "tags"),
+                 "mood_base", "vars", "emotion_tags", "closeness", "online", "position", "facing", "using", "tags", "gold"),
     "external": ("kind", "ts", "town", "map_version", "seed", "game_time", "entity"),
+    "qq":       ("kind", "ts", "game_time", "town", "map_version", "seed"),            # message 行另有 id/from/from_name/to/group/msg_kind/text/file_ref/read_at；read 行另有 account/peer/ids/count
+    "economy":  ("kind", "ts", "game_time", "town", "map_version", "seed", "account", "delta", "balance"),   # W10 ④ 金币流水
 }
-EXPORT_DEFAULTS = {"objectId": None, "label": None, "mood_base": None, "facing": None, "tags": [], "emotion_tags": [], "closeness": {},
+EXPORT_DEFAULTS = {"objectId": None, "label": None, "mood_base": None, "facing": None, "tags": [], "gold": None, "emotion_tags": [], "closeness": {},
                    "online": True, "using": None, "agent_id": None, "controller": "human", "scene": "sandbox", "entity": None,
                    "game_time": None, "reason": None, "kind": "sample"}
 
 
 @router.get("/admin/export")
-def admin_export(date: str, kinds: str = "actions,chat,state,external"):
+def admin_export(date: str, kinds: str = "actions,chat,state,external,qq,economy"):
     """
     W6 任务 1：一次性给出当日沙盒数据集（供 A 的 dataset_export.py 拉）。
     返回 {schema, date, town, map_version, seed, generated_at, actions[], chat[], state[], manifest{counts, files}}。
@@ -207,9 +209,10 @@ def admin_export(date: str, kinds: str = "actions,chat,state,external"):
         return rows, fp
     import json as _json
     from game.paths import data_dir
-    sources = {"actions": _actions_dir(), "chat": data_dir() / "chat", "state": data_dir() / "state", "external": data_dir() / "external"}
+    sources = {"actions": _actions_dir(), "chat": data_dir() / "chat", "state": data_dir() / "state", "external": data_dir() / "external",
+               "qq": data_dir() / "qq", "economy": data_dir() / "economy"}
     backfilled = 0
-    for kind in ("actions", "chat", "state", "external"):
+    for kind in ("actions", "chat", "state", "external", "qq", "economy"):
         if kind not in want:
             continue
         rows, fp = _read_day(sources[kind], _json.loads)
@@ -226,6 +229,32 @@ def admin_export(date: str, kinds: str = "actions,chat,state,external"):
     out["manifest"]["backfilled_rows"] = backfilled
     out["manifest"]["fields"] = {k: list(v) for k, v in EXPORT_FIELDS.items() if k in want}
     return out
+
+
+class IncomeBody(BaseModel):
+    entity_id: Optional[str] = None       # player id
+    account: Optional[str] = None         # 或账号（agent_id；人类 = player id）
+    amount: int
+    source: str = "external"              # song_fee / live_income / tip / adjust …
+    label: Optional[str] = None
+    meta: Optional[dict] = None
+
+
+@router.post("/admin/income")
+def admin_income(body: IncomeBody):
+    """W10 ④：外部入账（写歌酬金 / 直播收入由自我层或直播侧调；日薪时薪由 tick 自己结）。amount 可负（扣款）。"""
+    from game import economy
+    from game.qq import account_of
+    from game.world_state import STATE_LOCK, _players as _pl
+    with STATE_LOCK:
+        p = _pl.get(body.entity_id or "")
+        if p is None and body.account:
+            p = next((q for q in _pl.values() if account_of(q) == body.account), None)
+        if p is None:
+            raise HTTPException(status_code=404, detail="player not found")
+        row = economy.ledger("income" if body.amount >= 0 else "expense", p, int(body.amount), source=body.source,
+                             label=body.label, meta=body.meta)
+    return {"ok": True, "entity_id": p["id"], "account": row["account"], "delta": row["delta"], "balance": row["balance"]}
 
 
 @router.get("/admin/self-sync")

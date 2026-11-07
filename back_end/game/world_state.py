@@ -46,6 +46,14 @@ _STAIRS: dict[tuple[int, int], list[tuple[tuple[int, int], dict]]] = {}   # 楼�
 _HOMES: dict[str, str] = {}                               # agent_id -> 家 arena（map.json homes，覆盖 AGENT_HOME_ARENA）
 
 
+def _shop_listing(obj_type: str) -> list[dict] | None:
+    from game.economy import shop_listing
+    rows = shop_listing(obj_type)
+    if rows is None:
+        return None
+    return [{"type": r["item"], "item": r["item"], "name": r["name"], "price": r["price"], "sell": r["sell"], "stock": None} for r in rows]
+
+
 def _build_objects(raw: list[dict]) -> list[dict]:
     result = []
     for inst in raw:
@@ -67,6 +75,7 @@ def _build_objects(raw: list[dict]) -> list[dict]:
             "advertise":      t.get("advertise"),       # B5：Sims 式广告值 {var: 0–100}
             "usePos":         [{"x": x + dx, "y": y + dy} for dx, dy in t.get("use_pos", [])] or None,   # W10：使用者站位（绝对格，按使用顺序分配）
             "useFacing":      t.get("use_facing"),      # W10：使用者朝向（None = 按站位相对物品推）
+            "shop":           _shop_listing(inst["type"]),   # W10 ④：商店物品 [{type,item,name,price,sell,stock}]（非商店 None）
             "openHours":      t.get("open_hours"),      # B20：营业时间 [[start, end], ...]，None = 全天
             "successMessage": t["success_message"],
             "failureMessage": t["failure_message"],
@@ -315,6 +324,8 @@ def _make_player(
         "agent_id":      _agent_id_for(name, profile) if controller == "agent" else None,
         "last_tick_ts":  _iso_game_now(),
         "pos_seq":       0,
+        "inventory":     [],                         # W10 ④：背包 [{item, qty, meta?}]，≤ 10 种
+        "gold":          _initial_gold(_agent_id_for(name, profile) if controller == "agent" else None),   # W10 ④：金币（economy.json）
         "usingObjectId": None,
         "buffs":         [dict(DECAY_BUFF)],         # B4：自然衰减元 buff
         "tags":          [],
@@ -323,6 +334,11 @@ def _make_player(
         "canUse":        True,
         "moveSpeed":     1.0,
     }
+
+
+def _initial_gold(agent_id: str | None) -> int:
+    from game.economy import initial_gold
+    return initial_gold(agent_id)
 
 
 def _iso_game_now() -> str:
@@ -335,7 +351,7 @@ def _ensure_player_fields(player: dict) -> None:
     defaults = _make_player(player["id"], player.get("name", player["id"]),
                             controller=player.get("controller", "human"))
     for k in ("fullness", "energy", "social", "fun", "mood", "mood_base", "emotion_tags",
-              "closeness", "controller", "online", "away", "scene", "agent_id", "last_tick_ts", "pos_seq"):
+              "closeness", "controller", "online", "away", "scene", "agent_id", "last_tick_ts", "pos_seq", "inventory", "gold"):
         if k not in player:
             player[k] = player.get("hp", defaults[k]) if k == "fullness" else defaults[k]
     if not isinstance(player["last_tick_ts"], str):          # W1 的 float → ISO
@@ -518,6 +534,9 @@ def get_player(player_id: str) -> dict | None:
         return None
     data = copy.deepcopy(player)
     data["hp"] = data.get("fullness", data.get("hp"))  # 别名兜底
+    from game.inventory import view as _inv_view
+    data["inventory"] = _inv_view(player)             # W10 ④：[{type, name, class, count, meta?}]
+    data["gold"] = int(player.get("gold", 0))
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -539,9 +558,16 @@ def get_all_players_snapshot() -> list[dict]:
             "usingObjectId": p.get("usingObjectId"),   # E①
             "tags":          list(p.get("tags", [])),  # E①
             "pos_seq":       p.get("pos_seq", 0),      # E⑥：位置单调序号
+            "gold":          int(p.get("gold", 0)),    # W10 ④
+            "inventory":     _inv_view_safe(p),        # W10 ④：[{type, name, class, count}]
         }
         for p in _players.values()
     ]
+
+
+def _inv_view_safe(p: dict) -> list[dict]:
+    from game.inventory import view
+    return view(p)
 
 
 # ── B20：作息与营业时间 ───────────────────────────────────────────────────────
@@ -1059,11 +1085,20 @@ def leave_object(entity_id: str) -> dict | None:
         from game.time_state import game_now_iso
         external_effects.live_stop(player, game_now_iso())
     if obj and "game" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
-        from game import external_effects
+        from game import external_effects, external_log
         from game.time_state import game_now_iso
-        external_effects.game_end(player, game_now_iso())        # B18：结束一局
+        external_effects.game_end(player, game_now_iso())        # B18 / W10-4b：POST /game/stop（不关服）
         g = player.get("game") or {}
-        player["game"] = {**g, "status": "ended", "ended_at": game_now_iso()}
+        player["game"] = {**g, "status": "ended", "ended_at": game_now_iso(), "text": None,
+                          "left_at_day": g.get("day"), "duration_s": None}
+        if g.get("started_at"):
+            try:
+                from datetime import datetime as _dt
+                player["game"]["duration_s"] = round((_dt.fromisoformat(game_now_iso()) - _dt.fromisoformat(g["started_at"])).total_seconds(), 1)
+            except Exception:
+                pass
+        external_log.log("game", entity_id, object=obj_id, action="stop", left_at_day=g.get("day"), run_id=g.get("run_id"),
+                         duration_s=player["game"]["duration_s"])
 
     player["state"]         = "idle"
     player["stateLabel"]    = None
@@ -1234,6 +1269,8 @@ def _run_buff_tick_all(delta: float) -> None:
             run_tick(player, delta, game_ts=gts)
             _check_auto_leave(player_id)
         self_sync.on_tick(gts, _players)
+        from game import economy
+        economy.on_tick(gts, _players)                  # W10 ④：日薪 / 时薪按日程结算
         update_weather(gts)
         _kick_closed_objects()
         from game import state_log

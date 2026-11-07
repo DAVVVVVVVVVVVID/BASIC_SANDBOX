@@ -10,6 +10,7 @@ from game.world_state import (
     set_phone_feed, open_state, _players,
 )
 from game import external_effects, external_log
+from routers import economy_actions
 from game.time_state import game_now_iso
 from game.action_log import append_log
 
@@ -208,6 +209,20 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
             },
         )
 
+    if obj["type"] == "restaurant_table":                   # W10 ④：餐厅吃饭 meal_price（economy.json），钱不够不坐下
+        from game import economy
+        price = int(economy.cfg().get("meal_price", 0))
+        pl = _players.get(entity_id, player)
+        if price and int(pl.get("gold", 0)) < price:
+            return ActionResponse(success=False, type="use", reason="insufficient_funds",
+                                  result={"message": f"一顿要 {price} 金币，身上只有 {int(pl.get('gold', 0))}。", "objectId": obj["id"],
+                                          "price": price, "gold": int(pl.get("gold", 0))})
+        if price:
+            economy.ledger("buy", pl, -price, item="meal", qty=1, price=price, shop=obj["id"], shop_type=obj["type"])
+            owner = economy_actions._owner_player("bar")
+            if owner is not None and owner["id"] != pl["id"]:
+                economy.ledger("income", owner, price, source="restaurant_meal", shop=obj["id"], peer=pl["id"])
+
     if "live" in ext:                                       # B11 直播台：先开播，失败就不坐下
         live = external_effects.live_start(_players.get(entity_id, player), game_now_iso())
         external_log.log("live", entity_id, object=obj["id"], action="start", ok=live["ok"], error=live.get("error"))
@@ -217,7 +232,10 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
                 result={"message": obj.get("failureMessage"), "objectId": obj["id"], "error": live.get("error")},
             )
 
-    if "game" in ext:                                       # B18 游戏机：先问 D 的 brain 开一局，失败就不坐下
+    if "game" in ext:                                       # B18 / W10-4b 游戏机：energy ≥ 中才坐下；问 D 开局 / 接局，失败就不坐下
+        if float(player.get("energy", 100.0)) < external_effects.GAME_ENERGY_MIN:
+            return ActionResponse(success=False, type="use", reason="too_tired",
+                                  result={"message": "太累了，先休息再玩。", "objectId": obj["id"], "energy_min": external_effects.GAME_ENERGY_MIN})
         g = external_effects.game_start(_players.get(entity_id, player), game_now_iso())
         external_log.log("game", entity_id, object=obj["id"], action="start", ok=g["ok"], error=g.get("error"), game=g.get("game"))
         if not g["ok"]:
@@ -448,6 +466,11 @@ _HANDLERS = {
     "leave":        handle_leave,
     "freeform":     handle_freeform,
     "go_to":        handle_go_to,
+    # W10 ④ 金币与背包
+    "buy":          economy_actions.handle_buy,
+    "sell":         economy_actions.handle_sell,
+    "eat":          economy_actions.handle_eat,
+    "give":         economy_actions.handle_give,
 }
 
 
@@ -478,6 +501,9 @@ async def dispatch(body: ActionRequest):
             from game.world_state import get_object_by_id
             o = get_object_by_id(res["objectId"])
             extra["object_type"] = o["type"] if o else None               # E：前端不必再按 id 查
+        for k in ("item", "item_name", "qty", "price", "gold_delta", "gold", "target", "target_name"):   # W10 ④：E 的气泡字段
+            if k in res:
+                extra[k] = res[k]
         hub.push_action(body.entityId, body.action.type, result.success, obj=res.get("objectId"), reason=result.reason, extra=extra or None)
     except Exception:
         pass
