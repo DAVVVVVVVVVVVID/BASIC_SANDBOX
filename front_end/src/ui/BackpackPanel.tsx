@@ -59,7 +59,7 @@ export default function BackpackPanel() {
               <div key={key} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 <span style={{ flex: 1 }}>{m.icon} {it.name ?? m.label} ×{it.count}</span>
                 {(m.kind === 'food') && <button disabled={!!busy} onClick={() => act(`吃 ${m.label}`, 'eat', { item: it.type, item_id: it.id })} style={sb}>吃</button>}
-                {neighbours.map(n => <button key={n.id} disabled={!!busy} onClick={() => act(`送 ${m.label} 给 ${n.name}`, 'give', { item: it.type, item_id: it.id, target: n.id, target_id: n.id })} style={sb}>送{n.name.slice(0, 2)}</button>)}
+                {neighbours.map(n => <button key={n.id} disabled={!!busy} onClick={() => act(`送 ${m.label} 给 ${n.name}`, 'give', { item: it.type, item_id: it.id, target: n.id, target_id: n.id, ...(typeof it.meta?.commission_id === 'string' ? { commission_id: it.meta.commission_id } : {}) })} style={sb}>送{n.name.slice(0, 2)}</button>)}
                 {shop && <button disabled={!!busy} onClick={() => act(`卖 ${m.label}`, 'sell', { item: it.type, item_id: it.id, object_id: shop.id })} style={sb}>卖</button>}
               </div>
             )

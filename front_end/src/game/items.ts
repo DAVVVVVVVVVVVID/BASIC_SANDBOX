@@ -33,7 +33,7 @@ export function itemMeta(type: string | undefined | null, name?: string | null):
 }
 
 /** 后端 inventory 条目形状未定：接受 {type,name,count} / {item,qty} / 纯字符串 */
-export interface InventoryItem { type: string; name?: string; count: number; id?: string; kind?: string }
+export interface InventoryItem { type: string; name?: string; count: number; id?: string; kind?: string; meta?: Record<string, unknown> }
 export function normalizeInventory(raw: unknown): InventoryItem[] {
   if (!Array.isArray(raw)) return []
   const out: InventoryItem[] = []
@@ -43,7 +43,7 @@ export function normalizeInventory(raw: unknown): InventoryItem[] {
     const o = r as Record<string, unknown>
     const type = String(o.type ?? o.item ?? o.item_type ?? o.kind ?? o.name ?? 'item')
     const count = Number(o.count ?? o.qty ?? o.quantity ?? o.n ?? 1) || 1
-    out.push({ type, name: typeof o.name === 'string' ? o.name : undefined, count, id: typeof o.id === 'string' ? o.id : undefined, kind: typeof o.kind === 'string' ? o.kind : undefined })
+    out.push({ type, name: typeof o.name === 'string' ? o.name : undefined, count, id: typeof o.id === 'string' ? o.id : undefined, kind: typeof (o.kind ?? o.class) === 'string' ? String(o.kind ?? o.class) : undefined, meta: o.meta && typeof o.meta === 'object' ? (o.meta as Record<string, unknown>) : undefined })
   }
   return out
 }
