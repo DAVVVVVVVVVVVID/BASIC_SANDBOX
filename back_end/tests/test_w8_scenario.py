@@ -167,3 +167,19 @@ def test_scenario_rows_replay_as_external_inputs(client, bench, fake_clock):
     res = rp.replay(date.today().isoformat(), data_dir(), threshold=0.5)
     row = next(x for x in res["table"] if x["player"] == pid)
     assert res["applied"].get("scenario") == 2 and row["max_abs"] < 0.5, row
+
+
+def test_give_item_and_produce_ops(client, monkeypatch):
+    """W11 维护：give_item / produce 两个 op（E 联调产出气泡用）。"""
+    monkeypatch.setenv("SANDBOX_SCENARIO", "1")
+    from game import inventory, world_state
+    pid = client.post("/player/join", json={"name": "鲸仔"}).json()["playerId"]
+    r = client.post("/admin/scenario", json={"steps": [
+        {"op": "give_item", "player": pid, "item": "bread", "qty": 2},
+        {"op": "produce", "player": pid, "via": "fishing", "item": "fish"},
+        {"op": "give_item", "player": pid, "item": "unicorn"},
+    ]}).json()
+    assert r["ok"] is False and r["error"].startswith("step 2") and len(r["steps"]) == 2
+    p = world_state._players[pid]
+    assert inventory.count(p, "bread") == 2 and inventory.count(p, "fish") == 1
+    assert world_state._pending_messages[pid] == "钓到一条鱼！"

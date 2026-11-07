@@ -260,6 +260,30 @@ def tick(now: float | None = None) -> None:
         elif req["status"] == "walking_over":
             if _all_met(req, players) or now - (req.get("walking_since") or now) >= WALK_TIMEOUT:
                 _finish_walking_over(req, players)
+    _purge_finished(now)
+
+
+_REQUEST_KEEP_S = 3600.0        # 非 pending / walking_over 的邀请（expired / rejected / active→已建房）保留 1 h
+_ROOM_KEEP_S    = 86400.0       # 关闭的房间保留 24 h（/chat/room/{id} 还能看；JSONL 是永久记录）
+
+
+def _purge_finished(now: float) -> int:
+    """W11 维护 Q2：结束的邀请 / 房间不再无限留在内存与检查点里。返回清掉的条数。"""
+    n = 0
+    for rid, req in list(_chat_requests.items()):
+        if req["status"] in ("pending", "walking_over"):
+            continue
+        if now - float(req.get("created_at") or now) >= _REQUEST_KEEP_S:
+            del _chat_requests[rid]; n += 1
+    for room_id, room in list(_chat_rooms.items()):
+        if room["status"] != "closed":
+            continue
+        closed_at = room.get("closed_at")
+        if closed_at is None:                       # 旧检查点里的关闭房间没有时刻：从现在起算
+            room["closed_at"] = now; continue
+        if now - float(closed_at) >= _ROOM_KEEP_S:
+            del _chat_rooms[room_id]; _MSG_SEQ_COUNTER.pop(room_id, None); n += 1
+    return n
 
 
 def _expire_old_requests() -> None:
@@ -411,7 +435,7 @@ def _close_room(room: dict, players: dict, reason: str) -> None:
         _remove_chat_buff(eid, players)
     _record_chat_end(participants)
     room["participants"] = []
-    room["status"] = "closed"
+    room["status"] = "closed"; room["closed_at"] = time.time()
     chat_log.log_event(reason, room["chat_room_id"], participants)
     if reason != "room_close":
         chat_log.log_event("room_close", room["chat_room_id"], participants, reason=reason)
@@ -442,7 +466,7 @@ def exit_room(entity_id: str, room_id: str) -> dict | None:
     chat_log.log_event("player_exit", room_id, [entity_id, *room["participants"]], entity=entity_id)
     # 若无人在场，关闭房间
     if not room["participants"]:
-        room["status"] = "closed"
+        room["status"] = "closed"; room["closed_at"] = time.time()
         chat_log.log_event("room_close", room_id, [entity_id], reason="all_left")
         return {"room_closed": True}
     return {"room_closed": False}
@@ -473,7 +497,7 @@ def cleanup_player_chats(entity_id: str) -> None:
             _last_pair_end[frozenset((entity_id, other))] = now
         chat_log.log_event("player_exit", room_id, [entity_id, *room["participants"]], entity=entity_id, reason="player_removed")
         if not room["participants"]:
-            room["status"] = "closed"
+            room["status"] = "closed"; room["closed_at"] = time.time()
             chat_log.log_event("room_close", room_id, [entity_id], reason="all_left")
 
 

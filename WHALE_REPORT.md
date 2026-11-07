@@ -1,6 +1,41 @@
 # WHALE_REPORT — 会话 B（BASIC_SANDBOX）
 
-分支：`whale-integration`。最新：**W11 冻结前收口（2026-11-07）**；W10、W9、W8、W7–W1 记录在后。
+分支：`whale-integration`。最新：**W11 维护第 1 轮（2026-11-07 下午）**；W11、W10、W9、W8、W7–W1 记录在后。
+
+---
+
+# W11 维护 · 2026-11-07 下午：第 1 轮（巡检 + 给 B 条目 + Q2）
+
+## 1. 巡检
+
+| 实例 | 日期 | 日志行数 | 2xx / 4xx / 5xx | Traceback / ERROR / 401+403 | tick 间隔 p95 / max | tick 耗时 p95 / max | RSS | players / ws | actions / chat / state / external 行 | mapVersion |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 主镇 8000（`bf58966`，uptime 18 h） | 2026-11-07 | 158946 | 158575 / 50 / 0 | 0 / 0 / 0 | 201.6 / 212.2 ms | 0.323 / 12.391 ms | 98.6 MB | 1 / 0 | 403 / 0 / 1581 / 13 | 阿蝉家与小镇@1b824832ace2 |
+| 草图镇 8091（`fc051f1`，刚重置） | 2026-11-07 | 11 | 6 / 1 / 0 | 0 / 0 / 0 | 201.8 / 206.7 ms | 0.294 / 6.174 ms | 61.3 MB | 0 / 0 | 0 / 0 / 0 / 2 | 鲸鱼大学城·v1.0 草图@6918f8018e93 |
+
+0 Traceback、0 5xx，无需热修。主镇鲸仔此刻 `using table_rest_1`（重起前记得看，README 第 9 条）。
+
+## 2. 「给 B」条目
+
+| 来源 | 条目 | 处理 |
+|---|---|---|
+| E（W10 联调回报，`e0be69a`） | ① ws `qq` 的 `read` 事件只当刷新信号；② 旁观面板要 `unread_total` 的位置 | ① 可以；② `GET /agent/perceive` 的 `phone.unread_total`，或 `GET /qq/inbox?player=` 顶层 `unread_total`——已回 |
+| E（W11 回报） | produce / commission 事件 8091 上没法手动触发，想要 scenario op | **已加** `POST /admin/scenario` 两个 op：`give_item {player, item, qty?, meta?}`（往背包放物品）、`produce {player, via?, item?, qty?}`（模拟一次产出：背包 + ws `produce` + external 行 + pendingMessage）；commission 事件用 `POST /admin/commission` 即可触发 `open`，`give song` 给委托人触发 `deliver`。8091 已重起带上 |
+| D（report-D W10 回应） | 4b 字段一致，联调一局等 8000 切版本；perceive 时才拉 `/game/state` 同意 | 无需改 |
+| A（W12 交接 / report-A） | 「B 的 export 字段」已在 W9 第 0 项落地；无新条目 | — |
+| C | 报告停在 11-06，无新条目（v1 profile 接 QQ / buy / compose 时的字段问题优先答） | 等 |
+
+## 3. 小队列 Q2（内存 / 检查点趋势）——今天一点 + 一处修
+
+- RSS 数据点：主镇 11-06 71.5 MB → 11-07 98.6 MB（1 player，18 h）；同机 m2a 8010（uptime 25 h）88 MB、bench 8090（4.5 h）82 MB、刚起的 8091 61 MB——增长与负载不成比例，更像 Python / uvicorn 的基线爬升，**继续记点，三天后看斜率**。
+- 代码里逐个核过模块级容器：有上限的（action `_LOG`、chat / external `_MEM` 200、qq 5000、recent_events 50、ticker 样本）都正常；`_use_history` 按时间窄口裁；**没有上限的只有 chat_state 的 `_chat_requests` / `_chat_rooms`**——结束的邀请和关闭的房间永远留在内存并每 5 s 跟着检查点重写（主镇今天 9 单 / 4 房，量小但无限）。**已修**：`chat_state.tick()` 末尾 `_purge_finished`——非 pending / walking_over 的邀请保留 1 h，关闭的房间保留 24 h（期间 `GET /chat/room/{id}` 仍可看；JSONL 是永久记录），关房时记 `closed_at`，旧检查点里没有 `closed_at` 的从第一次见到起算。2 例单测。
+- 顺手把 `test_w8_q1` 那条同毫秒偶发断言改成 `>=`（上一节提过）。
+
+## 4. 测试
+
+`cd back_end && uv run pytest -q` → **291 passed**（W11 的 288 + 清理 2 + scenario op 1）。api-spec 的 scenario op 表加了两行。
+
+Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5（api-spec 全文核对）下两轮各做一项。
 
 ---
 

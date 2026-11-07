@@ -259,12 +259,42 @@ def op_clear_cooldowns(step: dict) -> dict:
     return {"ok": True}
 
 
+def op_give_item(step: dict) -> dict:
+    """W11 维护：直接往背包放物品（E 联调 buy / sell / store / give 用）。{player, item, qty?=1, meta?}。"""
+    from game import inventory
+    p = _player(step.get("player"))
+    item = step.get("item") or ""
+    if inventory.item_def(item) is None:
+        raise StepError(f"unknown item: {item}")
+    with world_state.STATE_LOCK:
+        err = inventory.add(p, item, int(step.get("qty") or 1), meta=step.get("meta"))
+    if err:
+        raise StepError(err)
+    return {"player": p["id"], "inventory": inventory.view(p)}
+
+
+def op_produce(step: dict) -> dict:
+    """W11 维护：模拟一次产出（ws produce 事件 + external produce 行 + pendingMessage）。{player, via?=fishing, item?=fish, qty?=1}。"""
+    from game import inventory, production
+    p = _player(step.get("player"))
+    item = step.get("item") or "fish"; via = step.get("via") or "fishing"; qty = int(step.get("qty") or 1)
+    if inventory.item_def(item) is None:
+        raise StepError(f"unknown item: {item}")
+    with world_state.STATE_LOCK:
+        err = inventory.add(p, item, qty)
+        if err:
+            raise StepError(err)
+        production._notify(p, via, item, qty, object=step.get("object"), scenario=True)
+    return {"player": p["id"], "via": via, "item": item, "qty": qty, "inventory": inventory.view(p)}
+
+
 OPS = {
     "reset": op_reset, "set_time": op_set_time, "spawn": op_spawn, "remove": op_remove, "teleport": op_teleport,
     "set_vars": op_set_vars, "effects": op_effects, "occupy": op_occupy, "release": op_release,
     "invite": op_invite, "respond": op_respond, "say": op_say, "exit_chat": op_exit_chat, "clear_cooldowns": op_clear_cooldowns,
+    "give_item": op_give_item, "produce": op_produce,          # W11 维护
 }
-_SAMPLE_OPS = {"spawn", "teleport", "set_vars", "effects", "occupy", "release"}
+_SAMPLE_OPS = {"spawn", "teleport", "set_vars", "effects", "occupy", "release", "give_item", "produce"}
 
 
 @router.post("/admin/scenario")

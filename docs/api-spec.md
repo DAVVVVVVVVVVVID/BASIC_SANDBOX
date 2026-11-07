@@ -1223,6 +1223,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `say` | `player`, `room`, `text` | 代某玩家发言 |
 | `exit_chat` | `player`, `room` | 代某玩家退出房间 |
 | `clear_cooldowns` | `player?` | 清物品冷却 / 使用计数与对话冷却 |
+| `give_item` | `player`, `item`, `qty?=1`, `meta?` | **W11 维护** 直接往背包放 `items.json` 里的物品（联调 buy / sell / store / give / QQ 发文件用）；满包 → 错 |
+| `produce` | `player`, `via?=fishing`, `item?=fish`, `qty?=1`, `object?` | **W11 维护** 模拟一次产出：加进背包 + ws `produce` 事件 + `external` `produce` 行（`scenario: true`）+ `pendingMessage`（联调产出气泡用） |
 
 **可见性：** 每步写一条 `external` 日志（`kind: "scenario"`，含 label / step / op / args / result），`spawn / teleport / set_vars / effects / occupy / release` 另给受影响玩家立即写一行 state（`kind: "scenario"`）。回放把 scenario 行当外部输入重现。
 
