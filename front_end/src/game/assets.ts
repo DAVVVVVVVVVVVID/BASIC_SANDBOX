@@ -1,7 +1,7 @@
 /**
  * 自制 CC0 素材清单（由 tools/gen_assets.py 生成到 public/assets/gen/）。改生成器时同步这里。
  */
-import { getAiManifest, aiEnabled, aiCharKey } from './aiAssets'
+import { getAiManifest, aiEnabled, aiCharKey, AI_TILES_KEY } from './aiAssets'
 export const GEN_DIR = 'assets/gen'
 export const GEN_TILES_KEY = 'gen_tiles'
 export const GEN_TILE = 16
@@ -77,6 +77,10 @@ export function createGenAnimations(scene: Phaser.Scene) {
   for (const k of CHAR_KEYS) createCharAnimations(scene, k, charTextureKey(k))
   const m = getAiManifest()
   if (m && aiEnabled()) for (const k of m.chars) createCharAnimations(scene, aiAnimPrefix(k), aiCharKey(k))
+  if (m?.tiles && aiEnabled() && scene.textures.exists(AI_TILES_KEY) && !scene.anims.exists('ai_water')) {
+    const fr = (m.tiles.variants.water ?? []).map(n => m.tiles!.index[n]).filter(i => typeof i === 'number')
+    if (fr.length) scene.anims.create({ key: 'ai_water', frames: fr.map(f => ({ key: AI_TILES_KEY, frame: f })), frameRate: 1.2, repeat: -1, yoyo: true })
+  }
   if (scene.textures.exists(GEN_TILES_KEY) && !scene.anims.exists('gen_water')) {
     scene.anims.create({ key: 'gen_water', frames: scene.anims.generateFrameNumbers(GEN_TILES_KEY, { frames: WATER_FRAMES }), frameRate: 2, repeat: -1 })
   }

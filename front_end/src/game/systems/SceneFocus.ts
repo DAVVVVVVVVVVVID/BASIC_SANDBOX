@@ -85,6 +85,9 @@ export default class SceneFocus {
     for (const d of this.doorNodes) { const p = d.edge.tiles[d.edge.tiles.length - 1]; if (p && isRoofed(p)) { d.img.setVisible(false); d.label.setVisible(false) } }
   }
   /** W8：AI 室内底图里已经画了楼梯 → 这些格的像素楼梯图示不再叠画（文字标签保留） */
+  /** 门 / 楼梯两端的格（装饰撒点要避开门口） */
+  doorTiles(): { x: number; y: number }[] { return this.v2 ? this.v2.edges.flatMap(e => e.tiles) : [] }
+
   hideStairIcons(covered: (tile: { x: number; y: number }) => boolean) {
     for (const { node, tile } of this.edgeNodeTiles) if (node instanceof Phaser.GameObjects.Image && covered(tile)) node.setVisible(false)
   }

@@ -13,8 +13,10 @@ import type { SpectateParams } from '../../spectate/params'
 import { preloadGenAssets, createGenAnimations, charKeyFor } from '../assets'
 import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
-import { preloadAiAssets, getAiManifest, aiBackdropKey, aiEnabled, type AiBackdrop } from '../aiAssets'
+import { preloadAiAssets, getAiManifest, aiBackdropKey, aiEnabled, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
 import { arenaBBox } from '../map/mapv2'
+import DecoLayer from '../systems/DecoLayer'
+import type { PoseAnchor, PoseAnchors } from '../objects/ActorSprite'
 
 export interface SceneInitData {
   mode: 'play' | 'spectate'
@@ -60,17 +62,39 @@ const LABEL_ICON: [RegExp, string][] = [
   [/钓|fish/i, '🎣'], [/看书|读|read|book/i, '📖'], [/手机|phone|刷/i, '📱'], [/休息|坐|rest|sit/i, '🛋'], [/工作|desk|work|写/i, '🖥'],
 ]
 
-/** W8：睡觉时要贴到哪张床上——优先 usingObjectId，其次 objects[].userList 反查，最后找相邻的床；返回床中心像素与朝向角（竖床 0°，横床 -90°，表里的睡觉帧是竖躺头朝上） */
-export function sleepAnchorFor(p: { id: string; position: Position; usingObjectId?: string | null }, objects: GameObject[]): { x: number; y: number; angle: number } | null {
+/** W8：睡觉 / 坐下时要贴到哪件物品上——优先 usingObjectId，其次 objects[].userList 反查，最后找相邻的床 / 座位。
+ *  睡：床 / 沙发中心，竖床 0°、横床 -90°（表里的睡觉帧是竖躺头朝上）。
+ *  坐（主播 11-07「椅子添加使用者站位」）：桌类（电脑桌 / 课桌 / 阅览桌 / 钢琴 / 长桌）椅子画在图的下沿 → 坐到 footprint 底格偏下、面朝上；
+ *  吧台：底沿凳子、面朝上；长椅 / 沙发：坐在人所在列、面朝下；餐桌：两端椅子，坐离人近的一端、面朝桌子；钓位：原地面朝下。
+ *  深度 = 物品底边 + 1（画在物品之上）。这是纯视觉摆放，格子与合法性仍以后端为准。 */
+const T = TILE_SIZE
+export function poseAnchorsFor(p: { id: string; position: Position; usingObjectId?: string | null }, objects: GameObject[]): PoseAnchors {
   const tilesOf = (o: GameObject) => (o.tiles && o.tiles.length ? o.tiles : [o.position])
   const isBed = (o: GameObject) => /bed|sofa/i.test(o.type)
-  const obj = (p.usingObjectId ? objects.find(o => o.id === p.usingObjectId) : undefined)
-    ?? objects.find(o => o.userList?.includes(p.id))
-    ?? objects.filter(isBed).find(o => tilesOf(o).some(t => Math.abs(t.x - p.position.x) + Math.abs(t.y - p.position.y) <= 1))
-  if (!obj || !isBed(obj)) return null
-  const ts = tilesOf(obj)
-  const x0 = Math.min(...ts.map(t => t.x)), x1 = Math.max(...ts.map(t => t.x)), y0 = Math.min(...ts.map(t => t.y)), y1 = Math.max(...ts.map(t => t.y))
-  return { x: (x0 + x1 + 1) / 2 * TILE_SIZE, y: (y0 + y1 + 1) / 2 * TILE_SIZE, angle: (x1 - x0) > (y1 - y0) ? -90 : 0 }
+  const isSeat = (o: GameObject) => /desk|pc|piano|bar|bench|sofa|table|fishing_spot|game_console|stream/i.test(o.type)
+  const near = (o: GameObject) => tilesOf(o).some(t => Math.abs(t.x - p.position.x) + Math.abs(t.y - p.position.y) <= 1)
+  const used = (p.usingObjectId ? objects.find(o => o.id === p.usingObjectId) : undefined) ?? objects.find(o => o.userList?.includes(p.id))
+  const bed = used && isBed(used) ? used : objects.filter(isBed).find(near)
+  const seat = used && isSeat(used) ? used : objects.filter(isSeat).find(near)
+  const box = (o: GameObject) => { const ts = tilesOf(o); return { x0: Math.min(...ts.map(t => t.x)), x1: Math.max(...ts.map(t => t.x)), y0: Math.min(...ts.map(t => t.y)), y1: Math.max(...ts.map(t => t.y)) } }
+  let sleep: PoseAnchor | null = null, sit: PoseAnchor | null = null
+  if (bed) {
+    const b = box(bed)
+    sleep = { x: (b.x0 + b.x1 + 1) / 2 * T, y: (b.y0 + b.y1 + 1) / 2 * T, angle: (b.x1 - b.x0) > (b.y1 - b.y0) ? -90 : 0, depth: (b.y1 + 1) * T + 1 }
+  }
+  if (seat) {
+    const b = box(seat), ty = seat.type
+    const col = Math.min(Math.max(p.position.x, b.x0), b.x1)
+    const depth = (b.y1 + 1) * T + 1
+    if (/bench|sofa/i.test(ty)) sit = { x: (col + 0.5) * T, y: (b.y0 + 0.55) * T, angle: 0, facing: 'down', depth }
+    else if (/restaurant_table|table/i.test(ty)) {
+      const left = p.position.x <= b.x0
+      sit = { x: (left ? b.x0 + 0.15 : b.x1 + 0.85) * T, y: (b.y0 + 0.5) * T, angle: 0, facing: left ? 'right' : 'left', depth }
+    } else if (/bar/i.test(ty)) sit = { x: (col + 0.5) * T, y: (b.y1 + 0.9) * T, angle: 0, facing: 'up', depth }
+    else if (/fishing_spot/i.test(ty)) sit = { x: (b.x0 + 0.5) * T, y: (b.y0 + 0.6) * T, angle: 0, depth }
+    else sit = { x: ((b.x0 + b.x1 + 1) / 2) * T, y: (b.y1 + 0.95) * T, angle: 0, facing: 'up', depth }   // 桌类：椅子在下沿
+  }
+  return { sleep, sit }
 }
 
 /** 后端给的 stateLabel（W5 起 players[] 自带）前面配一个图标 */
@@ -126,7 +150,8 @@ export default class GameScene extends Phaser.Scene {
   private objectSprites: GameObjectSprite[] = []
   private objectTiles: Position[] = []
   /** W8 底图：name → image；roofed sectors = 有 exterior 底图的 sector */
-  private backdrops: { name: string; meta: AiBackdrop; img: Phaser.GameObjects.Image }[] = []
+  private backdrops: { name: string; meta: AiBackdrop; img: Phaser.GameObjects.Image; shadow?: Phaser.GameObjects.Graphics }[] = []
+  private deco: DecoLayer | null = null
   private roofedSectors = new Set<string>()
   private insideSector: string | null = null   // 当前取景进入的 sector（室内视图）
   private inputSystem: InputSystem | null = null
@@ -178,6 +203,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   create() {
+    setAiTexturesLinear(this)
     createGenAnimations(this)
     this.buildMap(this.worldData)
 
@@ -226,7 +252,7 @@ export default class GameScene extends Phaser.Scene {
       this.inputSystem?.setEnabled(true)
       const me = { id: player.id, name: player.profile?.name ?? '', position: player.position, facing: player.facing, state: player.state, stateLabel: player.stateLabel, tags: player.tags, usingObjectId: player.usingObjectId }
       this.self?.setStateLabel(deriveStateLabel(me, useGameStore.getState().objects))
-      this.self?.setSleepAnchor(sleepAnchorFor(me, useGameStore.getState().objects))
+      this.self?.setPoseAnchors(poseAnchorsFor(me, useGameStore.getState().objects))
     })
     this.on('player-rejoined', ({ player }: { playerId: string; player: Player }) => {
       this.player = player
@@ -294,8 +320,16 @@ export default class GameScene extends Phaser.Scene {
       const mg = meta.margin ?? 1   // 版式导出时四周多带的地面格：裁掉，只贴建筑本体（setCrop 用纹理坐标，图仍从 x0,y0 起放）
       const img = this.add.image(meta.x0 * TILE_SIZE, meta.y0 * TILE_SIZE, key).setOrigin(0, 0).setScale(scale).setDepth(0.6)
       img.setCrop(mg * tp, mg * tp, (meta.w - 2 * mg) * tp, (meta.h - 2 * mg) * tp)
-      this.backdrops.push({ name, meta, img })
-      if (meta.view === 'exterior') this.roofedSectors.add(meta.sector)
+      let shadow: Phaser.GameObjects.Graphics | undefined
+      if (meta.view === 'exterior') {
+        // 建筑落地阴影（11-07 主播：整体不好看——建筑像浮着）：footprint 向右下偏一点的两层半透明圆角矩形
+        const x = (meta.x0 + mg) * TILE_SIZE, y = (meta.y0 + mg) * TILE_SIZE, w = (meta.w - 2 * mg) * TILE_SIZE, h = (meta.h - 2 * mg) * TILE_SIZE
+        shadow = this.add.graphics().setDepth(0.55)
+        shadow.fillStyle(0x000000, 0.10).fillRoundedRect(x + 10, y + 16, w + 4, h + 4, 14)
+        shadow.fillStyle(0x000000, 0.14).fillRoundedRect(x + 6, y + 10, w, h, 10)
+      }
+      this.backdrops.push({ name, meta, img, shadow })
+      if (meta.view === 'exterior') this.roofedSectors.add(`${meta.sector}|${meta.floor}`)   // 键 = 区域|楼层：2F 单独一张外观（主播 11-07：2F 也画成房子）
     }
     this.applyView(this.insideSector, true)
     // 室内底图覆盖到的格：不再叠画像素楼梯图示
@@ -318,24 +352,26 @@ export default class GameScene extends Phaser.Scene {
     this.insideSector = inside
     for (const b of this.backdrops) {
       const hasPair = this.backdrops.some(o => o.meta.view === 'exterior' && o.meta.sector === b.meta.sector && o.meta.floor === b.meta.floor)
-      if (!hasPair) { b.img.setVisible(true); continue }           // 同层没有外观图（如 2F 室内画在别处）→ 常显
-      const showInterior = b.meta.sector === inside
+      if (!hasPair) { b.img.setVisible(true); continue }           // 同层没有外观图 → 常显
+      const showInterior = `${b.meta.sector}|${b.meta.floor}` === inside
       b.img.setVisible(b.meta.view === 'interior' ? showInterior : !showInterior)
+      b.shadow?.setVisible(!showInterior)
     }
     this.focus?.setRoofed((tile) => this.underRoof(tile))
     // 屋内物品：所在 sector 有屋顶且不是当前进入的 → 隐藏（只对 1F；2F 另有位置，照常）
     this.objectSprites.forEach((o, i) => {
       const t = this.tileIndex.get(`${this.objectTiles[i]?.x},${this.objectTiles[i]?.y}`)
       const k = this.roofKeyOf(t)
-      o.setVisible(!(k && k !== inside && (this.focus?.floorOf(t) ?? 1) === 1))
+      o.setVisible(!(k && k !== inside))
     })
   }
 
   /** 该格属于哪张外观底图的建筑：manifest 的 backdrop.sector 既可能是 sector（home）也可能是 arena（classroom / library / music_room 都在 sector=university 里） */
   private roofKeyOf(t: Tile | undefined): string | null {
     if (!t) return null
-    if (t.sector && this.roofedSectors.has(t.sector)) return t.sector
-    if (t.arena && this.roofedSectors.has(t.arena)) return t.arena
+    const f = this.focus?.floorOf(t) ?? 1
+    if (t.sector && this.roofedSectors.has(`${t.sector}|${f}`)) return `${t.sector}|${f}`
+    if (t.arena && this.roofedSectors.has(`${t.arena}|${f}`)) return `${t.arena}|${f}`
     return null
   }
 
@@ -348,7 +384,7 @@ export default class GameScene extends Phaser.Scene {
   private underRoof(tile: Position): boolean {
     const t = this.tileIndex.get(`${tile.x},${tile.y}`)
     const k = this.roofKeyOf(t)
-    return !!k && k !== this.insideSector && (this.focus?.floorOf(t) ?? 1) === 1
+    return !!k && k !== this.insideSector
   }
 
   /** 运行中换图：新 tileset 可能还没加载，先加载再重建 */
@@ -373,6 +409,8 @@ export default class GameScene extends Phaser.Scene {
     this.roofedSectors.clear()
     this.tileMap = new TileMap(this, world.tiles, world.tiled)
     this.tileMap.render()
+    this.deco?.destroy()
+    this.deco = new DecoLayer(this, world.tiles, world.objects, this.focus?.doorTiles() ?? [])
     this.tileIndex = buildTileIndex(world.tiles)
     if (!this.focus) this.focus = new SceneFocus(this, { enabled: (this.params?.scene ?? 'follow') === 'follow', baseZoom: () => this.mode === 'spectate' ? this.followZoom : this.currentZoom, snap: snapZoom })
     const extras = useGameStore.getState().mapExtras
@@ -447,7 +485,7 @@ export default class GameScene extends Phaser.Scene {
       }
       s.setDimmed(op.online === false)
       s.setStateLabel(deriveStateLabel(op, objects))
-      s.setSleepAnchor(sleepAnchorFor(op, objects))
+      s.setPoseAnchors(poseAnchorsFor(op, objects))
     }
     for (const [id, sprite] of this.others) {
       if (!seen.has(id)) { sprite.destroy(); this.others.delete(id) }

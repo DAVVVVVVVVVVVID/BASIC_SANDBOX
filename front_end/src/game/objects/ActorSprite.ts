@@ -5,8 +5,11 @@ import { CharKey, charTextureKey, resolveCharKey, aiAnimPrefix } from '../assets
 import { aiEnabled, aiCharKey, aiCharBase, getAiManifest, AI_CHAR_FRAME } from '../aiAssets'
 import { CHAR_FRAME } from '../assets'
 
+export interface PoseAnchor { x: number; y: number; angle: number; facing?: Facing; depth: number }
+export interface PoseAnchors { sleep: PoseAnchor | null; sit: PoseAnchor | null }
+
 const SCALE = 4
-const AI_SCALE = 3                  // AI 表 32×48 → 96×144（主播 11-07：跟物品一比太小）
+const AI_DISPLAY_W = 96             // AI 角色显示宽度 = 一格（主播 11-07：跟物品一比太小 → 一格宽一格半高）
 const BASE_STEP_MS = 300            // 一格基准用时（与 InputSystem 一致）
 const ARROW_OFFSET = 30
 const NAME_Y   = -58
@@ -86,8 +89,9 @@ export default class ActorSprite {
   private animKey: string
   /** 头顶文字 / 气泡的纵向偏移倍数（AI 形象更高） */
   private labelMul = 1
-  /** 睡觉时贴到床上：床的像素中心 + 朝向角（竖床 0°，横床 -90°）；null = 站在自己格上 */
-  private sleepAnchor: { x: number; y: number; angle: number } | null = null
+  /** 睡觉 / 坐下时贴到物品上（床中心 / 椅子位）：像素位置 + 旋转角 + 可选朝向 + 深度；null = 站在自己格上 */
+  private poseAnchors: PoseAnchors = { sleep: null, sit: null }
+  private anchor: PoseAnchor | null = null
 
   constructor(scene: Phaser.Scene, position: Position, facing: Facing, opts: ActorOptions) {
     this.scene  = scene
@@ -102,8 +106,9 @@ export default class ActorSprite {
     this.hasGen = useAi || scene.textures.exists(charTextureKey(this.charKey))
     this.animKey = useAi ? aiAnimPrefix(aiBase) : this.charKey
     const afh = (getAiManifest()?.char_frame ?? [AI_CHAR_FRAME.w, AI_CHAR_FRAME.h])[1]
-    const scale = useAi ? AI_SCALE : SCALE
-    this.labelMul = useAi ? (afh * AI_SCALE) / (CHAR_FRAME.h * SCALE) : 1
+    const afw = (getAiManifest()?.char_frame ?? [AI_CHAR_FRAME.w, AI_CHAR_FRAME.h])[0]
+    const scale = useAi ? AI_DISPLAY_W / afw : SCALE          // AI 表：不管帧多大，显示成一格宽（96 px）
+    this.labelMul = useAi ? (afh * scale) / (CHAR_FRAME.h * SCALE) : 1
 
     const { x, y } = tileCenter(position.x, position.y)
     this.sprite = scene.add.sprite(x, y, useAi ? aiTex : this.hasGen ? charTextureKey(this.charKey) : 'player_idle')
@@ -166,7 +171,7 @@ export default class ActorSprite {
   snapTo(p: Position, facing?: Facing) {
     this.path = []
     this.facingLocked = false
-    if (this.anchored) { this.anchored = false; this.sprite.setAngle(0) }
+    if (this.anchored) { this.anchored = false; this.anchor = null; this.sprite.setAngle(0) }
     this.tile = { ...p }
     const c = tileCenter(p.x, p.y)
     this.sprite.setPosition(c.x, c.y)
@@ -176,6 +181,7 @@ export default class ActorSprite {
   }
 
   setFacing(facing: Facing) {
+    if (this.anchored && this.anchor?.facing) return   // 坐在椅子上：朝向由椅子决定，不跟服务器朝向
     if (this.facing === facing) return
     this.facing = facing
     this.playAnim(this.moving)
@@ -198,7 +204,9 @@ export default class ActorSprite {
   private setMoving(m: boolean) {
     if (m === this.moving) return
     this.moving = m
+    if (m && this.anchored) { this.anchored = false; this.anchor = null; this.sprite.setAngle(0) }   // 起身走人：解除贴床 / 贴椅
     this.playAnim(m)
+    if (!m) this.applyPoseAnchor()
   }
 
   /** 每帧调用。speedMul = 玩家 moveSpeed（1.0 = 300 ms/格） */
@@ -248,7 +256,8 @@ export default class ActorSprite {
 
   private layout() {
     const x = this.sprite.x, y = this.sprite.y
-    const d = y
+    // 深度按脚底 y 与物品（底边 y）排序：站在高物件后面会被挡住；贴在床 / 椅上时用物品底边 + 1，保证画在物品之上
+    const d = this.anchored && this.anchor ? this.anchor.depth : y + this.sprite.displayHeight / 2 - 4
     this.sprite.setDepth(d)
     if (this.arrow) { this.arrow.setDepth(d + 1); this.redrawArrow() }
     const u = this.uiScale, v = this.uiScale * this.labelMul
@@ -290,26 +299,29 @@ export default class ActorSprite {
     if (label) this.stateText.setText(label).setVisible(true)
     else this.stateText.setVisible(false)
     const pose: typeof this.pose = !label ? 'stand' : /睡|sleep|躺/.test(label) ? 'sleep' : /坐|休息|玩游戏|看书|读|吃|用餐|钓|工作|直播|刷手机|sit|rest|gam/.test(label) ? 'sit' : 'stand'
-    if (pose !== this.pose) { this.pose = pose; if (!this.moving) this.playAnim(false); this.applySleepAnchor() }
+    if (pose !== this.pose) { this.pose = pose; if (!this.moving) this.playAnim(false); this.applyPoseAnchor() }
   }
 
-  /** W8：睡觉时把人画到床上（后端把使用者放在床边一格；AI 形象床和人是两张图，不贴会像睡在地板上）。只对 AI 表生效：像素表的睡觉帧自带床 */
-  setSleepAnchor(a: { x: number; y: number; angle: number } | null) {
-    const same = (!a && !this.sleepAnchor) || (!!a && !!this.sleepAnchor && a.x === this.sleepAnchor.x && a.y === this.sleepAnchor.y && a.angle === this.sleepAnchor.angle)
-    if (same) return
-    this.sleepAnchor = a
-    this.applySleepAnchor()
+  /** W8：睡觉 / 坐下时把人画到物品上（后端把使用者放在物品旁一格；AI 形象物品和人是两张图，不贴会像睡在地板上 / 坐在空地）。只对 AI 表生效：像素表的睡觉帧自带床 */
+  setPoseAnchors(a: PoseAnchors) {
+    const same = (x: PoseAnchor | null, y: PoseAnchor | null) => (!x && !y) || (!!x && !!y && x.x === y.x && x.y === y.y && x.angle === y.angle && x.facing === y.facing && x.depth === y.depth)
+    if (same(a.sleep, this.poseAnchors.sleep) && same(a.sit, this.poseAnchors.sit)) return
+    this.poseAnchors = a
+    this.applyPoseAnchor()
   }
 
   private anchored = false
-  private applySleepAnchor() {
-    const want = this.pose === 'sleep' && !this.moving && !!this.sleepAnchor && this.animKey.startsWith('ai_')
-    if (want && this.sleepAnchor) {
-      this.sprite.setPosition(this.sleepAnchor.x, this.sleepAnchor.y).setAngle(this.sleepAnchor.angle)
+  private applyPoseAnchor() {
+    const a = this.pose === 'sleep' ? this.poseAnchors.sleep : this.pose === 'sit' ? this.poseAnchors.sit : null
+    const want = !!a && !this.moving && this.animKey.startsWith('ai_')
+    if (want && a) {
+      this.anchor = a
+      this.sprite.setPosition(a.x, a.y).setAngle(a.angle)
+      if (a.facing && a.facing !== this.facing) { this.facing = a.facing; this.playAnim(false); this.redrawArrow() }
       this.anchored = true
       this.layout()
     } else if (this.anchored) {
-      this.anchored = false
+      this.anchored = false; this.anchor = null
       this.sprite.setAngle(0)
       if (!this.moving) { const c = tileCenter(this.tile.x, this.tile.y); this.sprite.setPosition(c.x, c.y) }
       this.layout()

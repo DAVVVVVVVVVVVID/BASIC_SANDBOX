@@ -85,6 +85,20 @@ export default function AssetsReviewApp() {
               </div>
             </>
           )}
+          {(m.tiles || m.deco.length > 0) && (
+            <>
+              <h2 style={h2}>地砖表 / 室外装饰（11-07 主播：小镇整体不好看 → 换 AI 地砖 + 撒花草 + 屋顶配色各异 + 建筑落地阴影）</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: 12 }}>
+                <div style={card}><b>地砖 4×4（32 px/格，草 ×4 / 路 ×2 / 石板 ×2 / 水 ×2 / 木板 / 公园 / 室内 3 种）</b>
+                  <div style={{ display: 'flex', gap: 10, marginTop: 8 }}><img src="assets/gen-ai/review/tiles_sheet.png" alt="tiles" onError={hide} style={{ width: 256, imageRendering: 'pixelated', borderRadius: 6 }} /><img src="assets/gen-ai/review/tiles_raw.png" alt="raw" onError={hide} style={{ width: 256, borderRadius: 6 }} /></div></div>
+                <div style={card}><b>装饰 {m.deco.length} 件（草地按格哈希撒：灌木 / 野花 / 石头 / 树桩 / 小松树；路边路灯）</b>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end', marginTop: 8, background: '#2a3a2a', padding: 8, borderRadius: 6 }}>
+                    {m.deco.map(d => <img key={d} src={`assets/gen-ai/deco/${d}.png`} alt={d} title={d} onError={hide} style={{ height: 72, imageRendering: 'pixelated' }} />)}
+                    <img src="assets/gen-ai/review/deco_raw.png" alt="raw" onError={hide} style={{ height: 160, marginLeft: 'auto', borderRadius: 6 }} />
+                  </div></div>
+              </div>
+            </>
+          )}
           <h2 style={h2}>物品（{m.objects.length}）· 左旧右新 · 最右原始输出</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
             {m.objects.map(t => {

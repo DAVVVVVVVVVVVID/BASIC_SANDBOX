@@ -1,0 +1,68 @@
+{
+  "image": "tiles.png",
+  "tile": 48,
+  "columns": 4,
+  "index": {
+    "grass_a": 0,
+    "grass_b": 1,
+    "grass_flower": 2,
+    "grass_dark": 3,
+    "road_a": 4,
+    "road_b": 5,
+    "square": 6,
+    "campus": 7,
+    "water_a": 8,
+    "water_b": 9,
+    "dock": 10,
+    "grass_park": 11,
+    "floor_wood": 12,
+    "floor_tile": 13,
+    "carpet": 14,
+    "grass_tall": 15
+  },
+  "variants": {
+    "grass": [
+      "grass_a",
+      "grass_b",
+      "grass_a",
+      "grass_tall"
+    ],
+    "grass_flower": [
+      "grass_flower"
+    ],
+    "grass_dark": [
+      "grass_dark"
+    ],
+    "road": [
+      "road_a",
+      "road_b",
+      "road_a"
+    ],
+    "square": [
+      "square"
+    ],
+    "campus": [
+      "campus"
+    ],
+    "dock": [
+      "dock"
+    ],
+    "grass_park": [
+      "grass_park",
+      "grass_dark"
+    ],
+    "water": [
+      "water_a",
+      "water_b"
+    ],
+    "floor_wood": [
+      "floor_wood"
+    ],
+    "floor_tile": [
+      "floor_tile"
+    ],
+    "carpet": [
+      "carpet"
+    ]
+  }
+}

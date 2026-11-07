@@ -4,7 +4,8 @@
  * 开关：URL `&ai=0` 或 localStorage.aiAssets === 'off' 关闭（评审页「一键替换」切这个）。
  */
 export interface AiBackdrop { sector: string; floor: number; view: 'interior' | 'exterior'; x0: number; y0: number; w: number; h: number; px: number; tile_px: number; qa_score?: number; margin?: number }
-export interface AiManifest { tile_px: number; backdrops: Record<string, AiBackdrop>; objects: string[]; chars: string[]; char_frame: [number, number] }
+export interface AiTiles { image: string; tile: number; columns: number; index: Record<string, number>; variants: Record<string, string[]> }
+export interface AiManifest { tile_px: number; backdrops: Record<string, AiBackdrop>; objects: string[]; chars: string[]; char_frame: [number, number]; deco: string[]; tiles: AiTiles | null }
 /** AI 角色表帧尺寸（4 列 × 5 行，行列含义与自制像素表相同，见 assets.ts CHAR_ROWS / POSE_ROW） */
 export const AI_CHAR_FRAME = { w: 32, h: 48 }
 
@@ -26,7 +27,7 @@ export async function loadAiManifest(): Promise<AiManifest | null> {
     if (!res.ok) return null
     const m = (await res.json()) as AiManifest
     if (!m || typeof m !== 'object' || !m.backdrops) return null
-    manifest = { tile_px: m.tile_px || 32, backdrops: m.backdrops || {}, objects: Array.isArray(m.objects) ? m.objects : [], chars: Array.isArray(m.chars) ? m.chars : [], char_frame: Array.isArray(m.char_frame) && m.char_frame.length === 2 ? m.char_frame : [AI_CHAR_FRAME.w, AI_CHAR_FRAME.h] }
+    manifest = { tile_px: m.tile_px || 32, backdrops: m.backdrops || {}, objects: Array.isArray(m.objects) ? m.objects : [], chars: Array.isArray(m.chars) ? m.chars : [], char_frame: Array.isArray(m.char_frame) && m.char_frame.length === 2 ? m.char_frame : [AI_CHAR_FRAME.w, AI_CHAR_FRAME.h], deco: Array.isArray(m.deco) ? m.deco : [], tiles: m.tiles && typeof m.tiles === 'object' && m.tiles.index ? m.tiles : null }
     return manifest
   } catch { return null }
 }
@@ -38,6 +39,8 @@ export function aiObjectTypeFor(type: string): string { return AI_OBJECT_ALIAS[t
 export const aiBackdropKey = (name: string) => `aibg_${name}`
 export const aiObjectKey = (type: string) => `aiobj_${type}`
 export const aiCharKey = (key: string) => `aichar_${key}`
+export const AI_TILES_KEY = 'aitiles'
+export const aiDecoKey = (name: string) => `aideco_${name}`
 /** 像素表的 _v1 / _v2 后缀不区分，AI 表只有一套 */
 export const aiCharBase = (key: string) => key.replace(/_v\d+$/, '')
 
@@ -54,4 +57,22 @@ export function preloadAiAssets(scene: Phaser.Scene) {
   for (const k of manifest.chars) {
     if (!scene.textures.exists(aiCharKey(k))) scene.load.spritesheet(aiCharKey(k), `assets/gen-ai/chars/${k}.png`, { frameWidth: fw, frameHeight: fh })
   }
+  if (manifest.tiles && !scene.textures.exists(AI_TILES_KEY)) scene.load.spritesheet(AI_TILES_KEY, `assets/gen-ai/${manifest.tiles.image}`, { frameWidth: manifest.tiles.tile, frameHeight: manifest.tiles.tile })
+  for (const d of manifest.deco) {
+    if (!scene.textures.exists(aiDecoKey(d))) scene.load.image(aiDecoKey(d), `assets/gen-ai/deco/${d}.png`)
+  }
+}
+
+/** AI 素材全部是高清原画（96 px/格、角色 96×144/帧、地砖 48 px/格）：用线性过滤，不要 pixelArt 的 NEAREST（主播 11-07：不必像素风） */
+export function setAiTexturesLinear(scene: Phaser.Scene) {
+  if (!manifest) return
+  const keys = [...Object.keys(manifest.backdrops).map(aiBackdropKey), ...manifest.objects.map(aiObjectKey), ...manifest.chars.map(aiCharKey), ...manifest.deco.map(aiDecoKey), AI_TILES_KEY]
+  for (const k of keys) if (scene.textures.exists(k)) scene.textures.get(k).setFilter(Phaser.Textures.FilterMode.LINEAR)
+}
+
+/** 确定性哈希（0..1），地砖变体 / 装饰撒点都用它，刷新不会变 */
+export function tileHash(x: number, y: number, salt = 0): number {
+  let h = (x * 374761393 + y * 668265263 + salt * 1442695041) | 0
+  h = (h ^ (h >>> 13)) * 1274126177
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967295
 }

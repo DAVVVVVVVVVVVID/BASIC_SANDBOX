@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { GameObject } from '../../types'
 import { tileToPixel, TILE_SIZE } from '../map/TileMap'
 import { objTextureKey } from '../assets'
-import { aiObjectKey, aiEnabled, aiObjectTypeFor } from '../aiAssets'
+import { aiObjectKey, aiEnabled, aiObjectTypeFor, getAiManifest } from '../aiAssets'
 
 const COLOR_OBJECT = 0x8b6b3e
 const TYPE_ICON: [RegExp, string][] = [
@@ -54,11 +54,19 @@ export default class GameObjectSprite {
     const spriteKey = genKey ?? (obj.sprite && !isBorrowedSprite(obj) ? `obj_${obj.sprite}` : null)
     let hit: Phaser.GameObjects.GameObject
     if (spriteKey && scene.textures.exists(spriteKey)) {
-      const img = scene.add.image(px + imgW / 2, py + imgH / 2, spriteKey).setDepth(1).setInteractive()
-      // AI 图竖着、footprint 横着（bed_21 借 bed 图）→ 转 90°，显示尺寸互换
+      const img = scene.add.image(px + imgW / 2, py + imgH / 2, spriteKey).setInteractive()
       const srcTex = scene.textures.get(spriteKey).getSourceImage() as { width: number; height: number }
       const srcPortrait = srcTex.height > srcTex.width, fpLandscape = cols > rows
-      if (aiKey && srcPortrait && fpLandscape) { img.setAngle(-90); img.setDisplaySize(imgH, imgW) } else img.setDisplaySize(imgW, imgH)
+      if (aiKey) {
+        // W8：AI 图按纹理实际尺寸 ×3 画（生成时已盖住 footprint，高物件向上长出格子），底边贴 footprint 底边；深度按底边 y 与人物排序
+        const k = TILE_SIZE / (getAiManifest()?.tile_px ?? 32)
+        const nw = srcTex.width * k, nh = srcTex.height * k
+        if (srcPortrait && fpLandscape) { img.setAngle(-90); img.setDisplaySize(nw, nh); img.setPosition(px + imgW / 2, py + imgH / 2) }   // bed_21 借 bed 图：转 90°，居中
+        else { img.setOrigin(0.5, 1).setDisplaySize(nw, nh).setPosition(px + imgW / 2, py + imgH) }
+        img.setDepth(py + imgH - 1)
+      } else {
+        img.setDisplaySize(imgW, imgH).setDepth(1)
+      }
       this.nodes.push(img)
       hit = img
     } else {

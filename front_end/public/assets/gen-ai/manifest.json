@@ -1,5 +1,5 @@
 {
-  "tile_px": 32,
+  "tile_px": 96,
   "backdrops": {
     "home_1f_interior": {
       "sector": "home",
@@ -11,8 +11,8 @@
       "h": 15,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
-      "qa_score": 0.899
+      "tile_px": 96,
+      "qa_score": 0.55
     },
     "dock_1f_interior": {
       "sector": "dock",
@@ -25,7 +25,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 1.0
     },
     "owners_house_1f_exterior": {
@@ -39,8 +39,8 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
-      "qa_score": 0.989
+      "tile_px": 96,
+      "qa_score": 0.997
     },
     "xiaoqian_house_1f_exterior": {
       "sector": "xiaoqian_house",
@@ -53,7 +53,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 1.0
     },
     "fisher_house_1f_exterior": {
@@ -67,7 +67,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 1.0
     },
     "grocery_1f_exterior": {
@@ -81,7 +81,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 1.0
     },
     "music_room_1f_interior": {
@@ -94,8 +94,22 @@
       "h": 8,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 0.946
+    },
+    "home_2f_exterior": {
+      "sector": "home",
+      "floor": 2,
+      "view": "exterior",
+      "x0": 1,
+      "y0": 35,
+      "w": 10,
+      "h": 8,
+      "px": 32,
+      "margin": 1,
+      "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
+      "tile_px": 96,
+      "qa_score": 0.985
     },
     "restaurant_1f_interior": {
       "sector": "restaurant",
@@ -108,7 +122,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 0.927
     },
     "classroom_1f_interior": {
@@ -121,7 +135,7 @@
       "h": 8,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 0.914
     },
     "xiaoqian_house_1f_interior": {
@@ -135,7 +149,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 0.95
     },
     "library_1f_exterior": {
@@ -148,8 +162,8 @@
       "h": 8,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
-      "qa_score": 0.965
+      "tile_px": 96,
+      "qa_score": 1.0
     },
     "classroom_1f_exterior": {
       "sector": "classroom",
@@ -161,7 +175,7 @@
       "h": 8,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 1.0
     },
     "park_1f_interior": {
@@ -175,7 +189,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 1.0
     },
     "home_1f_exterior": {
@@ -188,7 +202,7 @@
       "h": 15,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 1.0
     },
     "grocery_1f_interior": {
@@ -202,7 +216,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 0.982
     },
     "square_1f_interior": {
@@ -216,8 +230,8 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
-      "qa_score": 0.945
+      "tile_px": 96,
+      "qa_score": 1.0
     },
     "owners_house_1f_interior": {
       "sector": "owners_house",
@@ -230,7 +244,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 0.912
     },
     "fisher_house_1f_interior": {
@@ -244,7 +258,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 0.995
     },
     "restaurant_1f_exterior": {
@@ -258,7 +272,7 @@
       "px": 32,
       "margin": 1,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 1.0
     },
     "music_room_1f_exterior": {
@@ -271,7 +285,7 @@
       "h": 8,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 1.0
     },
     "home_2f_interior": {
@@ -284,7 +298,7 @@
       "h": 8,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 0.972
     },
     "library_1f_interior": {
@@ -297,7 +311,7 @@
       "h": 8,
       "px": 32,
       "mapVersion": "鲸鱼大学城·v1.0 草图@6bf958223cd6",
-      "tile_px": 32,
+      "tile_px": 96,
       "qa_score": 0.949
     }
   },
@@ -306,11 +320,13 @@
     "bed",
     "bench",
     "classroom_desk",
+    "desk_long",
     "door_closed",
     "fish_stall",
     "fishing_spot",
     "fountain",
     "fridge",
+    "lamp",
     "notice_board",
     "pc",
     "pc_music",
@@ -334,7 +350,93 @@
     "whale"
   ],
   "char_frame": [
-    32,
-    48
-  ]
+    96,
+    144
+  ],
+  "deco": [
+    "barrel",
+    "bush",
+    "bush_flower",
+    "crate",
+    "fence",
+    "flowerbed",
+    "flowers_pink",
+    "flowers_yellow",
+    "lamp",
+    "mailbox",
+    "pine",
+    "pot_plant",
+    "rock",
+    "rock_moss",
+    "signpost",
+    "stump"
+  ],
+  "tiles": {
+    "image": "tiles.png",
+    "tile": 48,
+    "columns": 4,
+    "index": {
+      "grass_a": 0,
+      "grass_b": 1,
+      "grass_flower": 2,
+      "grass_dark": 3,
+      "road_a": 4,
+      "road_b": 5,
+      "square": 6,
+      "campus": 7,
+      "water_a": 8,
+      "water_b": 9,
+      "dock": 10,
+      "grass_park": 11,
+      "floor_wood": 12,
+      "floor_tile": 13,
+      "carpet": 14,
+      "grass_tall": 15
+    },
+    "variants": {
+      "grass": [
+        "grass_a",
+        "grass_b",
+        "grass_a",
+        "grass_tall"
+      ],
+      "grass_flower": [
+        "grass_flower"
+      ],
+      "grass_dark": [
+        "grass_dark"
+      ],
+      "road": [
+        "road_a",
+        "road_b",
+        "road_a"
+      ],
+      "square": [
+        "square"
+      ],
+      "campus": [
+        "campus"
+      ],
+      "dock": [
+        "dock"
+      ],
+      "grass_park": [
+        "grass_park",
+        "grass_dark"
+      ],
+      "water": [
+        "water_a",
+        "water_b"
+      ],
+      "floor_wood": [
+        "floor_wood"
+      ],
+      "floor_tile": [
+        "floor_tile"
+      ],
+      "carpet": [
+        "carpet"
+      ]
+    }
+  }
 }
