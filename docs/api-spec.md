@@ -455,6 +455,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 | `store` | **W11 ④** 把食材放进冰箱（相邻；不超过 `fridge.max` 4） | `{ item?="ingredients", qty?=1, object_id? }` | agent |
 | `knock` | **§3.41** 在上锁的家门外敲门（见「门禁」一节） | `{ door_id }` 或 `{ target_tile {x,y} }` 或 `{ home: <sector> }` | agent / E |
 | `open_door` | **§3.41** 站在门内侧相邻格开门（不需钥匙），敞开 60 游戏秒 | `{ door_id }` | agent / E |
+| `say` | **Q6（实验 X4）靠近即可说**：曼哈顿 ≤ 2 格、同 sector 的在场玩家在**下一次 perceive** 的 `nearby_speech[]` 看到 `{from, from_name, text, ts}`（读过即清，队列 ≤ 20）；不开房间、不走邀请。`result {message, heard_by[], heard_count, range, position}`；失败 `empty_text` / `text_too_long`（> 200）。聊天 JSONL 多一种行 `kind: "say"`（`from, from_name, to: heard_by[], text, controller, position`，`room_id: null`）；ws `{type:"say", from, from_name, text, position, heard_by}`；动作日志照常 | `{ text }` | agent |
 | `compose` | **W11 ①** 在琴房电脑（`pc_music`）上用满 `min_minutes`（30）后产一首「歌」（文件类，`meta.title / commission_id / text…` 由 C 填） | `{ title?, commission_id?, text?, meta? }` | agent |
 | `make_video` | **W11 ①** 在电脑（`pc` / `pc_desk` / `stream_desk`）上用满 60 分钟后产一份「电台文稿」 | `{ title?, text?, meta? }` | agent |
 
@@ -939,6 +940,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 - `front_object`：正前方一格的 object 信息，无 object 时为 `null`
 - `players_in_view`（**B13**）：视野正方形内的其他 player
 - `game`（**B18，W6；W10-4b 改接 D 的正式接口**）：游戏机局内状态 `{status: "playing" | "ended", started_at, ended_at?, how: "joined" | "regenerated" | "server_started", brain_run_id, run_id, alive, deaths, day, phase, time_in_phase, health, hunger, sanity, is_in_light, goal, latest_png, usd_today, server, tick_age_s, text, left_at_day?, duration_s?}`，没玩过为 `null`；`text` 是给她看的一句话「饥荒第 {day} 天{白天/黄昏/夜里}，HP {health}，正在{goal}」（ended 后 `null`）；`playing` 时每次 perceive 向 brain `GET /game/state` 刷新一次（3 s 超时，失败保留旧值）。`GET /player/{id}` 与 `/state` 也带 `game`
+- `nearby_speech[]`（**Q6**）：附近有人 `say` 的话 `[{from, from_name, text, ts}]`，只在下一次 perceive 出现一次（读过即清）；与 `players_in_view` 无关，按说话时的 2 格范围与同 sector 判
 - `phone.unread`（**W10 ③**）：`phone` 现在**总是对象**（以前没刷过为 `null`）：`{...B10 的 digest 字段（刷过手机才有）, "unread": {"阿蝉": 2, "鲸仔直播组": 1}, "unread_total": 3}`——按发件人 / 群**显示名**计未读条数，**不给正文**；读要用 `POST /qq/read`（占 1 游戏分钟）
 - `phone`（**B10**）：最近一次刷手机的信息流摘要（W10 起没刷过时只有 `unread` / `unread_total` 两键）：`{"status": "ok" | "no_signal", "items": [{"ts", "topic", "sentiment", "is_question", "is_song_request", "summary", "injection"}], "digest_ts", "fetched_at", "for"}`。只有自我层 Quarantine 后的 digest 字段，**不含 id / source / author / 原文**（沙盒侧再做一次白名单过滤）
 - `needs`（**B13**）：**只给分档文字，不给数值**（报告 §4.3）。阈值 low 25 / critical 15 / emergency 10；文案与自我层 `state.py` 的 `LABELS` 同源（沿用 mood.py `label()`）。`<var>` 未越阈值为 `"还好"`；`mood` < 35 为「有点委屈…」、> 75 为「开心」；`lines` 是越过阈值的全部文字（含 emotion_tags），`hard` 是 `<var><15` 的硬约束；`closeness` 对视野内 player 分档，形状固定为 **`{entity_id: {"name", "tier"}}`**（§3.11 第 9 条；tier ≥70 很亲近 / ≥40 熟悉 / ≥15 认识 / 其余 陌生，阈值为假设，整个 `needs` 块里没有任何数值）；`recent_uses` 同 `GET /player/{id}/state`

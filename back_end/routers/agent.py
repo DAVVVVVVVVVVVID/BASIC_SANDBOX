@@ -168,12 +168,18 @@ def perceive(
         "vision_tiles":    vision_tiles,
         "front_object":    front_object,
         "players_in_view": players_in_view,
+        "nearby_speech":   _speech_view(entity_id),    # Q6：附近有人 say 的话 [{from, from_name, text, ts}]，读过即清
         "needs":           needs,
         "phone":           _phone_view(entity_id),      # B10 digest 字段 + W10 ③ unread{显示名: 条数} / unread_total（不给正文、不给坐标）
         "knocks":          _knocks_view(entity_id),     # §3.40：主人——我家待回应的敲门 [{id, visitor_name, home_name, expires_at}]
         "door_request":    _door_request_view(entity_id),   # §3.40：访客——我最近一次敲门的状态
         "game":            _game_view(entity_id),       # B18：游戏机局内状态（无则 null）
     }
+
+
+def _speech_view(entity_id: str) -> list[dict]:
+    from game import speech
+    return [{"from": m["from"], "from_name": m["from_name"], "text": m["text"], "ts": m["ts"]} for m in speech.take(entity_id)]
 
 
 def _knocks_view(entity_id: str) -> list[dict]:

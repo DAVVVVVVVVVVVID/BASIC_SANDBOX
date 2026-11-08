@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5j. Q6「靠近即可说」`say` —— 完成
+
+- `game/speech.py` + 动作 `say {text}`：曼哈顿 ≤ 2 格、同 sector 的在场玩家（不含自己）在下一次 perceive 的 `nearby_speech[]`（`{from, from_name, text, ts}`）看到，读过即清，队列 ≤ 20；不开房间不走邀请；`result {message, heard_by, heard_count, range: 2, position}`；`empty_text` / `text_too_long`（200）。聊天 JSONL 新行 `kind: say`（`from, from_name, to: heard_by, text, controller, position, room_id null`）；ws `{type:"say", ...}`；动作日志照常。2 例单测（范围 / 一次性 / 多句顺序 / 自己不听 / 不开房 / JSONL / 动作日志；隔 sector 不传）。316 passed。给 C 的 X4 变体用；A 的聊天质检若按 kind 统计请加 `say`。
+
+## 5i. 状态（总控 11-08）：主镇六人真跑暂停，8000 停在 `c3808ad` 不换版；bench 8090 X1 确认轮 / 补充轮用 `c3808ad`；冰箱补货 / 买菜数值先不改；接着做 Q6 `say` 与维护。
+
 ## 5h. §3.41 门禁改钥匙物品 + 从内侧开门（替换 §3.39 / §3.40）—— 完成（+ 启动迁移）
 
 - **启动迁移（总控切主镇后发现六人 keys 全空、全镇被锁在门外，已回滚）**：`doors.migrate_keys()` 在 `load_checkpoint` 末尾对每个 agent 玩家按 join 的同一规则补发自家钥匙（身份槽已发过的不重发，幂等；日志 `key_issued why=migrate`），人类控制者下次 join 领剩余把数。2 例单测：钥匙前检查点 → 加载 → 鲸仔 / 阿蝉 / 老渔夫各得自家钥匙、人类不发、`/admin/path` 鲸仔街道→房间可达、再启动不重发、人类再 join 领到第 3 把；scenario `spawn` 的鲸仔拿到 `door_home` 钥匙且街道→床有路（X1 S02）。314 passed。

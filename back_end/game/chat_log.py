@@ -60,6 +60,12 @@ def log_message(room_id: str, seq: int, from_id: str, from_name: str, to: list[s
                    "to": list(to), "text": text, "controller": controller})
 
 
+def log_say(from_id: str, from_name: str | None, heard_by: list[str], text: str, controller: str, position: dict) -> dict:
+    """Q6「靠近即可说」：不开房间的一句话。"""
+    return _write({"kind": "say", "room_id": None, "from": from_id, "from_name": from_name, "to": list(heard_by), "text": text,
+                   "controller": controller, "position": dict(position)})
+
+
 def log_event(event: str, room_id: str | None, participants: list[str], request_id: str | None = None, **extra) -> dict:
     return _write({"kind": "event", "event": event, "room_id": room_id, "request_id": request_id,
                    "participants": list(participants), **extra})

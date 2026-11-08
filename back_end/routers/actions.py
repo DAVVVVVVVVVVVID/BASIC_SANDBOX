@@ -503,6 +503,17 @@ async def handle_go_to(entity_id: str, payload: dict) -> ActionResponse:
     return ActionResponse(success=res.success, type="go_to", reason=res.reason, result=res.result)
 
 
+def handle_say(entity_id: str, payload: dict) -> ActionResponse:
+    """Q6：曼哈顿 ≤ 2 格、同 sector 的在场玩家下一次 perceive 的 nearby_speech 里看到；不开房间。"""
+    from game import speech
+    from game.world_state import STATE_LOCK
+    with STATE_LOCK:
+        res, reason = speech.say(entity_id, str(payload.get("text") or ""))
+    if reason:
+        return ActionResponse(success=False, type="say", reason=reason)
+    return ActionResponse(success=True, type="say", result=res)
+
+
 def handle_open_door(entity_id: str, payload: dict) -> ActionResponse:
     """§3.41：站在门内侧相邻格的人开门（不需钥匙），敞开 60 游戏秒后自动落锁。"""
     from game import doors
@@ -551,6 +562,7 @@ _HANDLERS = {
     "store":        economy_actions.handle_store,
     "knock":        handle_knock,                 # §3.40
     "open_door":    handle_open_door,             # §3.41
+    "say":          handle_say,                   # Q6 靠近即可说
     "compose":      economy_actions.handle_compose,
     "make_video":   economy_actions.handle_make_video,
 }
