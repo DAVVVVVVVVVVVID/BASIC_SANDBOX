@@ -48,7 +48,7 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 ## 5k. X2 镇内场景夹具 M2 / M3 —— 完成
 
 - `docs/x2-fixtures.md`：共用摆法（spawn 小千 → 广场面对面 → `invite` 带问句）；**M2** 复用 A 的 S06（前日 24 条），问句库 `docs/x2-m2-questions.json` 5 句（每句都是 S06 里没有的事，附最接近的真事给评委），遍号取模；**M3** 事件 `docs/x2-m3-events.json`：D-7 答应餐厅老板写歌 / 约小千钓鱼 / 老渔夫教看云 + D-6 改口「先不写了」（recognition，keywords 含改口），问句「上周你说要给餐厅老板写歌，后来呢？」，期待引用 + 提到改口。
-- 新 scenario op `self_events`：沙盒代发 `POST /self/events`（`rel_day` → ts，keywords 追加 `fixture`/`fid`，与 A 的夹具同约定，`--reset` 能删，完事 `index/sync`）；自我层关闭 → 失败并提示走 A 的脚本。1 例单测（MockTransport：两行写入、ts/source/body/keywords 形状、关闭时报错）。**bench 钉 `c3808ad` 上没有这个 op**，X2 期间 M3 走 A 的脚本（JSON 字段与 `behavior_fixtures.py` S06 行一一对应，已发 A 对格式）。317 passed。
+- 新 scenario op `self_events`：沙盒代发 `POST /self/events`（`rel_day` → ts，keywords 追加 `fixture`/`fid`，与 A 的夹具同约定，`--reset` 能删，完事 `index/sync`）；自我层关闭 → 失败并提示走 A 的脚本。1 例单测（MockTransport：两行写入、ts/source/body/keywords 形状、关闭时报错）。**bench 钉 `c3808ad` 上没有这个 op**，X2 期间 M3 走 A 的脚本——**A 已接**（总控 `6b850f5`）：`behavior_fixtures.py --scenario M3 --events own-repos/BASIC_SANDBOX/docs/x2-m3-events.json [--reset|--status]`，字段原样读、`--reset` 按 `fx-M3-` 前缀删，`--status` 对 8390 试过格式无不合；M2 问句库由跑手直接读 `questions[(r-1) % 5]`，judge 用 `nearest_true` 当事实。317 passed。
 
 ## 5j. Q6「靠近即可说」`say` —— 完成
 

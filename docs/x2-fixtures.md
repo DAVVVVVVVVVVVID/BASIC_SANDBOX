@@ -29,7 +29,7 @@ POST /admin/scenario
 
 1. 事件写入自我层——两种吃法任选：
    - **沙盒 op**（bench 沙盒 `SELF_SYNC=1` 且带 `SELF_TOKEN`）：`{"op": "self_events", "agent": "whale", "rows": <docs/x2-m3-events.json 的 rows>}`——沙盒替你 `POST /self/events`，`rel_day` 相对**今天**（-7 = 七个游戏日前），`keywords` 自动追加 `fixture` 与 `fid`（与 A 的夹具同约定，A 的 `--reset` 能一起删），完事 `POST /self/index/sync`。返回 `written[{fid, ts, path}] / errors / index_sync`。自我层关了 → 步骤失败，改走下一条。
-   - **A 的脚本**：`docs/x2-m3-events.json` 的每行字段（`fid, type, description, keywords, importance, rel_day, hm, what/how/why, voice, scene`）与 `behavior_fixtures.py` 的 S06 行一一对应（`ts = today + rel_day` 的 `hm`，`body = body_md(what, how, why)`），A 加一个 `--scenario M3 --events docs/x2-m3-events.json` 即可。
+   - **A 的脚本（X2 期间用这条）**：`/home/shan-dw/Project/whale-self/.venv/bin/python /home/shan-dw/Project/whale/eval/behavior_fixtures.py --scenario M3 --events own-repos/BASIC_SANDBOX/docs/x2-m3-events.json [--reset|--status] [--out <场景目录>]`——字段原样读（`ts = 自我层今天 + rel_day` 的 `hm`，`body = body_md(what, how, why)`，recognition → `inferred`，keywords 追加 `fixture` + fid），`--reset` 按 `fx-M3-` 前缀删并同步索引，输出带 `question / expected` 给跑手。
    - 四条：D-7 答应餐厅老板写歌（chat，imp 7）；D-7 约小千下周钓鱼（event）；D-7 老渔夫教看云（chat）；**D-6 改口**「先不写了，等忙完再说」（recognition，imp 7，keywords 含「改口」「先不写」）。
 2. 沙盒：共用步骤，`greeting` = `"上周你说要给餐厅老板写歌，后来呢？"`（`docs/x2-m3-events.json.question`）。
 3. 终止：回答完成 / 30 分钟。
