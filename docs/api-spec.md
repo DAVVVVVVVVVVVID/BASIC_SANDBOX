@@ -1271,6 +1271,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `move_object` | `id`, `to {x, y}`（或 `x`, `y`） | **X1 N5** 把物品挪到新左上角：目标脚印须全是当前可走格且没人站着；原地变地板、新地变物品格，`usePos` 跟着算；正在用的人被请离（`kicked[]`）；`worldState.mapVersion` 变（前端据此重拉 tiles / objects）。只改内存，重启或 `reset` 还原 |
 | `remove_object` | `id` | **X1 N5** 撤掉物品（脚下变地板），`/world.objects` 里消失；`restore_object` 放回原位（库存一起回来） |
 | `restore_object` | `id?` | 恢复：撤掉的放回、挪过的挪回；不给 `id` = 全部（`reset` 也会做）。恢复后 `mapVersion` 回到原值 |
+| `self_events` | `agent?="whale"`, `rows[{fid, type: event\|chat\|recognition, description, keywords[], importance, rel_day?\|ts?, hm?="12:00", what/how/why 或 body, voice?, scene?}]`, `index_sync?=true` | **X2 M3** 把合成事件写进自我层（沙盒代发 `POST /self/events`，带 `SELF_TOKEN`）：`rel_day` 相对今天（-7 = 七天前），`keywords` 自动追加 `fixture` 与 `fid`（与 A 的 `behavior_fixtures.py` 同约定，A 的 `--reset` 能删），完事 `POST /self/index/sync`。返回 `{agent, written[{fid, ts, path}], errors[], index_sync}`；自我层关闭 → 步骤失败（改走 A 的脚本吃 `docs/x2-m3-events.json`） |
 
 **与自我层（W11 维护，X1 根因修）：** `spawn` / `set_vars` 直写七变量后**立刻**把本地值推给自我层：`GET /self/state` 取远端值，`POST /self/state/delta {vars_delta: 本地 − 远端, source: "scenario"}`，两边开局即一致；步骤结果带 `self_push: {ok, pushed{var: delta}, remote_after}`（自我层关闭 / 没有 agent_id → `{ok: false, skipped}`；不可达 → `{ok: false, error}`，直写照样成功）。同时该玩家标「本地为准」：之后 self-sync 若仍发现漂移 > 0.5，不 snap 本地而是把差值推回自我层直到一致（兜底推送失败的情形），再恢复「自我层为准」。两种推送都记 `external` `kind: self_assert`，`GET /admin/self-sync` 的 `asserts` 计数。bench 若不想要自我层参与，也可以直接 `SELF_SYNC=0` 或 `SELF_SYNC_SNAP=0` 起沙盒。
 

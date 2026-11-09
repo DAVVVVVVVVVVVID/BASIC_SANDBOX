@@ -252,6 +252,53 @@ def op_exit_chat(step: dict) -> dict:
     return res
 
 
+def op_self_events(step: dict) -> dict:
+    """X2 M3 夹具：把合成事件写进自我层（走 self_sync 的 /self/events，带 SELF_TOKEN）。
+    {agent?="whale", rows:[{fid, type: event|chat|recognition, description, keywords[], importance, rel_day?|ts?, hm?="12:00",
+                           what/how/why 或 body, voice?, scene?}], index_sync?=true}
+    keywords 末尾自动加 "fixture" 与 fid（与 A 的 behavior_fixtures.py 同约定，A 的 --reset 能删）。rel_day = 相对今天（自我层 / 游戏日）的天数，-7 = 七天前。
+    自我层关闭 / 不可达 → 步骤失败（C 改用 A 的种子脚本吃 docs/x2-m3-events.json）。"""
+    from game import self_sync
+    from game.time_state import game_now
+    if not self_sync.enabled():
+        raise StepError("self_sync disabled: write docs/x2-m3-events.json via A's seed script instead")
+    agent = step.get("agent") or "whale"
+    rows = step.get("rows") or []
+    if not rows:
+        raise StepError("rows required")
+    today = game_now().date()
+    written = []; errors = []
+    with self_sync._client() as c:
+        for i, r in enumerate(rows, 1):
+            fid = r.get("fid") or f"fx-X2-{i:02d}"
+            if r.get("ts"):
+                ts = r["ts"]
+            else:
+                from datetime import timedelta
+                day = today + timedelta(days=int(r.get("rel_day", 0)))
+                ts = f"{day}T{r.get('hm', '12:00')}:00+08:00"
+            body = r.get("body") or f"## What\n{r.get('what', '')}\n\n## How\n{r.get('how', '')}\n\n## Why\n{r.get('why', '')}\n"
+            typ = r.get("type", "event")
+            payload = {"agent": agent, "type": typ, "scene": r.get("scene", "sandbox"), "description": r["description"],
+                       "keywords": list(r.get("keywords") or []) + ["fixture", fid], "importance": int(r.get("importance", 5)),
+                       "source": "inferred" if typ == "recognition" else "observed", "ts": ts, "body": body, "voice": r.get("voice", "")}
+            try:
+                resp = c.post("/self/events", json=payload, timeout=60)
+                resp.raise_for_status()
+                written.append({"fid": fid, "ts": ts, "path": (resp.json() or {}).get("path")})
+            except Exception as e:
+                errors.append({"fid": fid, "error": str(e)})
+        sync = None
+        if step.get("index_sync", True) and written:
+            try:
+                sync = c.post("/self/index/sync", params={"agent": agent}, timeout=60).json()
+            except Exception as e:
+                sync = {"error": str(e)}
+    if errors and not written:
+        raise StepError(f"self_events: all failed: {errors[0]['error']}")
+    return {"agent": agent, "written": written, "errors": errors, "index_sync": sync}
+
+
 def op_clear_cooldowns(step: dict) -> dict:
     with world_state.STATE_LOCK:
         if step.get("player"):
@@ -326,6 +373,7 @@ OPS = {
     "invite": op_invite, "respond": op_respond, "say": op_say, "exit_chat": op_exit_chat, "clear_cooldowns": op_clear_cooldowns,
     "give_item": op_give_item, "produce": op_produce,          # W11 维护
     "move_object": op_move_object, "remove_object": op_remove_object, "restore_object": op_restore_object,   # X1 N5
+    "self_events": op_self_events,                                                                           # X2 M3
 }
 _SAMPLE_OPS = {"spawn", "teleport", "set_vars", "effects", "occupy", "release", "give_item", "produce"}
 

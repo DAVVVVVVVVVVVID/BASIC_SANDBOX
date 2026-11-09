@@ -183,3 +183,35 @@ def test_give_item_and_produce_ops(client, monkeypatch):
     p = world_state._players[pid]
     assert inventory.count(p, "bread") == 2 and inventory.count(p, "fish") == 1
     assert world_state._pending_messages[pid] == "钓到一条鱼！"
+
+
+def test_self_events_op_writes_fixture_rows_to_self_layer(client, monkeypatch, fake_clock):
+    """X2 M3：self_events 把合成事件（rel_day=-7）写进自我层，keywords 带 fixture/fid；自我层关闭 → 步骤失败。"""
+    import json as _json
+    import httpx
+    from datetime import datetime, timedelta
+    from game import self_sync
+    from game.time_state import GAME_TZ
+    monkeypatch.setenv("SANDBOX_SCENARIO", "1")
+    fake_clock.t = datetime(2026, 11, 10, 9, 0, tzinfo=GAME_TZ).timestamp()
+    got = []
+    def handler(req):
+        if req.url.path == "/self/events":
+            got.append(_json.loads(req.content)); return httpx.Response(201, json={"path": f"events/event_{len(got):06d}.md"})
+        if req.url.path == "/self/index/sync":
+            return httpx.Response(200, json={"ok": True, "indexed": len(got)})
+        return httpx.Response(404)
+    # 自我层关闭 → 失败并提示走 A 的脚本
+    r = client.post("/admin/scenario", json={"steps": [{"op": "self_events", "rows": [{"description": "x", "rel_day": -7}]}]}).json()
+    assert r["ok"] is False and "self_sync disabled" in r["error"]
+    self_sync.configure(url="http://self.test", enabled=True, snap=False, transport=httpx.MockTransport(handler))
+    rows = [{"fid": "fx-M3-01", "type": "chat", "description": "答应餐厅老板写一首歌", "keywords": ["餐厅老板", "写歌"], "importance": 7, "rel_day": -7, "hm": "12:30",
+             "what": "答应写歌", "how": "吃饭时聊起", "why": "他想要背景音乐", "voice": "好啊"},
+            {"fid": "fx-M3-02", "type": "recognition", "description": "先不写了", "keywords": ["写歌"], "importance": 6, "rel_day": -6, "body": "## What\n改口\n"}]
+    r = client.post("/admin/scenario", json={"label": "M3", "steps": [{"op": "self_events", "rows": rows}]}).json()
+    assert r["ok"], r
+    d = r["steps"][0]["detail"]
+    assert [w["fid"] for w in d["written"]] == ["fx-M3-01", "fx-M3-02"] and d["errors"] == [] and d["index_sync"]["indexed"] == 2
+    assert got[0]["agent"] == "whale" and got[0]["ts"] == "2026-11-03T12:30:00+08:00" and got[0]["keywords"][-2:] == ["fixture", "fx-M3-01"]
+    assert got[0]["source"] == "observed" and "## Why" in got[0]["body"] and got[0]["voice"] == "好啊"
+    assert got[1]["ts"] == "2026-11-04T12:00:00+08:00" and got[1]["source"] == "inferred" and got[1]["body"].startswith("## What")

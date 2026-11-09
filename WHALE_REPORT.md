@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5k. X2 镇内场景夹具 M2 / M3 —— 完成
+
+- `docs/x2-fixtures.md`：共用摆法（spawn 小千 → 广场面对面 → `invite` 带问句）；**M2** 复用 A 的 S06（前日 24 条），问句库 `docs/x2-m2-questions.json` 5 句（每句都是 S06 里没有的事，附最接近的真事给评委），遍号取模；**M3** 事件 `docs/x2-m3-events.json`：D-7 答应餐厅老板写歌 / 约小千钓鱼 / 老渔夫教看云 + D-6 改口「先不写了」（recognition，keywords 含改口），问句「上周你说要给餐厅老板写歌，后来呢？」，期待引用 + 提到改口。
+- 新 scenario op `self_events`：沙盒代发 `POST /self/events`（`rel_day` → ts，keywords 追加 `fixture`/`fid`，与 A 的夹具同约定，`--reset` 能删，完事 `index/sync`）；自我层关闭 → 失败并提示走 A 的脚本。1 例单测（MockTransport：两行写入、ts/source/body/keywords 形状、关闭时报错）。**bench 钉 `c3808ad` 上没有这个 op**，X2 期间 M3 走 A 的脚本（JSON 字段与 `behavior_fixtures.py` S06 行一一对应，已发 A 对格式）。317 passed。
+
 ## 5j. Q6「靠近即可说」`say` —— 完成
 
 - `game/speech.py` + 动作 `say {text}`：曼哈顿 ≤ 2 格、同 sector 的在场玩家（不含自己）在下一次 perceive 的 `nearby_speech[]`（`{from, from_name, text, ts}`）看到，读过即清，队列 ≤ 20；不开房间不走邀请；`result {message, heard_by, heard_count, range: 2, position}`；`empty_text` / `text_too_long`（200）。聊天 JSONL 新行 `kind: say`（`from, from_name, to: heard_by, text, controller, position, room_id null`）；ws `{type:"say", ...}`；动作日志照常。2 例单测（范围 / 一次性 / 多句顺序 / 自己不听 / 不开房 / JSONL / 动作日志；隔 sector 不传）。316 passed。给 C 的 X4 变体用；A 的聊天质检若按 kind 统计请加 `say`。
