@@ -1193,6 +1193,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 ### GET /admin/metrics
 
+**X5：** 多 `economy: {path, sha256, default}`——`economy.json` 的来源与指纹（环境变量 `SANDBOX_ECONOMY_PATH` 可按镇指独立文件，towns.yaml `sandbox_env` 里给；实验 manifest 记 `sha256`）；**X4：** `chat_profile`（见对话一节）。
+
 **W4** 运行指标（负载测试用）：最近 600 次 tick 的耗时 / 间隔分位、玩家数、WebSocket 订阅数、进程 RSS。
 
 ```json
@@ -1252,7 +1254,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 | op | 参数 | 作用 |
 |---|---|---|
-| `reset` | `running?` | 清空所有玩家 / 对话 / 物品占用 / 冷却 / 待发同步；时间回真实当前 |
+| `reset`（X5 起同时归零补货 / 日薪已付记录、产出链、委托、门禁请求 / 敞开窗口 / 钥匙槽位、说话队列） | `running?` | 清空所有玩家 / 对话 / 物品占用 / 冷却 / 待发同步；时间回真实当前 |
 | `set_time` | `time:"HH:MM[:SS]"`, `date?`, `speed?`, `running?` | 游戏时间拨到该时刻（锚点重设，之后照常走）；天气按 seed 重算 |
 | `spawn` | `name`, `agent_id?`, `controller?="agent"`, `x?`, `y?`, `facing?`, `vars?`, `profile?` | 放一个玩家（agent 会照常从自我层种入，之后再按 `vars` 直写）；不传坐标落出生点 / 家 |
 | `remove` | `player` | 删玩家（自动退出物品与对话） |
@@ -1265,6 +1267,10 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `respond` | `player`, `request_id`, `accept`, `message`, `tick?=true` | 代某玩家响应；默认立刻推进一次状态机（相邻则建房），返回 `status_now` / `chat_room_id` |
 | `say` | `player`, `text`, `room?` | 代某玩家发言：有 `room` 走房间 `POST /chat/message`；**没有 `room` 走 Q6「靠近即可说」**（X4 say / GA 变体的脚本小千），返回 `{heard_by, …}` |
 | `qq_send` | `from`, `to` \| `group`, `text`, `kind?`, `file_ref?` | **X4 C-QQ** 代脚本角色发 QQ（同 `POST /qq/send`），失败原因同其 `reason` |
+| `set_fridge` | `id?="fridge_home"`, `qty` | **X5** 直接写冰箱食材库存（含 0） |
+| `set_stock` | `shop`（物品 id）, `item`, `qty` | **X5** 写商店库存，`/world.objects[].shop[].stock` 同步 |
+| `force_closed` | `object` \| `door_id` \| `arena` \| `shop`, `until: "HH:MM"` \| ISO \| `null` | **X5** 强制关门不等真实时钟：物品 `use → closed`（`opens_at = until`）、所在 arena / 门边进入 → `no_path / closed`、正在用的人下一 tick 被请出；到点自动解除。只在内存 |
+| `clear_closed` | `key?` | **X5** 解除强制关门（不给 = 全部） |
 | `exit_chat` | `player`, `room` | 代某玩家退出房间 |
 | `clear_cooldowns` | `player?` | 清物品冷却 / 使用计数与对话冷却 |
 | `give_item` | `player`, `item`, `qty?=1`, `meta?` | **W11 维护** 直接往背包放 `items.json` 里的物品（联调 buy / sell / store / give / QQ 发文件用）；满包 → 错 |

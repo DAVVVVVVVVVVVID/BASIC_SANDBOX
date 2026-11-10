@@ -802,14 +802,53 @@ def _hm(s: str) -> int:
     h, m = s.split(":"); return int(h) * 60 + int(m)
 
 
+_forced_closed: dict[str, float | None] = {}     # X5 夹具：物品 id / 门 id / arena / sector -> 强制关到的游戏时刻（None = 直到清除）
+
+
+def force_closed(key: str, until_gts: float | None) -> None:
+    _forced_closed[key] = until_gts
+
+
+def clear_forced(key: str | None = None) -> list[str]:
+    keys = [key] if key else list(_forced_closed)
+    for k in keys:
+        _forced_closed.pop(k, None)
+    return keys
+
+
+def _forced(key: str | None, game_ts: float) -> tuple[bool, str | None]:
+    """key 此刻是否被夹具强制关着；返回 (关着, 开门 HH:MM|None)。"""
+    if not key or key not in _forced_closed:
+        return False, None
+    until = _forced_closed[key]
+    if until is not None and game_ts >= until:
+        _forced_closed.pop(key, None); return False, None
+    if until is None:
+        return True, None
+    from datetime import datetime
+    from game.time_state import GAME_TZ
+    dt = datetime.fromtimestamp(until, GAME_TZ)
+    return True, f"{dt.hour:02d}:{dt.minute:02d}"
+
+
 def open_state(obj: dict, game_ts: float | None = None) -> tuple[bool, str | None]:
-    """返回 (是否营业, 下次开门 "HH:MM" 或 None)。没有 openHours 的物品恒开。"""
+    """返回 (是否营业, 下次开门 "HH:MM" 或 None)。没有 openHours 的物品恒开。X5：夹具 force_closed 的物品 / 所在 arena 关着。"""
+    ts0 = game_ts if game_ts is not None else game_now_ts()
+    fc, fo = _forced(obj.get("id"), ts0)
+    if not fc and obj.get("position"):
+        z = _ZONE_LOOKUP.get((obj["position"]["x"], obj["position"]["y"]), {})
+        for key in (z.get("arena"), z.get("sector")):
+            fc, fo = _forced(key, ts0)
+            if fc:
+                break
+    if fc:
+        return False, fo
     hours = obj.get("openHours")
     if not hours:
         return True, None
     from datetime import datetime
     from game.time_state import GAME_TZ
-    ts = game_ts if game_ts is not None else game_now_ts()
+    ts = ts0
     dt = datetime.fromtimestamp(ts, GAME_TZ)
     now_m = dt.hour * 60 + dt.minute
     spans = sorted((_hm(a), _hm(b)) for a, b in hours)
@@ -951,6 +990,11 @@ def edge_block(edge: dict, mover: dict | None, game_ts: float, frm: tuple[int, i
     b_tile = ((edge.get("b") or {}).get("x"), (edge.get("b") or {}).get("y"))
     if frm is not None and tuple(frm) == b_tile:
         return None                                              # 出：总是放行
+    zb = _ZONE_LOOKUP.get(b_tile, {})
+    for key in (edge.get("id"), zb.get("arena"), zb.get("sector")):      # X5 夹具：强制关门
+        fc, fo = _forced(key, game_ts)
+        if fc:
+            return ("closed", fo)
     is_open, opens_at = _hours_state(edge.get("open_hours"), game_ts)
     if doors.is_keyed(edge):
         if doors.is_open_window(edge["id"], game_ts):
@@ -1760,6 +1804,7 @@ def _reset_for_tests() -> None:
         _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear(); _pre_use_pos.clear(); _use_start_game_ts.clear(); _walks.clear()
         global _walk_log_enabled
         _walk_log_enabled = True
+        _forced_closed.clear()
         if _REMOVED_OBJECTS or _OBJ_ORIG_POS:
             restore_object()
         _REMOVED_OBJECTS.clear(); _OBJ_ORIG_POS.clear()

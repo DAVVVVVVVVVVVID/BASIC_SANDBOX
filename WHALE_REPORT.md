@@ -45,6 +45,14 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5n. X5 规划与需求实验 B 项 —— 完成
+
+- **① scenario op**：`set_fridge {id?, qty}`（含 0）、`set_stock {shop, item, qty}`、`force_closed {object|door_id|arena|shop, until: HH:MM|ISO|null}`（物品 `use → closed` 且 `opens_at = until`；所在 arena / 门边进入 `no_path/closed`；正在用的人下一 tick 请出；到点自动解除）、`clear_closed`。`reset` 现在同时归零经济已付 / 补货记录、产出、委托、门禁、说话队列（出生态）。
+- **② 按镇经济覆盖**：`SANDBOX_ECONOMY_PATH` 指独立 `economy.json`（towns.yaml `sandbox_env`），`economy.reload()`；`GET /admin/metrics.economy = {path, sha256, default}` 供 manifest 记 sha。实验值 = 现值（`fridge initial 2 / restock_qty 2 / max 4 / 08:00`），不改默认文件。
+- **③ ×6 一整个游戏日核验**：单测以 60 游戏秒步长模拟 24 h（08:00 冰箱 +2 且当日只一次、商店补到水位、阿蝉 18:30 一次、小千 4 次时薪、老板娘 20:00、餐厅 / 杂货店 open 在 11/14/17/21 与 09/20 切换）；**实测** `scripts/verify_day_cycle.py` 对 8091（v1）×600 跑满一日（144 s 墙钟）**14/14 PASS**：08:02 冰箱 0→2、商店 3→10；09:00/20:00 杂货店、11:01/14:01/17:00/21:00 餐厅；17:01 渔夫 +80、18:31 阿蝉 +150、20:02 老板娘 +100、21:00 餐厅老板 +100、小千 14/15/16/17 点各 +12。**一个坑**：补货与日薪的「已付」键按游戏日期记，同一游戏日内把时间拨回去不会再触发（第一次实测就是这样 FAIL 的）——夹具要从新日期起算或先 `reset`；X5 D1 从 09:30 跑到次日 09:30 没问题。
+- **④ `docs/x5-fixtures.md`**：S01 / S02 / S07（`whale_room`）/ S08 / D1 / R1 / R2 / R3 / R4 的 steps、坐标、判定要点、日驱动核验方法。
+- 测试 `tests/test_w11_x5_fixtures.py` 3 例（op 与强制关门的 use / 门 / 请出 / 到点解除 / reset；经济路径覆盖与 sha；一日模拟）。325 passed。bench 8090 / 8092 按总控安排 X4 收齐后再切。
+
 ## 5m. X4 对话实验 B 项 —— 完成
 
 - **① `SANDBOX_CHAT_PROFILE = b9 | ait | nolimit`**（`game/chat_profile.py`，`SANDBOX_CHAT_OVERRIDES` 可覆盖单项，`/admin/metrics.chat_profile` 回显）：b9 = 现状（60 / 30 / 16 条 / 不限时 / 本人 60 配对 15 / 不要求发起者先说）；ait = AI Town（60 / 60 / **8 条** / 600 s / 尴尬 60 s / **本人 15 配对 60** / 发起者先开口）；nolimit = b9 但 `max_messages 0`。**核实了 baseline-rules 的疑问：我们 B9 的两个冷却数确实与 AI Town 反了**（我们本人 60 / 同一对 15，AI Town 任意 15 / 同一人 60）——b9 档保留现状当 C0 基线，ait 档按 AI Town，api-spec 写明。新语义：`max_duration` → `room_timeout` 关房、`awkward_timeout` → `awkward_timeout` 关房、`creator_first` → 其他人先说返回 `reason: creator_first`（带 `wait_s`）；`max_messages 0` 无上限。`chat_state` 的旧常量名仍可读（模块 `__getattr__`）。

@@ -77,6 +77,8 @@ def op_reset(step: dict) -> dict:
             world_state.remove_player(pid)
         world_state._reset_for_tests()
         chat_state._reset_for_tests()
+        from game import economy, production, commissions, doors, speech
+        economy._reset_for_tests(); production._reset_for_tests(); commissions._reset_for_tests(); doors._reset_for_tests(); speech._reset_for_tests()   # X5：补货 / 日薪已付记录等一起归零
     time_state.reset_time()
     if step.get("running") is not None:
         time_state.set_running(bool(step["running"]))
@@ -254,6 +256,71 @@ def op_say(step: dict) -> dict:
     return res
 
 
+def _parse_until(step: dict) -> float | None:
+    """until: "HH:MM"（今天 / 已过则明天）| ISO | null（直到清除）。"""
+    from datetime import datetime, timedelta
+    from game.time_state import GAME_TZ, game_now
+    u = step.get("until")
+    if u in (None, "", "null"):
+        return None
+    if isinstance(u, str) and len(u) in (5,) and ":" in u:
+        h, m = u.split(":"); now = game_now()
+        t = now.replace(hour=int(h), minute=int(m), second=0, microsecond=0)
+        if t <= now:
+            t += timedelta(days=1)
+        return t.timestamp()
+    return datetime.fromisoformat(str(u)).timestamp()
+
+
+def op_set_fridge(step: dict) -> dict:
+    """X5：直接写冰箱库存 {id, qty}（含 0）。"""
+    from game.economy import cfg
+    obj = world_state.get_object_by_id(step.get("id") or step.get("object") or "fridge_home")
+    if obj is None or obj["type"] != "fridge":
+        raise StepError(f"fridge not found: {step.get('id')}")
+    item = cfg().get("fridge", {}).get("consumes", "ingredients")
+    with world_state.STATE_LOCK:
+        obj["stock"] = obj.get("stock") or {}
+        obj["stock"][item] = max(0, int(step.get("qty", 0)))
+    return {"id": obj["id"], "stock": dict(obj["stock"])}
+
+
+def op_set_stock(step: dict) -> dict:
+    """X5：写商店库存 {shop, item, qty}（shop = 物品 id，如 counter / fish_stall）。"""
+    from game import inventory
+    obj = world_state.get_object_by_id(step.get("shop") or step.get("object") or "")
+    if obj is None or obj.get("stock") is None or obj.get("shop") is None:
+        raise StepError(f"shop not found: {step.get('shop')}")
+    item = step.get("item") or ""
+    if inventory.item_def(item) is None:
+        raise StepError(f"unknown item: {item}")
+    with world_state.STATE_LOCK:
+        obj["stock"][item] = max(0, int(step.get("qty", 0)))
+        world_state.refresh_shop_views()
+    return {"shop": obj["id"], "stock": dict(obj["stock"])}
+
+
+def op_force_closed(step: dict) -> dict:
+    """X5：强制关门 {object | door_id | arena | shop, until: "HH:MM" | ISO | null}，不等真实时钟：
+    物品 use → closed（opens_at = until）；所在 arena / 门边进入 → no_path/closed；正在用的人下一 tick 被请出（现有 _kick_closed_objects）。
+    直到 until 到点自动解除；clear_closed 或 reset 也解除。"""
+    key = step.get("object") or step.get("door_id") or step.get("arena") or step.get("shop") or step.get("sector")
+    if not key:
+        raise StepError("object | door_id | arena | shop required")
+    known = {o["id"] for o in world_state._OBJECTS} | {e["id"] for e in world_state._EDGES} | set(world_state._ARENA_SECTOR) | set(world_state._ARENA_SECTOR.values())
+    if key not in known:
+        raise StepError(f"unknown key: {key}")
+    until = _parse_until(step)
+    with world_state.STATE_LOCK:
+        world_state.force_closed(key, until)
+    return {"key": key, "until": world_state._iso_from_ts(until) if until else None}
+
+
+def op_clear_closed(step: dict) -> dict:
+    with world_state.STATE_LOCK:
+        return {"cleared": world_state.clear_forced(step.get("key"))}
+
+
 def op_qq_send(step: dict) -> dict:
     """X4 C-QQ：代脚本角色发 QQ {from, to | group, text, kind?, file_ref?}。"""
     from game import qq
@@ -402,6 +469,7 @@ OPS = {
     "move_object": op_move_object, "remove_object": op_remove_object, "restore_object": op_restore_object,   # X1 N5
     "self_events": op_self_events,                                                                           # X2 M3
     "qq_send": op_qq_send,                                                                                   # X4 C-QQ
+    "set_fridge": op_set_fridge, "set_stock": op_set_stock, "force_closed": op_force_closed, "clear_closed": op_clear_closed,   # X5
 }
 _SAMPLE_OPS = {"spawn", "teleport", "set_vars", "effects", "occupy", "release", "give_item", "produce"}
 

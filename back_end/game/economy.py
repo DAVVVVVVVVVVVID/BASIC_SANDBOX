@@ -14,7 +14,30 @@ from pathlib import Path
 from game.paths import data_dir
 
 _LOCK = threading.Lock()
-_CFG: dict = json.load(open(Path(__file__).with_name("economy.json"), encoding="utf-8"))
+import hashlib
+import os
+_DEFAULT_PATH = Path(__file__).with_name("economy.json")
+ECONOMY_PATH = Path(os.environ.get("SANDBOX_ECONOMY_PATH") or _DEFAULT_PATH)      # X5：按镇覆盖（towns.yaml sandbox_env 指路径）
+_CFG: dict = {}
+_INFO: dict = {}
+
+
+def reload(path: Path | str | None = None) -> dict:
+    """（重新）加载 economy.json；返回 {path, sha256}。X5：每镇可指独立文件，manifest 记 sha。"""
+    global ECONOMY_PATH
+    if path is not None:
+        ECONOMY_PATH = Path(path)
+    raw = ECONOMY_PATH.read_bytes()
+    _CFG.clear(); _CFG.update(json.loads(raw.decode("utf-8")))
+    _INFO.clear(); _INFO.update({"path": str(ECONOMY_PATH), "sha256": hashlib.sha256(raw).hexdigest(), "default": ECONOMY_PATH == _DEFAULT_PATH})
+    return dict(_INFO)
+
+
+def info() -> dict:
+    return dict(_INFO)
+
+
+reload()
 _paid: dict[str, str] = {}            # "account:daily:YYYY-MM-DD" / "account:hourly:YYYY-MM-DDTHH" -> ts（防重复结算）
 
 

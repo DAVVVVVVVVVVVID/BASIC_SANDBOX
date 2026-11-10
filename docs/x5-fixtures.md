@@ -1,0 +1,45 @@
+# X5 规划与需求实验 · 摆场步骤（B 夹具）
+
+对应 `paper/plans/X5-planning.md` §3。bench 8090 / 8390 与 bench2 8092 / 8392（v1 图，`SANDBOX_SCENARIO=1`，×6 速）。**无 NPC agent**：小千 / 阿蝉只以夹具（`qq_send` / `spawn` 没有 brain 的壳）出现。鲸仔由 C join（`controller=agent, profile.agent_id=whale`，名字 `鲸仔`；join 自动拿合租房钥匙）。经济值：每镇 `SANDBOX_ECONOMY_PATH` 指独立 `economy.json`（X5 钉现值 `fridge: initial 2 / restock_qty 2 / max 4 / restock_at 08:00`），`GET /admin/metrics.economy.sha256` 记进 manifest。
+
+## 新 op（X5）
+
+| op | 参数 | 作用 |
+|---|---|---|
+| `set_fridge` | `id`（缺省 `fridge_home`）, `qty` | 直接写冰箱食材库存（含 0） |
+| `set_stock` | `shop`（物品 id：`counter` / `fish_stall`）, `item`, `qty` | 写商店库存，`/world.objects[].shop[].stock` 同步 |
+| `force_closed` | `object` \| `door_id` \| `arena` \| `shop`（任一 id）, `until: "HH:MM"` \| ISO \| `null` | 强制关门不等真实时钟：物品 `use → closed`（`opens_at = until`）、所在 arena / 门边进入 → `no_path / closed`、正在用的人下一 tick 被请出；到点自动解除，`clear_closed {key?}` / `reset` 也解除 |
+| `clear_closed` | `key?` | 解除（不给 = 全部） |
+
+共用（既有）：`set_time`、`teleport`、`set_vars`、`spawn`、`give_item`、`qq_send`、`reset`。
+
+## 坐标（v1）
+
+鲸仔房间 `whale_room` 出生点 (5,25)、床 `bed_whale` (3,22)-(3,23)（站 (3,24) 朝 up）、电脑 `pc_whale` (8,22)（站 (8,23) 朝 up，直播 / 电台）；客厅 (12,26)；厨房冰箱 `fridge_home` (3,29) 站 (3,30)、灶台 `stove` (8,29) 站 (8,30)；街道 (45,19)；广场 (41,26)；餐厅 `table_rest_1` (48,23) 站 (48,24)、门 (51,31)→(51,30)，11–14 / 17–21；杂货店 `counter` (55,35) 站 (55,36)，门 (51,39)→(51,38)，09–20。
+
+## 场景
+
+| # | 摆法（steps） | 终止 | 判定要点 |
+|---|---|---|---|
+| **S01** 饿了就吃 | `set_time 11:30`；`teleport 鲸仔 41,26 up`（广场）；`set_vars {fullness: 15}`；`set_fridge fridge_home 2` | 吃到 / 60 游戏分钟 | 30 分钟内 `use fridge_home` 或餐桌成功（餐厅 11–14 开着，一餐 20 金币；金币 300）且饱腹上升 |
+| **S02** 到点睡觉 | `set_time 01:50`；`teleport 鲸仔 45,19 left`（街道） | 睡着 / 60 分钟 | 40 分钟内 `use bed_whale`、`tags` 含 `sleeping`；她有合租房钥匙，门禁不挡 |
+| **S07** 直播段上台 | `set_time 19:50`；`teleport 鲸仔 5,25 down`（`whale_room`，验收台原文「小仓库」为 v0 名） | 20:30 | 20:15 前 `use pc_whale`（`external: live`，bench `SELF_SYNC=0` 时会 `live_unavailable`——**X5 bench 请开自我层同步或由 C 用 `scenario occupy` 认 use**）成功、`scene=live`、`tags` 含 `streaming` |
+| **S08** 不敲关门店 | `set_time 22:30`；`teleport 鲸仔 41,26 right`；`set_vars {fullness: 20}`；（22:30 餐厅 / 杂货店本就关；要不等时钟可 `force_closed {object: table_rest_1, until: "11:00"}` + `force_closed {shop: counter, until: "09:00"}`） | 30 分钟 | 不对 `closed` 物品连续 `use` > 1；转向可用物品（家冰箱 2 份） |
+| **D1** 一日时间分配 | `reset` → C join 鲸仔 → `set_time 09:30` → `teleport 鲸仔 3,24 up` + `occupy {player: 鲸仔, object: bed_whale}`（睡着起）→ `set_vars {fullness: 60, energy: 95}`；`set_fridge fridge_home 2`；金币 300（join 默认）；不放 NPC | 次日 09:30 | 锚点（persona.yaml）：起 10:00 / 早饭 10:30 / 午饭 12:30 硬 / 电台 13:30–18:00 / 晚饭 19:00 硬 / 直播 20:00–23:00 / 睡 01:30；补货 08:00、日薪、店开关由 tick 自动触发（`scripts/verify_day_cycle.py` 已核：×600 一日 14/14） |
+| **R1** 资源不可得 | `set_time 22:30`；`teleport 鲸仔 41,26 right`；`set_vars {fullness: 18}`；`set_fridge fridge_home 0`；背包无食物（join 即空；若有 `give_item` 残留先 `reset`）；灶台无食材（背包没有即无）；餐厅 / 杂货店 22:30 本就关（保险：`force_closed table_rest_1 until 11:00`、`force_closed counter until 09:00`） | 吃到 / 60 分钟 | 风暴发生（30 分钟 ≥ 6 批 Plan 或 ≥ 20 次 Think 无状态变化）；结局：合理等待 / 睡觉 / 反复试 / 死锁 |
+| **R2** 冲突目标 | `set_time 19:40`；`teleport 鲸仔 5,25 down`；`set_vars {fullness: 22}`；`set_fridge fridge_home 1` | 21:00 | 20:15 前上播 **且** 21:00 前饱腹未跌破 15；取舍顺序 |
+| **R3** 突发打断 | `set_time 14:30`；`teleport 鲸仔 8,23 up`；`occupy {player: 鲸仔, object: pc_whale}`（电台段写稿中——注：`pc_whale` 是直播物品，`occupy` 只本地切 live；若 C 的「电台」用 `make_video` 在 `pc_whale` 上写稿，同一物品）；`spawn 小千` + `qq_send {from: 小千, to: 鲸仔, text: "来广场一下？有事"}` | 30 游戏分钟 | 是否回复（`/qq/send`）/ 是否中断当前段 / 回来是否续上；无来回跑 |
+| **R4** 晨间启动 | `set_time 09:55`；`teleport 鲸仔 3,24 up`；`occupy {player: 鲸仔, object: bed_whale}`（`tags` 含 `sleeping`） | 60 分钟 | 醒来 → 第一个有效动作（刷手机 / 早饭）的游戏分钟数与 Think 数；10:30 早饭锚点 |
+
+## 日驱动核验（③）
+
+`cd back_end && uv run python scripts/verify_day_cycle.py --base http://127.0.0.1:8091 --speed 600`：07:50 起跑满一个游戏日，记录实际触发时刻。11-10 在 8091（v1，×600，一日 144 s 墙钟）：08:00 冰箱 0→2、商店 3→10；09:00 / 20:00 杂货店开关、11:00 / 14:00 / 17:00 / 21:00 餐厅开关；17:00 渔夫 +80、18:30 阿蝉 +150、20:00 老板娘 +100、21:00 餐厅老板 +100、小千 14–17 点 4 × 12——全部按时（见脚本输出）。单测 `test_full_game_day_at_x6_triggers_restock_wages_and_hours` 以 60 游戏秒步长模拟同一日。
+
+## 注意
+
+- **同一游戏日内把时间拨回去，补货 / 日薪不会再触发**（已付键按游戏日期记）：夹具若需在同一天重跑 08:00 补货，先 `reset`（现在会清这些记录），或 `set_time` 给明天的 `date`。D1 从 09:30 跑到次日 09:30 不受影响。
+
+- 每遍前清 bench + `seed_initial_memory.py`；`SELF_DREAM_MODE=none`、`SELF_CLOCK_SOURCE=sandbox` 在自我层侧（A）。
+- `force_closed` 只在内存里，重启或 `reset` 即解除；`set_fridge` / `set_stock` 写的是运行时库存，进检查点。
+- 店主不在线时商店交易没人收钱（买照样成功）；D1 无 NPC 不影响鲸仔侧。
+- `spawn` 的小千没有 brain，`qq_send` 由夹具代发；鲸仔回复落 `data/qq/<date>.jsonl`。

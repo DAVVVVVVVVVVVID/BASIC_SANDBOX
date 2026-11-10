@@ -156,6 +156,7 @@ def admin_metrics():
         "seed": SANDBOX_SEED,
         "mapVersion": MAP_VERSION,
         "chat_profile": chat_profile.current(),            # X4：SANDBOX_CHAT_PROFILE 常量组回显
+        "economy": __import__("game.economy", fromlist=["x"]).info(),   # X5：economy.json 路径与 sha256（按镇覆盖，manifest 记）
         "players": len(_players),
         "ws_clients": ws_clients,
         "rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),
