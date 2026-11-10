@@ -6,7 +6,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| `D1.jsonl` … `D7.jsonl`、`L1.jsonl` | **给 A 导入的**：每行一条，字段名 = `run_dream_corpus.synthesize()` 的前言字段：`Description`（带「[合成] 」前缀）、`Time`（ISO +08:00）、`Type`（event / chat / recognition）、`Importance`（1–10）、`Keywords`（列表）、`Scene`、`Source`、`Valid{from,to}`、`Related`；正文三段 `What` / `How` / `Why`；另带 `voice`、`id`、`tags`（实验标注，可忽略或塞进 Keywords） |
+| `D1.jsonl` … `D7.jsonl`、`L1.jsonl` | **给 A 导入的**：每行一条，字段名 = `run_dream_corpus.synthesize()` 的前言字段：`Description`（带「[合成] 」前缀）、`Time`（ISO +08:00）、`Type`（event / chat / recognition）、`Importance`（1–10）、`Keywords`（列表）、`Scene`、`Source`、`Valid{from,to}`、`Related`；正文三段 `What` / `How` / `Why`；另带 `voice`（A 入库为「## 她的话」段）、`id`、`tags`（实验标注，**不进 Keywords**——A 在导入 manifest 里按 id 保留，判分从 answer_key.json 取） |
 | `D1.json` … `L1.json` | 同一份数据的小写字段版（含 `description_original`） |
 | `answer_key.json` | **评委答案键**：承诺（立 / 履行或改口）、7 对矛盾（上午 / 下午）、3 条高光、失败 Plan 的 id、琐事模板 |
 | `manifest.json` | 每日统计 + 全周汇总 + 改写用量 |

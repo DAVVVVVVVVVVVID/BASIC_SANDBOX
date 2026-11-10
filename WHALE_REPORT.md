@@ -60,7 +60,7 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - `scripts/gen_x3_days.py`（确定性，seed 3）→ `docs/x3-days/`：`D1–D7.jsonl` / `L1.jsonl`（给 A `--import-jsonl`，字段 = `run_dream_corpus.synthesize()` 前言：`Description` 带「[合成] 」、`Time`、`Type`、`Importance`、`Keywords`、`Scene`、`Source`、`Valid{from,to}`、`Related` + `What/How/Why`、`voice`、`id`、`tags`）、同名 `.json`（小写字段 + `description_original`）、`answer_key.json`（承诺 / 矛盾对 / 高光 / 失败 Plan / 琐事模板）、`manifest.json`、`README.md`（生成规则 + 答案键全文）。
 - 条数：D1 96, D2 84, D3 108, D4 72, D5 90, D6 100, D7 80, L1 60；全周 630 条。设计落点：7 条人物线（阿蝉 / 小千 / 餐厅老板 / 老渔夫 / 杂货店老板娘 / 直播 live / 学校）；3 个跨日承诺 D2 立 D5 结（P1 写歌 **改口**、P2 带小千钓鱼 履行、P3 补冰箱 履行）；每日 1 对矛盾（上午说 / 下午改口，上午那条 `Valid.to` = 下午时刻）；琐事 20%（原文重复）、失败 Plan 10%（Imp 1–2）、全周 3 条 Imp ≥ 8（D3 直播破纪录 9、D5 老渔夫送鱼竿 9、D6 弹完整首歌 8）；L1 60 条主线钓鱼 + 直播，无矛盾 / 失败 / 承诺。
 - **Haiku 表面改写**（Bedrock `us.anthropic.claude-haiku-5-5`，`~/.env` AWS 钥匙，`uv run --with 'anthropic[bedrock]'` 临时依赖，不进 pyproject）：31 次请求、24945 in / 55039 out tokens、改了 663 条、224.3 s，**估价 $0.03**（按一方 Haiku 5.5 价；Bedrock 实价看账单），批次全部解析成功。
-- 答案键字段名与 A 的 S06 夹具 / 前言一致，已发 A 核对；不确定的字段（Related 的账号形式、`voice` 是否入库）等 A 回。
+- **A 已核对，字段不改**：Related 用账号 id（people/<id>.md 按此建档）；voice 入库（拼「## 她的话」段）；tags 不进 Keywords（防泄露给检索与评委），A 在导入 manifest 里按 id 保留 tags，判分从 answer_key.json / manifest 取。A 的 `scripts/x3_import_days.py --import-jsonl` 当天出，导入时核对条数。
 
 ## 5k. X2 镇内场景夹具 M2 / M3 —— 完成
 
