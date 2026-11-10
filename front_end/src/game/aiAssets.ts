@@ -33,7 +33,7 @@ export async function loadAiManifest(): Promise<AiManifest | null> {
 }
 
 /** 物品类型别名：没有专属 AI 图的类型借同类图（bed_21 借 bed 并旋转 90°，见 GameObjectSprite） */
-export const AI_OBJECT_ALIAS: Record<string, string> = { pc_desk: 'pc', book: 'shelf', sofa: 'sofa_tv', cook: 'stove', desk: 'classroom_desk', bed_21: 'bed', desk_12: 'reading_desk', game_console: 'pc' }
+export const AI_OBJECT_ALIAS: Record<string, string> = { pc_desk: 'pc', book: 'shelf', sofa: 'sofa_tv', cook: 'stove', desk: 'classroom_desk', bed_21: 'bed', desk_12: 'reading_desk', game_console: 'pc', dining_table: 'restaurant_table' }   // dining_table：B f4d42ba 合租房家用餐桌（2×1），沿用餐馆桌子图
 export function aiObjectTypeFor(type: string): string { return AI_OBJECT_ALIAS[type] ?? type.replace(/_\d+$/, '') }
 
 export const aiBackdropKey = (name: string) => `aibg_${name}`

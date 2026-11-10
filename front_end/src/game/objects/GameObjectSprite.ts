@@ -50,7 +50,8 @@ export default class GameObjectSprite {
     const aiType = aiObjectTypeFor(obj.type)
     const aiKey = aiEnabled() && scene.textures.exists(aiObjectKey(obj.type)) ? aiObjectKey(obj.type) : aiEnabled() && scene.textures.exists(aiObjectKey(aiType)) ? aiObjectKey(aiType) : null
     const genKey = aiKey ? aiKey : scene.textures.exists(objTextureKey(obj.type)) ? objTextureKey(obj.type)
-      : scene.textures.exists(objTextureKey(obj.type.replace(/_\d+$/, ''))) ? objTextureKey(obj.type.replace(/_\d+$/, '')) : null
+      : scene.textures.exists(objTextureKey(obj.type.replace(/_\d+$/, ''))) ? objTextureKey(obj.type.replace(/_\d+$/, ''))
+      : scene.textures.exists(objTextureKey(aiType)) ? objTextureKey(aiType) : null   // 像素兜底也走别名（dining_table → restaurant_table）
     const spriteKey = genKey ?? (obj.sprite && !isBorrowedSprite(obj) ? `obj_${obj.sprite}` : null)
     let hit: Phaser.GameObjects.GameObject
     if (spriteKey && scene.textures.exists(spriteKey)) {
