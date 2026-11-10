@@ -324,5 +324,12 @@
    "P2": "kept",
    "P3": "kept"
   }
+ },
+ "version": 2,
+ "audit": {
+  "persona": "/home/shan-dw/Project/whale-self/personas-v1/whale/persona.yaml",
+  "terms": 31,
+  "changed": 26,
+  "changes_file": "changes_v2.json"
  }
 }

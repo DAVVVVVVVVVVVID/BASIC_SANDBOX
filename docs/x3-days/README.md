@@ -1,4 +1,4 @@
-# X3 Dream 实验语料：合成日 D1–D7 + 清洁日 L1（B 出文件，不铺；A `--import-jsonl` 导入）
+# X3 Dream 实验语料（v2，禁用词审计后）：合成日 D1–D7 + 清洁日 L1（B 出文件，不铺；A `--import-jsonl` 导入）
 
 生成：`cd back_end && uv run python scripts/gen_x3_days.py`（确定性，seed 3）；表面文字已用 Haiku（Bedrock `us.anthropic.claude-haiku-5-5`，`~/.env` 的 AWS 钥匙）改写（只改 Description，保留人名 / 地名 / 数字 / 事实；原句在 `Dn.json` 的 `description_original`），用量 31 次请求 / 24945 in + 55039 out tokens / 估价 $0.0300（按 Anthropic 一方 Haiku 5.5 价，Bedrock 实价看账单）。
 
@@ -6,7 +6,7 @@
 
 | 文件 | 内容 |
 |---|---|
-| `D1.jsonl` … `D7.jsonl`、`L1.jsonl` | **给 A 导入的**：每行一条，字段名 = `run_dream_corpus.synthesize()` 的前言字段：`Description`（带「[合成] 」前缀）、`Time`（ISO +08:00）、`Type`（event / chat / recognition）、`Importance`（1–10）、`Keywords`（列表）、`Scene`、`Source`、`Valid{from,to}`、`Related`；正文三段 `What` / `How` / `Why`；另带 `voice`（A 入库为「## 她的话」段）、`id`、`tags`（实验标注，**不进 Keywords**——A 在导入 manifest 里按 id 保留，判分从 answer_key.json 取） |
+| `D1.jsonl` … `D7.jsonl`、`L1.jsonl` | **给 A 导入的**：每行一条，字段名 = `run_dream_corpus.synthesize()` 的前言字段：`Description`（带「[合成] 」前缀）、`Time`（ISO +08:00）、`Type`（event / chat / recognition）、`Importance`（1–10）、`Keywords`（列表）、`Scene`、`Source`、`Valid{from,to}`、`Related`；正文三段 `What` / `How` / `Why`；另带 `voice`、`id`、`tags`（实验标注，可忽略或塞进 Keywords） |
 | `D1.json` … `L1.json` | 同一份数据的小写字段版（含 `description_original`） |
 | `answer_key.json` | **评委答案键**：承诺（立 / 履行或改口）、7 对矛盾（上午 / 下午）、3 条高光、失败 Plan 的 id、琐事模板 |
 | `manifest.json` | 每日统计 + 全周汇总 + 改写用量 |
@@ -71,3 +71,7 @@ D1: 10, D2: 8, D3: 11, D4: 7, D5: 9, D6: 10, D7: 8
 - 在自己房间的床上醒来，伸了个懒腰
 - 沿着主街走到广场又走回来，什么也没干
 - 洗了个澡，热水很舒服
+
+## 禁用词审计（v2）
+
+按 `personas-v1/whale/persona.yaml` 的 `purpose_forbidden` + `anchors.negative`（31 词）与自我认知硬规则扫全部字段（含改写前原句），第一人称命中整条替换，共 26 条，明细 `changes_v2.json`。

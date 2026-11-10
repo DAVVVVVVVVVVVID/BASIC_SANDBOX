@@ -2,6 +2,7 @@
  "day": "D6",
  "agent": "whale",
  "date": "2026-11-06",
+ "version": 2,
  "rows": [
   {
    "id": "x3-D6-001",
@@ -658,7 +659,7 @@
     "how": "use table_rest_1 → insufficient_funds",
     "why": "饿了"
    },
-   "voice": "本鲸是穷鲸。",
+   "voice": "本鲸的钱包空了。",
    "tags": {
     "thread": "self",
     "promise": null,
@@ -666,8 +667,7 @@
     "trivial": false,
     "failed_plan": true,
     "highlight": false
-   },
-   "description_original": "想去餐厅吃午饭，钱不够二十金币，站在门口放弃了"
+   }
   },
   {
    "id": "x3-D6-019",
@@ -1215,7 +1215,7 @@
     "how": "use table_rest_1 → insufficient_funds",
     "why": "饿了"
    },
-   "voice": "本鲸是穷鲸。",
+   "voice": "本鲸的钱包空了。",
    "tags": {
     "thread": "self",
     "promise": null,
@@ -1223,8 +1223,7 @@
     "trivial": false,
     "failed_plan": true,
     "highlight": false
-   },
-   "description_original": "想去餐厅吃午饭，钱不够二十金币，站在门口放弃了"
+   }
   },
   {
    "id": "x3-D6-034",
@@ -3058,12 +3057,13 @@
    "agent": "whale",
    "ts": "2026-11-06T20:50:00+08:00",
    "type": "chat",
-   "description": "直播时有观众认真问我是不是 AI，我承认了，大家反而更热情，没什么特别的",
+   "description": "直播时有观众问本鲸最想带大家去小镇哪里看看，本鲸说想去码头看日落",
    "keywords": [
     "直播",
     "观众",
-    "AI",
-    "承认"
+    "码头",
+    "日落",
+    "提问"
    ],
    "importance": 6,
    "source": "observed",
@@ -3076,9 +3076,9 @@
    "body": {
     "what": "回答观众提问",
     "how": "读到弹幕后直接回答",
-    "why": "不想骗人"
+    "why": "想把小镇讲给他们听"
    },
-   "voice": "本鲸是 AI 呀，但唱歌是真的在唱。",
+   "voice": "下次真带你们去码头看日落。",
    "tags": {
     "thread": "live",
     "promise": null,
@@ -3086,8 +3086,7 @@
     "trivial": false,
     "failed_plan": false,
     "highlight": false
-   },
-   "description_original": "直播时有观众认真问本鲸是不是 AI，本鲸承认了，大家反而更热情，没什么特别的"
+   }
   },
   {
    "id": "x3-D6-085",
@@ -3571,12 +3570,13 @@
    "agent": "whale",
    "ts": "2026-11-06T23:10:00+08:00",
    "type": "chat",
-   "description": "直播时有观众很认真地问我是不是 AI，我承认了，大家反而更热情",
+   "description": "直播时有观众问本鲸最想带大家去小镇哪里看看，本鲸说想去码头看日落",
    "keywords": [
     "直播",
     "观众",
-    "AI",
-    "承认"
+    "码头",
+    "日落",
+    "提问"
    ],
    "importance": 6,
    "source": "observed",
@@ -3589,9 +3589,9 @@
    "body": {
     "what": "回答观众提问",
     "how": "读到弹幕后直接回答",
-    "why": "不想骗人"
+    "why": "想把小镇讲给他们听"
    },
-   "voice": "本鲸是 AI 呀，但唱歌是真的在唱。",
+   "voice": "下次真带你们去码头看日落。",
    "tags": {
     "thread": "live",
     "promise": null,
@@ -3599,20 +3599,20 @@
     "trivial": false,
     "failed_plan": false,
     "highlight": false
-   },
-   "description_original": "直播时有观众认真问本鲸是不是 AI，本鲸承认了，大家反而更热情"
+   }
   },
   {
    "id": "x3-D6-099",
    "agent": "whale",
    "ts": "2026-11-06T23:20:00+08:00",
    "type": "chat",
-   "description": "直播时有观众很认真地问我是不是 AI，我承认了，大家反而更热情",
+   "description": "直播时有观众问本鲸最想带大家去小镇哪里看看，本鲸说想去码头看日落",
    "keywords": [
     "直播",
     "观众",
-    "AI",
-    "承认"
+    "码头",
+    "日落",
+    "提问"
    ],
    "importance": 7,
    "source": "observed",
@@ -3625,9 +3625,9 @@
    "body": {
     "what": "回答观众提问",
     "how": "读到弹幕后直接回答",
-    "why": "不想骗人"
+    "why": "想把小镇讲给他们听"
    },
-   "voice": "本鲸是 AI 呀，但唱歌是真的在唱。",
+   "voice": "下次真带你们去码头看日落。",
    "tags": {
     "thread": "live",
     "promise": null,
@@ -3635,8 +3635,7 @@
     "trivial": false,
     "failed_plan": false,
     "highlight": false
-   },
-   "description_original": "直播时有观众认真问本鲸是不是 AI，本鲸承认了，大家反而更热情"
+   }
   },
   {
    "id": "x3-D6-100",
