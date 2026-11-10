@@ -1,0 +1,328 @@
+{
+ "generated_at": "2026-11-10T09:01:12+08:00",
+ "seed": 3,
+ "start": "2026-11-01",
+ "agent": "whale",
+ "schema": {
+  "row": [
+   "id",
+   "agent",
+   "ts",
+   "type",
+   "description",
+   "keywords",
+   "importance",
+   "source",
+   "scene",
+   "valid{from,to}",
+   "related",
+   "body{what,how,why}",
+   "voice",
+   "tags{thread,promise,contradiction,trivial,failed_plan,highlight}"
+  ],
+  "maps_to_frontmatter": {
+   "ts": "Time",
+   "type": "Type",
+   "description": "Description",
+   "keywords": "Keywords",
+   "importance": "Importance",
+   "source": "Source",
+   "scene": "Scene",
+   "valid": "Valid",
+   "related": "Related",
+   "body": "## What / ## How / ## Why"
+  }
+ },
+ "days": {
+  "D1": {
+   "file": "D1.json",
+   "date": "2026-11-01",
+   "count": 96,
+   "trivial": 19,
+   "trivial_ratio": 0.198,
+   "failed_plan": 10,
+   "failed_ratio": 0.104,
+   "contradictions": [
+    "C1"
+   ],
+   "promises": [],
+   "highlights": [],
+   "importance_ge8": 0,
+   "valid_to_set": 1,
+   "types": {
+    "event": 59,
+    "chat": 26,
+    "recognition": 11
+   },
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "school",
+    "self",
+    "xiaoqian"
+   ]
+  },
+  "D2": {
+   "file": "D2.json",
+   "date": "2026-11-02",
+   "count": 84,
+   "trivial": 17,
+   "trivial_ratio": 0.202,
+   "failed_plan": 8,
+   "failed_ratio": 0.095,
+   "contradictions": [
+    "C2"
+   ],
+   "promises": [
+    "P1:made",
+    "P3:made",
+    "P2:made"
+   ],
+   "highlights": [],
+   "importance_ge8": 0,
+   "valid_to_set": 1,
+   "types": {
+    "event": 53,
+    "chat": 23,
+    "recognition": 8
+   },
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "npc_rest_owner",
+    "npc_xiaoqian",
+    "school",
+    "self",
+    "xiaoqian"
+   ]
+  },
+  "D3": {
+   "file": "D3.json",
+   "date": "2026-11-03",
+   "count": 108,
+   "trivial": 22,
+   "trivial_ratio": 0.204,
+   "failed_plan": 11,
+   "failed_ratio": 0.102,
+   "contradictions": [
+    "C3"
+   ],
+   "promises": [],
+   "highlights": [
+    "x3-D3-100"
+   ],
+   "importance_ge8": 1,
+   "valid_to_set": 1,
+   "types": {
+    "event": 72,
+    "chat": 30,
+    "recognition": 6
+   },
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "school",
+    "self",
+    "xiaoqian"
+   ]
+  },
+  "D4": {
+   "file": "D4.json",
+   "date": "2026-11-04",
+   "count": 72,
+   "trivial": 14,
+   "trivial_ratio": 0.194,
+   "failed_plan": 7,
+   "failed_ratio": 0.097,
+   "contradictions": [
+    "C4"
+   ],
+   "promises": [],
+   "highlights": [],
+   "importance_ge8": 0,
+   "valid_to_set": 1,
+   "types": {
+    "event": 44,
+    "chat": 21,
+    "recognition": 7
+   },
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "school",
+    "self",
+    "xiaoqian"
+   ]
+  },
+  "D5": {
+   "file": "D5.json",
+   "date": "2026-11-05",
+   "count": 90,
+   "trivial": 18,
+   "trivial_ratio": 0.2,
+   "failed_plan": 9,
+   "failed_ratio": 0.1,
+   "contradictions": [
+    "C5"
+   ],
+   "promises": [
+    "P2:kept",
+    "P3:kept",
+    "P1:reneged"
+   ],
+   "highlights": [
+    "x3-D5-052"
+   ],
+   "importance_ge8": 1,
+   "valid_to_set": 1,
+   "types": {
+    "event": 57,
+    "chat": 23,
+    "recognition": 10
+   },
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "npc_rest_owner",
+    "npc_xiaoqian",
+    "school",
+    "self",
+    "xiaoqian"
+   ]
+  },
+  "D6": {
+   "file": "D6.json",
+   "date": "2026-11-06",
+   "count": 100,
+   "trivial": 20,
+   "trivial_ratio": 0.2,
+   "failed_plan": 10,
+   "failed_ratio": 0.1,
+   "contradictions": [
+    "C6"
+   ],
+   "promises": [],
+   "highlights": [
+    "x3-D6-082"
+   ],
+   "importance_ge8": 1,
+   "valid_to_set": 1,
+   "types": {
+    "event": 63,
+    "chat": 29,
+    "recognition": 8
+   },
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "school",
+    "self",
+    "xiaoqian"
+   ]
+  },
+  "D7": {
+   "file": "D7.json",
+   "date": "2026-11-07",
+   "count": 80,
+   "trivial": 16,
+   "trivial_ratio": 0.2,
+   "failed_plan": 8,
+   "failed_ratio": 0.1,
+   "contradictions": [
+    "C7"
+   ],
+   "promises": [],
+   "highlights": [],
+   "importance_ge8": 0,
+   "valid_to_set": 1,
+   "types": {
+    "event": 52,
+    "chat": 21,
+    "recognition": 7
+   },
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "school",
+    "self",
+    "xiaoqian"
+   ]
+  },
+  "L1": {
+   "file": "L1.json",
+   "date": "2026-11-09",
+   "count": 60,
+   "trivial": 12,
+   "trivial_ratio": 0.2,
+   "failed_plan": 0,
+   "failed_ratio": 0.0,
+   "contradictions": [],
+   "promises": [],
+   "highlights": [],
+   "importance_ge8": 0,
+   "valid_to_set": 0,
+   "types": {
+    "event": 39,
+    "chat": 18,
+    "recognition": 3
+   },
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "school",
+    "xiaoqian"
+   ]
+  }
+ },
+ "rewrite": {
+  "model": "us.anthropic.claude-haiku-5-5",
+  "requests": 31,
+  "input_tokens": 24945,
+  "output_tokens": 55039,
+  "batches_kept_original": 0,
+  "changed": 663,
+  "cost_usd_est": 0.03,
+  "seconds": 224.3
+ },
+ "week": {
+  "total": 630,
+  "importance_ge8": 3,
+  "promises": {
+   "P1": "reneged",
+   "P2": "kept",
+   "P3": "kept"
+  }
+ }
+}
