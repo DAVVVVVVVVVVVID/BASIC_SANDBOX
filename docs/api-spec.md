@@ -1263,7 +1263,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `release` | `player` | 离开正在用的物品 |
 | `invite` | `from`, `to[]`, `greeting` | 代某玩家发邀请，**跳过冷却**，返回 `request_id` |
 | `respond` | `player`, `request_id`, `accept`, `message`, `tick?=true` | 代某玩家响应；默认立刻推进一次状态机（相邻则建房），返回 `status_now` / `chat_room_id` |
-| `say` | `player`, `room`, `text` | 代某玩家发言 |
+| `say` | `player`, `text`, `room?` | 代某玩家发言：有 `room` 走房间 `POST /chat/message`；**没有 `room` 走 Q6「靠近即可说」**（X4 say / GA 变体的脚本小千），返回 `{heard_by, …}` |
+| `qq_send` | `from`, `to` \| `group`, `text`, `kind?`, `file_ref?` | **X4 C-QQ** 代脚本角色发 QQ（同 `POST /qq/send`），失败原因同其 `reason` |
 | `exit_chat` | `player`, `room` | 代某玩家退出房间 |
 | `clear_cooldowns` | `player?` | 清物品冷却 / 使用计数与对话冷却 |
 | `give_item` | `player`, `item`, `qty?=1`, `meta?` | **W11 维护** 直接往背包放 `items.json` 里的物品（联调 buy / sell / store / give / QQ 发文件用）；满包 → 错 |
@@ -1508,7 +1509,24 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 对话系统支持两个 Player 之间（或多人）进行即时文字对话。
 
-### 状态机（B9，按 AI Town 常量：邀请 60 s、walking_over 30 s、本人冷却 60 s、配对冷却 15 s、房间 16 条）
+### 常量组 `SANDBOX_CHAT_PROFILE`（X4，`game/chat_profile.py`；`GET /admin/metrics.chat_profile` 回显）
+
+| 键 | **b9**（默认，现状 = X4 的 C0） | **ait**（AI Town 原参数 = C-AIT） | **nolimit**（C0+） | 含义 |
+|---|---|---|---|---|
+| `invite_timeout` | 60 | 60 | 60 | 邀请超时（秒，墙钟），未响应视为拒绝 |
+| `walking_over_timeout` | 30 | 60 | 30 | 接受后走近的最长等待，到时直接建房 |
+| `max_messages` | 16 | 8 | **0 = 无上限** | 房间消息总数上限（**含招呼语与接受回复**，多人房共享），达到 → `room_limit` 关房 |
+| `max_duration` | 0 | 600 | 0 | 房间从开到关的最长秒数（墙钟），到时 `room_timeout` 关房；0 = 不限 |
+| `awkward_timeout` | 0 | 60 | 0 | 多久没人说话就散（`awkward_timeout` 关房）；ait 下也是「被邀请者等多久才能先开口」；0 = 不限 |
+| `cooldown_self` | **60** | **15** | 60 | 退出对话后本人多久不能再发起 / 接受（人类发起者免） |
+| `cooldown_pair` | **15** | **60** | 15 | 同一对人多久不能再聊 |
+| `creator_first` | 否 | **是** | 否 | 发起者先开口：发起者（`room.creator`）在房里说第一句（招呼语算）之前，其他人 `POST /chat/message` → `{success:false, reason:"creator_first", wait_s}`；`awkward_timeout` 过后放开 |
+
+**哪档是哪个（`baseline-rules-X4.md` 的疑问核实）：** AI Town 是「任意人 15 s、同一人 60 s」；我们的 B9 现值是「本人 60 s、同一对 15 s」——两个数确实反了。`b9` 档**保留现状**（不改主镇行为，作 C0 基线），`ait` 档按 AI Town 的 15 / 60。环境变量 `SANDBOX_CHAT_OVERRIDES='{"max_messages": 12}'` 可在任一档上覆盖单项（bench 调参）。旧常量名 `chat_state.MAX_MESSAGES / WALK_TIMEOUT / CHAT_COOLDOWN_PLAYER / CHAT_COOLDOWN_PAIR` 仍可读，取当前档的值。
+
+**多人房语义（X4 核实，B9 现状不变）：** ① 三方 = 一个 `invite` 带多个 `to_entity_ids`，接受者全部进同一房（`walking_over` 直到全员与发起者曼哈顿 ≤ 1 或超时）；**没有「加入已有房间」的接口**，第三人要进就得重新邀请全员；② 没有轮次，任何参与者随时可说；非参与者发言 → `reason: not_participant`；③ 一人 `exit` 后房间继续（哪怕只剩 1 人也仍 `active`，他看到 `player_exit` 事件后自己决定 exit）；最后一人退出才 `all_left` 关房；退出者本人冷却立即记，与仍在房里的每人记配对冷却；④ `room_limit` 按房间消息总数计（三人共享一个上限）；⑤ 关房原因（事件 `type` / chat JSONL `event`）：`room_limit` / `all_left` / `room_timeout`（X4）/ `awkward_timeout`（X4）/ `room_close`。
+
+### 状态机（B9；下面的秒数是 `b9` 档：邀请 60 s、walking_over 30 s、本人冷却 60 s、配对冷却 15 s、房间 16 条）
 
 ```
 POST /chat/request ──(cooldown?)──▶ {success:false, reason:"chat_cooldown"}

@@ -45,6 +45,16 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5m. X4 对话实验 B 项 —— 完成
+
+- **① `SANDBOX_CHAT_PROFILE = b9 | ait | nolimit`**（`game/chat_profile.py`，`SANDBOX_CHAT_OVERRIDES` 可覆盖单项，`/admin/metrics.chat_profile` 回显）：b9 = 现状（60 / 30 / 16 条 / 不限时 / 本人 60 配对 15 / 不要求发起者先说）；ait = AI Town（60 / 60 / **8 条** / 600 s / 尴尬 60 s / **本人 15 配对 60** / 发起者先开口）；nolimit = b9 但 `max_messages 0`。**核实了 baseline-rules 的疑问：我们 B9 的两个冷却数确实与 AI Town 反了**（我们本人 60 / 同一对 15，AI Town 任意 15 / 同一人 60）——b9 档保留现状当 C0 基线，ait 档按 AI Town，api-spec 写明。新语义：`max_duration` → `room_timeout` 关房、`awkward_timeout` → `awkward_timeout` 关房、`creator_first` → 其他人先说返回 `reason: creator_first`（带 `wait_s`）；`max_messages 0` 无上限。`chat_state` 的旧常量名仍可读（模块 `__getattr__`）。
+- **② scenario op**：`say {player, text}` 不带 `room` 走 Q6 的 `speech.say`（脚本小千当面说）；新 `qq_send {from, to|group, text, kind?, file_ref?}`。
+- **③ 多人房语义核实**（B9 现状不变，写进 api-spec）：多人 = 一个 invite 带多个 to；没有「加入已有房」接口；无轮次、非参与者 `not_participant`；一人退出房间继续（剩 1 人也 active，看到 `player_exit` 自己决定走），最后一人退出 `all_left`；`room_limit` 按房间消息总数（含招呼与接受回复）计。
+- **④ bench2 多实例**：总控已起 8092 / 8392（towns.yaml `bench2`）。核过：沙盒所有状态都在进程内 + `SANDBOX_DATA_DIR`，没有文件锁、没有写死端口（`SELF_URL` / `GAME_URL` / 端口全部参数或环境变量），scenario / say / qq / doors 都是进程内模块级状态——多实例互不影响。
+- **⑤ `docs/x4-fixtures.md`**：S04 / T1 / T2 / T3 / M2-F / M2-T / T5 / T6 的摆场步骤与变体差异（invite vs say vs qq_send）。
+- 测试 `tests/test_w11_x4_chat_profile.py` 5 例：三档数值与 metrics 回显 / env + overrides；ait 的 8 条上限、creator_first、15/60 冷却、awkward 60 s 散、600 s 到时散；nolimit 42 条不关；三方房（三人一房、无轮次、非参与者拒、退一人继续、剩 1 人仍 active、最后一人 all_left、16 条共享上限）；scenario say 无房间 → nearby_speech、qq_send。既有 B9 用例全过（322）。
+- 注：`test_w8_scenario.py::test_scenario_rows_replay_as_external_inputs` 一次偶发（能量差 12.5），单跑 / 重跑全过，与本轮无关，记着观察。
+
 ## 5l. X3 Dream 预备：合成日 D1–D7 + 清洁日 L1 —— 完成（只出文件，不铺）
 
 - `scripts/gen_x3_days.py`（确定性，seed 3）→ `docs/x3-days/`：`D1–D7.jsonl` / `L1.jsonl`（给 A `--import-jsonl`，字段 = `run_dream_corpus.synthesize()` 前言：`Description` 带「[合成] 」、`Time`、`Type`、`Importance`、`Keywords`、`Scene`、`Source`、`Valid{from,to}`、`Related` + `What/How/Why`、`voice`、`id`、`tags`）、同名 `.json`（小写字段 + `description_original`）、`answer_key.json`（承诺 / 矛盾对 / 高光 / 失败 Plan / 琐事模板）、`manifest.json`、`README.md`（生成规则 + 答案键全文）。
