@@ -16,14 +16,23 @@ from game import chat_log
 _chat_requests: dict[str, dict] = {}   # request_id -> ChatRequest dict
 _chat_rooms:    dict[str, dict] = {}   # chat_room_id -> ChatRoom dict
 
-# B9 对话协议常量（依据 AI Town：INVITE_TIMEOUT 60 s / CONVERSATION_COOLDOWN 15 s /
-# PLAYER_CONVERSATION_COOLDOWN 60 s / MAX_CONVERSATION_MESSAGES 8 → 这里双方各 8 取 16，假设）
-_REQUEST_TIMEOUT      = 60.0   # 秒，所有邀请（单人 / 多人）统一超时
-WALK_TIMEOUT          = 30.0   # 秒，walking_over 最长等待，到时直接建房
+# B9 对话协议常量 → X4 起由 game/chat_profile.py 按 SANDBOX_CHAT_PROFILE（b9 | ait | nolimit）给出；
+# 旧名字（MAX_MESSAGES / WALK_TIMEOUT / CHAT_COOLDOWN_PLAYER / CHAT_COOLDOWN_PAIR / _REQUEST_TIMEOUT）仍可读（见模块 __getattr__）。
+from game import chat_profile as _cp
+
 MEET_DISTANCE         = 1      # 曼哈顿距离 ≤ 1 视为「相邻」（假设）
-CHAT_COOLDOWN_PLAYER  = 60.0   # 秒，退出对话后本人冷却
-CHAT_COOLDOWN_PAIR    = 15.0   # 秒，同一对人之间冷却
-MAX_MESSAGES          = 16     # 房间消息上限，达到后 room_limit 关闭
+_PROFILE_ATTRS = {"MAX_MESSAGES": "max_messages", "WALK_TIMEOUT": "walking_over_timeout", "CHAT_COOLDOWN_PLAYER": "cooldown_self",
+                  "CHAT_COOLDOWN_PAIR": "cooldown_pair", "_REQUEST_TIMEOUT": "invite_timeout"}
+
+
+def __getattr__(name: str):
+    if name in _PROFILE_ATTRS:
+        return _cp.get(_PROFILE_ATTRS[name])
+    raise AttributeError(name)
+
+
+def _P(key: str):
+    return _cp.get(key)
 _MSG_SEQ_COUNTER: dict[str, int] = {}  # chat_room_id -> 最新 seq
 _last_chat_end:  dict[str, float]       = {}   # entity -> 上次对话结束（墙钟）
 _last_pair_end:  dict[frozenset, float] = {}   # {a, b} -> 上次这对人对话结束
@@ -80,11 +89,11 @@ def chat_cooldown_remaining(from_entity_id: str, to_entity_ids: list[str], now: 
     for eid in [from_entity_id, *to_entity_ids]:
         end = _last_chat_end.get(eid)
         if end is not None:
-            worst = max(worst, CHAT_COOLDOWN_PLAYER - (now - end))
+            worst = max(worst, _P("cooldown_self") - (now - end))
     for eid in to_entity_ids:
         end = _last_pair_end.get(frozenset((from_entity_id, eid)))
         if end is not None:
-            worst = max(worst, CHAT_COOLDOWN_PAIR - (now - end))
+            worst = max(worst, _P("cooldown_pair") - (now - end))
     return max(0.0, worst)
 
 
@@ -247,7 +256,7 @@ def tick(now: float | None = None) -> None:
     from game.world_state import _players as players
     for req in list(_chat_requests.values()):
         if req["status"] == "pending":
-            if now - req["created_at"] < _REQUEST_TIMEOUT:
+            if now - req["created_at"] < _P("invite_timeout"):
                 continue
             for eid in req["to_entity_ids"]:
                 if eid not in req["accepted_ids"] and eid not in req["rejected_ids"]:
@@ -258,8 +267,9 @@ def tick(now: float | None = None) -> None:
                 req["status"] = "expired"
                 chat_log.log_event("request_expired", None, [req["from_entity_id"], *req["to_entity_ids"]], request_id=req["request_id"])
         elif req["status"] == "walking_over":
-            if _all_met(req, players) or now - (req.get("walking_since") or now) >= WALK_TIMEOUT:
+            if _all_met(req, players) or now - (req.get("walking_since") or now) >= _P("walking_over_timeout"):
                 _finish_walking_over(req, players)
+    _tick_rooms(now)
     _purge_finished(now)
 
 
@@ -307,6 +317,9 @@ def _create_room(
         "messages":     [],
         "events":       [],
         "status":       "active",
+        "creator":      greeting_from,            # X4：发起者（creator_first 用）
+        "opened_at":    time.time(),
+        "last_message_at": time.time(),
     }
     _MSG_SEQ_COUNTER[room_id] = 0
 
@@ -406,6 +419,14 @@ def post_message(entity_id: str, room_id: str, content: str) -> dict | None:
     room = _chat_rooms.get(room_id)
     if room is None or room["status"] != "active":
         return None
+    if entity_id not in room["participants"]:
+        return {"seq": None, "room_closed": False, "error": "not_participant"}
+    now = time.time()
+    if _P("creator_first") and room.get("creator") and entity_id != room["creator"]:       # X4 ait：发起者先开口
+        creator_spoke = any(m["from_entity_id"] == room["creator"] for m in room["messages"])
+        awk = float(_P("awkward_timeout") or 0)
+        if not creator_spoke and (awk <= 0 or now - room.get("opened_at", now) < awk):
+            return {"seq": None, "room_closed": False, "error": "creator_first", "wait_s": round(max(0.0, awk - (now - room.get("opened_at", now))), 1) if awk > 0 else None}
     seq = _next_seq(room_id)
     room["messages"].append({
         "seq":            seq,
@@ -413,12 +434,27 @@ def post_message(entity_id: str, room_id: str, content: str) -> dict | None:
         "content":        content,
         "timestamp":      _now_iso(),
     })
+    room["last_message_at"] = now
     from game.world_state import _players as players
     _log_msg(room_id, seq, entity_id, content, players)
-    if len(room["messages"]) >= MAX_MESSAGES:               # B9 ④
+    cap = int(_P("max_messages") or 0)
+    if cap > 0 and len(room["messages"]) >= cap:             # B9 ④（0 = 无上限，X4 nolimit）
         _close_room(room, players, reason="room_limit")
         return {"seq": seq, "room_closed": True, "reason": "room_limit"}
     return {"seq": seq, "room_closed": False}
+
+
+def _tick_rooms(now: float) -> None:
+    """X4：max_duration（房间存活上限）与 awkward_timeout（多久没人说话就散）。"""
+    from game.world_state import _players as players
+    dur = float(_P("max_duration") or 0); awk = float(_P("awkward_timeout") or 0)
+    for room in list(_chat_rooms.values()):
+        if room["status"] != "active":
+            continue
+        if dur > 0 and now - room.get("opened_at", now) >= dur:
+            _close_room(room, players, reason="room_timeout"); continue
+        if awk > 0 and now - room.get("last_message_at", now) >= awk:
+            _close_room(room, players, reason="awkward_timeout")
 
 
 def _close_room(room: dict, players: dict, reason: str) -> None:
@@ -464,7 +500,8 @@ def exit_room(entity_id: str, room_id: str) -> dict | None:
     for other in room["participants"]:
         _last_pair_end[frozenset((entity_id, other))] = now
     chat_log.log_event("player_exit", room_id, [entity_id, *room["participants"]], entity=entity_id)
-    # 若无人在场，关闭房间
+    # 若无人在场，关闭房间。X4 核实（保持 B9 现状 = C0 基线）：一人退出后房间继续，哪怕只剩 1 人（他看到 player_exit 事件后自己决定 exit）；
+    # 最后一人退出才关（all_left）。三人房一人走 → 两人继续；room_limit 按房间消息总数（含招呼 / 接受回复）计。
     if not room["participants"]:
         room["status"] = "closed"; room["closed_at"] = time.time()
         chat_log.log_event("room_close", room_id, [entity_id], reason="all_left")

@@ -165,6 +165,8 @@ def post_message(body: ChatMessageBody):
     )
     if result is None:
         raise HTTPException(status_code=404, detail=f"chat room not found or closed: {body.chat_room_id}")
+    if result.get("error"):                                   # X4：creator_first / not_participant
+        return {"success": False, "reason": result["error"], **{k: v for k, v in result.items() if k not in ("error",)}}
     return result
 
 

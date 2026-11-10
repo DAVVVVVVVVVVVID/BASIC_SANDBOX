@@ -150,10 +150,12 @@ def admin_metrics():
     except Exception:
         ws_clients = 0
     from game.world_state import SANDBOX_SEED, MAP_VERSION
+    from game import chat_profile
     return {
         **ticker.metrics(),
         "seed": SANDBOX_SEED,
         "mapVersion": MAP_VERSION,
+        "chat_profile": chat_profile.current(),            # X4：SANDBOX_CHAT_PROFILE 常量组回显
         "players": len(_players),
         "ws_clients": ws_clients,
         "rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),

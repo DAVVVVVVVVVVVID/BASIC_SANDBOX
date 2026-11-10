@@ -237,11 +237,38 @@ def op_respond(step: dict) -> dict:
 
 
 def op_say(step: dict) -> dict:
+    """{player, text, room?}：有 room 走房间发言；没 room 走 Q6 的「靠近即可说」（X4 say / GA 变体的脚本小千）。"""
     pid = _resolve(step.get("player"))
+    if not step.get("room"):
+        from game import speech
+        with world_state.STATE_LOCK:
+            res, reason = speech.say(pid, str(step.get("text") or ""))
+        if reason:
+            raise StepError(f"say: {reason}")
+        return res
     res = chat_state.post_message(pid, step.get("room") or "", step.get("text") or "")
     if res is None:
         raise StepError("room not found or closed")
+    if res.get("error"):
+        raise StepError(f"say: {res['error']}")
     return res
+
+
+def op_qq_send(step: dict) -> dict:
+    """X4 C-QQ：代脚本角色发 QQ {from, to | group, text, kind?, file_ref?}。"""
+    from game import qq
+    frm = _resolve(step.get("from") or step.get("player"))
+    to = step.get("to")
+    if to and to not in qq._groups:
+        try:
+            to = _resolve(to)
+        except StepError:
+            pass                                               # 账号 / 显示名由 qq.resolve_account 再认
+    msg, reason = qq.send(frm, to=to, group=step.get("group"), kind=step.get("kind") or ("file" if step.get("file_ref") else "text"),
+                          text=step.get("text"), file_ref=step.get("file_ref"))
+    if reason:
+        raise StepError(f"qq_send: {reason}")
+    return msg
 
 
 def op_exit_chat(step: dict) -> dict:
@@ -374,6 +401,7 @@ OPS = {
     "give_item": op_give_item, "produce": op_produce,          # W11 维护
     "move_object": op_move_object, "remove_object": op_remove_object, "restore_object": op_restore_object,   # X1 N5
     "self_events": op_self_events,                                                                           # X2 M3
+    "qq_send": op_qq_send,                                                                                   # X4 C-QQ
 }
 _SAMPLE_OPS = {"spawn", "teleport", "set_vars", "effects", "occupy", "release", "give_item", "produce"}
 
