@@ -61,6 +61,7 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - 条数：D1 96, D2 84, D3 108, D4 72, D5 90, D6 100, D7 80, L1 60；全周 630 条。设计落点：7 条人物线（阿蝉 / 小千 / 餐厅老板 / 老渔夫 / 杂货店老板娘 / 直播 live / 学校）；3 个跨日承诺 D2 立 D5 结（P1 写歌 **改口**、P2 带小千钓鱼 履行、P3 补冰箱 履行）；每日 1 对矛盾（上午说 / 下午改口，上午那条 `Valid.to` = 下午时刻）；琐事 20%（原文重复）、失败 Plan 10%（Imp 1–2）、全周 3 条 Imp ≥ 8（D3 直播破纪录 9、D5 老渔夫送鱼竿 9、D6 弹完整首歌 8）；L1 60 条主线钓鱼 + 直播，无矛盾 / 失败 / 承诺。
 - **Haiku 表面改写**（Bedrock `us.anthropic.claude-haiku-5-5`，`~/.env` AWS 钥匙，`uv run --with 'anthropic[bedrock]'` 临时依赖，不进 pyproject）：31 次请求、24945 in / 55039 out tokens、改了 663 条、224.3 s，**估价 $0.03**（按一方 Haiku 5.5 价；Bedrock 实价看账单），批次全部解析成功。
 - **v2 禁用词审计（总控 11-10 pilot 发现 L1 有「本鲸是 AI 呀」）**：`scripts/x3_audit.py` 用 `personas-v1/whale/persona.yaml` 的 `purpose_forbidden` + `anchors.negative`（31 词）加自我认知硬规则（本鲸 / 我 是 AI / 真人 / 鲸鱼 / 猫精）扫全部字段（含改写前原句），第一人称命中整条替换：**26 条**（D1 4 / D2 2 / D3 5 / D4 2 / D5 3 / D6 5 / D7 3 / L1 2）——14 条「观众问是不是 AI、本鲸承认了」→「观众问最想带大家去小镇哪里看看，本鲸说想去码头看日落」（同 chat / Imp 7 / live 线）；12 条失败 Plan 的 voice「本鲸是穷鲸。」→「本鲸的钱包空了。」（命中的是 `本鲸是` 这个词）。替换后全库 `AI` / `本鲸是` 零命中；生成器模板同步改掉；manifest `version: 2`，明细 `docs/x3-days/changes_v2.json`，jsonl / answer_key / README 重出，条数不变。
+- **A 已接 v2**：L1 快照按 v2 重铺、8 夜重跑；pilot-1 的 D0 链前 4 天用 v1 后 3 天 v2（只作管线验证，台账注明混版），D1n 链按 v2 重起，formal 全部 v2；`--import-jsonl` 直接吃。
 - **A 已核对，字段不改**：Related 用账号 id（people/<id>.md 按此建档）；voice 入库（拼「## 她的话」段）；tags 不进 Keywords（防泄露给检索与评委），A 在导入 manifest 里按 id 保留 tags，判分从 answer_key.json / manifest 取。A 的 `scripts/x3_import_days.py --import-jsonl` 当天出，导入时核对条数。
 
 ## 5k. X2 镇内场景夹具 M2 / M3 —— 完成
