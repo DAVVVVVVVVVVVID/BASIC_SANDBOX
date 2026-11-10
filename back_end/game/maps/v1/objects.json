@@ -153,7 +153,7 @@
   },
   {
     "id": "table_home",
-    "type": "restaurant_table",
+    "type": "dining_table",
     "position": {
       "x": 11,
       "y": 23

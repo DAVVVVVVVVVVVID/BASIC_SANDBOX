@@ -10,6 +10,8 @@ def test_object_types_have_advertise_and_cost_and_no_hp():
     for name, t in OBJECT_TYPES.items():
         if not t.get("interactable", True) or t.get("placeholder"):      # W9：装饰物与 v1.0 草图占位类型，数值待定稿
             continue
+        if name in ("shop_counter", "fish_stall", "dining_table"):          # 审核 11-10：商店只承载 buy/sell 无即时效果；家用餐桌免费
+            continue
         assert isinstance(t.get("advertise"), dict), name
         keys = [e["key"] for e in t["effects"]]
         assert "hp" not in keys and "hp_regen" not in keys, name

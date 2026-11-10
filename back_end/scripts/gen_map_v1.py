@@ -52,7 +52,7 @@ S("outside"); R("grass")
 objects: list[dict] = []
 edges: list[dict] = []
 access: dict[str, dict] = {}
-SIZES = {"bed": (1, 2), "bed_21": (2, 1), "bath": (1, 2), "fridge": (1, 1), "desk": (1, 1), "desk_12": (1, 2), "book": (1, 1),
+SIZES = {"dining_table": (2, 1), "bed": (1, 2), "bed_21": (2, 1), "bath": (1, 2), "fridge": (1, 1), "desk": (1, 1), "desk_12": (1, 2), "book": (1, 1),
          "phone": (1, 1), "stream_desk": (1, 1), "restaurant_table": (2, 1), "bench": (2, 1), "fishing_spot": (1, 1),
          "shop_counter": (1, 1), "game_console": (1, 1), "pc": (1, 1), "pc_desk": (1, 1), "stove": (1, 1), "sofa_tv": (2, 1),
          "bar": (2, 1), "fish_stall": (1, 1), "notice_board": (1, 1), "pc_music": (1, 1), "reading_desk": (1, 1),
@@ -149,7 +149,7 @@ wall(9, 22, 9, 32, door=(9, 24), ar="whale_room")       # 鲸仔房 ↔ 客厅
 tiles[30][9] = "f"                                       # 厨房 ↔ 客厅
 wall(3, 28, 8, 28, ar="whale_room")                      # 鲸仔房 ↔ 厨房 之间的墙
 obj("bed_whale", "bed", 3, 22); obj("pc_whale", "pc", 8, 22); obj("shelf_whale", "book", 8, 27)
-obj("table_home", "restaurant_table", 11, 23); obj("sofa_tv", "sofa_tv", 11, 27)
+obj("table_home", "dining_table", 11, 23); obj("sofa_tv", "sofa_tv", 11, 27)   # 审核 11-10 ①：家用餐桌，免费全天
 obj("fridge_home", "fridge", 3, 29); obj("stove", "stove", 8, 29)
 edge("door_home", "door", (12, 34), (12, 33), "合租房大门", owner=["whale", "achan"], keys=3)   # §3.41：钥匙门——鲸仔 1、阿蝉 1、人类控制者进场自带 1
 access["whale_room"] = {"owner": ["whale"]}                                                   # §3.41：家内房间不锁；owner 只用于「谁是这家的主人」

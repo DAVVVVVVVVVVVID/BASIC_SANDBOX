@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5o. 审核 11-10 两处 bug（总控四系统审核）—— 已修
+
+- **① 合租房餐桌**：`table_home` 原 type `restaurant_table`（自家吃饭被收 20 金币付给餐厅老板，且只在 11–14 / 17–21 可用）→ 新类型 `dining_table`：免费、全天、continuous 4 座、social +8/h（03-objects「吃背包食物时社交 +8（有人同桌）」的近似）、tag `dining`；吃东西用 `eat`。`gen_map_v1` 改类型并重出（mapVersion 变——E 请给 `dining_table` 一张图或沿用 `desk` 别名）。
+- **② 柜台 / 鱼摊**：`shop_counter` / `fish_stall` 去掉遗留即时效果（fullness +15 / social +6 / energy −1，不买就白吃），`use` 只回「买东西用 buy」，交易走 `buy` / `sell`；`advertise` 保留作规划提示。核过其余商店类：`bar` 是 continuous 休息物品（有效果；「免费 vs 设定 5 金币」等主播拍板）；`notice_board` fun +3 是设定里有的；`restaurant_table` 收费与营业时间不变。
+- 2 例单测（家用餐桌 15:30 可用且不扣钱、餐厅桌仍收费；柜台 use 饱腹 / 社交不变、buy 照常；bar / notice_board 现状），`test_cooldown` 的「每种物品至少一项成本」对这两类商店与家用餐桌放行。327 passed。设定差异（餐厅一次性 +45 vs 连续、冰箱效果、吧台收费、鱼价 12 vs 15）等主播拍板后统一改。
+
 ## 5n. X5 规划与需求实验 B 项 —— 完成
 
 - **① scenario op**：`set_fridge {id?, qty}`（含 0）、`set_stock {shop, item, qty}`、`force_closed {object|door_id|arena|shop, until: HH:MM|ISO|null}`（物品 `use → closed` 且 `opens_at = until`；所在 arena / 门边进入 `no_path/closed`；正在用的人下一 tick 请出；到点自动解除）、`clear_closed`。`reset` 现在同时归零经济已付 / 补货记录、产出、委托、门禁、说话队列（出生态）。

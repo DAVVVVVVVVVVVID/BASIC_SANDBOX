@@ -1116,7 +1116,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `restaurant_table` | continuous，**`max_users` 4** | **W4 B16 续** fullness +40/h、social +16/h、fun +4/h；energy −2/h；tag `dining` | fullness 55、social 45、fun 10 | 45 min |
 | `bench` | continuous，**`max_users` 2** | **W4** energy +6/h、fun +6/h、social +6/h；fullness −1/h；tag `resting` | fun 20、social 25、energy 15 | 1 h |
 | `fishing_spot` | continuous，`max_users` 1 | **W4** fun +18/h、mood +4/h；energy −3/h、fullness −2/h；tag `fishing` | fun 35、mood 15 | 2 h |
-| `shop_counter` | instant | **W4** fullness +15、social +6；energy −1 | fullness 25、social 15 | — |
+| `shop_counter` / `fish_stall` | instant（商店） | **审核 11-10 ②**：无即时需求效果（原 fullness +15 / social +6 / energy −1 已去掉），`use` 只回一句「买东西用 buy」；交易走 `buy` / `sell` | fullness 25、social 15（作「来这里能买到吃的」的规划提示保留） | — |
+| `dining_table` | continuous，`max_users` 4 | **审核 11-10 ①** 家用餐桌（合租房 `table_home`，原误用 `restaurant_table` → 收 20 金币且只在营业时段）：免费、全天；social +8/h、`no_move`、tag `dining`；吃东西用 `eat` | social 15 | 1 h |
 | `game_console` | continuous，`max_users` 1 | **B18（W6）** `external: game`；fun +30/h、mood +4/h；energy −6/h、social −2/h；`no_move`、tag `gaming`；`stateLabel`「{entity} 玩游戏中」 | fun 85、mood 20 | 2 h（假设） |
 
 所有 continuous 类型都带 `max_users`（`GET /world` 的 `maxUsers`）；社交物品靠多人同用产生「在同一处」的 `players_in_view`。

@@ -698,35 +698,20 @@
     "sprite": "desk",
     "interactable": true,
     "description": "杂货店的柜台，能买到零食和日用品，老板爱聊两句。",
-    "effects": [
-      {
-        "type": "instant_effect",
-        "key": "fullness",
-        "value": 15
-      },
-      {
-        "type": "instant_effect",
-        "key": "social",
-        "value": 6
-      },
-      {
-        "type": "instant_effect",
-        "key": "energy",
-        "value": -1
-      }
-    ],
+    "effects": [],
     "advertise": {
       "fullness": 25,
       "social": 15
     },
-    "success_message": "你买了点零食，顺便和老板聊了两句。",
+    "success_message": "看了看货架和价目。买东西用 buy，卖东西用 sell。",
     "failure_message": "柜台没人。",
     "open_hours": [
       [
         "09:00",
         "20:00"
       ]
-    ]
+    ],
+    "bible_note": "审核 11-10 ②：去掉遗留即时效果（原 fullness +15 / social +6 / energy −1），advertise 保留作「来这里能买到吃的」的规划提示。"
   },
   "game_console": {
     "prototype": "continuous",
@@ -1134,28 +1119,12 @@
     "sprite": "desk",
     "interactable": true,
     "description": "渔夫的摊子，买鱼卖鱼。",
-    "effects": [
-      {
-        "type": "instant_effect",
-        "key": "fullness",
-        "value": 15
-      },
-      {
-        "type": "instant_effect",
-        "key": "social",
-        "value": 6
-      },
-      {
-        "type": "instant_effect",
-        "key": "energy",
-        "value": -1
-      }
-    ],
+    "effects": [],
     "advertise": {
       "fullness": 20,
       "social": 10
     },
-    "success_message": "你买了点零食，顺便和老板聊了两句。",
+    "success_message": "看了看货架和价目。买东西用 buy，卖东西用 sell。",
     "failure_message": "柜台没人。",
     "open_hours": [
       [
@@ -1164,7 +1133,7 @@
       ]
     ],
     "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿 审核 11-10 ②：去掉遗留即时效果（原 fullness +15 / social +6 / energy −1），advertise 保留作「来这里能买到吃的」的规划提示。"
   },
   "notice_board": {
     "prototype": "instant",
@@ -1461,5 +1430,59 @@
     "success_message": "",
     "failure_message": "这不能用。",
     "placeholder": true
+  },
+  "dining_table": {
+    "prototype": "continuous",
+    "name": "家里的餐桌",
+    "size": [
+      2,
+      1
+    ],
+    "sprite": "desk",
+    "interactable": true,
+    "description": "合租房客厅的餐桌，坐下吃背包里的东西，有人同桌更热闹。",
+    "effects": [
+      {
+        "type": "buff",
+        "key": "no_move"
+      },
+      {
+        "type": "buff",
+        "key": "social_regen",
+        "value": 0.002222
+      },
+      {
+        "type": "tag",
+        "key": "dining"
+      }
+    ],
+    "advertise": {
+      "social": 15
+    },
+    "max_users": 4,
+    "use_state_label": "{entity} 坐在餐桌边",
+    "max_duration": 3600,
+    "success_message": "你在餐桌边坐下。",
+    "failure_message": "餐桌边坐满了。",
+    "leave_message": "你从餐桌边起身。",
+    "use_pos": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        0,
+        -1
+      ],
+      [
+        1,
+        -1
+      ]
+    ],
+    "bible_note": "审核 11-10 ①：合租房 table_home 原误用 restaurant_table（收 20 金币、只在营业时段）。家用餐桌免费、全天；03-objects「吃背包食物时社交 +8（有人同桌）」按 +8/h social_regen 近似，吃东西用 eat。"
   }
 }
