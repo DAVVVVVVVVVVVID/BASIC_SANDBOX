@@ -1,0 +1,2445 @@
+{
+ "day": "D7",
+ "agent": "whale",
+ "date": "2026-11-07",
+ "version": 1,
+ "rows": [
+  {
+   "id": "x6-D7-001",
+   "agent": "whale",
+   "ts": "2026-11-07T10:00:00+08:00",
+   "type": "event",
+   "description": "十点多在自己屋里床上醒的，摸过手机瞄了一眼时间",
+   "keywords": [
+    "起床",
+    "十点",
+    "床",
+    "鲸仔房间"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T10:00:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "睡醒起床",
+    "how": "从 bed_whale 爬起来",
+    "why": "睡够了"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "十点在自己房间的床上醒来，摸手机看了眼时间"
+  },
+  {
+   "id": "x6-D7-002",
+   "agent": "whale",
+   "ts": "2026-11-07T10:25:00+08:00",
+   "type": "event",
+   "description": "起来去厨房冰箱翻了点食材，随便当早饭吃了",
+   "keywords": [
+    "早饭",
+    "冰箱",
+    "厨房"
+   ],
+   "importance": 3,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T10:25:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "吃早饭",
+    "how": "use fridge_home",
+    "why": "起床半小时内吃早饭"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "起床后去厨房冰箱拿了份食材随便当早饭"
+  },
+  {
+   "id": "x6-D7-003",
+   "agent": "whale",
+   "ts": "2026-11-07T11:00:00+08:00",
+   "type": "recognition",
+   "description": "搬来两周了，餐厅老板、老板娘、老渔夫都叫得出名字了，路也熟了",
+   "keywords": [
+    "搬来",
+    "两周",
+    "认识",
+    "路熟了"
+   ],
+   "importance": 6,
+   "source": "inferred",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T11:00:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian",
+    "npc_rest_owner",
+    "npc_grocer",
+    "npc_fisher"
+   ],
+   "body": {
+    "what": "搬来两周的自我认知",
+    "how": "躺床上想的",
+    "why": "想记住"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "town",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "搬来两周了，餐厅老板、老板娘、老渔夫都叫得上名字了，路也认得了"
+  },
+  {
+   "id": "x6-D7-004",
+   "agent": "whale",
+   "ts": "2026-11-07T11:05:00+08:00",
+   "type": "chat",
+   "description": "快中午在码头碰到刚收船的老渔夫，跟他说以后不用鱼饵了，全凭本事",
+   "keywords": [
+    "鱼饵",
+    "钓鱼",
+    "实力",
+    "老渔夫"
+   ],
+   "importance": 3,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T11:05:00+08:00",
+    "to": "2026-11-07T15:45:00+08:00"
+   },
+   "related": [],
+   "body": {
+    "what": "说不用鱼饵",
+    "how": "码头上说的",
+    "why": "想省钱"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": "C7:am",
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "快中午在码头碰到刚收船的老渔夫，跟他说以后不用鱼饵了，全靠实力"
+  },
+  {
+   "id": "x6-D7-005",
+   "agent": "whale",
+   "ts": "2026-11-07T11:20:00+08:00",
+   "type": "chat",
+   "description": "小千上课间隙发 QQ 问我昨晚直播顺不顺，她说她看到十一点",
+   "keywords": [
+    "小千",
+    "QQ",
+    "直播",
+    "上课"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T11:20:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian"
+   ],
+   "body": {
+    "what": "回小千消息",
+    "how": "躺在床上回的",
+    "why": "她每晚都看"
+   },
+   "voice": "顺啦，你上课别偷看手机。",
+   "tags": {
+    "thread": "xiaoqian",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "小千上课间隙发 QQ 问昨晚直播顺不顺，她说她看到十一点"
+  },
+  {
+   "id": "x6-D7-006",
+   "agent": "whale",
+   "ts": "2026-11-07T11:25:00+08:00",
+   "type": "event",
+   "description": "躺床上刷手机，看昨晚直播的评论和账号消息",
+   "keywords": [
+    "刷手机",
+    "评论",
+    "账号消息",
+    "上午"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T11:25:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "刷手机",
+    "how": "手机刷 B 站评论",
+    "why": "上午的例行事"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "躺在床上刷手机，看昨晚直播的评论和账号消息"
+  },
+  {
+   "id": "x6-D7-007",
+   "agent": "whale",
+   "ts": "2026-11-07T11:30:00+08:00",
+   "type": "event",
+   "description": "躺床上刷手机，看昨晚直播的评论和账号消息",
+   "keywords": [
+    "刷手机",
+    "评论",
+    "账号消息",
+    "上午"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T11:30:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "刷手机",
+    "how": "手机刷 B 站评论",
+    "why": "上午的例行事"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "躺在床上刷手机，看昨晚直播的评论和账号消息"
+  },
+  {
+   "id": "x6-D7-008",
+   "agent": "whale",
+   "ts": "2026-11-07T11:45:00+08:00",
+   "type": "event",
+   "description": "躺床上刷手机，看昨晚直播的评论和账号消息",
+   "keywords": [
+    "刷手机",
+    "评论",
+    "账号消息",
+    "上午"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T11:45:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "刷手机",
+    "how": "手机刷 B 站评论",
+    "why": "上午的例行事"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "躺在床上刷手机，看昨晚直播的评论和账号消息"
+  },
+  {
+   "id": "x6-D7-009",
+   "agent": "whale",
+   "ts": "2026-11-07T11:50:00+08:00",
+   "type": "event",
+   "description": "在厨房把早饭的碗洗了",
+   "keywords": [
+    "厨房",
+    "洗碗",
+    "早饭"
+   ],
+   "importance": 1,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T11:50:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "洗碗",
+    "how": "厨房",
+    "why": "顺手"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-010",
+   "agent": "whale",
+   "ts": "2026-11-07T12:30:00+08:00",
+   "type": "event",
+   "description": "十二点半在家吃午饭，下午要和小千去码头，吃完就出门",
+   "keywords": [
+    "午饭",
+    "家",
+    "小千",
+    "码头"
+   ],
+   "importance": 3,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T12:30:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "吃午饭",
+    "how": "use fridge_home",
+    "why": "十二点半到饭点"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-011",
+   "agent": "whale",
+   "ts": "2026-11-07T12:55:00+08:00",
+   "type": "event",
+   "description": "想上楼找阿蝉问设备，走到楼梯想起他白天不让敲门，又下来了",
+   "keywords": [
+    "阿蝉",
+    "楼梯",
+    "白天不让敲门",
+    "计划失败"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T12:55:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "找阿蝉",
+    "how": "走到 stairs 又回头",
+    "why": "想问设备"
+   },
+   "voice": "算了，发 QQ。",
+   "tags": {
+    "thread": "self",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": true,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-012",
+   "agent": "whale",
+   "ts": "2026-11-07T13:00:00+08:00",
+   "type": "event",
+   "description": "在客厅沙发上躺了十分钟刷手机",
+   "keywords": [
+    "客厅",
+    "沙发",
+    "手机",
+    "刷手机"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T13:00:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "刷手机",
+    "how": "use sofa_tv",
+    "why": "放空"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-013",
+   "agent": "whale",
+   "ts": "2026-11-07T13:05:00+08:00",
+   "type": "event",
+   "description": "白天想上楼问阿蝉直播设备的事，想起他说白天别敲门，就改发 QQ，他半小时后回了",
+   "keywords": [
+    "阿蝉",
+    "QQ",
+    "白天",
+    "直播设备"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T13:05:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "给阿蝉发 QQ",
+    "how": "在客厅发的",
+    "why": "他白天写代码不让敲门"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "白天想上楼问阿蝉直播设备的事，想起他说白天别敲门，改成发 QQ，他半小时后回了"
+  },
+  {
+   "id": "x6-D7-014",
+   "agent": "whale",
+   "ts": "2026-11-07T13:10:00+08:00",
+   "type": "event",
+   "description": "在客厅沙发上躺了十分钟刷手机",
+   "keywords": [
+    "客厅",
+    "沙发",
+    "手机",
+    "刷手机"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T13:10:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "刷手机",
+    "how": "use sofa_tv",
+    "why": "放空"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-015",
+   "agent": "whale",
+   "ts": "2026-11-07T13:15:00+08:00",
+   "type": "event",
+   "description": "给自己泡了杯茶，坐在客厅发了会儿呆",
+   "keywords": [
+    "客厅",
+    "茶",
+    "发呆"
+   ],
+   "importance": 1,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T13:15:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "发呆",
+    "how": "客厅",
+    "why": "放空"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-016",
+   "agent": "whale",
+   "ts": "2026-11-07T13:20:00+08:00",
+   "type": "event",
+   "description": "阿蝉 QQ 发来一张筛弹幕工具的截图，说今晚可以用了",
+   "keywords": [
+    "阿蝉",
+    "QQ",
+    "筛弹幕",
+    "工具"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T13:20:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "收到阿蝉消息",
+    "how": "QQ",
+    "why": "他白天顺手做的"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-017",
+   "agent": "whale",
+   "ts": "2026-11-07T13:25:00+08:00",
+   "type": "event",
+   "description": "直播想加个新环节，QQ 问阿蝉能不能做，他说今晚来不及",
+   "keywords": [
+    "直播",
+    "新环节",
+    "阿蝉",
+    "QQ",
+    "计划失败"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T13:25:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "想加环节",
+    "how": "QQ 问阿蝉",
+    "why": "想换点花样"
+   },
+   "voice": "那就下次。",
+   "tags": {
+    "thread": "self",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": true,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-018",
+   "agent": "whale",
+   "ts": "2026-11-07T13:35:00+08:00",
+   "type": "event",
+   "description": "下午坐到电脑前想今天电台的选题，结果刷了半小时手机，一个字没写",
+   "keywords": [
+    "电台",
+    "选题",
+    "拖延",
+    "电脑"
+   ],
+   "importance": 3,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T13:35:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "想电台选题",
+    "how": "在自己房间电脑前",
+    "why": "该做账号运营了"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "radio",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "下午坐到电脑前想今天电台的选题，刷了半小时手机一个字没写"
+  },
+  {
+   "id": "x6-D7-019",
+   "agent": "whale",
+   "ts": "2026-11-07T13:40:00+08:00",
+   "type": "event",
+   "description": "想找小千，她家门锁着，敲了半天也没人应",
+   "keywords": [
+    "小千家",
+    "敲门",
+    "no_answer",
+    "计划失败"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T13:40:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian"
+   ],
+   "body": {
+    "what": "找小千",
+    "how": "knock door_xiaoqian → no_answer",
+    "why": "想找她玩"
+   },
+   "voice": "人不在家啊。",
+   "tags": {
+    "thread": "self",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": true,
+    "highlight": false
+   },
+   "description_original": "想找小千，她家门锁着敲了半天没人应"
+  },
+  {
+   "id": "x6-D7-020",
+   "agent": "whale",
+   "ts": "2026-11-07T13:55:00+08:00",
+   "type": "event",
+   "description": "给自己泡了杯茶，坐在客厅发了会儿呆",
+   "keywords": [
+    "客厅",
+    "茶",
+    "发呆"
+   ],
+   "importance": 1,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T13:55:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "发呆",
+    "how": "客厅",
+    "why": "放空"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-021",
+   "agent": "whale",
+   "ts": "2026-11-07T14:00:00+08:00",
+   "type": "event",
+   "description": "周六下午两点和小千在码头碰头，她背着便当盒，我带了鱼饵，两根竿并排架好",
+   "keywords": [
+    "小千",
+    "码头",
+    "周六",
+    "便当",
+    "鱼饵",
+    "钓鱼"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T14:00:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian"
+   ],
+   "body": {
+    "what": "和小千开始钓鱼",
+    "how": "use fishing_spot ×2",
+    "why": "周一约好的"
+   },
+   "voice": "来，先教你甩竿。",
+   "tags": {
+    "thread": "xiaoqian",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-022",
+   "agent": "whale",
+   "ts": "2026-11-07T15:20:00+08:00",
+   "type": "event",
+   "description": "小千第一次甩竿，鱼钩甩到了自己帽子上，两个人笑了半天",
+   "keywords": [
+    "小千",
+    "甩竿",
+    "帽子",
+    "码头",
+    "钓鱼"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T15:20:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian"
+   ],
+   "body": {
+    "what": "教小千甩竿",
+    "how": "fishing_spot 旁",
+    "why": "她第一次钓"
+   },
+   "voice": "手腕放松，老渔夫说的！",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-023",
+   "agent": "whale",
+   "ts": "2026-11-07T15:30:00+08:00",
+   "type": "event",
+   "description": "和小千并排坐在码头吃她带的便当，鱼竿架在旁边",
+   "keywords": [
+    "小千",
+    "便当",
+    "码头",
+    "并排"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T15:30:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian"
+   ],
+   "body": {
+    "what": "吃便当",
+    "how": "码头边",
+    "why": "她说好要带便当"
+   },
+   "voice": "好吃，比餐厅的还好吃。",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-024",
+   "agent": "whale",
+   "ts": "2026-11-07T15:45:00+08:00",
+   "type": "event",
+   "description": "下午钓了四十分钟空军，又去杂货店买了鱼饵",
+   "keywords": [
+    "鱼饵",
+    "改口",
+    "空军",
+    "杂货店"
+   ],
+   "importance": 3,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T15:45:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "买了鱼饵",
+    "how": "buy bait",
+    "why": "空军了"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": "C7:pm",
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-025",
+   "agent": "whale",
+   "ts": "2026-11-07T15:55:00+08:00",
+   "type": "event",
+   "description": "下午码头风不大，水声一直响着，我和小千有一阵谁都没说话",
+   "keywords": [
+    "码头",
+    "水声",
+    "小千",
+    "安静"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T15:55:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian"
+   ],
+   "body": {
+    "what": "听水声",
+    "how": "码头边",
+    "why": "喜欢水声"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-026",
+   "agent": "whale",
+   "ts": "2026-11-07T16:45:00+08:00",
+   "type": "chat",
+   "description": "小千小声问老渔夫鱼饵该怎么挂，老渔夫说随便挂就行，她愣了一下",
+   "keywords": [
+    "小千",
+    "老渔夫",
+    "鱼饵",
+    "随缘",
+    "码头"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T16:45:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian",
+    "npc_fisher"
+   ],
+   "body": {
+    "what": "小千和老渔夫说话",
+    "how": "老渔夫过来看我们",
+    "why": "她对生人难得开口"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "小千小声问老渔夫鱼饵怎么挂，老渔夫说随缘挂，她愣了一下"
+  },
+  {
+   "id": "x6-D7-027",
+   "agent": "whale",
+   "ts": "2026-11-07T17:15:00+08:00",
+   "type": "event",
+   "description": "周六下午我和小千在码头钓了一下午鱼，收竿前她钓到了人生第一条鱼，便当还挺好吃",
+   "keywords": [
+    "小千",
+    "钓鱼",
+    "码头",
+    "履约",
+    "第一条鱼",
+    "便当"
+   ],
+   "importance": 7,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T17:15:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian"
+   ],
+   "body": {
+    "what": "带小千钓鱼",
+    "how": "两人一起 use fishing_spot",
+    "why": "周一约好的"
+   },
+   "voice": "你看你看，第一条！我说了你能行吧！",
+   "tags": {
+    "thread": "xiaoqian",
+    "promise": "P2:kept",
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "周六下午和小千在码头钓了一下午鱼，收杆前她钓到了人生第一条鱼，便当也好吃"
+  },
+  {
+   "id": "x6-D7-028",
+   "agent": "whale",
+   "ts": "2026-11-07T17:30:00+08:00",
+   "type": "chat",
+   "description": "老渔夫把用了二十年的旧鱼竿递给我，说他用不上了，随缘吧，用得着就拿去",
+   "keywords": [
+    "老渔夫",
+    "鱼竿",
+    "礼物",
+    "二十年",
+    "随缘",
+    "感动"
+   ],
+   "importance": 9,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T17:30:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_fisher",
+    "npc_xiaoqian"
+   ],
+   "body": {
+    "what": "收到老渔夫的鱼竿",
+    "how": "和小千收杆时他从屋里拿出来的",
+    "why": "他说随缘"
+   },
+   "voice": "我……我一定好好用它。",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": true
+   },
+   "description_original": "老渔夫把他用了二十年的旧鱼竿递给我，说他用不着了，随缘，用得着就拿去"
+  },
+  {
+   "id": "x6-D7-029",
+   "agent": "whale",
+   "ts": "2026-11-07T17:40:00+08:00",
+   "type": "event",
+   "description": "在鱼摊把钓到的鱼卖给老渔夫，换了二十金币",
+   "keywords": [
+    "鱼摊",
+    "老渔夫",
+    "卖鱼",
+    "金币"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T17:40:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_fisher"
+   ],
+   "body": {
+    "what": "卖鱼",
+    "how": "sell fish 到 fish_stall",
+    "why": "鱼吃不完"
+   },
+   "voice": "二十金币，今天的鱼饵钱回来了。",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-030",
+   "agent": "whale",
+   "ts": "2026-11-07T18:10:00+08:00",
+   "type": "chat",
+   "description": "老渔夫提醒起风了，别坐外侧的钓位，让我往里坐一点",
+   "keywords": [
+    "老渔夫",
+    "起风",
+    "钓位",
+    "叮嘱"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T18:10:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_fisher"
+   ],
+   "body": {
+    "what": "听老渔夫叮嘱",
+    "how": "他走过来说的",
+    "why": "他怕我掉下去"
+   },
+   "voice": "好嘞，我坐里面。",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "老渔夫说起风别坐外侧钓位，让我坐里面一点"
+  },
+  {
+   "id": "x6-D7-031",
+   "agent": "whale",
+   "ts": "2026-11-07T18:25:00+08:00",
+   "type": "chat",
+   "description": "老渔夫在码头教我甩竿，说手腕放松，鱼来不来就随缘",
+   "keywords": [
+    "老渔夫",
+    "甩竿",
+    "手腕",
+    "随缘",
+    "码头"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T18:25:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_fisher"
+   ],
+   "body": {
+    "what": "听老渔夫指点",
+    "how": "收拾渔网时他看了一会儿",
+    "why": "他爱教两句但不说教"
+   },
+   "voice": "放松……这样？",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "老渔夫在码头教我甩竿，说手腕放松，鱼来不来随缘"
+  },
+  {
+   "id": "x6-D7-032",
+   "agent": "whale",
+   "ts": "2026-11-07T18:50:00+08:00",
+   "type": "chat",
+   "description": "老渔夫说想钓就钓，想收就收，鱼不上钩就看看水况",
+   "keywords": [
+    "老渔夫",
+    "随缘",
+    "钓鱼",
+    "看水"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T18:50:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_fisher"
+   ],
+   "body": {
+    "what": "和老渔夫聊天",
+    "how": "并排坐在码头",
+    "why": "我喜欢听水声"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "老渔夫说想钓就钓想收就收，鱼不上钩就看水"
+  },
+  {
+   "id": "x6-D7-033",
+   "agent": "whale",
+   "ts": "2026-11-07T19:00:00+08:00",
+   "type": "event",
+   "description": "七点跟阿蝉吃晚饭，我跟他讲老渔夫送鱼竿的事，讲了两遍",
+   "keywords": [
+    "晚饭",
+    "阿蝉",
+    "鱼竿",
+    "老渔夫"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T19:00:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "吃晚饭",
+    "how": "dining_table",
+    "why": "七点到饭点"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "七点和阿蝉吃晚饭，我跟他讲老渔夫送鱼竿的事，讲了两遍"
+  },
+  {
+   "id": "x6-D7-034",
+   "agent": "whale",
+   "ts": "2026-11-07T19:10:00+08:00",
+   "type": "chat",
+   "description": "阿蝉说他白天就吃晚饭这一顿，让我别往他门口放零食",
+   "keywords": [
+    "阿蝉",
+    "晚饭",
+    "零食",
+    "作息"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T19:10:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "被阿蝉念叨",
+    "how": "晚饭时说的",
+    "why": "他一天只吃一顿"
+   },
+   "voice": "那你更得把这顿吃完。",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "阿蝉说他白天只吃晚饭这一顿，让我别往他门口放零食"
+  },
+  {
+   "id": "x6-D7-035",
+   "agent": "whale",
+   "ts": "2026-11-07T19:25:00+08:00",
+   "type": "chat",
+   "description": "阿蝉下楼吃晚饭时说今天代码崩了三次，我把杂货店的糖分了他一颗",
+   "keywords": [
+    "阿蝉",
+    "写代码",
+    "糖",
+    "晚饭"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T19:25:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "安慰阿蝉",
+    "how": "他瘫在餐桌边",
+    "why": "他看起来很累"
+   },
+   "voice": "吃颗糖，明天就修好了。",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-036",
+   "agent": "whale",
+   "ts": "2026-11-07T19:35:00+08:00",
+   "type": "event",
+   "description": "本来想七点半开播，阿蝉说导播七点五十才到位，只好等着",
+   "keywords": [
+    "开播",
+    "阿蝉",
+    "导播",
+    "计划失败"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T19:35:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "想早开播",
+    "how": "QQ 问阿蝉",
+    "why": "想多播一会儿"
+   },
+   "voice": "那就等。",
+   "tags": {
+    "thread": "self",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": true,
+    "highlight": false
+   },
+   "description_original": "想七点半就开播，阿蝉说导播七点五十才就位，只好等"
+  },
+  {
+   "id": "x6-D7-037",
+   "agent": "whale",
+   "ts": "2026-11-07T19:40:00+08:00",
+   "type": "chat",
+   "description": "开播前阿蝉在QQ上说网线他检查过了，让我别再拔了插、插了拔",
+   "keywords": [
+    "阿蝉",
+    "网线",
+    "开播前",
+    "QQ"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T19:40:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "和阿蝉确认设备",
+    "how": "QQ 上说的",
+    "why": "我怕直播事故"
+   },
+   "voice": "好好好，不拔了。",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "开播前阿蝉在 QQ 说网线他检查过了，让我别再拔了插插了拔"
+  },
+  {
+   "id": "x6-D7-038",
+   "agent": "whale",
+   "ts": "2026-11-07T19:50:00+08:00",
+   "type": "event",
+   "description": "开播前把网线和麦克风都确认了一遍，又把歌单过了一次",
+   "keywords": [
+    "开播前",
+    "网线",
+    "麦",
+    "歌单",
+    "确认"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T19:50:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "开播前检查",
+    "how": "在房间电脑前",
+    "why": "怕直播事故"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "开播前把网线和麦都确认了一遍，又把歌单过了一次"
+  },
+  {
+   "id": "x6-D7-039",
+   "agent": "whale",
+   "ts": "2026-11-07T20:10:00+08:00",
+   "type": "event",
+   "description": "八点整准时开播，阿蝉在二楼担任导播，本鲸先唱了两首慢歌",
+   "keywords": [
+    "直播",
+    "开播",
+    "阿蝉",
+    "导播",
+    "慢歌"
+   ],
+   "importance": 6,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T20:10:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "开播",
+    "how": "use pc_whale（stream）",
+    "why": "到点了"
+   },
+   "voice": "晚上好呀，今晚先来两首慢的。",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "八点准时开播，阿蝉在二楼当导播，本鲸先唱了两首慢歌"
+  },
+  {
+   "id": "x6-D7-040",
+   "agent": "whale",
+   "ts": "2026-11-07T21:10:00+08:00",
+   "type": "chat",
+   "description": "本鲸向观众讲述了下午和小千去钓鱼、老渔夫送旧鱼竿的经过，讲到一半嗓子有点沙哑",
+   "keywords": [
+    "直播",
+    "小千",
+    "老渔夫",
+    "鱼竿"
+   ],
+   "importance": 7,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T21:10:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "回弹幕讲今天的事",
+    "how": "边唱边聊",
+    "why": "观众爱听小镇的事"
+   },
+   "voice": "他说随缘，用得着就拿去。本鲸……本鲸一定好好用。",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "本鲸跟观众讲了下午和小千钓鱼、老渔夫送旧鱼竿的事，讲到一半声音有点哑"
+  },
+  {
+   "id": "x6-D7-041",
+   "agent": "whale",
+   "ts": "2026-11-07T21:25:00+08:00",
+   "type": "event",
+   "description": "唱到第三首时破了一个音，弹幕笑成一片刷了整屏，本鲸自己也忍不住笑场了",
+   "keywords": [
+    "直播",
+    "破音",
+    "弹幕",
+    "笑场"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T21:25:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "唱歌破音",
+    "how": "唱第三首时",
+    "why": "没练这首的高音"
+   },
+   "voice": "啊这！真的假的？重来重来。",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "唱到第三首歌破了个音，弹幕哈哈哈刷了一屏，本鲸也笑场了"
+  },
+  {
+   "id": "x6-D7-042",
+   "agent": "whale",
+   "ts": "2026-11-07T21:45:00+08:00",
+   "type": "chat",
+   "description": "弹幕问本鲸今天都做了什么，本鲸把白天在镇子里的事情完整地讲了一遍",
+   "keywords": [
+    "直播",
+    "弹幕",
+    "今天干了啥",
+    "小镇"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T21:45:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "回弹幕",
+    "how": "边唱边聊",
+    "why": "观众爱听"
+   },
+   "voice": "今天啊，本鲸给你们讲讲。",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "弹幕问本鲸今天干了啥，本鲸把白天在镇子里的事讲了一遍"
+  },
+  {
+   "id": "x6-D7-043",
+   "agent": "whale",
+   "ts": "2026-11-07T21:55:00+08:00",
+   "type": "chat",
+   "description": "弹幕问本鲸是不是音乐系的，本鲸回答是，琴房在镇北，不过平时不练琴，只有写歌的时候才去",
+   "keywords": [
+    "直播",
+    "音乐系",
+    "琴房",
+    "镇北",
+    "不练琴"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T21:55:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "回弹幕",
+    "how": "读到弹幕",
+    "why": "观众好奇"
+   },
+   "voice": "本鲸是音乐系的，琴房在镇北。",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "弹幕问本鲸是不是音乐系的，本鲸说是，琴房在镇北，不过平时不练琴，写歌才去"
+  },
+  {
+   "id": "x6-D7-044",
+   "agent": "whale",
+   "ts": "2026-11-07T22:00:00+08:00",
+   "type": "chat",
+   "description": "弹幕有人让本鲸多唱少聊，本鲸说那就接着唱下一首",
+   "keywords": [
+    "直播",
+    "弹幕",
+    "唱歌",
+    "聊天"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T22:00:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "回弹幕",
+    "how": "读到弹幕",
+    "why": "有人想听歌"
+   },
+   "voice": "行行行，下一首就唱。",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "弹幕有人让本鲸多唱少聊，本鲸说那下一首就唱"
+  },
+  {
+   "id": "x6-D7-045",
+   "agent": "whale",
+   "ts": "2026-11-07T22:05:00+08:00",
+   "type": "chat",
+   "description": "有观众点了一首不在歌单里的歌，本鲸说要先去学，学会了再唱给大家听",
+   "keywords": [
+    "直播",
+    "点歌",
+    "歌单",
+    "先去学"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T22:05:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "回弹幕点歌",
+    "how": "读到弹幕",
+    "why": "不在歌单里的不假装会"
+   },
+   "voice": "这首不在歌单里，本鲸先去学，学会了再唱。",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "有观众点了一首不在歌单里的歌，本鲸说先去学，学会了再唱"
+  },
+  {
+   "id": "x6-D7-046",
+   "agent": "whale",
+   "ts": "2026-11-07T22:10:00+08:00",
+   "type": "event",
+   "description": "直播到两个小时的时候，本鲸提醒大家喝水休息，自己也去喝了口水",
+   "keywords": [
+    "直播",
+    "休息",
+    "喝水"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T22:10:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "提醒休息",
+    "how": "两小时整",
+    "why": "每次都提"
+   },
+   "voice": "大家别忘了休息，本鲸也去喝口水。",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "直播到两小时提醒大家喝水休息，本鲸也去喝了口水"
+  },
+  {
+   "id": "x6-D7-047",
+   "agent": "whale",
+   "ts": "2026-11-07T22:40:00+08:00",
+   "type": "event",
+   "description": "下播前把今晚的弹幕里没回上的问题记了三条，明天电台可以聊",
+   "keywords": [
+    "直播",
+    "弹幕",
+    "问题",
+    "电台"
+   ],
+   "importance": 3,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T22:40:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "记弹幕问题",
+    "how": "下播前",
+    "why": "电台找题"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-048",
+   "agent": "whale",
+   "ts": "2026-11-07T23:00:00+08:00",
+   "type": "event",
+   "description": "十一点准时下播，跟大家说明天见",
+   "keywords": [
+    "直播",
+    "下播",
+    "十一点",
+    "明天见"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "live",
+   "valid": {
+    "from": "2026-11-07T23:00:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "下播",
+    "how": "leave pc_whale",
+    "why": "到时间了"
+   },
+   "voice": "晚安，明天见。",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-049",
+   "agent": "whale",
+   "ts": "2026-11-07T23:05:00+08:00",
+   "type": "chat",
+   "description": "下播后阿蝉说二楼的网线他重新走了一遍，以后应该不会再卡了",
+   "keywords": [
+    "阿蝉",
+    "网线",
+    "二楼",
+    "下播"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:05:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "和阿蝉说设备",
+    "how": "厨房里说的",
+    "why": "我老担心断网"
+   },
+   "voice": "那我就放心了。",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "下播后阿蝉说二楼的网线他重新走了一遍，以后不会再卡"
+  },
+  {
+   "id": "x6-D7-050",
+   "agent": "whale",
+   "ts": "2026-11-07T23:15:00+08:00",
+   "type": "event",
+   "description": "和阿蝉在客厅看了一集老动画，笑得肚子都疼",
+   "keywords": [
+    "阿蝉",
+    "客厅",
+    "动画",
+    "沙发"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:15:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "和阿蝉看动画",
+    "how": "use sofa_tv",
+    "why": "两个人都不想动"
+   },
+   "voice": "这集太搞笑了吧！",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "和阿蝉在客厅看了一集老动画，笑得肚子疼"
+  },
+  {
+   "id": "x6-D7-051",
+   "agent": "whale",
+   "ts": "2026-11-07T23:20:00+08:00",
+   "type": "event",
+   "description": "周六钓了一下午鱼，电台稿拖到下播后才开始写，今天的题目是「认识一个镇子要几天」",
+   "keywords": [
+    "电台稿",
+    "写稿",
+    "五点",
+    "拖延"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:20:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "写电台稿",
+    "how": "use pc_whale（写稿）",
+    "why": "再不写今天就没了"
+   },
+   "voice": "写写写，一小时搞定。",
+   "tags": {
+    "thread": "radio",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "周六钓了一下午，电台稿拖到下播后才写，今天的题是「认识一个镇子要几天」"
+  },
+  {
+   "id": "x6-D7-052",
+   "agent": "whale",
+   "ts": "2026-11-07T23:25:00+08:00",
+   "type": "recognition",
+   "description": "餐厅老板规矩多，不接受菜单以外的要求，但对认真的人很认真",
+   "keywords": [
+    "餐厅老板",
+    "死板",
+    "认真",
+    "性格"
+   ],
+   "importance": 6,
+   "source": "inferred",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:25:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_rest_owner"
+   ],
+   "body": {
+    "what": "对餐厅老板的印象",
+    "how": "几次吃饭",
+    "why": "想记住"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "cook",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "餐厅老板规矩多、不接受菜单外的要求，但对认真的人很认真"
+  },
+  {
+   "id": "x6-D7-053",
+   "agent": "whale",
+   "ts": "2026-11-07T23:30:00+08:00",
+   "type": "chat",
+   "description": "下播后阿蝉下楼倒水，说今晚弹幕里我讲小镇的那段反应最好",
+   "keywords": [
+    "阿蝉",
+    "下播",
+    "弹幕",
+    "小镇"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:30:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "和阿蝉聊今晚直播",
+    "how": "厨房里站着说的",
+    "why": "他筛了一晚上弹幕"
+   },
+   "voice": "那明天再讲点。",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-054",
+   "agent": "whale",
+   "ts": "2026-11-07T23:35:00+08:00",
+   "type": "event",
+   "description": "下播后在直播组QQ里和阿蝉对了一下今晚的弹幕话题",
+   "keywords": [
+    "直播组",
+    "QQ",
+    "阿蝉",
+    "弹幕话题"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:35:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "整理直播话题",
+    "how": "QQ 群里",
+    "why": "阿蝉在筛弹幕"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "下播后在直播组 QQ 里和阿蝉对了一下今晚的弹幕话题"
+  },
+  {
+   "id": "x6-D7-055",
+   "agent": "whale",
+   "ts": "2026-11-07T23:40:00+08:00",
+   "type": "event",
+   "description": "电台稿写完配了音，五分钟多一点，这期是半夜录的，发给阿蝉明早听",
+   "keywords": [
+    "电台",
+    "配音",
+    "五分钟",
+    "阿蝉"
+   ],
+   "importance": 5,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:40:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "配音完成",
+    "how": "在房间电脑前录的",
+    "why": "每天一期"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "radio",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-056",
+   "agent": "whale",
+   "ts": "2026-11-07T23:45:00+08:00",
+   "type": "recognition",
+   "description": "小千面对生人话都不多，只有在我面前才放得开，口头禅是「那个……」",
+   "keywords": [
+    "小千",
+    "害羞",
+    "性格",
+    "那个"
+   ],
+   "importance": 6,
+   "source": "inferred",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:45:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_xiaoqian"
+   ],
+   "body": {
+    "what": "对小千的印象",
+    "how": "几天相处",
+    "why": "想记住"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "xiaoqian",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "小千对生人话都不多，只在我面前放得开，口头禅是「那个……」"
+  },
+  {
+   "id": "x6-D7-057",
+   "agent": "whale",
+   "ts": "2026-11-07T23:50:00+08:00",
+   "type": "recognition",
+   "description": "给餐厅老板写店歌这事先放一放吧，这周电台和直播排满了，琴房去了两次都没写出来，等忙完再说；下次见到他要跟他说一声",
+   "keywords": [
+    "餐厅老板",
+    "店歌",
+    "改口",
+    "先不写",
+    "承诺"
+   ],
+   "importance": 7,
+   "source": "inferred",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:50:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_rest_owner"
+   ],
+   "body": {
+    "what": "决定先不写店歌",
+    "how": "下播后躺床上盘算这周",
+    "why": "电台要做、直播要播、琴房没灵感"
+   },
+   "voice": "先放一放……等这阵忙完再说吧，得跟老板说一声。",
+   "tags": {
+    "thread": "cook",
+    "promise": "P3:reneged",
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "想了想给餐厅老板写店歌这事先放一放——这周电台和直播排满了，琴房去了两次都没写出来，等忙完再说；下次见到他要说一声"
+  },
+  {
+   "id": "x6-D7-058",
+   "agent": "whale",
+   "ts": "2026-11-07T23:55:00+08:00",
+   "type": "recognition",
+   "description": "杂货店老板娘很和蔼，记得每个常客爱买什么，还会多给一颗糖",
+   "keywords": [
+    "杂货店老板娘",
+    "和蔼",
+    "性格"
+   ],
+   "importance": 6,
+   "source": "inferred",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-07T23:55:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_grocer"
+   ],
+   "body": {
+    "what": "对老板娘的印象",
+    "how": "几次买东西",
+    "why": "想记住"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "grocer",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "杂货店老板娘和蔼，记得每个常客爱买什么，会多给一颗糖"
+  },
+  {
+   "id": "x6-D7-059",
+   "agent": "whale",
+   "ts": "2026-11-08T00:05:00+08:00",
+   "type": "recognition",
+   "description": "老渔夫洒脱随性，对钱不上心，说话带点道理但不说教",
+   "keywords": [
+    "老渔夫",
+    "洒脱",
+    "随缘",
+    "性格"
+   ],
+   "importance": 6,
+   "source": "inferred",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-08T00:05:00+08:00",
+    "to": null
+   },
+   "related": [
+    "npc_fisher"
+   ],
+   "body": {
+    "what": "对老渔夫的印象",
+    "how": "几次在码头",
+    "why": "想记住"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "fisher",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   }
+  },
+  {
+   "id": "x6-D7-060",
+   "agent": "whale",
+   "ts": "2026-11-08T00:10:00+08:00",
+   "type": "event",
+   "description": "下播后刷了一会儿手机，看看今晚的评论",
+   "keywords": [
+    "刷手机",
+    "评论",
+    "下播"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-08T00:10:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "刷手机",
+    "how": "手机刷 B 站评论",
+    "why": "想看反馈"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "下播后刷了一会儿手机，看今晚的评论"
+  },
+  {
+   "id": "x6-D7-061",
+   "agent": "whale",
+   "ts": "2026-11-08T00:20:00+08:00",
+   "type": "recognition",
+   "description": "阿蝉白天把门关着，谁都不搭理，晚上当导播却比谁都上心。",
+   "keywords": [
+    "阿蝉",
+    "导播",
+    "室友",
+    "认真"
+   ],
+   "importance": 6,
+   "source": "inferred",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-08T00:20:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "对阿蝉的印象",
+    "how": "这几天看下来",
+    "why": "想记住"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "阿蝉白天门关着谁也不理，晚上当导播却比谁都认真"
+  },
+  {
+   "id": "x6-D7-062",
+   "agent": "whale",
+   "ts": "2026-11-08T00:25:00+08:00",
+   "type": "event",
+   "description": "冲了个澡，热水淋下来真舒坦。",
+   "keywords": [
+    "洗澡",
+    "浴缸",
+    "合租房"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-08T00:25:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "洗澡",
+    "how": "use bath",
+    "why": "下播出了汗"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "洗了个澡，热水很舒服"
+  },
+  {
+   "id": "x6-D7-063",
+   "agent": "whale",
+   "ts": "2026-11-08T00:40:00+08:00",
+   "type": "recognition",
+   "description": "比起我一直唱歌，观众更想听我讲白天在小镇里真发生的事。",
+   "keywords": [
+    "直播",
+    "观众",
+    "喜好",
+    "小镇"
+   ],
+   "importance": 6,
+   "source": "inferred",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-08T00:40:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "从弹幕里看出来的",
+    "how": "下播后整理",
+    "why": "下次多讲"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "live",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "观众更喜欢听我讲白天在小镇里真发生的事，而不是一直唱"
+  },
+  {
+   "id": "x6-D7-064",
+   "agent": "whale",
+   "ts": "2026-11-08T00:45:00+08:00",
+   "type": "event",
+   "description": "下播后刷了会儿手机，看看今晚都有什么评论。",
+   "keywords": [
+    "刷手机",
+    "评论",
+    "下播"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-08T00:45:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "刷手机",
+    "how": "手机刷 B 站评论",
+    "why": "想看反馈"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "下播后刷了一会儿手机，看今晚的评论"
+  },
+  {
+   "id": "x6-D7-065",
+   "agent": "whale",
+   "ts": "2026-11-08T01:10:00+08:00",
+   "type": "event",
+   "description": "半夜阿蝉屋里的灯还亮着，我就在二楼门口放了杯水，没敲门。",
+   "keywords": [
+    "阿蝉",
+    "半夜",
+    "写代码",
+    "水"
+   ],
+   "importance": 4,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-08T01:10:00+08:00",
+    "to": null
+   },
+   "related": [
+    "achan"
+   ],
+   "body": {
+    "what": "给阿蝉送水",
+    "how": "轻手轻脚放门口",
+    "why": "他课题快结题"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "achan",
+    "promise": null,
+    "contradiction": null,
+    "trivial": false,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "半夜阿蝉房间灯还亮着，我在二楼门口放了一杯水没敲门"
+  },
+  {
+   "id": "x6-D7-066",
+   "agent": "whale",
+   "ts": "2026-11-08T01:30:00+08:00",
+   "type": "event",
+   "description": "一点半，回到自己屋里躺上床睡觉。",
+   "keywords": [
+    "睡觉",
+    "一点半",
+    "床",
+    "鲸仔房间"
+   ],
+   "importance": 2,
+   "source": "observed",
+   "scene": "sandbox",
+   "valid": {
+    "from": "2026-11-08T01:30:00+08:00",
+    "to": null
+   },
+   "related": [],
+   "body": {
+    "what": "睡觉",
+    "how": "use bed_whale",
+    "why": "困了"
+   },
+   "voice": "",
+   "tags": {
+    "thread": "daily",
+    "promise": null,
+    "contradiction": null,
+    "trivial": true,
+    "failed_plan": false,
+    "highlight": false
+   },
+   "description_original": "一点半，回自己房间上床睡觉"
+  }
+ ]
+}

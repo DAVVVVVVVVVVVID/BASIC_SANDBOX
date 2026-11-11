@@ -1,0 +1,351 @@
+{
+ "generated_at": "2026-11-11T11:28:00+08:00",
+ "seed": 6,
+ "start": "2026-11-01",
+ "move_in": "2026-10-24",
+ "agent": "whale",
+ "persona_version": "v1.0",
+ "persona_files": [
+  "whale-self/personas-v1/whale/persona.md",
+  "whale-self/personas-v1/whale/persona.yaml"
+ ],
+ "schedule": {
+  "wake": "10:00",
+  "breakfast": "10:25",
+  "lunch": "12:30",
+  "dinner": "19:00",
+  "live": [
+   "20:00",
+   "23:00"
+  ],
+  "sleep": "01:30"
+ },
+ "schema": {
+  "row": [
+   "id",
+   "agent",
+   "ts",
+   "type",
+   "description",
+   "keywords",
+   "importance",
+   "source",
+   "scene",
+   "valid{from,to}",
+   "related",
+   "body{what,how,why}",
+   "voice",
+   "tags{thread,promise,contradiction,trivial,failed_plan,highlight}"
+  ],
+  "maps_to_frontmatter": {
+   "ts": "Time",
+   "type": "Type",
+   "description": "Description",
+   "keywords": "Keywords",
+   "importance": "Importance",
+   "source": "Source",
+   "scene": "Scene",
+   "valid": "Valid",
+   "related": "Related",
+   "body": "## What / ## How / ## Why"
+  }
+ },
+ "day_boundary": "10:00 → next day 01:30; rows dated 00:00–01:30 belong to the previous file-day",
+ "days": {
+  "D1": {
+   "file": "D1.json",
+   "date": "2026-11-01",
+   "weekday": "周日",
+   "count": 72,
+   "trivial": 14,
+   "trivial_ratio": 0.194,
+   "failed_plan": 7,
+   "failed_ratio": 0.097,
+   "contradictions": [
+    "C1"
+   ],
+   "promises": [],
+   "highlights": [],
+   "importance_ge8": 0,
+   "valid_to_set": 1,
+   "types": {
+    "event": 50,
+    "chat": 15,
+    "recognition": 7
+   },
+   "live": 10,
+   "next_day_rows": 8,
+   "threads": [
+    "achan",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "radio",
+    "self",
+    "town",
+    "xiaoqian"
+   ]
+  },
+  "D2": {
+   "file": "D2.json",
+   "date": "2026-11-02",
+   "weekday": "周一",
+   "count": 80,
+   "trivial": 16,
+   "trivial_ratio": 0.2,
+   "failed_plan": 8,
+   "failed_ratio": 0.1,
+   "contradictions": [
+    "C2"
+   ],
+   "promises": [
+    "P2:made",
+    "P1:made"
+   ],
+   "highlights": [],
+   "importance_ge8": 0,
+   "valid_to_set": 1,
+   "types": {
+    "event": 55,
+    "chat": 20,
+    "recognition": 5
+   },
+   "live": 10,
+   "next_day_rows": 8,
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "grocer",
+    "live",
+    "radio",
+    "school",
+    "self",
+    "town",
+    "xiaoqian"
+   ]
+  },
+  "D3": {
+   "file": "D3.json",
+   "date": "2026-11-03",
+   "weekday": "周二",
+   "count": 78,
+   "trivial": 16,
+   "trivial_ratio": 0.205,
+   "failed_plan": 8,
+   "failed_ratio": 0.103,
+   "contradictions": [
+    "C3"
+   ],
+   "promises": [],
+   "highlights": [
+    "x6-D3-062"
+   ],
+   "importance_ge8": 1,
+   "valid_to_set": 1,
+   "types": {
+    "event": 53,
+    "chat": 20,
+    "recognition": 5
+   },
+   "live": 11,
+   "next_day_rows": 4,
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "radio",
+    "school",
+    "self",
+    "town",
+    "xiaoqian"
+   ]
+  },
+  "D4": {
+   "file": "D4.json",
+   "date": "2026-11-04",
+   "weekday": "周三",
+   "count": 76,
+   "trivial": 15,
+   "trivial_ratio": 0.197,
+   "failed_plan": 8,
+   "failed_ratio": 0.105,
+   "contradictions": [
+    "C4"
+   ],
+   "promises": [
+    "P3:made"
+   ],
+   "highlights": [],
+   "importance_ge8": 0,
+   "valid_to_set": 1,
+   "types": {
+    "event": 48,
+    "chat": 23,
+    "recognition": 5
+   },
+   "live": 8,
+   "next_day_rows": 7,
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "radio",
+    "school",
+    "self",
+    "town",
+    "xiaoqian"
+   ]
+  },
+  "D5": {
+   "file": "D5.json",
+   "date": "2026-11-05",
+   "weekday": "周四",
+   "count": 84,
+   "trivial": 16,
+   "trivial_ratio": 0.19,
+   "failed_plan": 8,
+   "failed_ratio": 0.095,
+   "contradictions": [
+    "C5"
+   ],
+   "promises": [
+    "P1:kept"
+   ],
+   "highlights": [
+    "x6-D5-048"
+   ],
+   "importance_ge8": 1,
+   "valid_to_set": 1,
+   "types": {
+    "event": 58,
+    "chat": 20,
+    "recognition": 6
+   },
+   "live": 10,
+   "next_day_rows": 9,
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "radio",
+    "school",
+    "self",
+    "town",
+    "xiaoqian"
+   ]
+  },
+  "D6": {
+   "file": "D6.json",
+   "date": "2026-11-06",
+   "weekday": "周五",
+   "count": 80,
+   "trivial": 16,
+   "trivial_ratio": 0.2,
+   "failed_plan": 8,
+   "failed_ratio": 0.1,
+   "contradictions": [
+    "C6"
+   ],
+   "promises": [],
+   "highlights": [],
+   "importance_ge8": 0,
+   "valid_to_set": 1,
+   "types": {
+    "event": 51,
+    "chat": 23,
+    "recognition": 6
+   },
+   "live": 10,
+   "next_day_rows": 8,
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "radio",
+    "school",
+    "self",
+    "xiaoqian"
+   ]
+  },
+  "D7": {
+   "file": "D7.json",
+   "date": "2026-11-07",
+   "weekday": "周六",
+   "count": 66,
+   "trivial": 14,
+   "trivial_ratio": 0.212,
+   "failed_plan": 4,
+   "failed_ratio": 0.061,
+   "contradictions": [
+    "C7"
+   ],
+   "promises": [
+    "P2:kept",
+    "P3:reneged"
+   ],
+   "highlights": [
+    "x6-D7-028"
+   ],
+   "importance_ge8": 1,
+   "valid_to_set": 1,
+   "types": {
+    "event": 41,
+    "chat": 17,
+    "recognition": 8
+   },
+   "live": 10,
+   "next_day_rows": 8,
+   "threads": [
+    "achan",
+    "cook",
+    "daily",
+    "fisher",
+    "grocer",
+    "live",
+    "radio",
+    "self",
+    "town",
+    "xiaoqian"
+   ]
+  }
+ },
+ "rewrite": {
+  "model": "us.anthropic.claude-haiku-5-5",
+  "requests": 28,
+  "input_tokens": 22402,
+  "output_tokens": 39509,
+  "batches_kept_original": 1,
+  "rows_kept_original": 16,
+  "changed": 446,
+  "cost_usd_est": 0.022,
+  "seconds": 165.5
+ },
+ "version": 1,
+ "week": {
+  "total": 536,
+  "importance_ge8": 3,
+  "promises": {
+   "P1": "kept",
+   "P2": "kept",
+   "P3": "reneged"
+  }
+ },
+ "self_check": {
+  "problems": [],
+  "ok": true
+ }
+}
