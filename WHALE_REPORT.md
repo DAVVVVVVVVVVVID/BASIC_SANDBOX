@@ -49,6 +49,7 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 
 - **① `set_fridge 0` 后冰箱又能吃（R1，饱腹 17 → 57）**：根因不是 `use` 不查库存——`use` 对 fridge 自 W11 ④ 起就按 `stock` 判 `empty` 且扣份（8091 复现：`reset → set_time 22:30 → set_fridge 0` 后下一 tick `/world` 冰箱 `stock` 已回到 2）。真正原因是 **`reset` 清掉了当天的补货记录，下一 tick 的每日补货（08:00，+2）在 22:30 补发**，把夹具写的 0 盖掉。修法只在夹具 op 路径：`set_fridge` / `set_stock` 若当前游戏时刻已过该物品 `restock_at`，把今天的补货记为已做（detail 多一个 `restock_pinned`），夹具值保持到次日补货或下一次 set_*；补货时刻之前写的不钉（到点照常补）。正常游戏逻辑不动。
 - **② 夹具 `occupy` 起 30 分钟物品冷却（R3，PC 回来续不上）**：`op_occupy` 原来调 `record_object_use`，等同一次 use。改为**不记冷却 / 使用史，并清掉该物品已有的冷却**——`release` 或她自己离开后能立刻 `use` 回去；她自己正常 use 后 leave 的冷却照旧。C 跑手里 occupy 后补的 `clear_cooldowns(player)` 原本也能清掉（它 pop 的就是 `_last_used[pid]`），现在不需要了，留着无害。
+- **补（总控 whale-f4 核对）**：`restock_pinned` 只在本次调用把今天补货记为已做时非空；C 看到 null 而效果达到，是 `set_time` 与 `set_fridge` 之间插进了一个 tick、今天已补过，set_fridge 直接覆盖成 0 同样保持。为免歧义多给 `restock_state`：`pinned` / `already_restocked_today` / `before_restock_at`（只加字段）。bench2 fixcheck 两场过，X5 formal 以 79cbc31 起。
 - 2 例单测（`tests/test_w11_x5_fixtures.py`）：reset + 22:30 + set_fridge 0 → 三个 tick 后 stock 仍 0、use 得 `empty`、饱腹不涨、次日 08:01 补到 2、07:00 写的不钉到 08:05 补 2；occupy pc_whale / sofa_tv → release 后冷却 0 且 use 成功，自己 leave 后冷却照旧，再 occupy 清冷却。329 passed。api-spec scenario op 表两行已注。8091 已切。
 
 ## 5p. X6 人设一致性语料：按 persona v1.0 重生成 7 个合成日（总控 11-11 修正 4，主播选 1）—— 完成

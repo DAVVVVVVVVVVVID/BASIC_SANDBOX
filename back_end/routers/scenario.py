@@ -275,17 +275,20 @@ def _parse_until(step: dict) -> float | None:
 
 def _pin_restock_today(obj: dict) -> str | None:
     """X5 pilot ①：夹具写过的库存就是「今天补货后的水位」——若当前游戏时刻已过该物品的 restock_at，把今天的补货记为已做，
-    否则 reset 清掉补货记录后下一 tick 会立刻补货把夹具值盖掉（R1 set_fridge 0 → 冰箱又有 2 份）。返回被钉住的 key。"""
+    否则 reset 清掉补货记录后下一 tick 会立刻补货把夹具值盖掉（R1 set_fridge 0 → 冰箱又有 2 份）。
+    返回 (被钉住的 key 或 None, 状态)：pinned / already_restocked_today（今天已补过，夹具值同样保持）/ before_restock_at（到点会补）。"""
     from game import economy
     from game.time_state import _game_dt
     dt = _game_dt(world_state.game_now_ts()); day = dt.strftime("%Y-%m-%d"); hm = dt.strftime("%H:%M")
     s = economy.shop_for(obj["type"])
     at = (s or {}).get("restock_at") if s is not None else economy.cfg().get("fridge", {}).get("restock_at", "08:00")
     key = f"{obj['id']}:{day}"
-    if hm >= (at or "08:00") and key not in economy._restocked:
-        economy._restocked[key] = hm
-        return key
-    return None
+    if hm < (at or "08:00"):
+        return None, "before_restock_at"              # 今天还没到补货时刻：到点会照常补（夹具值会被补上去）
+    if key in economy._restocked:
+        return None, "already_restocked_today"        # 今天已补过（例如 set_time 与 set_fridge 之间插进了一个 tick）：夹具值直接保持
+    economy._restocked[key] = hm
+    return key, "pinned"                              # 本次把今天的补货记为已做
 
 
 def op_set_fridge(step: dict) -> dict:
@@ -298,8 +301,8 @@ def op_set_fridge(step: dict) -> dict:
     with world_state.STATE_LOCK:
         obj["stock"] = obj.get("stock") or {}
         obj["stock"][item] = max(0, int(step.get("qty", 0)))
-        pinned = _pin_restock_today(obj)
-    return {"id": obj["id"], "stock": dict(obj["stock"]), "restock_pinned": pinned}
+        pinned, state = _pin_restock_today(obj)
+    return {"id": obj["id"], "stock": dict(obj["stock"]), "restock_pinned": pinned, "restock_state": state}
 
 
 def op_set_stock(step: dict) -> dict:
@@ -313,9 +316,9 @@ def op_set_stock(step: dict) -> dict:
         raise StepError(f"unknown item: {item}")
     with world_state.STATE_LOCK:
         obj["stock"][item] = max(0, int(step.get("qty", 0)))
-        pinned = _pin_restock_today(obj)
+        pinned, state = _pin_restock_today(obj)
         world_state.refresh_shop_views()
-    return {"shop": obj["id"], "stock": dict(obj["stock"]), "restock_pinned": pinned}
+    return {"shop": obj["id"], "stock": dict(obj["stock"]), "restock_pinned": pinned, "restock_state": state}
 
 
 def op_force_closed(step: dict) -> dict:

@@ -121,6 +121,10 @@ def test_set_fridge_pins_todays_restock(client, v1, bench_env, fake_clock):
                       {"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 3, "y": 30, "facing": "up", "vars": {"fullness": 17}},
                       {"op": "set_fridge", "id": "fridge_home", "qty": 0}])
     assert r["ok"] and r["steps"][-1]["detail"]["stock"] == {"ingredients": 0} and r["steps"][-1]["detail"]["restock_pinned"]
+    assert r["steps"][-1]["detail"]["restock_state"] == "pinned"
+    # 今天已补过再 set_fridge：不再钉，但值同样保持
+    r2 = _run(client, [{"op": "set_fridge", "id": "fridge_home", "qty": 0}])
+    assert r2["steps"][-1]["detail"]["restock_pinned"] is None and r2["steps"][-1]["detail"]["restock_state"] == "already_restocked_today"
     whale = next(p["id"] for p in world_state._players.values() if p["name"] == "鲸仔")
     for _ in range(3):
         ticker.tick_once(checkpoint=False); fake_clock.advance(1)
@@ -137,7 +141,7 @@ def test_set_fridge_pins_todays_restock(client, v1, bench_env, fake_clock):
     assert fridge["stock"] == {"ingredients": 2}
     # 补货时刻之前 set_fridge 不钉：到点照常补
     r = _run(client, [{"op": "set_time", "date": d2, "time": "07:00"}, {"op": "set_fridge", "id": "fridge_home", "qty": 0}])
-    assert r["steps"][-1]["detail"]["restock_pinned"] is None
+    assert r["steps"][-1]["detail"]["restock_pinned"] is None and r["steps"][-1]["detail"]["restock_state"] == "before_restock_at"
     _run(client, [{"op": "set_time", "date": d2, "time": "08:05"}]); fake_clock.advance(1); ticker.tick_once(checkpoint=False)
     assert fridge["stock"] == {"ingredients": 2}
 
