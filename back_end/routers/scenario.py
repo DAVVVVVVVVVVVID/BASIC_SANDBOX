@@ -13,7 +13,7 @@ op 一览（player 字段可填 id 或唯一的 name）：
   teleport       {player, x, y, facing?}             必须是可走格
   set_vars       {player, vars:{fullness,energy,social,fun,mood}, mood_base?, scene?, closeness?}  七变量直写
   effects        {player, effects:[...], scene?}     与 /effects 同格式（source="scenario"）
-  occupy         {player, object, sticky?:false}     让玩家占住某物品（跳过距离 / 冷却 / 营业时间 / 外部调用）；sticky=true 关掉 max_duration 自动离开
+  occupy         {player, object, sticky?:false}     让玩家占住某物品（跳过距离 / 冷却 / 营业时间 / 外部调用；不记冷却，解除后可立刻再用）；sticky=true 关掉 max_duration 自动离开
   release        {player}                            离开正在用的物品
   invite         {from, to:[...], greeting}          代某玩家发邀请（跳过冷却）→ 返回 request_id
   respond        {player, request_id, accept, message}
@@ -206,7 +206,8 @@ def op_occupy(step: dict) -> dict:
         for e in obj["effects"]:                       # external：直播台 / 游戏机只做本地状态，不打外部服务
             if e.get("type") == "external" and e.get("key") == "live":
                 p["scene"] = "live"
-        world_state.record_object_use(p["id"], obj["id"])
+        # X5 pilot ②：夹具驱动的占用不算「用过」——不记冷却 / 使用史，并清掉这件物品已有的冷却，解除后她能立刻回来续上
+        world_state._last_used.get(p["id"], {}).pop(obj["id"], None)
         if step.get("sticky"):
             world_state._use_start_times[p["id"]] = None   # 不触发 max_duration 自动离开
     return _brief(p)
@@ -272,8 +273,23 @@ def _parse_until(step: dict) -> float | None:
     return datetime.fromisoformat(str(u)).timestamp()
 
 
+def _pin_restock_today(obj: dict) -> str | None:
+    """X5 pilot ①：夹具写过的库存就是「今天补货后的水位」——若当前游戏时刻已过该物品的 restock_at，把今天的补货记为已做，
+    否则 reset 清掉补货记录后下一 tick 会立刻补货把夹具值盖掉（R1 set_fridge 0 → 冰箱又有 2 份）。返回被钉住的 key。"""
+    from game import economy
+    from game.time_state import _game_dt
+    dt = _game_dt(world_state.game_now_ts()); day = dt.strftime("%Y-%m-%d"); hm = dt.strftime("%H:%M")
+    s = economy.shop_for(obj["type"])
+    at = (s or {}).get("restock_at") if s is not None else economy.cfg().get("fridge", {}).get("restock_at", "08:00")
+    key = f"{obj['id']}:{day}"
+    if hm >= (at or "08:00") and key not in economy._restocked:
+        economy._restocked[key] = hm
+        return key
+    return None
+
+
 def op_set_fridge(step: dict) -> dict:
-    """X5：直接写冰箱库存 {id, qty}（含 0）。"""
+    """X5：直接写冰箱库存 {id, qty}（含 0）；当天已过补货时刻则同时钉住今天的补货（直到次日 restock_at 或下一次 set_fridge）。"""
     from game.economy import cfg
     obj = world_state.get_object_by_id(step.get("id") or step.get("object") or "fridge_home")
     if obj is None or obj["type"] != "fridge":
@@ -282,7 +298,8 @@ def op_set_fridge(step: dict) -> dict:
     with world_state.STATE_LOCK:
         obj["stock"] = obj.get("stock") or {}
         obj["stock"][item] = max(0, int(step.get("qty", 0)))
-    return {"id": obj["id"], "stock": dict(obj["stock"])}
+        pinned = _pin_restock_today(obj)
+    return {"id": obj["id"], "stock": dict(obj["stock"]), "restock_pinned": pinned}
 
 
 def op_set_stock(step: dict) -> dict:
@@ -296,8 +313,9 @@ def op_set_stock(step: dict) -> dict:
         raise StepError(f"unknown item: {item}")
     with world_state.STATE_LOCK:
         obj["stock"][item] = max(0, int(step.get("qty", 0)))
+        pinned = _pin_restock_today(obj)
         world_state.refresh_shop_views()
-    return {"shop": obj["id"], "stock": dict(obj["stock"])}
+    return {"shop": obj["id"], "stock": dict(obj["stock"]), "restock_pinned": pinned}
 
 
 def op_force_closed(step: dict) -> dict:

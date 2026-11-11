@@ -113,3 +113,59 @@ def test_full_game_day_at_x6_triggers_restock_wages_and_hours(client, v1, fake_c
     groc_changes = [(hm, s[1]) for i, (hm, s) in enumerate(transitions) if i == 0 or s[1] != transitions[i - 1][1][1]]
     assert [x for x in rest_changes if x[0] != "07:01"] == [("11:00", True), ("14:00", False), ("17:00", True), ("21:00", False)], rest_changes
     assert [x for x in groc_changes if x[0] != "07:01"] == [("09:00", True), ("20:00", False)], groc_changes
+
+
+def test_set_fridge_pins_todays_restock(client, v1, bench_env, fake_clock):
+    """X5 pilot ①（R1）：reset 清掉补货记录后 set_time 22:30 + set_fridge 0，下一 tick 的每日补货不得把 0 盖回 2；use 应得 empty 且饱腹不涨。"""
+    r = _run(client, [{"op": "reset"}, {"op": "set_time", "time": "22:30"},
+                      {"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 3, "y": 30, "facing": "up", "vars": {"fullness": 17}},
+                      {"op": "set_fridge", "id": "fridge_home", "qty": 0}])
+    assert r["ok"] and r["steps"][-1]["detail"]["stock"] == {"ingredients": 0} and r["steps"][-1]["detail"]["restock_pinned"]
+    whale = next(p["id"] for p in world_state._players.values() if p["name"] == "鲸仔")
+    for _ in range(3):
+        ticker.tick_once(checkpoint=False); fake_clock.advance(1)
+    fridge = world_state.get_object_by_id("fridge_home")
+    assert fridge["stock"] == {"ingredients": 0}
+    res = action(client, whale, "use")
+    assert res["success"] is False and res["reason"] == "empty"
+    assert world_state._players[whale]["fullness"] <= 17          # 没涨（自然衰减可忽略）
+    # 次日 08:00 照常补货 +2
+    from datetime import timedelta
+    from game import time_state
+    d1 = (time_state.game_now() + timedelta(days=1)).strftime("%Y-%m-%d"); d2 = (time_state.game_now() + timedelta(days=2)).strftime("%Y-%m-%d")
+    _run(client, [{"op": "set_time", "date": d1, "time": "08:01"}]); fake_clock.advance(1); ticker.tick_once(checkpoint=False)
+    assert fridge["stock"] == {"ingredients": 2}
+    # 补货时刻之前 set_fridge 不钉：到点照常补
+    r = _run(client, [{"op": "set_time", "date": d2, "time": "07:00"}, {"op": "set_fridge", "id": "fridge_home", "qty": 0}])
+    assert r["steps"][-1]["detail"]["restock_pinned"] is None
+    _run(client, [{"op": "set_time", "date": d2, "time": "08:05"}]); fake_clock.advance(1); ticker.tick_once(checkpoint=False)
+    assert fridge["stock"] == {"ingredients": 2}
+
+
+def test_occupy_does_not_start_cooldown(client, v1, bench_env, fake_clock):
+    """X5 pilot ②（R3）：夹具 occupy 不算一次 use——release / 自己离开后物品没有 30 分钟冷却，能立刻 use 回去续上。
+    PC（直播台）在测试里没有自我层连不上 live，用同为默认冷却的 sofa_tv 验 use 路径，pc_whale 只验冷却值。"""
+    _at(fake_clock, 14, 30)
+    whale = _agent(client, "whale")
+    r = _run(client, [{"op": "occupy", "player": whale, "object": "pc_whale"}])
+    assert r["ok"] and world_state._players[whale]["usingObjectId"] == "pc_whale"
+    assert world_state.object_cooldown_remaining(whale, "pc_whale") == 0
+    fake_clock.advance(120)
+    _run(client, [{"op": "release", "player": whale}])
+    assert world_state._players[whale]["usingObjectId"] is None
+    assert world_state.object_cooldown_remaining(whale, "pc_whale") == 0
+    # 同一流程走 sofa_tv，释放后立刻 use 成功
+    _run(client, [{"op": "occupy", "player": whale, "object": "sofa_tv"}])
+    fake_clock.advance(300)
+    _run(client, [{"op": "release", "player": whale}])
+    assert world_state.object_cooldown_remaining(whale, "sofa_tv") == 0
+    res = action(client, whale, "use")
+    assert res["success"] is True, res
+    assert world_state._players[whale]["usingObjectId"] == "sofa_tv"
+    # 她自己 leave 后再 use：正常游戏冷却照旧（那是真的用过一次）
+    action(client, whale, "leave")
+    assert world_state.object_cooldown_remaining(whale, "sofa_tv") > 0
+    assert action(client, whale, "use")["reason"] == "object_cooldown"
+    # occupy 会清掉已有冷却：夹具再占一次 → release → 立刻可用
+    _run(client, [{"op": "occupy", "player": whale, "object": "sofa_tv"}, {"op": "release", "player": whale}])
+    assert world_state.object_cooldown_remaining(whale, "sofa_tv") == 0 and action(client, whale, "use")["success"]

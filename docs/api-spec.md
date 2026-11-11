@@ -1262,13 +1262,13 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `teleport` | `player`, `x`, `y`, `facing?` | 必须可走格；正在用物品先离开；`pos_seq` +1 |
 | `set_vars` | `player`, `vars{…}`, `mood_base?`, `scene?`, `closeness?` | 七变量直写（clamp，`hp` 视为 fullness），**不进自我层 vars_delta** |
 | `effects` | `player`, `effects[]`, `scene?`, `event?` | 同 `POST /player/{id}/effects`，`source="scenario"` |
-| `occupy` | `player`, `object`, `sticky?` | 让玩家占住 continuous 物品：跳过距离 / 冷却 / 营业时间 / 外部调用（直播台只本地切 live）；站到相邻可走格并面向它；`sticky=true` 关掉 max_duration 自动离开（S05「占着不走」）。满员 → 错 |
+| `occupy` | `player`, `object`, `sticky?` | 让玩家占住 continuous 物品：跳过距离 / 冷却 / 营业时间 / 外部调用（直播台只本地切 live）；站到相邻可走格并面向它；`sticky=true` 关掉 max_duration 自动离开（S05「占着不走」）。满员 → 错。**夹具占用不算「用过」**：不记物品冷却 / 使用史，并清掉该物品已有冷却——`release` 或她自己离开后可立刻 `use` 回来续上（X5 pilot ②） |
 | `release` | `player` | 离开正在用的物品 |
 | `invite` | `from`, `to[]`, `greeting` | 代某玩家发邀请，**跳过冷却**，返回 `request_id` |
 | `respond` | `player`, `request_id`, `accept`, `message`, `tick?=true` | 代某玩家响应；默认立刻推进一次状态机（相邻则建房），返回 `status_now` / `chat_room_id` |
 | `say` | `player`, `text`, `room?` | 代某玩家发言：有 `room` 走房间 `POST /chat/message`；**没有 `room` 走 Q6「靠近即可说」**（X4 say / GA 变体的脚本小千），返回 `{heard_by, …}` |
 | `qq_send` | `from`, `to` \| `group`, `text`, `kind?`, `file_ref?` | **X4 C-QQ** 代脚本角色发 QQ（同 `POST /qq/send`），失败原因同其 `reason` |
-| `set_fridge` | `id?="fridge_home"`, `qty` | **X5** 直接写冰箱食材库存（含 0） |
+| `set_fridge` | `id?="fridge_home"`, `qty` | **X5** 直接写冰箱食材库存（含 0）。若当前游戏时刻已过冰箱 `restock_at`，同时把**今天的补货记为已做**（detail `restock_pinned`），夹具值保持到次日补货或下一次 `set_fridge`——否则 `reset` 清过补货记录后下一 tick 会补 +2 把 0 盖掉（X5 pilot ①）。`set_stock` 同理 |
 | `set_stock` | `shop`（物品 id）, `item`, `qty` | **X5** 写商店库存，`/world.objects[].shop[].stock` 同步 |
 | `force_closed` | `object` \| `door_id` \| `arena` \| `shop`, `until: "HH:MM"` \| ISO \| `null` | **X5** 强制关门不等真实时钟：物品 `use → closed`（`opens_at = until`）、所在 arena / 门边进入 → `no_path / closed`、正在用的人下一 tick 被请出；到点自动解除。只在内存 |
 | `clear_closed` | `key?` | **X5** 解除强制关门（不给 = 全部） |

@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5q. X5 pilot 两处夹具问题（总控 11-11 下午）—— 已修
+
+- **① `set_fridge 0` 后冰箱又能吃（R1，饱腹 17 → 57）**：根因不是 `use` 不查库存——`use` 对 fridge 自 W11 ④ 起就按 `stock` 判 `empty` 且扣份（8091 复现：`reset → set_time 22:30 → set_fridge 0` 后下一 tick `/world` 冰箱 `stock` 已回到 2）。真正原因是 **`reset` 清掉了当天的补货记录，下一 tick 的每日补货（08:00，+2）在 22:30 补发**，把夹具写的 0 盖掉。修法只在夹具 op 路径：`set_fridge` / `set_stock` 若当前游戏时刻已过该物品 `restock_at`，把今天的补货记为已做（detail 多一个 `restock_pinned`），夹具值保持到次日补货或下一次 set_*；补货时刻之前写的不钉（到点照常补）。正常游戏逻辑不动。
+- **② 夹具 `occupy` 起 30 分钟物品冷却（R3，PC 回来续不上）**：`op_occupy` 原来调 `record_object_use`，等同一次 use。改为**不记冷却 / 使用史，并清掉该物品已有的冷却**——`release` 或她自己离开后能立刻 `use` 回去；她自己正常 use 后 leave 的冷却照旧。C 跑手里 occupy 后补的 `clear_cooldowns(player)` 原本也能清掉（它 pop 的就是 `_last_used[pid]`），现在不需要了，留着无害。
+- 2 例单测（`tests/test_w11_x5_fixtures.py`）：reset + 22:30 + set_fridge 0 → 三个 tick 后 stock 仍 0、use 得 `empty`、饱腹不涨、次日 08:01 补到 2、07:00 写的不钉到 08:05 补 2；occupy pc_whale / sofa_tv → release 后冷却 0 且 use 成功，自己 leave 后冷却照旧，再 occupy 清冷却。329 passed。api-spec scenario op 表两行已注。8091 已切。
+
 ## 5p. X6 人设一致性语料：按 persona v1.0 重生成 7 个合成日（总控 11-11 修正 4，主播选 1）—— 完成
 
 - **选 (A) 全新生成**（而非只改三处）：X3 的 07:30 起 / 23:40 睡是整张时间网格的锚，琴房线每天 2–4 条且 C4 / D6 高光建在琴房上，老板娘 / 老渔夫 / 餐厅老板从 D1 起就是熟人口吻——粗数要动 40% 以上的行，剩下的时间仍是错的。X3 文件不动，X3 结论不受影响。
