@@ -63,7 +63,7 @@ export interface BusyState { kind: 'eating' | 'cooking' | 'burning' | string; it
 /** world-v1.1-b：每日使用时长（分钟）按物品类型 */
 export type DailyUse = Record<string, { used_min: number; limit_min: number }>
 /** world-v1.1：房租（人类 null） */
-export interface RentInfo { amount: number; due_at?: string; due_in_days?: number; overdue?: boolean; landlord?: string; items?: { kind: 'home' | 'shop' | string; amount: number }[] }
+export interface RentInfo { amount: number; due_at?: string; due_in_days?: number; overdue?: boolean; landlord?: string; items?: { kind: 'home' | 'shop' | string; amount: number }[]; owed?: number; since?: string | null; balance?: number }
 
 export type TimePeriod = 'morning' | 'day' | 'dusk' | 'night'
 export type Weather = 'sunny' | 'cloudy' | 'rain'

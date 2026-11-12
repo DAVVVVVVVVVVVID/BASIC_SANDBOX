@@ -84,7 +84,7 @@ export function rentText(r: RentInfo | null | undefined): { text: string; overdu
   const due = r.due_at ? r.due_at.slice(5, 10).replace('-', '-') : ''
   const days = typeof r.due_in_days === 'number' ? `（${r.due_in_days <= 0 ? '今天' : `${r.due_in_days} 天后`}）` : ''
   const parts = r.items && r.items.length > 1 ? ` = ${r.items.map(i => `${i.kind === 'shop' ? '铺面' : '住房'} ${i.amount}`).join(' + ')}` : ''
-  if (r.overdue) return { text: `🏠 欠租 ${r.amount}${parts} · 房东催缴中`, overdue: true }
+  if (r.overdue) return { text: `🏠 欠租 ${typeof r.owed === 'number' && r.owed > 0 ? r.owed : r.amount}${parts}${r.since ? `（自 ${r.since.slice(5, 10)}）` : ''} · 镇公所催缴中`, overdue: true }
   return { text: `🏠 房租 ${r.amount}${parts}${due ? ` · ${due} 到期` : ''}${days}`, overdue: false }
 }
 
