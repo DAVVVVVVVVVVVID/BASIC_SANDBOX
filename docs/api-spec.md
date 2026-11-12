@@ -1279,6 +1279,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `qq_send` | `from`, `to` \| `group`, `text`, `kind?`, `file_ref?` | **X4 C-QQ** 代脚本角色发 QQ（同 `POST /qq/send`），失败原因同其 `reason` |
 | `set_fridge` | `id?="fridge_home"`, `qty` | **X5** 直接写冰箱食材库存（含 0）。若当前游戏时刻已过冰箱 `restock_at`，同时把**今天的补货记为已做**（detail `restock_pinned` = 钉住的 key；`restock_state` = `pinned` / `already_restocked_today`（今天已补过，夹具值同样保持，`restock_pinned` 为 null）/ `before_restock_at`（到点会照常补）），夹具值保持到次日补货或下一次 `set_fridge`——否则 `reset` 清过补货记录后下一 tick 会补 +2 把 0 盖掉（X5 pilot ①）。`set_stock` 同理 |
 | `set_stock` | `shop`（物品 id）, `item`, `qty` | **X5** 写商店库存，`/world.objects[].shop[].stock` 同步 |
+| `set_gold` | `player`, `gold` | **world-v1.1 验收** 把余额写成 `gold`（流水 `adjust source=scenario`，账户同步）；R6「房租到期前钱不够」 |
 | `force_closed` | `object` \| `door_id` \| `arena` \| `shop`, `until: "HH:MM"` \| ISO \| `null` | **X5** 强制关门不等真实时钟：物品 `use → closed`（`opens_at = until`）、所在 arena / 门边进入 → `no_path / closed`、正在用的人下一 tick 被请出；到点自动解除。只在内存 |
 | `clear_closed` | `key?` | **X5** 解除强制关门（不给 = 全部） |
 | `exit_chat` | `player`, `room` | 代某玩家退出房间 |

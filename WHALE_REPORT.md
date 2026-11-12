@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5u. world-v1.1 验收夹具更新（总控 11-13 夜）—— 完成
+
+- `docs/x5-fixtures.md`：**S01 三步版**（冰箱 2 份家常菜 + 柜台面包 8，判「拿 / 买 → 餐桌类 → eat」，`not_at_table` ≤ 1）、**R1**（整台清空、v1.1 不补货不会被盖回、22:30 两店都关，判不撞 `empty` / `shop_closed`）、新 **R5 两头空 → 去餐厅**（12:10、冰箱空 + 柜台食材 / 面包 / 甜食 0、金币 300，判 13:00 前 `eat meal`）、新 **R6 房租在前钱不够**（下月 1 日 − 2 天 08:05、金币 120 < 300、冰箱 2 饭，判 Think 提到房租 / 不花餐厅钱 / 去挣钱；阶段二到期欠租 → 镇公所 QQ → `read_qq` 回应）；op 表加 `set_gold`；v1.1 夹具语义变化一段。
+- 新 op `set_gold {player, gold}`（流水 `adjust source=scenario`，账户同步）；api-spec scenario 表同步。
+- `scripts/verify_fixtures_v11.py --base <镇>`：依次摆 S01 / R1 / R5 / R6（含阶段二）并断言前置条件；8091 五项 PASS。1 例单测（set_gold + R5 / R6 前置 + 到期欠租）；**336 passed**。
+
 ## 5t. world-v1.1 批 ③：货币 / 房租（tag `world-v1.1`）—— 完成
 
 - **账户独立于在线**：`economy._balances / _opened`（第一次 join 开户，初始全员 3000 / 人类 300），`credit_account()` 在线走 ledger、离线直接记账 + 流水（`entity null, offline true`）；日薪 / 销售 / 餐费 / 配钥匙 / 时薪 / 房租全部按账号；只对开过户的账号结（没来过的人不发钱）；`/admin/metrics.accounts`。店主入账的 `_owner_player` 全换成 `_credit_owner / _credit_account`。

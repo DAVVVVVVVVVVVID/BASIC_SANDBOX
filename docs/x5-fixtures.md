@@ -11,7 +11,11 @@
 | `force_closed` | `object` \| `door_id` \| `arena` \| `shop`（任一 id）, `until: "HH:MM"` \| ISO \| `null` | 强制关门不等真实时钟：物品 `use → closed`（`opens_at = until`）、所在 arena / 门边进入 → `no_path / closed`、正在用的人下一 tick 被请出；到点自动解除，`clear_closed {key?}` / `reset` 也解除 |
 | `clear_closed` | `key?` | 解除（不给 = 全部） |
 
+| `set_gold` | `player`, `gold` | **v1.1** 把余额写成 gold（流水 adjust，账户同步） |
+
 共用（既有）：`set_time`、`teleport`、`set_vars`、`spawn`、`give_item`、`qq_send`、`reset`。
+
+**world-v1.1 起的夹具语义变化**：`set_fridge` 不带 `item` = 整台清空后放 qty 份食材（qty 0 = 空冰箱），带 `item` 只重写该种；冰箱**不自动补货**（`economy.fridge.restock_enabled` 默认 false，`restock_pinned` 只在开着补货时有意义）；商店 08:00 `stock := daily_supply`（卖完即止）；进食必须 `use` 餐桌类再 `eat`（长椅只许面包 / 甜食 / 饭菜；直播中 `streaming`）；`occupy` 的时长计入每日上限（创作 / 娱乐类无冷却）；房租默认开着（`rent.enabled`），bench 短场景无影响（只在每月 1 日 08:00 扣）。核验脚本：`cd back_end && uv run python scripts/verify_fixtures_v11.py --base http://127.0.0.1:8091`（摆好 S01 / R1 / R5 / R6 并断言前置条件）。
 
 ## 坐标（v1）
 
@@ -21,15 +25,17 @@
 
 | # | 摆法（steps） | 终止 | 判定要点 |
 |---|---|---|---|
-| **S01** 饿了就吃 | `set_time 11:30`；`teleport 鲸仔 41,26 up`（广场）；`set_vars {fullness: 15}`；`set_fridge fridge_home 2` | 吃到 / 60 游戏分钟 | 30 分钟内 `use fridge_home` 或餐桌成功（餐厅 11–14 开着，一餐 20 金币；金币 300）且饱腹上升 |
+| **S01** 饿了就吃（**v1.1 三步版**） | `set_time 11:30`；`teleport 鲸仔 41,26 up`（广场）；`set_vars {fullness: 15}`；`set_fridge fridge_home 0`（整台清空）→ `set_fridge {id: fridge_home, item: home_meal, qty: 2}`（两份家常菜）；`set_stock counter bread 8`（备选路：买面包到长椅 / 餐桌吃） | `eat_done` / 60 游戏分钟 | 45 分钟内完成「拿 / 买 → 到餐桌类 → `eat`」三步：ws `eat_done` 或 `busy` 结束后饱腹 ≥ 起点 +20；不许原地 `eat`（`not_at_table` ≤ 1 次）；餐厅 11–14 开着，去餐厅 `eat meal`（−20）也算 |
 | **S02** 到点睡觉 | `set_time 01:50`；`teleport 鲸仔 45,19 left`（街道） | 睡着 / 60 分钟 | 40 分钟内 `use bed_whale`、`tags` 含 `sleeping`；她有合租房钥匙，门禁不挡 |
 | **S07** 直播段上台 | `set_time 19:50`；`teleport 鲸仔 5,25 down`（`whale_room`，验收台原文「小仓库」为 v0 名） | 20:30 | 20:15 前 `use pc_whale`（`external: live`，bench `SELF_SYNC=0` 时会 `live_unavailable`——**X5 bench 请开自我层同步或由 C 用 `scenario occupy` 认 use**）成功、`scene=live`、`tags` 含 `streaming` |
 | **S08** 不敲关门店 | `set_time 22:30`；`teleport 鲸仔 41,26 right`；`set_vars {fullness: 20}`；（22:30 餐厅 / 杂货店本就关；要不等时钟可 `force_closed {object: table_rest_1, until: "11:00"}` + `force_closed {shop: counter, until: "09:00"}`） | 30 分钟 | 不对 `closed` 物品连续 `use` > 1；转向可用物品（家冰箱 2 份） |
 | **D1** 一日时间分配 | `reset` → C join 鲸仔 → `set_time 09:30` → `teleport 鲸仔 3,24 up` + `occupy {player: 鲸仔, object: bed_whale}`（睡着起）→ `set_vars {fullness: 60, energy: 95}`；`set_fridge fridge_home 2`；金币 300（join 默认）；不放 NPC | 次日 09:30 | 锚点（persona.yaml）：起 10:00 / 早饭 10:30 / 午饭 12:30 硬 / 电台 13:30–18:00 / 晚饭 19:00 硬 / 直播 20:00–23:00 / 睡 01:30；补货 08:00、日薪、店开关由 tick 自动触发（`scripts/verify_day_cycle.py` 已核：×600 一日 14/14） |
-| **R1** 资源不可得 | `set_time 22:30`；`teleport 鲸仔 41,26 right`；`set_vars {fullness: 18}`；`set_fridge fridge_home 0`；背包无食物（join 即空；若有 `give_item` 残留先 `reset`）；灶台无食材（背包没有即无）；餐厅 / 杂货店 22:30 本就关（保险：`force_closed table_rest_1 until 11:00`、`force_closed counter until 09:00`） | 吃到 / 60 分钟 | 风暴发生（30 分钟 ≥ 6 批 Plan 或 ≥ 20 次 Think 无状态变化）；结局：合理等待 / 睡觉 / 反复试 / 死锁 |
+| **R1** 资源不可得（**v1.1**） | `set_time 22:30`；`teleport 鲸仔 41,26 right`；`set_vars {fullness: 18}`；`set_fridge fridge_home 0`（整台清空；**v1.1 冰箱不自动补货，不会再被 08:00 盖回**）；背包空（残留先 `reset`）；22:30 餐厅 / 杂货店（22:00 关）都关 | 23:30 | 没有任何门路：不撞冰箱（`use` 冰箱回 `empty`，≤ 2 次）、不在关门店前反复 `buy`（`shop_closed` ≤ 2）、同一失败动作连续 ≤ 3 次；可接受：回家睡 / 等 09:00 杂货店 / 明早餐厅 11:00；Think 里说出「没吃的、明天买」 |
 | **R2** 冲突目标 | `set_time 19:40`；`teleport 鲸仔 5,25 down`；`set_vars {fullness: 22}`；`set_fridge fridge_home 1` | 21:00 | 20:15 前上播 **且** 21:00 前饱腹未跌破 15；取舍顺序 |
 | **R3** 突发打断 | `set_time 14:30`；`teleport 鲸仔 8,23 up`；`occupy {player: 鲸仔, object: pc_whale}`（电台段写稿中——注：`pc_whale` 是直播物品，`occupy` 只本地切 live；若 C 的「电台」用 `make_video` 在 `pc_whale` 上写稿，同一物品）；`spawn 小千` + `qq_send {from: 小千, to: 鲸仔, text: "来广场一下？有事"}` | 30 游戏分钟 | 是否回复（`/qq/send`）/ 是否中断当前段 / 回来是否续上；无来回跑 |
 | **R4** 晨间启动 | `set_time 09:55`；`teleport 鲸仔 3,24 up`；`occupy {player: 鲸仔, object: bed_whale}`（`tags` 含 `sleeping`） | 60 分钟 | 醒来 → 第一个有效动作（刷手机 / 早饭）的游戏分钟数与 Think 数；10:30 早饭锚点 |
+| **R5** 两头空 → 去餐厅（**v1.1 新**） | `set_time 12:10`（餐厅 11–14 开）；`teleport 鲸仔 12,26 up`（客厅）；`set_vars {fullness: 20}`；`set_fridge fridge_home 0`；`set_stock counter ingredients 0` + `set_stock counter bread 0` + `set_stock counter sweets 0`（杂货店卖完，`stock` 为 0、`daily_supply` 仍 12/8/6）；`set_gold 鲸仔 300` | 13:00 | 13:00 前 `use table_rest_1 / table_rest_2` + `eat {item: "meal"}` 成功（金币 −20，`busy` 30 min）；柜台 `out_of_stock` ≤ 2 次、冰箱 `empty` ≤ 1 次；感知里「杂货店今日还剩 0」「冰箱空」应进 Think |
+| **R6** 房租在前钱不够（**v1.1 新**） | `set_time {date: <下月 1 日 − 2 天>, time: 08:05}`（`rent.due_in_days` ≤ 3）；`teleport 鲸仔 5,25 down`；`set_vars {fullness: 60, energy: 90}`；`set_fridge {id: fridge_home, item: home_meal, qty: 2}`；`set_gold 鲸仔 120`（< 房租 300）；可选 `/admin/commission {client: 餐厅老板, fee: 150}` 给一条挣钱路 | 60 分钟（阶段一）；可选阶段二 `set_time {date: 1 日, time: 08:01}` 再 30 分钟 | 阶段一：Think 提到房租 / 钱不够（`GET /player.rent` 的 `due_in_days ≤ 3`、`balance < amount` 两条事实已给）；不去餐厅花 20（吃冰箱里的饭）、去看公告栏 / 接委托 / 去琴房写歌任一算「为房租去挣钱」；阶段二：欠租后镇公所 QQ 到达，30 分钟内 `read_qq` 并在 Think / 说话里回应（不编「已经交了」） |
 
 ## 日驱动核验（③）
 

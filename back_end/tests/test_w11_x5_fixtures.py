@@ -222,3 +222,23 @@ def test_daily_limit_and_copy_key(client, v1, fake_clock):
     place(whale, 10, 10, "up"); place(fisher, 11, 10, "left")
     r = action(client, whale, "give", {"target": fisher, "item": "key", "door_id": "door_home"})
     assert r["success"] and doors.holds_key(world_state._players[fisher], "door_home") and doors.holds_key(p, "door_home")   # 自己那把还在
+
+
+def test_set_gold_op_and_v11_fixture_preconditions(client, v1, bench_env, fake_clock):
+    """world-v1.1 验收夹具：set_gold 写余额走流水；R5（冰箱空 + 杂货店卖完、餐厅开）与 R6（房租到期前钱不够）前置条件能摆出来。"""
+    _at(fake_clock, 12, 10)
+    r = _run(client, [{"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 12, "y": 26, "facing": "up", "vars": {"fullness": 20}}])
+    whale = next(p["id"] for p in world_state._players.values() if p["name"] == "鲸仔")
+    r = _run(client, [{"op": "set_fridge", "id": "fridge_home", "qty": 0}, {"op": "set_stock", "shop": "counter", "item": "bread", "qty": 0},
+                      {"op": "set_stock", "shop": "counter", "item": "ingredients", "qty": 0}, {"op": "set_gold", "player": whale, "gold": 120}])
+    assert r["ok"] and r["steps"][-1]["detail"] == {"player": whale, "gold": 120, "delta": -2880}
+    objs = {o["id"]: o for o in client.get("/world", params={"fields": "objects"}).json()["objects"]}
+    assert objs["fridge_home"]["contents"] == [] and objs["counter"]["stock"]["bread"] == 0 and objs["counter"]["daily_supply"]["bread"] == 8 and objs["table_rest_1"]["open"] is True
+    p = client.get(f"/player/{whale}").json()
+    assert p["gold"] == 120 and p["rent"]["amount"] == 300 and p["rent"]["balance"] == 120 and p["rent"]["overdue"] is False
+    # 到期前 2 天：due_in_days ≤ 3；到期日不够 → 欠租
+    _run(client, [{"op": "set_time", "date": "2026-11-29", "time": "08:05"}])
+    assert client.get(f"/player/{whale}").json()["rent"]["due_in_days"] <= 3
+    _run(client, [{"op": "set_time", "date": "2026-12-01", "time": "08:01"}]); ticker.tick_once(checkpoint=False); fake_clock.advance(1); ticker.tick_once(checkpoint=False)
+    rv = client.get(f"/player/{whale}").json()["rent"]
+    assert rv["overdue"] is True and rv["owed"] == 300 and world_state._players[whale]["gold"] == 120

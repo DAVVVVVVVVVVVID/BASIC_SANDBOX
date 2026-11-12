@@ -20,6 +20,7 @@ op 一览（player 字段可填 id 或唯一的 name）：
   say            {player, room, text}
   exit_chat      {player, room}
   clear_cooldowns {player?}                          清物品冷却、每日使用时长（v1.1）与对话冷却
+  set_gold       {player, gold}                      把余额写成 gold（流水 adjust，账户同步；v1.1 验收 R6）
 """
 
 import os
@@ -314,6 +315,18 @@ def op_set_fridge(step: dict) -> dict:
     return {"id": obj["id"], "stock": dict(obj["stock"]), "contents": food.contents_view(obj, world_state.game_now_ts()), "restock_pinned": pinned, "restock_state": state}
 
 
+def op_set_gold(step: dict) -> dict:
+    """world-v1.1 验收夹具：直接把某玩家余额写成 gold（走 ledger kind adjust，账户同步；R6「房租到期前钱不够」用）。"""
+    from game import economy
+    p = _player(step.get("player"))
+    target = int(step.get("gold", 0))
+    with world_state.STATE_LOCK:
+        delta = target - int(p.get("gold", 0))
+        if delta:
+            economy.ledger("adjust", p, delta, source="scenario", label=step.get("label") or "set_gold")
+    return {"player": p["id"], "gold": int(p["gold"]), "delta": delta}
+
+
 def op_set_stock(step: dict) -> dict:
     """X5：写商店库存 {shop, item, qty}（shop = 物品 id，如 counter / fish_stall）。"""
     from game import inventory
@@ -499,7 +512,7 @@ OPS = {
     "move_object": op_move_object, "remove_object": op_remove_object, "restore_object": op_restore_object,   # X1 N5
     "self_events": op_self_events,                                                                           # X2 M3
     "qq_send": op_qq_send,                                                                                   # X4 C-QQ
-    "set_fridge": op_set_fridge, "set_stock": op_set_stock, "force_closed": op_force_closed, "clear_closed": op_clear_closed,   # X5
+    "set_fridge": op_set_fridge, "set_stock": op_set_stock, "set_gold": op_set_gold, "force_closed": op_force_closed, "clear_closed": op_clear_closed,   # X5
 }
 _SAMPLE_OPS = {"spawn", "teleport", "set_vars", "effects", "occupy", "release", "give_item", "produce"}
 
