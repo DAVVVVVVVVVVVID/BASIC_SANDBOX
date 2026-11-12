@@ -19,7 +19,8 @@ import { arenaBBox, isIndoor } from '../map/mapv2'
 /** 自由镜头命令（React 控件 / 小地图 / 画布点击 → 场景） */
 export type FreeCmd = { cmd: 'free' } | { cmd: 'world' } | { cmd: 'follow'; id: string } | { cmd: 'jump'; x: number; y: number } | { cmd: 'enter'; sector: string; floor: number } | { cmd: 'exit' }
 import { itemMeta } from '../items'
-import type { WsKnock, WsDoor, MapDoor } from '../../types'
+import type { WsKnock, WsDoor, MapDoor, WsEatDone, WsSpoiled, WsDailyLimit, WsRent, WsCookCancelled, BusyState } from '../../types'
+import { gameNowMs, busyProgress, gainText, WORK_NAMES } from '../v11'
 import DecoLayer from '../systems/DecoLayer'
 
 export interface SceneInitData {
@@ -77,6 +78,9 @@ export default class GameScene extends Phaser.Scene {
   /** §3.41：带 owner 的家门（map.doors[]）敞开状态 → 门内侧格叠一扇转开的门 + 「敞开中」标签 */
   private openDoors = new Map<string, { img: Phaser.GameObjects.Image; label: Phaser.GameObjects.Text; until: number }>()
   private mapDoors: MapDoor[] = []
+  /** v1.1：各人进食 / 下厨状态（按 started_at / ends_at 每 ~250 ms 插值画进度条） */
+  private busyById = new Map<string, BusyState>()
+  private lastBusyTick = 0
   private debugTexts: Phaser.GameObjects.Text[] = []
   private deco: DecoLayer | null = null
   private roofedSectors = new Set<string>()
@@ -219,7 +223,19 @@ export default class GameScene extends Phaser.Scene {
         if (r === 'empty') { push('🧊 冰箱空了……'); return }
         if (r === 'no_ingredients') { push('🥬 没有食材，做不了饭'); return }
         if (r === 'out_of_stock') { push('📦 卖完了'); return }
+        // world-v1.1
+        if (r === 'daily_limit') { push('⏰ 今天用够了'); return }
+        if (r === 'not_at_table') { push('🍽 得坐到餐桌才能吃'); return }
+        if (r === 'not_allowed_here') { push('🍽 这儿只能吃简餐'); return }
+        if (r === 'streaming') { push('📺 直播中不能吃'); return }
+        if (r === 'already_eating') { push('🍴 正在吃呢'); return }
+        if (r === 'storage_full') { push('🧊 冰箱满了'); return }
+        if (r === 'not_in_storage' || r === 'no_item') { push('🧊 里面没有这个'); return }
+        if (r === 'has_key' || r === 'not_owner') { push(r === 'has_key' ? '🔑 我有钥匙，不用敲' : '🔑 只有门的主人能配钥匙'); return }
       }
+      if (a === 'take' && msg.success) { push(`🧊 从冰箱拿了${msg.item_name ?? itemMeta(msg.item ?? undefined).label}`); return }
+      if (a === 'copy_key' && msg.success) { push(`🔑 配了把钥匙${typeof msg.price === 'number' ? ` -${msg.price} 金币` : ''}`); return }
+      if (a === 'open_door' && msg.success) return   // door 事件另有门口气泡
       if (a === 'store' && msg.success) { push(`🧊 把${msg.item_name ?? itemMeta(msg.item ?? undefined).label}放进了冰箱`); return }
       if (!/^(buy|eat|give|sell|use_item)$/.test(a)) return
       const meta = itemMeta(msg.item ?? undefined, msg.item_name ?? undefined)
@@ -247,6 +263,24 @@ export default class GameScene extends Phaser.Scene {
       const title = msg.title ? `《${msg.title}》` : '一首歌', fee = typeof msg.fee === 'number' ? ` ${msg.fee} 金币` : ''
       useGameStore.getState().pushBubble(who, msg.event === 'deliver' ? `✅ 交付了${title}给${msg.client_name ?? '委托人'}${fee ? ` +${fee.trim()}` : ''}` : `📋 新委托：${msg.client_name ?? '有人'}想要${title}${fee}`, 6000)
     })
+    // world-v1.1（B 3fead88）：吃完 / 中断 / 坏食 / 每日上限 / 房租 / 下厨中断
+    this.on('eat_done-event', (msg: WsEatDone) => { const m = itemMeta(msg.item ?? undefined); const g = gainText(msg.gain); useGameStore.getState().pushBubble(msg.entity, `${m.icon} 吃完了${m.label}${g ? `（${g}）` : ''}`, 5000) })
+    this.on('eat_cancelled-event', (msg: WsEatDone) => { const m = itemMeta(msg.item ?? undefined); useGameStore.getState().pushBubble(msg.entity, `${m.icon} ${m.label}没吃完就走了`, 4000) })
+    this.on('spoiled-event', (msg: WsSpoiled) => {
+      const m = itemMeta(msg.item ?? undefined); const n = msg.qty && msg.qty > 1 ? ` ×${msg.qty}` : ''
+      if (msg.entity) useGameStore.getState().pushBubble(msg.entity, `🤢 背包里的${m.label}${n}坏了`, 5000)
+      else {
+        const pos = msg.position ?? useGameStore.getState().objects.find(o => o.id === msg.object)?.position
+        if (pos) this.showDoorBubble(`spoiled:${msg.object ?? `${pos.x},${pos.y}`}`, pos, `🤢 ${msg.object_type === 'fridge' ? '冰箱里的' : ''}${m.label}${n}坏了`, 6000)
+      }
+    })
+    this.on('daily_limit-event', (msg: WsDailyLimit) => { const nm = WORK_NAMES[msg.object_type ?? ''] ?? msg.object_type ?? '这个'; useGameStore.getState().pushBubble(msg.entity, `⏰ ${nm}今天用够了${msg.resets_at ? `（${msg.resets_at} 重置）` : ''}`, 5000) })
+    this.on('rent-event', (msg: WsRent) => {
+      const amt = typeof msg.amount === 'number' ? ` ${msg.amount} 金币` : ''
+      const t = msg.event === 'due_soon' ? `🏠 房租${amt}${typeof msg.due_in_days === 'number' ? `，${msg.due_in_days} 天后到期` : '快到期了'}` : msg.event === 'paid' ? `🏠 交了房租${amt}` : msg.event === 'overdue' ? `🏠 房租到期，欠${amt}……` : msg.event === 'cleared' ? '🏠 房租补齐了' : `🏠 ${msg.event}`
+      useGameStore.getState().pushBubble(msg.entity, t, 6000)
+    })
+    this.on('cook_cancelled-event', (msg: WsCookCancelled) => { if (msg.entity) useGameStore.getState().pushBubble(msg.entity, '🍳 饭没做完就走了，食材白费了', 5000) })
     this.on('chat-message', ({ entityId, content }: { entityId: string; content: string }) => {
       useGameStore.getState().pushBubble(entityId, content)
     })
@@ -635,11 +669,12 @@ export default class GameScene extends Phaser.Scene {
         s.setServerWalking(op.state === 'walking' || op.state === 'walking_over')
       }
       s.setDimmed(op.online === false)
+      if (op.busy) this.busyById.set(op.id, op.busy); else if (this.busyById.delete(op.id)) s.setProgress(null)
       s.setStateLabel(deriveStateLabel(op, objects))
       s.setPoseAnchors(poseAnchorsFor(op, objects))
     }
     for (const [id, sprite] of this.others) {
-      if (!seen.has(id)) { sprite.destroy(); this.others.delete(id) }
+      if (!seen.has(id)) { sprite.destroy(); this.others.delete(id); this.busyById.delete(id) }
     }
     this.syncVars()
   }
@@ -934,6 +969,11 @@ export default class GameScene extends Phaser.Scene {
   update(time: number, dt: number) {
     if (this.doorBubbles.size) this.pruneDoorBubbles(performance.now())
     if (this.openDoors.size) this.pruneOpenDoors(performance.now())
+    if (this.busyById.size && time - this.lastBusyTick > 250) {
+      this.lastBusyTick = time
+      const now = gameNowMs(useGameStore.getState().worldState)
+      for (const [id, b] of this.busyById) { const pr = busyProgress(b, now); this.others.get(id)?.setProgress(pr ? pr.progress : null) }
+    }
     const store = useGameStore.getState()
     const speed = store.player?.moveSpeed ?? 1
 

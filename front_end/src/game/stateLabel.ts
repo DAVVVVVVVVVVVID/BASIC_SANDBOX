@@ -83,7 +83,10 @@ export function deriveStateLabel(p: OtherPlayer, objects: GameObject[], tagsHint
   if (tags.includes('sleeping')) return '💤 睡觉中'
   if (tags.includes('eating'))   return '🍴 吃饭中'
   if (tags.includes('streaming')) return '📺 直播中'
-  if (tags.includes('reading') || tags.includes('phone')) return '📱 看手机'   // W9：读 QQ 消息（B 占 1 游戏分钟打 reading 标签）
+  if (tags.includes('reading') || tags.includes('phone')) return '📱 看手机'
+  if (tags.includes('browsing')) return '📱 刷手机'   // v1.1：手机持续使用
+  if (tags.includes('cooking')) return '🍳 做饭中'
+  if (tags.includes('working')) return '🖥 工作中'   // W9：读 QQ 消息（B 占 1 游戏分钟打 reading 标签）
   if (p.stateLabel) return iconize(p.stateLabel)
   if (p.state === 'talking') return '💬 聊天中'
   const obj = p.state === 'using' || !p.state ? objects.find(o => o.userList?.includes(p.id)) : undefined   // userList 反查只在 using（或老后端没有 state）时信

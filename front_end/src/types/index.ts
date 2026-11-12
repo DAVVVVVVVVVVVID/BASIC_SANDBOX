@@ -306,7 +306,7 @@ export interface DoorRef { id?: string; door_id?: string; name?: string; x: numb
 export interface WsKnock { type: 'knock'; request_id: string; visitor: string; visitor_name?: string; home: string; home_name?: string; door?: DoorRef | null; owners?: string[]; expires_at?: string; notified?: string[] }
 export interface WsDoor { type: 'door'; event: 'answered' | 'declined' | 'no_answer' | 'opened' | 'closed' | 'visitor_entered' | 'accepted' | 'pass_expired' | string; request_id?: string; visitor?: string; visitor_name?: string; home?: string; home_name?: string; by?: string | null; by_name?: string | null; text?: string | null; door?: DoorRef | null; door_id?: string; name?: string; x?: number; y?: number; open_until?: string | null }
 /** world-v1.1 ws：吃完 / 坏食（背包或冰箱）/ 到每日上限自动离开 / 房租 / 下厨中断 */
-export interface WsEatDone { type: 'eat_done'; entity: string; item?: string; gain?: Record<string, number> | null }
+export interface WsEatDone { type: 'eat_done' | 'eat_cancelled'; entity: string; item?: string; gain?: Record<string, number> | null }
 export interface WsSpoiled { type: 'spoiled'; entity?: string; object?: string; object_type?: string; position?: Position; item?: string; qty?: number }
 export interface WsDailyLimit { type: 'daily_limit'; entity: string; object?: string; object_type?: string; used_min?: number; limit_min?: number; resets_at?: string }
 export interface WsRent { type: 'rent'; event: 'due_soon' | 'paid' | 'overdue' | 'cleared' | string; entity: string; amount?: number; balance?: number; due_in_days?: number }

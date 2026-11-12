@@ -66,6 +66,9 @@ export default class ActorSprite {
   private bubbleText: Phaser.GameObjects.Text | null = null
   private bubbleBg: Phaser.GameObjects.Graphics | null = null
   private bar: Phaser.GameObjects.Graphics | null = null
+  /** v1.1：进食 / 下厨进度条（头顶状态标签下方一条细条） */
+  private progressBar: Phaser.GameObjects.Graphics | null = null
+  private progressVal: number | null = null
   private barVars: NeedVars | null = null
 
   private facing: Facing
@@ -283,6 +286,19 @@ export default class ActorSprite {
     this.stateText.setPosition(x, y + STATE_Y * v).setDepth(d + 2)
     if (this.bubble) this.bubble.setPosition(x, y + BUBBLE_Y * v).setDepth(d + 3)
     if (this.bar) this.bar.setPosition(x - BAR_W / 2 * u, y + BAR_Y * v).setDepth(d + 2)
+    if (this.progressBar) this.progressBar.setPosition(x - 28 * u, y + (STATE_Y + 16) * v).setDepth(d + 2).setScale(u)
+  }
+
+  /** v1.1：0–1 画进度；null 撤掉 */
+  setProgress(p: number | null) {
+    if (p === null) { if (this.progressBar) { this.progressBar.destroy(); this.progressBar = null } this.progressVal = null; return }
+    if (this.progressVal !== null && Math.abs(this.progressVal - p) < 0.01) return
+    this.progressVal = p
+    if (!this.progressBar) this.progressBar = this.scene.add.graphics()
+    const g = this.progressBar; g.clear()
+    g.fillStyle(0x1a202c, 0.85).fillRoundedRect(0, 0, 56, 6, 3)
+    g.fillStyle(0x68d391, 1).fillRoundedRect(1, 1, Math.max(2, 54 * Math.max(0, Math.min(1, p))), 4, 2)
+    this.layout()
   }
 
   private redrawArrow() {
@@ -432,6 +448,7 @@ export default class ActorSprite {
     this.arrow?.destroy()
     this.nameText.destroy()
     this.stateText.destroy()
+    this.progressBar?.destroy()
     this.bubble?.destroy(true)
     this.bar?.destroy()
   }

@@ -8,6 +8,7 @@ import { deriveStateLabel } from '../stateLabel'
 import { TOWN } from '../../api/client'
 import type { Tile } from '../../types'
 import { itemMeta, normalizeInventory } from '../items'
+import { gameNowMs, busyText, dailyUseLines, rentText } from '../v11'
 
 const W = 300
 const PAD = 14
@@ -26,6 +27,8 @@ export default class InfoPanel {
   private state: Phaser.GameObjects.Text
   private bars: Phaser.GameObjects.Graphics
   private wallet: Phaser.GameObjects.Text
+  private extra1: Phaser.GameObjects.Text   // v1.1：进食 / 下厨进度 或 今日上限
+  private extra2: Phaser.GameObjects.Text   // v1.1：房租
   private labels: Phaser.GameObjects.Text[] = []
   private values: Phaser.GameObjects.Text[] = []
   private x = 0
@@ -45,11 +48,13 @@ export default class InfoPanel {
     this.state = scene.add.text(0, 0, '', f('17px', '#c3dafe')).setDepth(10006).setResolution(2)
     this.bars = scene.add.graphics().setDepth(10006)
     this.wallet = scene.add.text(0, 0, '', f('14px', '#ffe9a8')).setDepth(10006).setResolution(2)
+    this.extra1 = scene.add.text(0, 0, '', f('13px', '#9ae6b4')).setDepth(10006).setResolution(2)
+    this.extra2 = scene.add.text(0, 0, '', f('13px', '#a0aec0')).setDepth(10006).setResolution(2)
     for (const k of NEED_KEYS) {
       this.labels.push(scene.add.text(0, 0, `${NEED_LABELS[k]} ${NEED_FULL[k]}`, f('13px', '#e2e8f0')).setDepth(10006).setResolution(2))
       this.values.push(scene.add.text(0, 0, '', f('13px', '#ffffff')).setOrigin(1, 0).setDepth(10006).setResolution(2))
     }
-    this.h = PAD * 2 + 30 + 20 + 26 + NEED_KEYS.length * 20 + 6 + 22   // 末行：金币 + 背包（W9）
+    this.h = PAD * 2 + 30 + 20 + 26 + NEED_KEYS.length * 20 + 6 + 22 + 18 + 18   // 末行：金币 + 背包（W9）+ v1.1 两行（进度 / 上限、房租）
     this.layout()
     scene.scale.on(Phaser.Scale.Events.RESIZE, this.layout, this)
   }
@@ -68,6 +73,8 @@ export default class InfoPanel {
       this.values[i].setPosition(this.x + W - PAD, cy + i * 20)
     })
     this.wallet.setPosition(this.x + PAD, cy + NEED_KEYS.length * 20 + 4)
+    this.extra1.setPosition(this.x + PAD, cy + NEED_KEYS.length * 20 + 4 + 22)
+    this.extra2.setPosition(this.x + PAD, cy + NEED_KEYS.length * 20 + 4 + 40)
     this.redrawBars()
   }
 
@@ -106,14 +113,18 @@ export default class InfoPanel {
     const label = target ? (deriveStateLabel(target, s.objects) ?? (target.state === 'idle' ? '发呆中' : target.state)) : ''
     const online = target ? target.online !== false : false
     const inv = normalizeInventory(target?.inventory)
-    const sig = JSON.stringify([target?.name, zone, label, online, vars?.vars, s.worldState?.time?.slice(0, 5), s.transport, target?.gold, inv])
+    const nowMs = gameNowMs(s.worldState)
+    const busyLine = target?.busy ? busyText(target.busy, nowMs) : null
+    const useLine = target ? dailyUseLines(target.daily_use).map(l => l.text).join('  ') : ''
+    const rent = target ? rentText(target.rent) : null
+    const sig = JSON.stringify([target?.name, zone, label, online, vars?.vars, s.worldState?.time?.slice(0, 5), s.transport, target?.gold, inv, busyLine, useLine, rent?.text])
     if (sig === this.lastSig) return
     this.lastSig = sig
     if (!target) {
       this.name.setText(TOWN ? `${TOWN} · ${this.opts.follow ?? '全景'}` : (this.opts.follow ?? '鲸仔小镇'))
       this.sub.setText(this.opts.follow ? '目标不在场 · 全景' : `${s.players.length} 人在镇上`)
       this.state.setText('')
-      this.wallet.setText('')
+      this.wallet.setText(''); this.extra1.setText(''); this.extra2.setText('')
       this.vals = null
       this.values.forEach(v => v.setText('–'))
     } else {
@@ -123,6 +134,8 @@ export default class InfoPanel {
       const gold = typeof target.gold === 'number' ? `💰 ${target.gold}` : ''
       const bag = inv.slice(0, 8).map(it => { const m = itemMeta(it.type, it.name); return `${m.icon}${it.count > 1 ? it.count : ''}` }).join(' ')
       this.wallet.setText([gold, bag].filter(Boolean).join('   '))
+      this.extra1.setText(busyLine ?? useLine)
+      this.extra2.setText(rent ? rent.text : '').setColor(rent?.overdue ? '#fc8181' : '#a0aec0')
       this.vals = vars ? NEED_KEYS.map(k => vars.vars[k]) : null
       this.values.forEach((v, i) => v.setText(this.vals ? String(Math.round(this.vals[i])) : '–'))
     }
@@ -131,7 +144,7 @@ export default class InfoPanel {
 
   destroy() {
     this.scene.scale.off(Phaser.Scale.Events.RESIZE, this.layout, this)
-    this.bg.destroy(); this.name.destroy(); this.sub.destroy(); this.state.destroy(); this.bars.destroy(); this.wallet.destroy()
+    this.bg.destroy(); this.name.destroy(); this.sub.destroy(); this.state.destroy(); this.bars.destroy(); this.wallet.destroy(); this.extra1.destroy(); this.extra2.destroy()
     this.labels.forEach(t => t.destroy()); this.values.forEach(t => t.destroy())
   }
 }

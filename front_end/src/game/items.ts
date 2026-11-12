@@ -10,6 +10,7 @@ const META: Record<string, ItemMeta> = {
   bread: { icon: '🍞', label: '面包', kind: 'food', price: 5 },
   sweet: { icon: '🍬', label: '甜食', kind: 'food', price: 6 },
   candy: { icon: '🍬', label: '甜食', kind: 'food', price: 6 },
+  sweets: { icon: '🍬', label: '甜食', kind: 'food', price: 6 },
   bento: { icon: '🍱', label: '便当', kind: 'food' },
   lunchbox: { icon: '🍱', label: '便当', kind: 'food' },
   ingredient: { icon: '🥬', label: '食材', kind: 'material', price: 8 },

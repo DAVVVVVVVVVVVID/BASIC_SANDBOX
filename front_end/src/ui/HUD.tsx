@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../store/gameStore'
+import { gameNowMs, busyText, dailyUseLines, rentText } from '../game/v11'
 import type { Buff } from '../types'
 import { NEED_KEYS } from '../types'
 import { NEED_LABELS } from '../game/objects/ActorSprite'
@@ -90,6 +91,7 @@ export default function HUD() {
     return () => window.clearInterval(id)
   }, [])
 
+  const worldStateForHud = useGameStore((s) => s.worldState)
   if (!player) return null
 
   const { profile, position, facing, state, stateLabel, usingObjectId, buffs, tags } = player
@@ -121,6 +123,9 @@ export default function HUD() {
       <Row label="年龄" value={profile?.age ?? '—'} />
       <Row label="ID"   value={<span style={{ color: '#718096', fontSize: 11 }}>{player.id}</span>} />
       {typeof player.gold === 'number' && <Row label="金币" value={<span style={{ color: '#ffe9a8', fontWeight: 700 }}>💰 {player.gold}</span>} />}
+      {(() => { const r = rentText(player.rent); return r ? <Row label="房租" value={<span style={{ color: r.overdue ? '#fc8181' : '#a0aec0', fontSize: 11, fontWeight: r.overdue ? 700 : 400 }}>{r.text.replace(/^🏠 /, '')}</span>} /> : null })()}
+      {player.busy && <Row label="正在" value={<span style={{ color: '#9ae6b4', fontSize: 11 }}>{busyText(player.busy, gameNowMs(worldStateForHud))}</span>} />}
+      {dailyUseLines(player.daily_use).map(l => <Row key={l.key} label="今日" value={<span style={{ color: l.full ? '#fc8181' : '#a0aec0', fontSize: 11 }}>{l.text}</span>} />)}
 
       <Divider />
 

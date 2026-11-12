@@ -1,4 +1,5 @@
 import { useGameStore } from '../store/gameStore'
+import { gameNowMs, busyText, dailyUseLines, rentText } from '../game/v11'
 import { NEED_KEYS } from '../types'
 import { NEED_LABELS } from '../game/objects/ActorSprite'
 import { resolveFollowTarget } from '../game/systems/TickSystem'
@@ -47,6 +48,13 @@ export default function SpectateHud({ follow }: { follow: string | null }) {
         <div style={{ marginTop: 6, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           {typeof target.gold === 'number' && <span style={{ color: '#ffe9a8', fontWeight: 700 }}>💰 {target.gold}</span>}
           {normalizeInventory(target.inventory).slice(0, 10).map((it, i) => { const m = itemMeta(it.type, it.name); return <span key={i} title={`${it.name ?? m.label} ×${it.count}`} style={{ background: '#2a2d3e', borderRadius: 4, padding: '0 5px' }}>{m.icon}{it.count > 1 ? `×${it.count}` : ''}</span> })}
+        </div>
+      )}
+      {target && (target.busy || target.rent || (target.daily_use && dailyUseLines(target.daily_use).length > 0)) && (
+        <div style={{ marginTop: 6, fontSize: 11, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {target.busy && <span style={{ color: '#9ae6b4' }}>{busyText(target.busy, gameNowMs(useGameStore.getState().worldState))}</span>}
+          {dailyUseLines(target.daily_use).map(l => <span key={l.key} style={{ color: l.full ? '#fc8181' : '#a0aec0' }}>{l.text}</span>)}
+          {(() => { const r = rentText(target.rent); return r ? <span style={{ color: r.overdue ? '#fc8181' : '#a0aec0' }}>{r.text}</span> : null })()}
         </div>
       )}
       {vars && vars.emotion_tags.length > 0 && (
