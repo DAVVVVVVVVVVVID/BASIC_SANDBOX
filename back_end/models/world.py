@@ -101,6 +101,9 @@ class OtherPlayer(BaseModel):
     pos_seq: int = 0                   # E⑥
     gold: Optional[int] = None         # W10 ④
     inventory: Optional[List[dict]] = None   # W10 ④：[{type, name, class, count, meta?}]
+    busy: Optional[dict] = None        # world-v1.1：进食 / 刻盘进度（E 旁观页从 players[] 读）
+    daily_use: Optional[dict] = None   # world-v1.1 I-1：{obj_type: {used_min, limit_min}}
+    rent: Optional[dict] = None        # world-v1.1 §3.3：{amount, items, due_at, due_in_days, overdue, owed, landlord, balance}
 
 
 class WorldData(BaseModel):

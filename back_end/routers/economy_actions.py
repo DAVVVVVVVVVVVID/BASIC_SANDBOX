@@ -52,6 +52,18 @@ def _shop_object(player: dict, payload: dict) -> tuple[dict | None, str | None]:
     return obj, None
 
 
+def _credit_account(account: str | None, payer: dict, delta: int, **fields) -> None:
+    """v1.1 M-5：销售 / 餐费 / 配钥匙的钱进店主账户，不看在线（自己买自己的不算）。"""
+    from game.qq import account_of
+    if not account or account_of(payer) == account:
+        return
+    economy.credit_account(account, int(delta), "income" if delta >= 0 else "expense", peer=payer["id"], **fields)
+
+
+def _credit_owner(obj_type: str, payer: dict, delta: int, **fields) -> None:
+    _credit_account((economy.shop_for(obj_type) or {}).get("owner"), payer, delta, **fields)
+
+
 def _owner_player(obj_type: str) -> dict | None:
     from game.qq import account_of
     s = economy.shop_for(obj_type) or {}
@@ -107,9 +119,7 @@ def handle_buy(entity_id: str, payload: dict) -> ActionResponse:
             stock[item] = int(stock.get(item, 0)) - qty
             refresh_shop_views()
         economy.ledger("buy", p, -total, item=item, qty=qty, price=int(d["price"]), shop=obj["id"], shop_type=obj["type"])
-        owner = _owner_player(obj["type"])
-        if owner is not None and owner["id"] != p["id"]:
-            economy.ledger("income", owner, total, source="shop_sale", item=item, qty=qty, shop=obj["id"], peer=p["id"])
+        _credit_owner(obj["type"], p, total, source="shop_sale", item=item, qty=qty, shop=obj["id"])
         mark_input(entity_id)
         return ActionResponse(success=True, type="buy", result={
             "message": f"买了 {qty} 个{d['name']}，花了 {total} 金币。", "objectId": obj["id"], **_item_fields(item, qty, total),
@@ -144,9 +154,7 @@ def handle_sell(entity_id: str, payload: dict) -> ActionResponse:
             obj["stock"][item] = int(obj["stock"].get(item, 0)) + qty
             refresh_shop_views()
         economy.ledger("sell", p, total, item=item, qty=qty, price=int(d["sell"]), shop=obj["id"], shop_type=obj["type"])
-        owner = _owner_player(obj["type"])
-        if owner is not None and owner["id"] != p["id"]:
-            economy.ledger("expense", owner, -total, source="shop_purchase", item=item, qty=qty, shop=obj["id"], peer=p["id"])
+        _credit_owner(obj["type"], p, -total, source="shop_purchase", item=item, qty=qty, shop=obj["id"])
         mark_input(entity_id)
         return ActionResponse(success=True, type="sell", result={
             "message": f"卖了 {qty} 个{d['name']}，得 {total} 金币。", "objectId": obj["id"], **_item_fields(item, qty, total),
@@ -185,9 +193,7 @@ def handle_eat(entity_id: str, payload: dict) -> ActionResponse:
                 return ActionResponse(success=False, type="eat", reason="insufficient_funds",
                                       result={"message": f"一顿要 {price} 金币，身上只有 {int(p.get('gold', 0))}。", "item": item, "price": price, "gold": int(p.get("gold", 0)), "objectId": obj["id"]})
             economy.ledger("buy", p, -price, item="meal", qty=1, price=price, shop=obj["id"], shop_type=obj["type"])
-            owner = next((q for q in _players.values() if q.get("agent_id") == (mc.get("owner") or "npc_rest_owner")), None)
-            if owner is not None and owner["id"] != p["id"]:
-                economy.ledger("income", owner, price, source="restaurant_meal", shop=obj["id"], peer=p["id"])
+            _credit_account(mc.get("owner") or "npc_rest_owner", p, price, source="restaurant_meal", shop=obj["id"])
             gain = {k: float(v) for k, v in (mc.get("gain") or {}).items()}; minutes = float(mc.get("minutes", 30))
             name = "一顿饭"; fields = {"item": item, "item_name": name, "qty": 1, "price": price, "gold_delta": -price, "gold": p["gold"]}
         else:
@@ -324,9 +330,7 @@ def handle_copy_key(entity_id: str, payload: dict) -> ActionResponse:
         if ierr:
             return ActionResponse(success=False, type="copy_key", reason=ierr, result={"door_id": door_id})
         economy.ledger("buy", p, -price, item="key_copy", qty=1, price=price, shop=obj["id"], shop_type=obj["type"], door_id=door_id)
-        owner = _owner_player(obj["type"])
-        if owner is not None and owner["id"] != p["id"]:
-            economy.ledger("income", owner, price, source="shop_service", item="key_copy", qty=1, shop=obj["id"], peer=p["id"])
+        _credit_owner(obj["type"], p, price, source="shop_service", item="key_copy", qty=1, shop=obj["id"])
         doors._log(entity_id, "copy_key", {"door_id": door_id, "price": price})
         mark_input(entity_id)
         return ActionResponse(success=True, type="copy_key", result={"message": f"配了一把{meta['name']}，花了 {price} 金币。", "item": "key", "item_name": "钥匙", "door_id": door_id,

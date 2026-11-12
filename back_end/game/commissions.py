@@ -30,8 +30,12 @@ def create(client: str, kind: str = "song", fee: int | None = None, title: str |
     if fee is None:
         lo, hi = c.get("song_fee", [150, 300])
         fee = _rng("fee", acc, len(_items)).randint(int(lo), int(hi))
+    from game.time_state import game_now_ts
+    from game.food import _iso
+    exp_days = float(c.get("expire_days", 0) or 0)
     cm = {"id": f"c{len(_items)+1:03d}_{uuid.uuid4().hex[:4]}", "kind": kind, "client": acc, "client_name": display_name(acc),
-          "fee": int(fee), "title": title or f"{display_name(acc)}想要一首歌", "status": "open", "created_at": game_now_iso(), "source": source}
+          "fee": int(fee), "title": title or f"{display_name(acc)}想要一首歌", "status": "open", "created_at": game_now_iso(), "source": source,
+          "expires_at": _iso(game_now_ts() + exp_days * 86400.0) if exp_days else None}      # v1.1 M-6：3 天过期
     _items[cm["id"]] = cm
     from game import external_log
     external_log.log("commission", None, action="open", commission_kind=cm["kind"], **{k: cm[k] for k in ("id", "client", "fee", "title", "source")})
@@ -81,8 +85,19 @@ def deliver(giver: dict, target: dict, meta: dict | None) -> dict | None:
 
 
 def on_tick(gts: float) -> None:
-    from game.time_state import _game_dt
+    from game.time_state import _game_dt, game_now_iso
+    from datetime import datetime
     c = cfg()
+    for cm in _items.values():                                       # v1.1 M-6：过期
+        if cm["status"] == "open" and cm.get("expires_at") and datetime.fromisoformat(cm["expires_at"]).timestamp() <= gts:
+            cm["status"] = "expired"; cm["expired_at"] = game_now_iso()
+            from game import external_log
+            external_log.log("commission", None, action="expire", id=cm["id"], client=cm["client"], fee=cm["fee"])
+            try:
+                from routers.ws import hub
+                hub.push_event({"type": "commission", "event": "expire", **cm})
+            except Exception:
+                pass
     dt = _game_dt(gts); day = dt.strftime("%Y-%m-%d"); hm = dt.strftime("%H:%M")
     if day in _refreshed or hm < c.get("refresh_at", "08:00"):
         return

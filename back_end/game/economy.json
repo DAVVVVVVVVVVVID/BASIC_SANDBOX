@@ -2,36 +2,36 @@
   "_doc": "world-v1.1 金币与供给（numeric-proposal-v1）。initial_gold 按 agent_id，human 用 default（③ 批改 3000）。wages 按日程由 tick 结算。shops[].daily_supply：每日 restock_at 固定上新（stock := daily_supply，卖完即止，老板不进货）。fridge：存储类（capacity 份、不自动补货 restock_enabled=false；initial 按物品 id / default 的初始内容）。production.stove：按份计时（minutes_first + minutes_extra×(n−1)），recipes 食材 → 成品，free_for_owner 的灶台由店主用时不扣食材。meal：餐厅一顿（eat {item:\"meal\"} 在餐厅桌上，开吃扣钱）。",
   "initial_gold": {
     "default": 300,
-    "whale": 300,
-    "achan": 2000,
-    "npc_xiaoqian": 400,
+    "whale": 3000,
+    "achan": 3000,
+    "npc_xiaoqian": 3000,
     "npc_rest_owner": 3000,
     "npc_grocer": 3000,
-    "npc_fisher": 800
+    "npc_fisher": 3000
   },
   "wages": {
     "achan": {
       "kind": "daily",
-      "amount": 150,
+      "amount": 200,
       "pay_at": "18:30",
       "label": "写代码日薪",
       "requires_tag": null
     },
     "npc_rest_owner": {
       "kind": "daily",
-      "amount": 100,
+      "amount": 20,
       "pay_at": "21:00",
       "label": "店主日薪"
     },
     "npc_grocer": {
       "kind": "daily",
-      "amount": 100,
-      "pay_at": "20:00",
+      "amount": 20,
+      "pay_at": "22:00",
       "label": "店主日薪"
     },
     "npc_fisher": {
       "kind": "daily",
-      "amount": 80,
+      "amount": 20,
       "pay_at": "17:00",
       "label": "渔夫日薪"
     },
@@ -42,6 +42,14 @@
         "13:00",
         "17:00"
       ],
+      "weekdays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "payer": "npc_grocer",
       "label": "打工时薪"
     }
   },
@@ -156,15 +164,15 @@
     }
   },
   "commissions": {
-    "_doc": "写歌委托：fee 在 song_fee 区间随机；每日 refresh_at 以 daily_p 概率从 clients 随机出一单（open 不超过 max_open）；交付 give song 给委托人 → 酬金入账、委托人对她亲密度 +closeness_bonus。",
+    "_doc": "写歌委托（v1.1 M-6）：fee 100–200；每日 refresh_at 以 daily_p 0.15 出一单（open ≤ max_open 2）；expire_days 3 天未交付 → expired；交付 give cd 给委托人 → 酬金外部入账（不扣 NPC，v1.1 定）、委托人对她亲密度 +closeness_bonus。",
     "song_fee": [
-      150,
-      300
+      100,
+      200
     ],
     "closeness_bonus": 15,
-    "daily_p": 0.3,
+    "daily_p": 0.15,
     "refresh_at": "08:00",
-    "max_open": 3,
+    "max_open": 2,
     "clients": [
       "npc_rest_owner",
       "npc_grocer",
@@ -174,16 +182,25 @@
     "deliver_items": [
       "cd",
       "song"
-    ]
+    ],
+    "expire_days": 3
   },
   "live_income": {
-    "_doc": "POST /admin/income source=stream：amount = viewers_avg × per_viewer + gifts × gift_rate；synthetic=true 时下播（leave 直播物品）按 synthetic_range 随机入账并标 synthetic:true（直播机接上后改 false）。",
-    "per_viewer": 0.5,
+    "_doc": "v1.1 M-2：amount = viewers_total × per_viewer(0.005) + gifts_rmb × gift_rate(1.0)，观众量 = 当场累计观看人次（直播侧回传 viewers_total / gifts_rmb；旧 viewers_avg / gifts 仍收，同公式）；synthetic=true 时下播按 synthetic_viewers / synthetic_gifts 随机合成并标 synthetic:true。",
+    "per_viewer": 0.005,
     "gift_rate": 1.0,
     "synthetic": true,
+    "synthetic_viewers": [
+      1000,
+      3000
+    ],
+    "synthetic_gifts": [
+      0,
+      20
+    ],
     "synthetic_range": [
-      20,
-      60
+      5,
+      35
     ]
   },
   "fridge": {
@@ -218,6 +235,62 @@
       "price": 15,
       "shop": "shop_counter",
       "_doc": "配钥匙：面向杂货店柜台、营业中、只有门主（edge.owner）能配自己门的钥匙；配出的是普通 key 物品可 give"
+    }
+  },
+  "wages_doc": "world-v1.1 §3.2 M-3 / M-4：日薪到点自动结、不要求在线（按账号记）；小千时薪周一至周五 13–17 每满 1 小时 12，从 payer（店主）账户扣，店主不够则小千照拿、店主记 wage_debt（owed 累计）。",
+  "rent": {
+    "_doc": "world-v1.1 §3.3：每月 due_day 日 due_at 自动扣（住房 / 铺面两笔）；不够记欠租 rent_due（不赶人），每日 overdue_mood_per_day、房东 QQ 催；余额够了自动补齐。bench 短场景可 enabled=false。",
+    "enabled": true,
+    "due_day": 1,
+    "due_at": "08:00",
+    "notice_days": 3,
+    "overdue_mood_per_day": -3,
+    "landlord": "town_hall",
+    "items": {
+      "whale": [
+        {
+          "kind": "home",
+          "amount": 300
+        }
+      ],
+      "achan": [
+        {
+          "kind": "home",
+          "amount": 300
+        }
+      ],
+      "npc_xiaoqian": [
+        {
+          "kind": "home",
+          "amount": 350
+        }
+      ],
+      "npc_rest_owner": [
+        {
+          "kind": "home",
+          "amount": 400
+        },
+        {
+          "kind": "shop",
+          "amount": 1000
+        }
+      ],
+      "npc_grocer": [
+        {
+          "kind": "home",
+          "amount": 400
+        },
+        {
+          "kind": "shop",
+          "amount": 600
+        }
+      ],
+      "npc_fisher": [
+        {
+          "kind": "home",
+          "amount": 350
+        }
+      ]
     }
   }
 }

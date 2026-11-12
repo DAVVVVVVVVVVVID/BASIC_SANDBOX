@@ -33,6 +33,24 @@ READ_REPLY_BONUS = float(_CFG.get("read_reply_bonus", 0.0))
 _penalty_day: dict[str, float] = {}     # "<from>:<to>:<day>" -> 已扣总量
 
 
+def system_send(from_acc: str, to_acc: str, text: str) -> dict:
+    """world-v1.1 §3.3：系统账号（镇公所 town_hall）给某账号发一条文字（收件人不必在线）。调用方持 STATE_LOCK。"""
+    from game.time_state import game_now_iso
+    global _SEQ
+    with _LOCK:
+        _SEQ += 1
+        msg = {"id": f"q{_SEQ:06d}_{uuid.uuid4().hex[:6]}", "ts": datetime.now().isoformat(timespec="milliseconds"),
+               "game_time": game_now_iso(), "from": from_acc, "from_name": display_name(from_acc), "to": to_acc, "group": None,
+               "kind": "text", "text": text, "file_ref": None, "read_at": None, "read_by": {}, "system": True}
+        _messages.append(msg)
+        if len(_messages) > _MEM_MAX:
+            del _messages[: len(_messages) - _MEM_MAX]
+        _contacts.setdefault(to_acc, set()).add(from_acc)
+        _log({**{k: v for k, v in msg.items() if k not in ("read_by", "kind")}, "msg_kind": "text", "kind": "message"})
+        _push({"event": "message", **{k: v for k, v in msg.items() if k not in ("read_by",)}})
+        return msg
+
+
 def _init_defaults() -> None:
     for g in _CFG.get("groups", []):
         _groups[g["id"]] = {"id": g["id"], "name": g["name"], "members": list(g["members"])}

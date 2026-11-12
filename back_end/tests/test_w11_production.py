@@ -143,7 +143,7 @@ def test_compose_requires_pc_music_and_time_then_deliver_commission(client, v1, 
     assert p["gold"] == gold0 + 200 and world_state._players[owner]["closeness"][whale] == 15.0
     assert inventory.count(world_state._players[owner], "cd") == 1 and inventory.count(p, "cd") == 1      # 还剩刻的那张
     assert client.get("/commissions").json()["count"] == 0 and client.get("/commissions", params={"status": "all"}).json()["count"] == 1
-    assert [x for x in _ledger() if x["source"] == "song_fee"][0]["delta"] == 200
+    assert [x for x in _ledger() if x.get("source") == "song_fee"][0]["delta"] == 200
     # 没有委托时 give cd 只是转交
     r = action(client, whale, "give", {"target": owner, "item": "cd"})
     assert r["success"] and "commission" not in r["result"] and inventory.count(p, "cd") == 0
@@ -163,7 +163,9 @@ def test_make_video_on_pc_and_daily_commission_refresh(client, v1, fake_clock, m
     # 每日 08:00 委托刷新：daily_p=1 → 出一单；同日不再出
     assert client.get("/commissions").json()["count"] == 1                               # 08:50 的 tick 已经出了一单
     cm = client.get("/commissions").json()["commissions"][0]
-    assert cm["source"] == "daily" and cm["client"] in economy.cfg()["commissions"]["clients"] and 150 <= cm["fee"] <= 300
+    assert cm["source"] == "daily" and cm["client"] in economy.cfg()["commissions"]["clients"] and 100 <= cm["fee"] <= 200     # v1.1 M-6
+    from datetime import datetime as _dt
+    assert (_dt.fromisoformat(cm["expires_at"]) - _dt.fromisoformat(cm["created_at"])).total_seconds() == 3 * 86400           # 3 天后过期
     _tick(fake_clock, 1)
     assert client.get("/commissions").json()["count"] == 1
 
@@ -171,16 +173,18 @@ def test_make_video_on_pc_and_daily_commission_refresh(client, v1, fake_clock, m
 # ── ② 直播收入 ──
 def test_stream_income_formula_and_synthetic_on_leave(client, fake_self):
     whale = _agent(client, "whale")
-    r = client.post("/admin/income", json={"entity_id": whale, "source": "stream", "viewers_avg": 40, "gifts": 7}).json()
-    assert r["delta"] == 27 and r["synthetic"] is False and r["viewers_avg"] == 40                 # 40 × 0.5 + 7
+    r = client.post("/admin/income", json={"entity_id": whale, "source": "stream", "viewers_total": 2000, "gifts_rmb": 7}).json()
+    assert r["delta"] == 17 and r["synthetic"] is False and r["viewers_total"] == 2000               # v1.1 M-2：2000 × 0.005 + 7
+    assert client.post("/admin/income", json={"entity_id": whale, "source": "stream", "viewers_avg": 400, "gifts": 3}).json()["delta"] == 5   # 旧字段同公式
     assert client.post("/admin/income", json={"entity_id": whale, "source": "tip"}).status_code == 400   # 没 amount
     place(whale, *STREAM_STAND)
     assert action(client, whale, "use")["success"]
     n0 = len(_ledger())
     assert action(client, whale, "leave")["success"]
     rows = _ledger()[n0:]
-    assert len(rows) == 1 and rows[0]["source"] == "stream" and rows[0]["synthetic"] is True and 20 <= rows[0]["delta"] <= 60
-    assert rows[0]["shop"] == STREAM_ID and world_state._players[whale]["gold"] == 300 + 27 + rows[0]["delta"]
+    assert len(rows) == 1 and rows[0]["source"] == "stream" and rows[0]["synthetic"] is True and 5 <= rows[0]["delta"] <= 35
+    assert 1000 <= rows[0]["viewers_total"] <= 3000 and 0 <= rows[0]["gifts_rmb"] <= 20                 # v1.1：合成观众 1000–3000、礼物 0–20
+    assert rows[0]["shop"] == STREAM_ID and world_state._players[whale]["gold"] == 3000 + 17 + 5 + rows[0]["delta"]
     # 直播机接上后关掉 synthetic
     economy.cfg()["live_income"]["synthetic"] = False
     try:

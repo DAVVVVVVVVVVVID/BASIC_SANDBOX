@@ -615,7 +615,8 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
     if player["controller"] == "agent":
         sp = spawn_point_for(player.get("agent_id"))
         player["position"] = {"x": sp["x"], "y": sp["y"]}; player["facing"] = sp["facing"]
-        from game import self_sync
+        from game import self_sync, economy as _eco
+        _eco.on_join(player)                      # v1.1 §3：账户独立于在线——回来的 NPC 接着用自己的余额
         self_sync.register(player_id, game_now_ts())
         self_sync.seed_player(player, game_now_ts())
     with STATE_LOCK:
@@ -677,9 +678,10 @@ def remove_player(player_id: str) -> None:
         from game.chat_state import cleanup_player_chats
         cleanup_player_chats(player_id)
         leave_object(player_id)
-        from game import doors
+        from game import doors, economy as _eco
         if player_id in _players:
             doors.on_player_removed(_players[player_id])         # §3.41：钥匙回池
+            _eco.on_leave(_players[player_id])                   # v1.1 §3：余额留在账户上
         _players.pop(player_id, None)
         _walks.pop(player_id, None)
         _pending_messages.pop(player_id, None)
@@ -788,6 +790,7 @@ def get_player(player_id: str) -> dict | None:
     from game import production as _prod
     data["busy"] = food.busy_view(player_id) or _prod.busy_view(player_id)   # world-v1.1：进食 / 刻盘 {kind, item, started_at, ends_at, remaining_s, progress, gain?}，否则 null
     data["daily_use"] = daily_use_view(player_id)             # world-v1.1 I-1：{obj_type: {used_min, limit_min}}
+    data["rent"] = _rent_view_safe(player)                    # world-v1.1 §3.3：{amount, items, due_at, due_in_days, overdue, owed, landlord, balance}，人类 null
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -813,9 +816,18 @@ def get_all_players_snapshot() -> list[dict]:
             "inventory":     _inv_view_safe(p),        # W10 ④：[{type, name, class, count}]
             "busy":          _busy_view_safe(p["id"]),  # world-v1.1：进食进度（E 旁观页从 players[] 读）
             "daily_use":     daily_use_view(p["id"]),   # world-v1.1 I-1
+            "rent":          _rent_view_safe(p),        # world-v1.1 §3.3
         }
         for p in _players.values()
     ]
+
+
+def _rent_view_safe(p: dict) -> dict | None:
+    if p.get("controller") != "agent":
+        return None
+    from game import rent
+    from game.qq import account_of
+    return rent.view(account_of(p))
 
 
 def _busy_view_safe(pid: str) -> dict | None:

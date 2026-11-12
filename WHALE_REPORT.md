@@ -45,6 +45,15 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5t. world-v1.1 批 ③：货币 / 房租（tag `world-v1.1`）—— 完成
+
+- **账户独立于在线**：`economy._balances / _opened`（第一次 join 开户，初始全员 3000 / 人类 300），`credit_account()` 在线走 ledger、离线直接记账 + 流水（`entity null, offline true`）；日薪 / 销售 / 餐费 / 配钥匙 / 时薪 / 房租全部按账号；只对开过户的账号结（没来过的人不发钱）；`/admin/metrics.accounts`。店主入账的 `_owner_player` 全换成 `_credit_owner / _credit_account`。
+- **工资**：阿蝉 200 / 店主厨师渔夫 20（店主 22:00）；小千 12/h 周一至周五 13–17 从店主账户扣（`wage_paid`），不够 → 小千照拿、店主 `wage_debt` 累计。
+- **房租** `game/rent.py`：每月 1 日 08:00 两笔（住房 / 铺面）、开户前到期的月份不收、欠租 `rent_due` 不赶人、余额够自动补齐、每日心情 −3 + 镇公所 QQ 催（`qq.system_send`，新系统账号 `town_hall`）、前 3 天 ws `due_soon`；`rent` 字段进 GET /player / players[] / ws；`rent.enabled` 开关；状态进检查点 meta。
+- **委托** 0.15 / 100–200 / ≤2 / 3 天过期（`expires_at`、`expired`）；酬金仍外部入账不扣 NPC（总控 v1.1 定）。**直播收入** 0.005 × viewers_total + gifts_rmb，合成 1000–3000 / 0–20。
+- 顺手修：`/world.players[]` 走 Pydantic `OtherPlayer` 模型，-a / -b 加的 `busy` / `daily_use` 其实没透出（ws upsert 走的是原 dict 所以 E 看到了，GET /world 看不到）——这次把三个字段加进模型，测试里对照 GET /player 与 /world players[] 相等。
+- 测试：新 `tests/test_w11_money.py`（离线账户 + 日薪 + 回来接着用、小千欠薪、房租完整链 due_soon → 扣两笔 → 欠租 → 心情 / QQ → 补齐 → enabled=false、委托过期）+ 改 4 处旧断言（初始 3000、日薪 200、时薪付方、直播公式）；**335 passed**。api-spec §12.9。
+
 ## 5s. world-v1.1 批 ②：占用语义 + 每日时长上限、配钥匙、CD / 稿子、QQ 只发文字（tag `world-v1.1-b`）—— 完成
 
 - **占用 + 每日上限（I-1）**：16 类工作 / 娱乐 / 餐桌物品 `cooldown_s 0`（仍有冷却的只剩浴缸 / 书架 / 公告栏）；`daily_limit_min` pc 360 / pc_music 240 / stream_desk 240 / fishing_spot 180 / phone 120 / game_console 180 / sofa_tv 180；`world_state._daily_use` 按游戏秒累计（tick）、04:00 为界、到上限自动离开（ws `daily_limit` + external + pendingMessage）、`use` 回 `daily_limit {resets_at, used_min, limit_min}`；`GET /player` / `players[]` 带 `daily_use`，`GET /world?player=` 时物品带 `daily_used_min`；进检查点（players.extra）；`clear_cooldowns` 同清。

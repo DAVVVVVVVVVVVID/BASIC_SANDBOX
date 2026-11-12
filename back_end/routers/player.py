@@ -157,6 +157,8 @@ def admin_metrics():
         "mapVersion": MAP_VERSION,
         "chat_profile": chat_profile.current(),            # X4：SANDBOX_CHAT_PROFILE 常量组回显
         "economy": __import__("game.economy", fromlist=["x"]).info(),   # X5：economy.json 路径与 sha256（按镇覆盖，manifest 记）
+        "accounts": __import__("game.economy", fromlist=["x"]).accounts_view(),   # v1.1 §3：所有已知账号余额（含离线）
+        "rent_enabled": bool((__import__("game.economy", fromlist=["x"]).cfg().get("rent") or {}).get("enabled", False)),
         "players": len(_players),
         "ws_clients": ws_clients,
         "rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),
@@ -241,8 +243,10 @@ class IncomeBody(BaseModel):
     source: str = "external"              # stream / song_fee / tip / adjust …
     label: Optional[str] = None
     meta: Optional[dict] = None
-    viewers_avg: Optional[float] = None   # W11 ②：source=stream
+    viewers_avg: Optional[float] = None   # W11 ②：source=stream（旧名，同公式）
     gifts: Optional[float] = None
+    viewers_total: Optional[float] = None # v1.1 M-2：当场累计观看人次（0.005 / 人）
+    gifts_rmb: Optional[float] = None     # v1.1 M-2：礼物元 1:1
 
 
 @router.post("/admin/income")
@@ -259,10 +263,12 @@ def admin_income(body: IncomeBody):
             raise HTTPException(status_code=404, detail="player not found")
         extra = {}
         amount = body.amount
-        if body.source == "stream":                                   # W11 ②：直播收入折算
-            if body.viewers_avg is not None or body.gifts is not None:
-                amount = economy.stream_income_amount(body.viewers_avg, body.gifts)
-            extra = {"viewers_avg": body.viewers_avg, "gifts": body.gifts, "synthetic": False}
+        if body.source == "stream":                                   # W11 ② / v1.1 M-2：直播收入折算
+            vt = body.viewers_total if body.viewers_total is not None else body.viewers_avg
+            gf = body.gifts_rmb if body.gifts_rmb is not None else body.gifts
+            if vt is not None or gf is not None:
+                amount = economy.stream_income_amount(vt, gf)
+            extra = {"viewers_total": vt, "gifts_rmb": gf, "viewers_avg": body.viewers_avg, "gifts": body.gifts, "synthetic": False}
         if amount is None:
             raise HTTPException(status_code=400, detail="amount required (or source=stream with viewers_avg / gifts)")
         row = economy.ledger("income" if amount >= 0 else "expense", p, int(amount), source=body.source,

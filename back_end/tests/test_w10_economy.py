@@ -34,11 +34,11 @@ def _ledger():
 def test_initial_gold_from_config_and_exposed(client):
     cfg = economy.cfg()["initial_gold"]
     whale = _agent(client, "whale"); achan = _agent(client, "achan"); h = join(client, "h")
-    assert client.get(f"/player/{whale}").json()["gold"] == cfg["whale"] == 300
-    assert client.get(f"/player/{achan}").json()["gold"] == cfg["achan"] == 2000
+    assert client.get(f"/player/{whale}").json()["gold"] == cfg["whale"] == 3000          # v1.1 M-1：全员 3000
+    assert client.get(f"/player/{achan}").json()["gold"] == cfg["achan"] == 3000
     assert client.get(f"/player/{h}").json()["gold"] == cfg["default"]
     snap = {p["id"]: p for p in client.get("/world", params={"fields": "players"}).json()["players"]}
-    assert snap[whale]["gold"] == 300 and snap[whale]["inventory"] == []
+    assert snap[whale]["gold"] == 3000 and snap[whale]["inventory"] == []
 
 
 def test_world_objects_carry_shop_listing(client):
@@ -56,12 +56,12 @@ def test_buy_eat_sell_and_insufficient_funds(client, fake_clock):
     whale = _agent(client, "whale", "鲸仔"); grocer = _agent(client, "npc_grocer", "杂货店老板")
     place(whale, *COUNTER_STAND); place(grocer, 25, 24, "right")
     r = action(client, whale, "buy", {"item": "bread", "qty": 2})
-    assert r["success"] and r["result"]["gold_delta"] == -10 and r["result"]["gold"] == 290 and r["result"]["item_name"] == "面包"
+    assert r["success"] and r["result"]["gold_delta"] == -10 and r["result"]["gold"] == 2990 and r["result"]["item_name"] == "面包"
     assert r["result"]["inventory"] == [{"type": "bread", "name": "面包", "class": "food", "count": 2}]
     assert client.get(f"/player/{grocer}").json()["gold"] == 3000 + 10                        # 老板入账
     # object_id 写法 + item_id 写法
     r = action(client, whale, "buy", {"object_id": COUNTER, "item_id": "sweets"})
-    assert r["success"] and client.get(f"/player/{whale}").json()["gold"] == 284
+    assert r["success"] and client.get(f"/player/{whale}").json()["gold"] == 2984
     assert action(client, whale, "buy", {"item": "fish"})["reason"] == "not_for_sale"        # 杂货店不卖鱼
     assert action(client, whale, "buy", {"item": "unicorn"})["reason"] == "unknown_item"
     # 钱不够
@@ -143,10 +143,10 @@ def test_restaurant_meal_charges_and_insufficient_funds(client, fake_clock):
     place(whale, 46, 33, "up"); place(owner, 50, 30, "up")
     r = action(client, whale, "use")
     assert r["success"] and r["result"]["objectId"] == TABLE
-    assert client.get(f"/player/{whale}").json()["gold"] == 300                                            # v1.1：坐下免费
+    assert client.get(f"/player/{whale}").json()["gold"] == 3000                                           # v1.1：坐下免费
     r = action(client, whale, "eat", {"item": "meal"})                                                     # 点一顿：开吃扣 20、30 分钟 +45 心情 +5
     assert r["success"] and r["result"]["price"] == 20 and r["result"]["duration_s"] == 1800 and r["result"]["gain"] == {"fullness": 45.0, "mood": 5.0}
-    assert client.get(f"/player/{whale}").json()["gold"] == 300 - 20 and client.get(f"/player/{owner}").json()["gold"] == 3000 + 20
+    assert client.get(f"/player/{whale}").json()["gold"] == 3000 - 20 and client.get(f"/player/{owner}").json()["gold"] == 3000 + 20
     action(client, whale, "leave")
     assert client.get(f"/player/{whale}").json()["busy"] is None                                           # 离桌 = 中断
     world_state._players[whale]["gold"] = 5
@@ -163,30 +163,37 @@ def test_admin_income_and_wages_by_schedule(client, fake_clock):
     _at(fake_clock, 12, 0)
     whale = _agent(client, "whale"); achan = _agent(client, "achan"); xq = _agent(client, "npc_xiaoqian")
     r = client.post("/admin/income", json={"entity_id": whale, "amount": 200, "source": "song_fee", "label": "《夜航》酬金"}).json()
-    assert r["ok"] and r["balance"] == 500 and r["account"] == "whale"
+    assert r["ok"] and r["balance"] == 3200 and r["account"] == "whale"
     r = client.post("/admin/income", json={"account": "whale", "amount": -30, "source": "adjust"}).json()
-    assert r["balance"] == 470
+    assert r["balance"] == 3170
     assert client.post("/admin/income", json={"account": "nobody", "amount": 1}).status_code == 404
     _tick(fake_clock, 1)
-    assert world_state._players[xq]["gold"] == 400 and world_state._players[achan]["gold"] == 2000
-    # 小千 13–17 点时薪 12：到 15:30 应结 2 小时（14 点、15 点整点）；到 17:05 共 4 小时；之后不再发
+    assert world_state._players[xq]["gold"] == 3000 and world_state._players[achan]["gold"] == 3000
+    # 小千周一至周五 13–17 点时薪 12（11-10 周二）：到 15:30 应结 2 小时（14 点、15 点整点）；到 17:05 共 4 小时；之后不再发；钱从店主（没上线）账户扣
     _at(fake_clock, 15, 30); _tick(fake_clock, 1)
-    assert world_state._players[xq]["gold"] == 400 + 24
+    assert world_state._players[xq]["gold"] == 3000 + 24 and economy.balance("npc_grocer") == 3000 - 24
     _at(fake_clock, 17, 5); _tick(fake_clock, 1)
-    assert world_state._players[xq]["gold"] == 400 + 48
-    # 阿蝉 18:30 日薪 150：18:00 还没发，18:31 发一次，之后同一天不再发
+    assert world_state._players[xq]["gold"] == 3000 + 48 and economy.balance("npc_grocer") == 3000 - 48
+    # 阿蝉 18:30 日薪 200：18:00 还没发，18:31 发一次，之后同一天不再发
     _at(fake_clock, 18, 0); _tick(fake_clock, 1)
-    assert world_state._players[achan]["gold"] == 2000 and world_state._players[xq]["gold"] == 448
+    assert world_state._players[achan]["gold"] == 3000 and world_state._players[xq]["gold"] == 3048
     _at(fake_clock, 18, 31); _tick(fake_clock, 1)
-    assert world_state._players[achan]["gold"] == 2150
+    assert world_state._players[achan]["gold"] == 3200
     _at(fake_clock, 19, 0); _tick(fake_clock, 1); _tick(fake_clock, 1)
-    assert world_state._players[achan]["gold"] == 2150
+    assert world_state._players[achan]["gold"] == 3200
     wage_rows = [r for r in _ledger() if r["kind"] == "wage"]
-    assert [(r["account"], r["delta"]) for r in wage_rows] == [("npc_xiaoqian", 12)] * 4 + [("achan", 150)]
+    assert [(r["account"], r["delta"]) for r in wage_rows] == [("npc_xiaoqian", 12)] * 4 + [("achan", 200)]
+    assert [(r["account"], r["delta"], r["offline"]) for r in _ledger() if r["kind"] == "wage_paid"] == [("npc_grocer", -12, True)] * 4
+    # 老板娘上线：接着用自己的账户（离线扣过的钱不回来）
+    grocer = _agent(client, "npc_grocer")
+    assert world_state._players[grocer]["gold"] == 3000 - 48
+    # 周末不结时薪
+    _at(fake_clock, 15, 30); fake_clock.t += 4 * 86400; _tick(fake_clock, 1)          # 11-14 周六
+    assert world_state._players[xq]["gold"] == 3048
     # state 行带 gold
     from game import state_log
     row = state_log._row(world_state._players[whale], "2026-11-10T18:00:00+08:00")
-    assert row["gold"] == 470
+    assert row["gold"] == 3170
 
 
 def test_checkpoint_keeps_gold_inventory_and_paid(client, fake_clock):
@@ -194,11 +201,11 @@ def test_checkpoint_keeps_gold_inventory_and_paid(client, fake_clock):
     achan = _agent(client, "achan")
     _tick(fake_clock, 1)
     inventory.add(world_state._players[achan], "bread", 3)
-    assert world_state._players[achan]["gold"] == 2150
+    assert world_state._players[achan]["gold"] == 3200
     persistence.save_checkpoint()
     world_state._reset_for_tests(); economy._reset_for_tests()
     persistence.load_checkpoint()
     p = world_state._players[achan]
-    assert p["gold"] == 2150 and inventory.count(p, "bread") == 3
+    assert p["gold"] == 3200 and inventory.count(p, "bread") == 3
     _at(fake_clock, 19, 0); _tick(fake_clock, 1)
-    assert p["gold"] == 2150                                                                  # 已付记录也在检查点里，不重复发薪
+    assert p["gold"] == 3200                                                                  # 已付记录也在检查点里，不重复发薪

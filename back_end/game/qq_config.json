@@ -8,7 +8,8 @@
     "npc_xiaoqian": "小千",
     "npc_rest_owner": "餐厅老板",
     "npc_grocer": "杂货店老板",
-    "npc_fisher": "老渔夫"
+    "npc_fisher": "老渔夫",
+    "town_hall": "镇公所"
   },
   "contacts": {
     "whale": [
@@ -43,5 +44,8 @@
     "per_hour": 1.0,
     "daily_cap": 5.0
   },
-  "read_reply_bonus": 1.0
+  "read_reply_bonus": 1.0,
+  "system_accounts": [
+    "town_hall"
+  ]
 }

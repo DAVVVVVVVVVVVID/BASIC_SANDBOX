@@ -1553,6 +1553,15 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - **QQ 只发文字**：`POST /qq/send` 任何 `kind=file` → `{success:false, reason:"files_not_supported"}`（留着不崩）；`song` / `image` 文件类作废只为旧检查点保留。
 - **背包**：10 种 × 每种 20（`stack_full`），钥匙不占种；食物类 `give` 对方亲密度 +3（已在 -a）。
 
+### 12.9 world-v1.1 批 ③：货币 / 房租（§3，M-1…M-6；tag `world-v1.1`）
+
+- **账户独立于在线（M-3 / M-5）**：余额按账号（agent_id；人类 = player id）记在 `economy._balances`，第一次 join / spawn 开户（`initial_gold`：**全员 3000，人类 300**）；在线时 `player.gold` 与账户同步，下线 / 被清理后账户留着，回来接着用。日薪、销售 / 餐费 / 配钥匙入账、小千时薪、房租都**按账号结、不要求在线**；离线入账的流水行 `entity: null, offline: true`。**只结「在这个镇开过户」的账号**（没来过的人不发钱不收租）。`GET /admin/metrics` 多 `accounts {账号: 余额}`、`rent_enabled`。
+- **日薪（M-3）**：阿蝉 200 @18:30、店主 20 @22:00、厨师 20 @21:00、渔夫 20 @17:00（`economy.wages`）。**小千时薪（M-4）**：12 / 小时，**周一至周五 13–17**（`weekdays`），从 `payer`（店主）账户扣（流水 `wage_paid`）；店主余额不够 → 小千照拿、店主记 `wage_debt`（`owed / owed_total` 累计在 `_debts`）。
+- **房租（§3.3，`economy.rent`）**：每月 `due_day` 1 日 `due_at` 08:00 自动扣，`items` 按账号分住房 / 铺面两笔（鲸仔 300 / 阿蝉 300 / 小千 350 / 店主 400+600 / 厨师 400+1000 / 渔夫 350；流水 `kind: rent, rent_kind: home|shop`）；开户前已到期的那个月不收。钱不够 → **欠租** `rent_due`（不部分扣、不赶人；ws `rent overdue`、external `rent`），之后余额够了自动补齐（流水 `label: rent_cleared`、ws `rent cleared`）；欠租期间每日 08:00：在线者心情 `overdue_mood_per_day` −3、房东 **`town_hall`（镇公所，QQ 系统账号）** 发一条催租 QQ（收件人不必在线）。扣前 `notice_days` 3 天：每日 08:00 一条 ws `rent due_soon`。`rent.enabled=false` 整段关闭（bench 短场景）。`GET /player/{id}` / `/world.players[]` / ws upsert 带 `rent {amount, items[{kind, amount}], landlord, due_at, due_in_days, overdue, owed, since, balance}`（人类 / 关闭时 `null`）。ws `{type:"rent", event: due_soon|paid|overdue|cleared, account, entity, amount, period, balance}`。
+- **委托（M-6）**：`daily_p` 0.15、`song_fee` 100–200、`max_open` 2、`expire_days` 3（`expires_at`，到期 `status: expired` + ws `commission expire` + external）；酬金仍是外部入账、**不扣委托人（v1.1 定）**。
+- **直播收入（M-2）**：`POST /admin/income source=stream` 接 `viewers_total`（当场累计观看人次）/ `gifts_rmb`（旧 `viewers_avg` / `gifts` 仍收，同公式）：`amount = viewers_total × 0.005 + gifts_rmb × 1.0`；未接直播侧前下播合成 `viewers_total 1000–3000、gifts_rmb 0–20`（≈ 5–35 金币）标 `synthetic: true`。
+- **流水 kind** 新增：`wage_paid` / `wage_debt` / `rent`；`income` 多 `offline` 字段（离线入账）。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 小千 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；小千家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。
@@ -1578,9 +1587,9 @@ NPC 家（渔夫 / 小千 / 店主们）各加 `stove_*` + `table_*`（dining_ta
 ```
 `entity_id` 或 `account`（agent_id；人类 = player id）其一；`amount` 可负。**响应：** `{ "ok": true, "entity_id", "account", "delta", "balance" }`；找不到人 404。流水 `kind: income`（负数 `expense`），`source` 原样记。日薪时薪沙盒自己结，不要再调。
 
-**直播收入（W11 ②）：** `source: "stream"` 时可不给 `amount`，给 `viewers_avg` / `gifts`：`amount = viewers_avg × live_income.per_viewer(0.5) + gifts × gift_rate(1.0)`，响应与流水多 `viewers_avg, gifts, synthetic: false`。
+**直播收入（W11 ② → v1.1 M-2）：** `source: "stream"` 时可不给 `amount`，给 `viewers_total` / `gifts_rmb`（旧 `viewers_avg` / `gifts` 仍收）：`amount = viewers_total × live_income.per_viewer(0.005) + gifts_rmb × gift_rate(1.0)`，响应与流水多 `viewers_total, gifts_rmb, synthetic: false`。
 ```json
-{ "entity_id": "鲸仔_a1b2c3", "source": "stream", "viewers_avg": 40, "gifts": 7 }   → delta 27
+{ "entity_id": "鲸仔_a1b2c3", "source": "stream", "viewers_total": 2000, "gifts_rmb": 7 }   → delta 17
 ```
 直播机未接前（`economy.json` `live_income.synthetic: true`，默认开）：她 `leave` 直播物品（`pc` / `stream_desk`）时沙盒自己按 `synthetic_range` [20, 60] 随机入账一行 `source: stream, synthetic: true`（`SANDBOX_SEED` 定种）。直播侧接上后把 `synthetic` 改 `false`，改用上面的接口回传。**写歌酬金不要走这里**——`give song` 给委托人时沙盒自动入账（见 `/admin/commission`）。
 

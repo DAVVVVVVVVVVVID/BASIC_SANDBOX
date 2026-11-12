@@ -126,6 +126,7 @@ def save_checkpoint(path: Path | None = None) -> dict:
                  ("doors", json.dumps(__import__("game.doors", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("food", json.dumps(__import__("game.food", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("social", json.dumps(__import__("game.social", fromlist=["x"]).export_state(), ensure_ascii=False)),
+                 ("rent", json.dumps(__import__("game.rent", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("schema_version", str(SCHEMA_VERSION)),
                  ("chat_cooldowns", json.dumps({"last_chat_end": chat["last_chat_end"],
                                                 "last_pair_end": chat["last_pair_end"]}))],   # B9 ③
@@ -193,6 +194,8 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         doors.import_state(json.loads(meta.get("doors") or "{}"))
         food.import_state(json.loads(meta.get("food") or "{}"))
         social.import_state(json.loads(meta.get("social") or "{}"))
+        from game import rent
+        rent.import_state(json.loads(meta.get("rent") or "{}"))
         with world_state.STATE_LOCK:
             migrated = doors.migrate_keys(world_state._players)        # §3.41 补：旧检查点的玩家没经过 join，补发自家钥匙（幂等）
         if migrated:
