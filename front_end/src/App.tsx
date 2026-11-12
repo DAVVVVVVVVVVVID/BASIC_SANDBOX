@@ -29,7 +29,6 @@ import { loadAiManifest } from './game/aiAssets'
 function PlayApp() {
   const initialized = useRef(false)
   const myPlayerId = useGameStore((s) => s.myPlayerId)
-  const myInventory = useGameStore((s) => s.player?.inventory)   // W9：QQ 发文件下拉要跟着背包变
 
   const handleJoined = async (playerId: string, player: Player, name: string) => {
     if (initialized.current) return
@@ -78,7 +77,7 @@ function PlayApp() {
       <Minimap />
       <ChatPanel />
       <ConnectionBadge />
-      <QQPanel playerId={myPlayerId} readOnly={false} compact inventory={myInventory} style={{ top: 120, right: 16 }} />
+      <QQPanel playerId={myPlayerId} readOnly={false} compact style={{ top: 120, right: 16 }} />
       <BackpackPanel />
       <KnockPanel />
     </div>

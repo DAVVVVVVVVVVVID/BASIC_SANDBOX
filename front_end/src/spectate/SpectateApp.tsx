@@ -21,7 +21,7 @@ function SpectateQQ({ follow, compact }: { follow: string | null; compact: boole
   const players = useGameStore((s) => s.players)
   const target = resolveFollowTarget(players, follow)
   if (!target) return null
-  return <QQPanel playerId={target.id} readOnly compact={compact} inventory={target.inventory} style={{ top: 120, right: 16 }} />
+  return <QQPanel playerId={target.id} readOnly compact={compact} style={{ top: 120, right: 16 }} />
 }
 
 /**

@@ -1,27 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { EventBus } from '../game/EventBus'
-import { fetchContacts, fetchInbox, markRead, normalizeMessage, sendFile, sendText, type QQContact, type QQMessage } from '../api/qq'
-import { isFileItem, itemMeta, normalizeInventory, type InventoryItem } from '../game/items'
+import { fetchContacts, fetchInbox, markRead, normalizeMessage, sendText, type QQContact, type QQMessage } from '../api/qq'
+import { itemMeta } from '../game/items'   // 老消息里的 kind:file 条目仍要能显示
 
 /**
  * W9 任务 2：QQ 面板（`docs/world-bible/08-phone-messaging.md`）。
- *   操控页（阿蝉）：联系人 / 会话 / 未读，发文字、发文件类物品（歌 / 文稿；实物不走 QQ，后端会拒）。
+ *   操控页（阿蝉）：联系人 / 会话 / 未读，发文字。world-v1.1 起歌 / 稿子是实体物品（CD / 稿子），文件传输取消，「发文件」已撤（B：kind:file 回 400 files_not_supported）。
  *   旁观页：只读，看跟随目标（鲸仔）的会话；`layout=live` 收成右上角图标 + 未读角标，点开看最近 5 条。
  * 数据：ws `qq` 事件即时推；每 4 s 轮询 /qq/inbox 兜底；后端还没有 /qq/*（404）时面板显示「后端未开通」而不是报错。
  */
-interface Props { playerId: string; readOnly: boolean; compact?: boolean; inventory?: unknown[]; style?: React.CSSProperties }
+interface Props { playerId: string; readOnly: boolean; compact?: boolean; style?: React.CSSProperties }
 
 const POLL_MS = 4000
 
-export default function QQPanel({ playerId, readOnly, compact = false, inventory, style }: Props) {
+export default function QQPanel({ playerId, readOnly, compact = false, style }: Props) {
   const qq = useGameStore((s) => s.qq)
   const players = useGameStore((s) => s.players)
   const { setQQContacts, mergeQQMessages, markQQRead } = useGameStore.getState()
   const [peer, setPeer] = useState<string | null>(null)
   const [open, setOpen] = useState(!compact)
   const [text, setText] = useState('')
-  const [fileSel, setFileSel] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const sinceRef = useRef<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -72,18 +71,13 @@ export default function QQPanel({ playerId, readOnly, compact = false, inventory
   useEffect(() => { listRef.current?.scrollTo({ top: 1e9 }) }, [thread.length, open])
   useEffect(() => { if (!peer && contacts.length) setPeer(contacts[0].id) }, [contacts, peer])
 
-  const files: InventoryItem[] = useMemo(() => normalizeInventory(inventory).filter(isFileItem), [inventory])
   const peerC = contacts.find(c => c.id === peer)
 
   const doSend = async () => {
     if (!peer || readOnly) return
     setErr(null)
     try {
-      if (fileSel) {
-        const it = files.find(f => (f.id ?? f.type) === fileSel)
-        if (it) await sendFile(playerId, peer, { id: it.id, type: it.type, name: it.name }, !!peerC?.group)
-        setFileSel('')
-      } else if (text.trim()) {
+      if (text.trim()) {
         await sendText(playerId, peer, text.trim(), !!peerC?.group)
         setText('')
       }
@@ -141,18 +135,13 @@ export default function QQPanel({ playerId, readOnly, compact = false, inventory
             {!readOnly && (
               <div style={{ borderTop: '1px solid #2d3748', padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') doSend() }} placeholder={peer ? `发给 ${peerC?.name ?? peer}…` : '先选联系人'} disabled={!peer || !!fileSel}
+                  <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') doSend() }} placeholder={peer ? `发给 ${peerC?.name ?? peer}…` : '先选联系人'} disabled={!peer}
                     style={{ flex: 1, background: '#1a1b2e', border: '1px solid #4a5568', borderRadius: 6, color: '#e2e8f0', padding: '5px 8px', fontSize: 12 }} />
-                  <button onClick={doSend} disabled={!peer || (!text.trim() && !fileSel)} style={btn}>发送</button>
+                  <button onClick={doSend} disabled={!peer || !text.trim()} style={btn}>发送</button>
                 </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <select value={fileSel} onChange={e => setFileSel(e.target.value)} style={{ flex: 1, background: '#1a1b2e', border: '1px solid #4a5568', borderRadius: 6, color: '#e2e8f0', padding: '4px 6px', fontSize: 12 }}>
-                    <option value="">发文件类物品（歌 / 文稿）…</option>
-                    {files.map(f => <option key={f.id ?? f.type} value={f.id ?? f.type}>{itemMeta(f.type, f.name).icon} {f.name ?? itemMeta(f.type).label}{f.count > 1 ? ` ×${f.count}` : ''}</option>)}
-                  </select>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
                   <button onClick={doRead} disabled={!peer} title="读消息占 1 游戏分钟" style={btn}>标记已读</button>
                 </div>
-                {files.length === 0 && <div style={{ color: '#718096', fontSize: 10 }}>背包里没有文件类物品；实物（蛋糕 / 鱼 / 礼物）不能走 QQ</div>}
                 {err && <div style={{ color: '#fc8181', fontSize: 11 }}>{err}</div>}
               </div>
             )}

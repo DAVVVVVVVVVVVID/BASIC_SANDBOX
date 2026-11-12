@@ -190,6 +190,9 @@ export function startWorldFeed(opts: { preferWs?: boolean } = {}): WorldFeedHand
         case 'door':
           EventBus.emit('door-event', msg)
           break
+        case 'eat_done': case 'spoiled': case 'daily_limit': case 'rent': case 'cook_cancelled':   // world-v1.1（B 11-13）：先分发，面板 / 气泡等 -a 上 bench 后接
+          EventBus.emit(`${msg.type}-event`, msg)
+          break
         case 'heartbeat':
           break
       }
