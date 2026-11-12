@@ -236,6 +236,12 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
 
     ext = external_effects.external_keys(obj)
 
+    from game.world_state import daily_limit_check
+    dl = daily_limit_check(entity_id, obj)                     # world-v1.1 I-1：今天用够了
+    if dl:
+        return ActionResponse(success=False, type="use", reason="daily_limit",
+                              result={"message": f"今天{obj['name']}用够了，{dl['resets_at']} 后再来。", "objectId": obj["id"], **dl})
+
     if obj.get("prototype") == "instant":
         if obj.get("contents") is not None:                                     # world-v1.1：冰箱是储物柜，use 只回内容与提示（无效果、无冷却）
             from game import food as _food
@@ -559,6 +565,8 @@ _HANDLERS = {
     "store":        economy_actions.handle_store,
     "take":         economy_actions.handle_take,
     "discard":      economy_actions.handle_discard,
+    "copy_key":     economy_actions.handle_copy_key,
+    "burn_cd":      economy_actions.handle_burn_cd,
     "knock":        handle_knock,                 # §3.40
     "open_door":    handle_open_door,             # §3.41
     "say":          handle_say,                   # Q6 靠近即可说

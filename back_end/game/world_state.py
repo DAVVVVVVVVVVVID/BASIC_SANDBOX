@@ -437,6 +437,8 @@ _phone_feed: dict[str, dict] = {}
 
 # B5：物品使用记录（游戏秒）
 _last_used:   dict[str, dict[str, float]]        = {}   # entity -> {obj_id: game_ts}
+_daily_use:   dict[str, dict[str, dict]]         = {}   # world-v1.1 I-1：entity -> {obj_type: {"day": "YYYY-MM-DD"(04:00 为界), "used_s": float}}
+DAILY_RESET_HM = "04:00"
 _use_history: dict[str, list[tuple[float, str]]] = {}   # entity -> [(game_ts, obj_id), ...]
 OBJECT_COOLDOWN_S  = 30 * 60.0       # 同一物品 30 游戏分钟冷却（类型可用 cooldown_s 覆盖；床类为 0，W8 Q0e）
 AWAY_AFTER_S       = 120.0           # W8 Q0e：人类玩家 120 s 无输入标 away（agent 永不 away）
@@ -685,6 +687,7 @@ def remove_player(player_id: str) -> None:
         _last_seen.pop(player_id, None)
         _last_used.pop(player_id, None)
         _use_history.pop(player_id, None)
+        _daily_use.pop(player_id, None)
         _last_input.pop(player_id, None)
         _pre_use_pos.pop(player_id, None)
         _phone_feed.pop(player_id, None)
@@ -747,8 +750,8 @@ def _cleanup_stale_players() -> None:
 
 # ── 公开访问函数 ──────────────────────────────────────────────────────────────
 
-def get_world() -> dict:
-    """只读（B8）：时间推进、buff tick、stale 清理都在后台 ticker 里。"""
+def get_world(viewer: str | None = None) -> dict:
+    """只读（B8）：时间推进、buff tick、stale 清理都在后台 ticker 里。viewer（player id / agent_id）给则物品带 daily_used_min。"""
     from game.time_state import get_time_state
     world_state = get_time_state()
     world_state["weather"] = _WEATHER
@@ -757,7 +760,7 @@ def get_world() -> dict:
     gts = game_now_ts()
     return {
         "tiles":      _TILES,
-        "objects":    [_object_view(o, gts) for o in _OBJECTS],
+        "objects":    [_object_view(o, gts, _resolve_viewer(viewer)) for o in _OBJECTS],
         "worldState": world_state,
         "players":    get_all_players_snapshot(),
         "tiled":      _MAP_DATA.get("tiled"),
@@ -782,7 +785,9 @@ def get_player(player_id: str) -> dict | None:
     data["pending_knocks"] = doors.pending_for_owner(player)  # §3.40：我家待回应的敲门 [{id, visitor, visitor_name, home, door, expires_at}]
     data["keys"] = doors.keys_of(player)                      # §3.41：持有的钥匙 [{door_id, name}]（也在 inventory 里，type key）
     from game import food
-    data["busy"] = food.busy_view(player_id)                  # world-v1.1：进食 {kind, item, started_at, ends_at, remaining_s, progress, gain}，否则 null
+    from game import production as _prod
+    data["busy"] = food.busy_view(player_id) or _prod.busy_view(player_id)   # world-v1.1：进食 / 刻盘 {kind, item, started_at, ends_at, remaining_s, progress, gain?}，否则 null
+    data["daily_use"] = daily_use_view(player_id)             # world-v1.1 I-1：{obj_type: {used_min, limit_min}}
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -807,6 +812,7 @@ def get_all_players_snapshot() -> list[dict]:
             "gold":          int(p.get("gold", 0)),    # W10 ④
             "inventory":     _inv_view_safe(p),        # W10 ④：[{type, name, class, count}]
             "busy":          _busy_view_safe(p["id"]),  # world-v1.1：进食进度（E 旁观页从 players[] 读）
+            "daily_use":     daily_use_view(p["id"]),   # world-v1.1 I-1
         }
         for p in _players.values()
     ]
@@ -814,7 +820,8 @@ def get_all_players_snapshot() -> list[dict]:
 
 def _busy_view_safe(pid: str) -> dict | None:
     from game.food import busy_view
-    return busy_view(pid)
+    from game.production import busy_view as _pb
+    return busy_view(pid) or _pb(pid)
 
 
 def _inv_view_safe(p: dict) -> list[dict]:
@@ -885,12 +892,22 @@ def open_state(obj: dict, game_ts: float | None = None) -> tuple[bool, str | Non
     return False, f"{nxt // 60:02d}:{nxt % 60:02d}"
 
 
-def _object_view(obj: dict, game_ts: float) -> dict:
-    """GET /world 的物品视图：加 open / opensAt，关门时 advertise 全 0。"""
+def _resolve_viewer(viewer: str | None) -> str | None:
+    if not viewer:
+        return None
+    if viewer in _players:
+        return viewer
+    return next((p["id"] for p in _players.values() if p.get("agent_id") == viewer or p.get("name") == viewer), None)
+
+
+def _object_view(obj: dict, game_ts: float, viewer: str | None = None) -> dict:
+    """GET /world 的物品视图：加 open / opensAt，关门时 advertise 全 0；v1.1：contents / cooking / daily_used_min（按 viewer）。"""
     is_open, opens_at = open_state(obj, game_ts)
     view = dict(obj)
     view["open"] = is_open
     view["opensAt"] = opens_at
+    if viewer and obj.get("daily_limit_min"):
+        view["daily_used_min"] = round(daily_used_s(viewer, obj["type"], game_ts) / 60.0, 1)
     if obj.get("contents") is not None:                     # world-v1.1：冰箱内容（带保质期）
         from game import food
         view["contents"] = food.contents_view(obj, game_ts)
@@ -933,6 +950,80 @@ def object_cooldown_remaining(entity_id: str, obj_id: str) -> float:
     obj = get_object_by_id(obj_id)
     cd = object_cooldown_s(obj) if obj else OBJECT_COOLDOWN_S
     return max(0.0, cd - (game_now_ts() - last))
+
+
+# ── world-v1.1 I-1：每人每日使用时长上限（创作 / 娱乐类，object_types daily_limit_min；04:00 重置） ─────
+def daily_key(gts: float) -> str:
+    from datetime import datetime, timedelta
+    from game.time_state import GAME_TZ
+    return (datetime.fromtimestamp(gts, GAME_TZ) - timedelta(hours=4)).strftime("%Y-%m-%d")
+
+
+def daily_limit_s(obj_type: str) -> float | None:
+    v = OBJECT_TYPES.get(obj_type, {}).get("daily_limit_min")
+    return float(v) * 60.0 if v else None
+
+
+def daily_used_s(entity_id: str, obj_type: str, gts: float | None = None) -> float:
+    gts = game_now_ts() if gts is None else gts
+    rec = _daily_use.get(entity_id, {}).get(obj_type)
+    if not rec or rec.get("day") != daily_key(gts):
+        return 0.0
+    return float(rec.get("used_s", 0.0))
+
+
+def daily_limit_check(entity_id: str, obj: dict, gts: float | None = None) -> dict | None:
+    """到上限返回 {resets_at, used_min, limit_min}，否则 None。"""
+    lim = daily_limit_s(obj["type"])
+    if lim is None:
+        return None
+    used = daily_used_s(entity_id, obj["type"], gts)
+    if used + 1e-6 >= lim:
+        return {"resets_at": DAILY_RESET_HM, "used_min": round(used / 60.0, 1), "limit_min": round(lim / 60.0, 1)}
+    return None
+
+
+def _daily_use_tick(delta_ms: float, gts: float) -> None:
+    """使用中的玩家按 game 秒累计；到上限自动离开（ws daily_limit）。调用方持 STATE_LOCK。"""
+    if delta_ms <= 0:
+        return
+    for pid, p in list(_players.items()):
+        oid = p.get("usingObjectId")
+        if not oid:
+            continue
+        obj = get_object_by_id(oid)
+        if obj is None:
+            continue
+        lim = daily_limit_s(obj["type"])
+        if lim is None:
+            continue
+        rec = _daily_use.setdefault(pid, {}).get(obj["type"])
+        day = daily_key(gts)
+        if not rec or rec.get("day") != day:
+            rec = {"day": day, "used_s": 0.0}; _daily_use[pid][obj["type"]] = rec
+        rec["used_s"] += delta_ms / 1000.0
+        if rec["used_s"] >= lim:
+            rec["used_s"] = lim
+            left = leave_object(pid)
+            if left:
+                _pending_messages[pid] = f"今天{left['name']}用够了（{int(lim // 60)} 分钟），{DAILY_RESET_HM} 后再来。"
+                try:
+                    from routers.ws import hub
+                    hub.push_event({"type": "daily_limit", "entity": pid, "object": left["id"], "object_type": left["type"], "limit_min": lim / 60.0, "resets_at": DAILY_RESET_HM})
+                except Exception:
+                    pass
+                from game import external_log
+                external_log.log("daily_limit", pid, object=left["id"], object_type=left["type"], limit_min=lim / 60.0)
+
+
+def daily_use_view(entity_id: str, gts: float | None = None) -> dict:
+    """{obj_type: {used_min, limit_min}}：所有带上限的类型（今天没用过为 0）。"""
+    gts = game_now_ts() if gts is None else gts
+    out = {}
+    for t, d in OBJECT_TYPES.items():
+        if d.get("daily_limit_min"):
+            out[t] = {"used_min": round(daily_used_s(entity_id, t, gts) / 60.0, 1), "limit_min": float(d["daily_limit_min"])}
+    return out
 
 
 def record_object_use(entity_id: str, obj_id: str) -> None:
@@ -1747,6 +1838,7 @@ def _run_buff_tick_all(delta: float) -> None:
                 continue
             run_tick(player, delta, game_ts=gts)
             _check_auto_leave(player_id)
+        _daily_use_tick(delta, gts)                     # world-v1.1 I-1：每日使用时长，到上限自动离开
         walk_tick(gts)                                  # §3.36：按 1 格 / 游戏秒逐格推进
         self_sync.on_tick(gts, _players)
         from game import economy, production, commissions, qq
@@ -1783,6 +1875,7 @@ def export_runtime() -> dict:
                 "last_used":       dict(_last_used.get(pid, {})),
                 "use_history":     [list(x) for x in _use_history.get(pid, [])],
                 "pre_use_pos":     _pre_use_pos.get(pid),            # W10：use 前站位
+                "daily_use":       {k: dict(v) for k, v in _daily_use.get(pid, {}).items()},   # world-v1.1 I-1
             }
             for pid, p in _players.items()
         }
@@ -1803,7 +1896,7 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
     from game import self_sync
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
-        _last_used.clear(); _use_history.clear(); _pre_use_pos.clear()
+        _last_used.clear(); _use_history.clear(); _pre_use_pos.clear(); _daily_use.clear()
         for pid, row in (data.get("players") or {}).items():
             player = row["player"]
             _ensure_player_fields(player)
@@ -1820,6 +1913,8 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
             _use_history[pid] = [(float(t), o) for t, o in (row.get("use_history") or [])]
             if row.get("pre_use_pos"):
                 _pre_use_pos[pid] = dict(row["pre_use_pos"])
+            if row.get("daily_use"):
+                _daily_use[pid] = {k: dict(v) for k, v in row["daily_use"].items()}
             if player.get("controller") == "agent":
                 self_sync.register(pid, game_now_ts())
         from game import state_log
@@ -1851,7 +1946,7 @@ def _reset_for_tests() -> None:
     """清空全部运行时状态（测试用）。"""
     with STATE_LOCK:
         _players.clear(); _pending_messages.clear(); _use_start_times.clear(); _last_seen.clear()
-        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear(); _pre_use_pos.clear(); _use_start_game_ts.clear(); _walks.clear()
+        _last_used.clear(); _use_history.clear(); _phone_feed.clear(); _recent_events.clear(); _last_input.clear(); _pre_use_pos.clear(); _use_start_game_ts.clear(); _walks.clear(); _daily_use.clear()
         global _walk_log_enabled
         _walk_log_enabled = True
         _forced_closed.clear()

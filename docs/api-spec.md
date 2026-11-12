@@ -104,7 +104,8 @@
 | `stateLabel` / `usingObjectId` / `tags` | **W5 E①** 与 `GET /player` 同义；前端叠加层（睡觉 / 吃饭 / 直播中）直接读，不必反查 userList |
 | `pos_seq` | **W5 E⑥** 位置单调序号：每次坐标实际变化 +1（转向不变），重启后保留；客户端预测校正用它排乱序 |
 | `gold` / `inventory` | **W10 ④** 金币余额（整数）与背包 `[{type, name, class, count, meta?, expires_at?, expires_in_days?, spoils_in_days?}]`（**v1.1：10 种 × 每种 20 个**，钥匙不占种；`type` = `items.json` 键，`class`: food / material / consumable / gift / key / file(旧)）。`GET /player/{id}` 同形状 |
-| `busy` | **world-v1.1 §12** 进食进度 `{kind: "eating", item, object, started_at, ends_at, remaining_s, progress 0–1, gain}`，不忙为 `null`；`GET /player/{id}` 与 ws `players.upsert` 同带 |
+| `busy` | **world-v1.1 §12** 进食 / 刻盘进度 `{kind: "eating"|"burning", item, object, started_at, ends_at, remaining_s, progress 0–1, gain? / title?}`，不忙为 `null`；`GET /player/{id}` 与 ws `players.upsert` 同带 |
+| `daily_use` | **world-v1.1 §12.8** `{obj_type: {used_min, limit_min}}`：带每日上限的物品类型今天已用分钟（04:00 重置） |
 
 ---
 
@@ -457,11 +458,13 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 | `store` | **world-v1.1 §12** 把背包里的食物 / 食材放进冰箱（相邻或 `object_id`；按叠带保质期；容量 `fridge.capacity` 20）。失败 `not_storage` / `not_storable` / `storage_full {capacity, used}` / `no_item` | `{ item, qty?=1, object_id? }` | agent / E |
 | `take` | **world-v1.1 §12** 从冰箱拿出（先拿最早到期的，保质期跟着走）。失败 `not_storage` / `not_in_storage` / `inventory_full` / `stack_full` | `{ item, qty?=1, object_id? }` | agent / E |
 | `discard` | **world-v1.1 §12** 丢掉背包里的东西（任何物品；钥匙不许丢 `not_discardable`） | `{ item, qty?=1 }` | agent / E |
+| `copy_key` | **world-v1.1 §12.8** 面向杂货店柜台给自己的门配一把钥匙（15 金币，仅门主） | `{ door_id, object_id? }` | agent / E |
+| `burn_cd` | **world-v1.1 §12.8** 在琴房电脑上把背包里的某张 CD 再刻一张（10 分钟，busy `burning`） | `{ title? }` | agent |
 | `knock` | **§3.41** 在上锁的家门外敲门（见「门禁」一节） | `{ door_id }` 或 `{ target_tile {x,y} }` 或 `{ home: <sector> }` | agent / E |
 | `open_door` | **§3.41** 站在门内侧相邻格开门（不需钥匙），敞开 60 游戏秒 | `{ door_id }` | agent / E |
 | `say` | **Q6（实验 X4）靠近即可说**：曼哈顿 ≤ 2 格、同 sector 的在场玩家在**下一次 perceive** 的 `nearby_speech[]` 看到 `{from, from_name, text, ts}`（读过即清，队列 ≤ 20）；不开房间、不走邀请。`result {message, heard_by[], heard_count, range, position}`；失败 `empty_text` / `text_too_long`（> 200）。聊天 JSONL 多一种行 `kind: "say"`（`from, from_name, to: heard_by[], text, controller, position`，`room_id: null`）；ws `{type:"say", from, from_name, text, position, heard_by}`；动作日志照常 | `{ text }` | agent |
-| `compose` | **W11 ①** 在琴房电脑（`pc_music`）上用满 `min_minutes`（30）后产一首「歌」（文件类，`meta.title / commission_id / text…` 由 C 填） | `{ title?, commission_id?, text?, meta? }` | agent |
-| `make_video` | **W11 ①** 在电脑（`pc` / `pc_desk` / `stream_desk`）上用满 60 分钟后产一份「电台文稿」 | `{ title?, text?, meta? }` | agent |
+| `compose` | **W11 ① / v1.1 Q-5** 在琴房电脑（`pc_music`）上用满 `min_minutes`（30）后产一张 **CD**（`cd`，实体，`meta.title / commission_id / text…` 由 C 填） | `{ title?, commission_id?, text?, meta? }` | agent |
+| `make_video` | **W11 ① / v1.1 Q-5** 在电脑（`pc` / `pc_desk` / `stream_desk`）上用满 60 分钟后产一份「稿子」（`script`，实体） | `{ title?, text?, meta? }` | agent |
 
 ### buy / sell / eat / give（W10 ④）
 
@@ -474,7 +477,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 | 店主入账 | 买东西的钱进店主账户（`economy.json` `shops[].owner`：`shop_counter` → `npc_grocer`，`fish_stall` → `npc_fisher`，`bar` → `npc_rest_owner`），店主在线才有人收；卖给商店同理从店主扣。**餐厅吃饭（v1.1）**：坐下免费，`eat {item:"meal"}` 开吃扣 `economy.meal.price`（20），钱不够 `insufficient_funds`、仍坐着（§12.4） |
 | 流水 | 每笔金币变动一行 `data/economy/<date>.jsonl`（`kind`: buy / sell / income / expense / wage；`account, entity, delta, balance, item?, qty?, price?, shop?, peer?, source?, label?`），`GET /admin/export?kinds=economy` 导出；ws 推 `{type:"economy", ...同行}` |
 | ws `action` 事件 | buy / sell / eat / give 另带 `item, item_name, qty, price, gold_delta, gold, target, target_name`（有则带），给 E 的气泡 |
-| QQ 转交 | 文件类物品（`class: file`：song / script / image）走 `POST /qq/send kind=file`，是**复制**（发送者保留）；实物只能 `give` |
+| QQ 转交 | **v1.1 下线**：QQ 只发文字（`kind=file` → `files_not_supported`）；歌是实体 `cd`、文稿是 `script`，只能当面 `give`（§12.8） |
 | **W11 库存** | `buy` 多一个失败 `out_of_stock`（`result.stock`）；买走 `objects[].stock[item]` −qty，卖给店 +qty；每日 `restock_at`（08:00）补到配置水位（只补不减，同日一次） |
 | **W11 产出链** | `use` 灶台需背包有 1 份食材（否则 `no_ingredients`），use 时消耗，满 30 游戏分钟产便当 ×2（提前 leave 不产）；`use` 钓位后每 40 游戏分钟掷一次（50%，有鱼饵 80% 且每次消耗 1 鱼饵）得「鱼」；`use` 冰箱按库存吃一份（空 → `empty`），`store` 放食材。每次产出：`pendingMessage`（「钓到一条鱼！」）、ws `{type:"produce", entity, via: fishing|stove|compose|make_video, item, item_name, qty, …}`、`external` 日志 `kind: produce`（`seeded` 标是否由 `SANDBOX_SEED` 定种，回放可复现） |
 | **W11 compose / make_video** | 失败 `need_object`（`result.objects` 列出允许的物品类型）、`not_ready`（`result.ready_in_min`）、`inventory_full`；成功 `result: {message, objectId, item, item_name, qty, meta, inventory}`。时长门槛与物品类型在 `economy.json` `production.compose / make_video` |
@@ -1389,7 +1392,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | reason | 说明 |
 |---|---|
 | `phone_unavailable` | 睡觉 / 直播中 |
-| `not_transferable` | `kind=file` 但 `file_ref.item` 不是 `items.json` 里 `class: file` 的物品（歌 `song` / 电台文稿 `script` / 图片 `image`）；蛋糕、鱼、礼物等实物只能当面 `give` |
+| `files_not_supported` | **v1.1 Q-5** 任何 `kind=file`：QQ 不再传文件，歌 / 稿子是实体（`cd` / `script`）当面 `give`。旧 `not_transferable` 不再出现 |
 | `unknown_recipient` / `unknown_group` / `not_member` / `self_message` | 收件人不认识 / 群不存在 / 不是群成员 / 发给自己 |
 | `empty_text` / `need_to_or_group` / `bad_kind` | 参数问题 |
 
@@ -1532,7 +1535,23 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 不再分昼夜（`night_energy_mult` 1.0）。work 类：`pc` / `pc_desk` / `pc_music` / `stream_desk` / `desk` / `desk_12` / `reading_desk` / `classroom_desk` / `fishing_spot` / `stove`（`/world.objects[].work`），进入挂 `working`、离开摘。**手机改持续使用**：`use phone` 进入拉一次 feed（`result.phone`；没信号也能坐着，只是没摘要）、tag `browsing`、fun +15/h、`leave` 结束；`reading`（读 QQ 的一分钟）照旧可叠。直播台 / 电脑不再挂 social / fun / energy / fullness 的 regen。
 
-自我层同步（`POST /self/state/delta`）**多两个字段** `asleep` / `working`（bool），自我层 catch_up 按同一套醒 / 睡 / 工作速率算才不漂（A 侧改 `whale_self/state.py`）。
+自我层同步（`POST /self/state/delta`）**多两个字段** `asleep` / `working`（bool），自我层 catch_up 按同一套醒 / 睡 / 工作速率算才不漂（A 侧 whale-self 89276d9 / tag needs-v1.1 已同源）。body 形状：
+
+```json
+{ "agent": "whale", "scene": "sandbox", "ts": "2026-11-13T12:30:00+08:00", "source": "sandbox_tick",
+  "vars_delta": { "fullness": 40.0, "social": 8.0 }, "asleep": false, "working": true }
+```
+
+`asleep` = 该批结束时 tags 含 `sleeping`；`working` = tags 含 `working`（在用 work 类物品）；`source: scenario`（夹具 effects / set_vars 的推送）同带。自我层按最近一次 delta 的两个标记选速率表：asleep → 饱腹 −1.5/h 其余 0；否则醒着（fullness −3 / energy −3 / social −2 / fun −2）+ working 精力再 −3/h + scene live 饱腹再 −3/h；不分昼夜。
+
+### 12.8 -b 批：占用语义 + 每日使用时长上限、配钥匙、CD / 稿子实体、QQ 只发文字（§2 I-1 / I-3 / I-6 / I-7、§4 Q-5）
+
+- **占用语义**：创作 / 工作 / 娱乐 / 餐桌类（`pc` / `pc_desk` / `pc_music` / `stream_desk` / `desk` / `desk_12` / `reading_desk` / `classroom_desk` / `fishing_spot` / `phone` / `game_console` / `sofa_tv` / `dining_table` / `restaurant_table` / `bar` / `bench`）`cooldown_s: 0`——在用即占、离开即释放、随时可回来续；仍有 30 分钟冷却的只剩 `bath` / `book` / `notice_board` 等。
+- **每日使用时长上限**（`object_types.daily_limit_min`，每人按物品类型计，**04:00 重置**）：`pc` 360 / `pc_music` 240 / `stream_desk` 240 / `fishing_spot` 180 / `phone` 120 / `game_console` 180 / `sofa_tv` 180。使用中按游戏秒累计；到上限**自动离开**（`pendingMessage`「今天×用够了」、ws `{type:"daily_limit", entity, object, object_type, limit_min, resets_at}`、external `kind: daily_limit`）；再 `use` → `reason: "daily_limit"`，`result {resets_at: "04:00", used_min, limit_min, objectId, message}`。`GET /player/{id}` / `/world.players[]` / ws upsert 带 `daily_use {obj_type: {used_min, limit_min}}`（所有带上限的类型，没用过为 0）；`GET /world?player=<id|agent_id>` 时 `objects[].daily_used_min` 按该玩家给（不带 player 为 `null`）。夹具 `occupy` 的时长照计；`clear_cooldowns` 同时清每日用量；进检查点。
+- **配钥匙** `copy_key {door_id}`：面向杂货店柜台（营业中），只有门的 `owner` 能配自己门的钥匙，`economy.services.copy_key.price` 15 金币进店主账户（流水 `buy item=key_copy` / `income source=shop_service`）；配出的是普通 `key` 物品（meta `door_id / name / copy:true`，不占钥匙槽位、不占背包种数）可 `give`。成功 `result {item:"key", door_id, price, gold_delta, gold, objectId, inventory}`；失败 `not_at_counter` / `shop_closed` / `unknown_door` / `not_owner {owners}` / `insufficient_funds {price, gold}`。
+- **CD / 稿子**：`compose` 在琴房电脑满 30 分钟 → 1 张 `cd`（唱片，class item，meta `title / commission_id / text / created_at / by`）；`make_video` → 1 份 `script`（稿子，实体）；**委托交付 = give `cd` 给委托人**（`commissions.deliver_items`，旧 `song` 仍认）。**再刻一张** `burn_cd {title?}`：须正在用琴房电脑且背包里有同名 CD（多首不同名要给 `title`：`title_required {titles}`），10 分钟后 +1 张（不耗钱）；期间 `busy {kind: "burning", item: "cd", title, started_at, ends_at, remaining_s, progress}`、tags 含 `burning`；中途 leave 作废；失败 `need_object` / `no_item` / `already_burning`。ws `produce via=burn_cd`。
+- **QQ 只发文字**：`POST /qq/send` 任何 `kind=file` → `{success:false, reason:"files_not_supported"}`（留着不崩）；`song` / `image` 文件类作废只为旧检查点保留。
+- **背包**：10 种 × 每种 20（`stack_full`），钥匙不占种；食物类 `give` 对方亲密度 +3（已在 -a）。
 
 ### 12.7 地图 v1
 

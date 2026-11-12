@@ -45,6 +45,15 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5s. world-v1.1 批 ②：占用语义 + 每日时长上限、配钥匙、CD / 稿子、QQ 只发文字（tag `world-v1.1-b`）—— 完成
+
+- **占用 + 每日上限（I-1）**：16 类工作 / 娱乐 / 餐桌物品 `cooldown_s 0`（仍有冷却的只剩浴缸 / 书架 / 公告栏）；`daily_limit_min` pc 360 / pc_music 240 / stream_desk 240 / fishing_spot 180 / phone 120 / game_console 180 / sofa_tv 180；`world_state._daily_use` 按游戏秒累计（tick）、04:00 为界、到上限自动离开（ws `daily_limit` + external + pendingMessage）、`use` 回 `daily_limit {resets_at, used_min, limit_min}`；`GET /player` / `players[]` 带 `daily_use`，`GET /world?player=` 时物品带 `daily_used_min`；进检查点（players.extra）；`clear_cooldowns` 同清。
+- **配钥匙（I-7）**：`copy_key {door_id}` 面向柜台营业中、仅 `edge.owner`、15 金币入店主、配出普通 key（meta copy:true，不占槽位）可 give；失败码 `not_at_counter / shop_closed / unknown_door / not_owner / insufficient_funds`。
+- **CD / 稿子（Q-5）**：`compose` → `cd`、`make_video` → `script` 实体；`burn_cd {title?}` 琴房电脑 10 分钟 +1 张（busy `burning`、中途走作废）；委托交付认 `cd`（旧 `song` 仍认，`commissions.deliver_items`）。
+- **QQ**：任何 `kind=file` → `files_not_supported`；文件类物品只为旧检查点保留。
+- 测试：改 9 处旧断言（书桌 / 钓位 / 手机 / 沙发无冷却 → 用浴缸验冷却机制；QQ 文件；compose 产 cd）+ 新增 `test_daily_limit_and_copy_key`（累计 / 自动离开 / 04:00 重置 / ?player= / 配钥匙 owner 校验 / 入账 / 配出的钥匙能开门）+ burn_cd 断言；**331 passed**。api-spec §12.8 + 自我层 delta body 形状（总控要的书面版）。
+- A 已同源：whale-self 89276d9（tag needs-v1.1）按 asleep / working / live 三套速率算 catch_up，速率文件是 needs.json 的复制并有一致性单测——**我改 needs.json 数值要告 A**。
+
 ## 5r. world-v1.1 批 ①+④：食物重做 + 七变量配置化（总控 whale-43 11-13；tag `world-v1.1-a`）—— 完成
 
 依据 `whale/docs/review/numeric-proposal-v1.md`（主播拍板）§1 / §1.2 / §2.1 / §4.1 + pending-B 11-13 段；十四问全按默认值。对外形状只加不删；详见 api-spec **§12**。

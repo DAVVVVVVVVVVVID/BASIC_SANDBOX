@@ -171,10 +171,54 @@ def test_occupy_does_not_start_cooldown(client, v1, bench_env, fake_clock):
     res = action(client, whale, "use")
     assert res["success"] is True, res
     assert world_state._players[whale]["usingObjectId"] == "sofa_tv"
-    # 她自己 leave 后再 use：正常游戏冷却照旧（那是真的用过一次）
+    # v1.1 -b：沙发是娱乐类，占用语义无冷却（每日 180 分钟上限）；她自己 leave 后立刻可回
     action(client, whale, "leave")
-    assert world_state.object_cooldown_remaining(whale, "sofa_tv") > 0
-    assert action(client, whale, "use")["reason"] == "object_cooldown"
-    # occupy 会清掉已有冷却：夹具再占一次 → release → 立刻可用
+    assert world_state.object_cooldown_remaining(whale, "sofa_tv") == 0
+    assert action(client, whale, "use")["success"]
+    action(client, whale, "leave")
+    # occupy 不计入每日时长之外的冷却；再占一次 → release → 立刻可用
     _run(client, [{"op": "occupy", "player": whale, "object": "sofa_tv"}, {"op": "release", "player": whale}])
     assert world_state.object_cooldown_remaining(whale, "sofa_tv") == 0 and action(client, whale, "use")["success"]
+
+
+def test_daily_limit_and_copy_key(client, v1, fake_clock):
+    """world-v1.1 -b：每日使用时长上限（琴房电脑 240 min、04:00 重置、到点自动离开、daily_limit、/world?player= 与 GET /player.daily_use）；配钥匙（柜台 15 金币、仅门主）。"""
+    from game import inventory, doors
+    _at(fake_clock, 10, 0)
+    whale = _agent(client, "whale"); grocer = _agent(client, "npc_grocer"); fisher = _agent(client, "npc_fisher")
+    p = world_state._players[whale]
+    place(whale, 34, 3, "up"); assert action(client, whale, "use")["success"]                 # pc_music
+    assert client.get(f"/player/{whale}").json()["daily_use"]["pc_music"] == {"used_min": 0.0, "limit_min": 240.0}
+    ticker.tick_once(checkpoint=False)                                                         # 基线
+    fake_clock.advance(100 * 60); ticker.tick_once(checkpoint=False)
+    assert client.get(f"/player/{whale}").json()["daily_use"]["pc_music"]["used_min"] == pytest.approx(100.0, abs=0.1)
+    o = next(o for o in client.get("/world", params={"fields": "objects", "player": "whale"}).json()["objects"] if o["id"] == "pc_music")
+    assert o["daily_limit_min"] == 240 and o["daily_used_min"] == pytest.approx(100.0, abs=0.1) and o["work"] is True
+    assert next(o for o in client.get("/world", params={"fields": "objects"}).json()["objects"] if o["id"] == "pc_music")["daily_used_min"] is None
+    action(client, whale, "leave"); assert action(client, whale, "use")["success"]            # 无冷却，可立刻回来续
+    fake_clock.advance(150 * 60); ticker.tick_once(checkpoint=False)                            # 累计 250 > 240 → 自动离开
+    assert p["usingObjectId"] is None and "用够了" in (client.get(f"/player/{whale}").json()["pendingMessage"] or "")
+    r = action(client, whale, "use")
+    assert r["success"] is False and r["reason"] == "daily_limit" and r["result"] == {"message": r["result"]["message"], "objectId": "pc_music", "resets_at": "04:00", "used_min": 240.0, "limit_min": 240.0}
+    _at(fake_clock, 3, 59); fake_clock.t += 86400; ticker.tick_once(checkpoint=False)
+    assert action(client, whale, "use")["reason"] == "daily_limit"                             # 次日 03:59 仍算昨天
+    fake_clock.advance(120); ticker.tick_once(checkpoint=False)
+    assert action(client, whale, "use")["success"]                                             # 04:01 重置
+    action(client, whale, "leave")
+    # 配钥匙：杂货店柜台（55,36 up）、鲸仔是合租房门主、15 金币进店主账户；渔夫不是门主
+    _at(fake_clock, 10, 0); fake_clock.t += 86400
+    place(whale, 55, 36, "up"); place(fisher, 54, 36, "up")
+    assert action(client, whale, "copy_key", {"door_id": "door_fisher"})["reason"] == "not_owner"
+    assert action(client, whale, "copy_key", {"door_id": "nope"})["reason"] == "unknown_door"
+    g0 = p["gold"]; gg0 = world_state._players[grocer]["gold"]
+    r = action(client, whale, "copy_key", {"door_id": "door_home"})
+    assert r["success"] and r["result"]["price"] == 15 and p["gold"] == g0 - 15 and world_state._players[grocer]["gold"] == gg0 + 15
+    assert inventory.count(p, "key") == 2 and len(doors.keys_of(p)) == 2
+    place(whale, 10, 10, "up"); assert action(client, whale, "copy_key", {"door_id": "door_home"})["reason"] in ("no_object", "not_at_counter")
+    _at(fake_clock, 23, 0); fake_clock.t += 86400; place(whale, 55, 36, "up")
+    assert action(client, whale, "copy_key", {"door_id": "door_home"})["reason"] == "shop_closed"
+    # 配出来的钥匙可 give：渔夫拿到就能开合租房门
+    _at(fake_clock, 12, 0); fake_clock.t += 86400
+    place(whale, 10, 10, "up"); place(fisher, 11, 10, "left")
+    r = action(client, whale, "give", {"target": fisher, "item": "key", "door_id": "door_home"})
+    assert r["success"] and doors.holds_key(world_state._players[fisher], "door_home") and doors.holds_key(p, "door_home")   # 自己那把还在

@@ -27,17 +27,21 @@ def test_world_sends_advertise(client):
 
 def test_cooldown_blocks_reuse_then_expires(client, fake_clock):
     """W8 Q0e 起床类无冷却，用桌子验 30 min 冷却。"""
+    """v1.1：书桌等工作 / 娱乐类改占用语义无冷却；这里用浴缸（bath，仍 30 分钟）验冷却机制本身。"""
     pid = join(client)
-    place(pid, *DESK_STAND)
+    place(pid, 42, 35, "up")                      # bath_regular
     assert action(client, pid, "use")["success"]
     assert action(client, pid, "leave")["success"]
     res = action(client, pid, "use")
     assert res["success"] is False and res["reason"] == "object_cooldown"
-    assert res["result"]["objectId"] == DESK_ID
+    assert res["result"]["objectId"] == "bath_regular"
     assert 1790 <= res["result"]["cooldownRemaining"] <= 1800
     fake_clock.advance(1801)                      # speed 1：1801 游戏秒后解锁
     assert action(client, pid, "use")["success"]
-    assert world_state.get_recent_uses(pid) == {DESK_ID: 2}
+    assert world_state.get_recent_uses(pid) == {"bath_regular": 2}
+    # 书桌（work 类）：立刻可再用
+    action(client, pid, "leave"); place(pid, *DESK_STAND)
+    assert action(client, pid, "use")["success"] and action(client, pid, "leave")["success"] and action(client, pid, "use")["success"]
 
 
 def test_cooldown_is_per_object_and_per_player(client, fake_clock):
@@ -81,10 +85,12 @@ def test_instant_object_applies_cost_and_cooldown(client, fake_clock):
 def test_cooldown_survives_checkpoint(client, fake_clock):
     from game import persistence, chat_state, time_state, ticker
     pid = join(client)
-    place(pid, *DESK_STAND)
+    place(pid, 42, 35, "up")                      # bath_regular（v1.1 书桌无冷却）
     assert action(client, pid, "use")["success"]
+    world_state._daily_use[pid] = {"phone": {"day": world_state.daily_key(world_state.game_now_ts()), "used_s": 600.0}}
     persistence.save_checkpoint()
     world_state._reset_for_tests(); chat_state._reset_for_tests()
     persistence.load_checkpoint()
-    assert world_state.object_cooldown_remaining(pid, DESK_ID) > 1700
-    assert world_state.get_recent_uses(pid) == {DESK_ID: 1}
+    assert world_state.object_cooldown_remaining(pid, "bath_regular") > 1700
+    assert world_state.get_recent_uses(pid) == {"bath_regular": 1}
+    assert world_state.daily_used_s(pid, "phone") == 600.0          # v1.1：每日用量也进检查点

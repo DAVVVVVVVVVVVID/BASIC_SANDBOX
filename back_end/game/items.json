@@ -95,14 +95,15 @@
     "class": "file",
     "price": null,
     "sell": null,
-    "legacy": true
+    "legacy": true,
+    "_doc": "旧文件类（Q-5 作废），只为旧检查点保留；新歌是 cd"
   },
   "script": {
-    "name": "电台文稿（文件，旧）",
-    "class": "file",
+    "name": "稿子",
+    "class": "item",
     "price": null,
     "sell": null,
-    "legacy": true
+    "_doc": "电台文稿实体（make_video 产）；只能当面 give"
   },
   "image": {
     "name": "图片（文件，旧）",
@@ -157,5 +158,12 @@
       "minutes": 5
     },
     "spoil_days": null
+  },
+  "cd": {
+    "name": "唱片",
+    "class": "item",
+    "price": null,
+    "sell": null,
+    "_doc": "琴房电脑写完一首歌 → 1 张 CD（meta title / commission_id / by…）；只能当面 give；委托交付认 CD；再刻一张 burn_cd 10 分钟"
   }
 }

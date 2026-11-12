@@ -12,6 +12,7 @@ import random
 
 _fish: dict[str, dict] = {}        # entity -> {"last_roll_gts", "rolls"}
 _stove: dict[str, dict] = {}       # entity -> {"start_gts", "done"}
+_burn: dict[str, dict] = {}        # entity -> {"start_gts", "ready_gts", "object", "meta"}（world-v1.1 Q-5：再刻一张 CD）
 
 
 def cfg() -> dict:
@@ -36,7 +37,7 @@ def _notify(player: dict, kind: str, item: str, qty: int, **fields) -> None:
         hub.push_event({"type": "produce", "entity": player["id"], "via": kind, "item": item, "item_name": name, "qty": qty, **fields})
     except Exception:
         pass
-    world_state._pending_messages[player["id"]] = {"fishing": f"钓到一条{name}！", "stove": f"做好了 {qty} 份{name}。"}.get(kind, f"得到{name}×{qty}")
+    world_state._pending_messages[player["id"]] = {"fishing": f"钓到一条{name}！", "stove": f"做好了 {qty} 份{name}。", "burn_cd": f"又刻好一张《{fields.get('title') or ''}》。"}.get(kind, f"得到{name}×{qty}")
 
 
 # ── 钓位 ──
@@ -90,8 +91,54 @@ def cooking_view(obj_id: str, gts: float) -> dict | None:
     return None
 
 
+def start_burn(entity_id: str, payload: dict) -> tuple[dict | None, str | None, dict | None]:
+    """再刻一张：返回 (result, reason, extra)。"""
+    from game import world_state, inventory
+    from game.food import _iso
+    bc = cfg().get("burn_cd", {"objects": ["pc_music"], "minutes": 10})
+    with world_state.STATE_LOCK:
+        p = world_state._players.get(entity_id)
+        if p is None:
+            return None, "player_not_found", None
+        oid = p.get("usingObjectId")
+        obj = world_state.get_object_by_id(oid) if oid else None
+        if obj is None or obj["type"] not in bc.get("objects", ["pc_music"]):
+            return None, "need_object", {"objects": bc.get("objects", ["pc_music"])}
+        if entity_id in _burn:
+            return None, "already_burning", {"busy": busy_view(entity_id)}
+        title = (payload or {}).get("title")
+        cds = [e for e in inventory.ensure(p) if e.get("type") == "cd" and (not title or (e.get("meta") or {}).get("title") == title)]
+        if not cds:
+            return None, "no_item", {"item": "cd", "title": title}
+        if not title and len({(e.get("meta") or {}).get("title") for e in cds}) > 1:
+            return None, "title_required", {"titles": sorted({(e.get("meta") or {}).get("title") for e in cds if e.get("meta")})}
+        src = cds[-1]
+        gts = world_state.game_now_ts()
+        minutes = float(bc.get("minutes", 10))
+        _burn[entity_id] = {"start_gts": gts, "ready_gts": gts + minutes * 60.0, "object": oid, "meta": dict(src.get("meta") or {})}
+        if "burning" not in p["tags"]:
+            p["tags"].append("burning")
+        return {"message": f"开始刻《{_burn[entity_id]['meta'].get('title', '')}》，{minutes:.0f} 分钟后多一张。", "objectId": oid, "item": "cd",
+                "title": _burn[entity_id]["meta"].get("title"), "duration_s": int(minutes * 60), "ends_at": _iso(gts + minutes * 60.0), "busy": busy_view(entity_id, gts)}, None, None
+
+
+def busy_view(pid: str, gts: float | None = None) -> dict | None:
+    b = _burn.get(pid)
+    if b is None:
+        return None
+    from game.food import _iso
+    if gts is None:
+        from game.world_state import game_now_ts
+        gts = game_now_ts()
+    dur = max(1e-6, b["ready_gts"] - b["start_gts"])
+    return {"kind": "burning", "item": "cd", "object": b["object"], "started_at": _iso(b["start_gts"]), "ends_at": _iso(b["ready_gts"]),
+            "remaining_s": max(0, round(b["ready_gts"] - gts)), "progress": round(min(1.0, max(0.0, (gts - b["start_gts"]) / dur)), 3), "title": b["meta"].get("title")}
+
+
 def on_leave(player: dict) -> None:
     _fish.pop(player["id"], None)
+    if _burn.pop(player["id"], None) is not None and "burning" in player.get("tags", []):
+        player["tags"].remove("burning")              # 中途走：这张没刻成
     st = _stove.pop(player["id"], None)
     if st and not st.get("done"):                                  # 中途走：已扣的食材白费
         from game import external_log, world_state
@@ -123,6 +170,20 @@ def on_tick(gts: float, players: dict) -> None:
             hit = _rng("fish", pid, st["object"], st["rolls"]).random() < prob
             if hit and inventory.add(p, fc.get("item", "fish"), 1) is None:
                 _notify(p, "fishing", fc.get("item", "fish"), 1, object=st["object"], roll=st["rolls"], bait=has_bait, p=prob)
+    for pid, b in list(_burn.items()):                                   # 刻盘
+        p = players.get(pid)
+        if p is None or p.get("usingObjectId") != b["object"]:
+            _burn.pop(pid, None); continue
+        if gts >= b["ready_gts"]:
+            _burn.pop(pid, None)
+            if "burning" in p.get("tags", []):
+                p["tags"].remove("burning")
+            err = inventory.add(p, "cd", 1, meta=dict(b["meta"]), expires_at=None)
+            if err is None:
+                _notify(p, "burn_cd", "cd", 1, object=b["object"], title=b["meta"].get("title"))
+            else:
+                from game import world_state
+                world_state._pending_messages[pid] = f"刻好了，可是背包放不下（{err}）。"
     for pid, st in list(_stove.items()):
         p = players.get(pid)
         if p is None or p.get("usingObjectId") != st["object"]:
@@ -177,13 +238,13 @@ def craft(entity_id: str, kind: str, payload: dict) -> tuple[dict | None, str | 
 
 
 def export_state() -> dict:
-    return {"fish": dict(_fish), "stove": dict(_stove)}
+    return {"fish": dict(_fish), "stove": dict(_stove), "burn": dict(_burn)}
 
 
 def import_state(d: dict) -> None:
-    _fish.clear(); _stove.clear()
-    _fish.update(d.get("fish") or {}); _stove.update(d.get("stove") or {})
+    _fish.clear(); _stove.clear(); _burn.clear()
+    _fish.update(d.get("fish") or {}); _stove.update(d.get("stove") or {}); _burn.update(d.get("burn") or {})
 
 
 def _reset_for_tests() -> None:
-    _fish.clear(); _stove.clear()
+    _fish.clear(); _stove.clear(); _burn.clear()

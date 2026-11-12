@@ -81,7 +81,8 @@ def test_phone_no_signal_when_self_down_still_cooldown(client, fake_self):
     assert res["success"] and res["result"]["phone"]["status"] == "no_signal"      # world-v1.1：没信号也能坐着刷，只是没摘要
     assert client.get("/agent/perceive", params={"entity_id": pid}).json()["phone"]["status"] == "no_signal"
     assert action(client, pid, "leave")["success"]
-    assert world_state.object_cooldown_remaining(pid, PHONE_ID) > 1700       # 手机仍按类型冷却（-b 批改每日上限）
+    assert world_state.object_cooldown_remaining(pid, PHONE_ID) == 0.0       # v1.1 -b：手机无冷却，改每日 120 分钟上限
+    assert client.get(f"/player/{pid}").json()["daily_use"]["phone"]["limit_min"] == 120
 
 
 def test_phone_empty_feed_and_perceive_null_before_use(client, fake_self):

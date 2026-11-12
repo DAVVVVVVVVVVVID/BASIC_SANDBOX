@@ -136,7 +136,7 @@
         "pc_music"
       ],
       "min_minutes": 30,
-      "item": "song"
+      "item": "cd"
     },
     "make_video": {
       "objects": [
@@ -146,6 +146,13 @@
       ],
       "min_minutes": 60,
       "item": "script"
+    },
+    "burn_cd": {
+      "objects": [
+        "pc_music"
+      ],
+      "minutes": 10,
+      "_doc": "再刻一张：须正在用琴房电脑且背包里有同名 CD；不耗钱"
     }
   },
   "commissions": {
@@ -163,6 +170,10 @@
       "npc_grocer",
       "npc_xiaoqian",
       "npc_fisher"
+    ],
+    "deliver_items": [
+      "cd",
+      "song"
     ]
   },
   "live_income": {
@@ -201,5 +212,12 @@
       "mood": 5
     },
     "owner": "npc_rest_owner"
+  },
+  "services": {
+    "copy_key": {
+      "price": 15,
+      "shop": "shop_counter",
+      "_doc": "配钥匙：面向杂货店柜台、营业中、只有门主（edge.owner）能配自己门的钥匙；配出的是普通 key 物品可 give"
+    }
   }
 }

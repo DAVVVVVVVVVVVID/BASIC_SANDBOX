@@ -145,6 +145,8 @@ def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: 
         if kind == "text" and not (text or "").strip():
             return None, "empty_text"
         if kind == "file":
+            return None, "files_not_supported"                      # world-v1.1 Q-5：QQ 只发文字；歌 / 稿子是实体（cd / script）当面 give
+        if kind == "file":
             item = (file_ref or {}).get("item")
             if not item or not inventory.is_file_item(item):
                 return None, "not_transferable"

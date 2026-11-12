@@ -182,7 +182,8 @@
       ]
     ],
     "use_facing": "up",
-    "work": true
+    "work": true,
+    "cooldown_s": 0
   },
   "bed_21": {
     "prototype": "continuous",
@@ -312,7 +313,8 @@
       ]
     ],
     "use_facing": "up",
-    "work": true
+    "work": true,
+    "cooldown_s": 0
   },
   "phone": {
     "prototype": "continuous",
@@ -352,7 +354,8 @@
     "success_message": "你拿起手机开始刷 B 站。",
     "failure_message": "手机现在用不了。",
     "leave_message": "你放下手机。",
-    "daily_limit_min": 120
+    "daily_limit_min": 120,
+    "cooldown_s": 0
   },
   "stream_desk": {
     "prototype": "continuous",
@@ -395,7 +398,9 @@
       ]
     ],
     "use_facing": "up",
-    "work": true
+    "work": true,
+    "daily_limit_min": 240,
+    "cooldown_s": 0
   },
   "restaurant_table": {
     "prototype": "continuous",
@@ -463,7 +468,8 @@
     "dining": {
       "allow": null,
       "meal": true
-    }
+    },
+    "cooldown_s": 0
   },
   "bench": {
     "prototype": "continuous",
@@ -531,7 +537,8 @@
         "bento",
         "spoiled_food"
       ]
-    }
+    },
+    "cooldown_s": 0
   },
   "fishing_spot": {
     "prototype": "continuous",
@@ -587,7 +594,9 @@
         "20:00"
       ]
     ],
-    "work": true
+    "work": true,
+    "daily_limit_min": 180,
+    "cooldown_s": 0
   },
   "shop_counter": {
     "prototype": "instant",
@@ -665,7 +674,9 @@
         1
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "daily_limit_min": 180,
+    "cooldown_s": 0
   },
   "pc": {
     "prototype": "continuous",
@@ -709,7 +720,9 @@
       ]
     ],
     "use_facing": "up",
-    "work": true
+    "work": true,
+    "daily_limit_min": 360,
+    "cooldown_s": 0
   },
   "pc_desk": {
     "prototype": "continuous",
@@ -763,7 +776,8 @@
       ]
     ],
     "use_facing": "up",
-    "work": true
+    "work": true,
+    "cooldown_s": 0
   },
   "stove": {
     "prototype": "continuous",
@@ -866,7 +880,9 @@
         0
       ]
     ],
-    "use_facing": "down"
+    "use_facing": "down",
+    "daily_limit_min": 180,
+    "cooldown_s": 0
   },
   "bar": {
     "prototype": "continuous",
@@ -916,7 +932,8 @@
     "use_facing": "up",
     "dining": {
       "allow": null
-    }
+    },
+    "cooldown_s": 0
   },
   "fish_stall": {
     "prototype": "instant",
@@ -1018,7 +1035,9 @@
       ]
     ],
     "use_facing": "up",
-    "work": true
+    "work": true,
+    "daily_limit_min": 240,
+    "cooldown_s": 0
   },
   "reading_desk": {
     "prototype": "continuous",
@@ -1079,7 +1098,8 @@
         0
       ]
     ],
-    "work": true
+    "work": true,
+    "cooldown_s": 0
   },
   "classroom_desk": {
     "prototype": "continuous",
@@ -1137,7 +1157,8 @@
       ]
     ],
     "use_facing": "up",
-    "work": true
+    "work": true,
+    "cooldown_s": 0
   },
   "tree": {
     "prototype": "instant",
@@ -1269,6 +1290,7 @@
     "bible_note": "审核 11-10 ①：合租房 table_home 原误用 restaurant_table（收 20 金币、只在营业时段）。家用餐桌免费、全天；03-objects「吃背包食物时社交 +8（有人同桌）」按 +8/h social_regen 近似，吃东西用 eat。",
     "dining": {
       "allow": null
-    }
+    },
+    "cooldown_s": 0
   }
 }

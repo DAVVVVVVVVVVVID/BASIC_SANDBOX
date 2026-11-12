@@ -266,9 +266,9 @@ def handle_give(entity_id: str, payload: dict) -> ActionResponse:
         inventory.remove(p, item, qty)
         effects = {}
         commission = None
-        if item == "song":                                         # W11 ①：交付委托 → 酬金入账、委托人亲密度 +15
+        if item in (economy.cfg().get("commissions", {}).get("deliver_items") or ["cd", "song"]):   # W11 ① / v1.1 Q-5：给委托人 CD（旧 song）= 交付委托
             from game import commissions
-            meta = {"commission_id": payload["commission_id"]} if payload.get("commission_id") else _song_meta(payload, p, t)
+            meta = {"commission_id": payload["commission_id"]} if payload.get("commission_id") else _song_meta(payload, p, t, item)
             commission = commissions.deliver(p, t, meta)
         if d.get("give"):                                          # 小礼物：对方亲密度 +8、心情 +5（items.json）
             for k, v in d["give"].items():
@@ -285,10 +285,61 @@ def handle_give(entity_id: str, payload: dict) -> ActionResponse:
         return ActionResponse(success=True, type="give", result=res)
 
 
-def _song_meta(payload: dict, giver: dict, target: dict) -> dict:
-    """give song 没指明 commission_id 时：用刚转出去的那首歌的 meta（取 target 背包里最新的 song 条目）。"""
-    songs = [e for e in inventory.ensure(target) if e.get("type") == "song"]
+def _song_meta(payload: dict, giver: dict, target: dict, item: str = "cd") -> dict:
+    """give cd / song 没指明 commission_id 时：用刚转出去的那张的 meta（取 target 背包里最新的该类条目）。"""
+    songs = [e for e in inventory.ensure(target) if e.get("type") == item]
     return dict((songs[-1].get("meta") or {})) if songs else {}
+
+
+def handle_copy_key(entity_id: str, payload: dict) -> ActionResponse:
+    """world-v1.1 I-7：配钥匙 {door_id}。面向杂货店柜台（营业中）、只有门主能配自己门的钥匙、15 金币给店主；配出的是普通 key 物品可 give。"""
+    from game import doors
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="copy_key", reason="player_not_found")
+        if not p.get("canUse", True):
+            return ActionResponse(success=False, type="copy_key", reason="use_disabled")
+        svc = economy.cfg().get("services", {}).get("copy_key", {"price": 15, "shop": "shop_counter"})
+        obj, err = _shop_object(p, payload)
+        if err and err != "no_shop":
+            res = {"objectId": obj["id"]} if obj else None
+            if err == "shop_closed":
+                res["opens_at"] = open_state(obj)[1]
+            return ActionResponse(success=False, type="copy_key", reason=err, result=res)
+        if obj is None or obj.get("type") != svc.get("shop", "shop_counter"):
+            return ActionResponse(success=False, type="copy_key", reason="not_at_counter", result={"objectId": obj["id"] if obj else None, "need": svc.get("shop", "shop_counter")})
+        door_id = payload.get("door_id") or payload.get("door")
+        edge = doors.door(door_id or "")
+        if edge is None or not doors.is_keyed(edge):
+            return ActionResponse(success=False, type="copy_key", reason="unknown_door", result={"door_id": door_id})
+        from game.world_state import _mover_ids
+        if not (set(edge.get("owner") or []) & set(_mover_ids(p))):
+            return ActionResponse(success=False, type="copy_key", reason="not_owner", result={"door_id": door_id, "owners": list(edge.get("owner") or [])})
+        price = int(svc.get("price", 15))
+        if int(p.get("gold", 0)) < price:
+            return ActionResponse(success=False, type="copy_key", reason="insufficient_funds", result={"door_id": door_id, "price": price, "gold": int(p.get("gold", 0))})
+        meta = {"door_id": door_id, "name": doors.key_name(edge), "copy": True}
+        ierr = inventory.add(p, "key", 1, meta=meta, expires_at=None)
+        if ierr:
+            return ActionResponse(success=False, type="copy_key", reason=ierr, result={"door_id": door_id})
+        economy.ledger("buy", p, -price, item="key_copy", qty=1, price=price, shop=obj["id"], shop_type=obj["type"], door_id=door_id)
+        owner = _owner_player(obj["type"])
+        if owner is not None and owner["id"] != p["id"]:
+            economy.ledger("income", owner, price, source="shop_service", item="key_copy", qty=1, shop=obj["id"], peer=p["id"])
+        doors._log(entity_id, "copy_key", {"door_id": door_id, "price": price})
+        mark_input(entity_id)
+        return ActionResponse(success=True, type="copy_key", result={"message": f"配了一把{meta['name']}，花了 {price} 金币。", "item": "key", "item_name": "钥匙", "door_id": door_id,
+                                                                     "qty": 1, "price": price, "gold_delta": -price, "gold": p["gold"], "objectId": obj["id"], "inventory": inventory.view(p)})
+
+
+def handle_burn_cd(entity_id: str, payload: dict) -> ActionResponse:
+    """world-v1.1 Q-5：再刻一张 {title?}。须正在用琴房电脑且背包里有同名 CD；10 分钟后 +1 张（busy kind burning）；不耗钱。"""
+    from game import production
+    res, reason, extra = production.start_burn(entity_id, payload)
+    if reason:
+        return ActionResponse(success=False, type="burn_cd", reason=reason, result=extra)
+    return ActionResponse(success=True, type="burn_cd", result=res)
 
 
 def _storage_target(p: dict, payload: dict, typ: str) -> tuple[dict | None, ActionResponse | None]:

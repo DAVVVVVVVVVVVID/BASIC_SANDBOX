@@ -69,18 +69,14 @@ def test_group_message_per_member_read_state(client):
 
 
 def test_file_only_transferable_items(client):
+    """world-v1.1 Q-5：QQ 只发文字，任何 kind=file 都回 files_not_supported（歌 / 稿子是实体 cd / script，当面 give）。"""
     whale = _agent(client, "whale"); achan = _agent(client, "achan")
-    bad = client.post("/qq/send", json={"entity_id": whale, "to": "achan", "kind": "file", "file_ref": {"item": "fish"}}).json()
-    assert bad["success"] is False and bad["reason"] == "not_transferable"                 # 实物不走 QQ
-    bad2 = client.post("/qq/send", json={"entity_id": whale, "to": "achan", "kind": "file", "file_ref": {"item": "gift"}}).json()
-    assert bad2["reason"] == "not_transferable"
-    ok = client.post("/qq/send", json={"entity_id": whale, "to": "achan", "kind": "file", "text": "新歌 demo",
-                                       "file_ref": {"item": "song", "name": "夜航", "meta": {"title": "夜航"}}}).json()
-    assert ok["success"] and ok["message"]["kind"] == "file" and ok["message"]["file_ref"]["item"] == "song"
-    assert ok["message"]["item_delivered_to"] == ["achan"]
-    inv = client.get(f"/player/{achan}").json().get("inventory")
-    assert inv == [{"type": "song", "name": "歌（文件，旧）", "class": "file", "count": 1, "meta": {"title": "夜航"}}]
-    assert world_state._players[whale]["inventory"] == []                                  # 文件是复制，发送者不扣（本来也没有）
+    for item in ("fish", "gift", "song", "cd"):
+        bad = client.post("/qq/send", json={"entity_id": whale, "to": "achan", "kind": "file", "file_ref": {"item": item, "meta": {"title": "夜航"}}}).json()
+        assert bad["success"] is False and bad["reason"] == "files_not_supported", item
+    assert client.get(f"/player/{achan}").json().get("inventory") == []
+    ok = client.post("/qq/send", json={"entity_id": whale, "to": "achan", "text": "新歌写好了，见面给你 CD"}).json()
+    assert ok["success"] and ok["message"]["kind"] == "text"
 
 
 def test_send_rules_and_busy(client):

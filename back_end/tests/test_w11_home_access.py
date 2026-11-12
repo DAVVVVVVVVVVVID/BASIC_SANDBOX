@@ -83,7 +83,7 @@ def test_give_key_and_removed_holder_returns_key(client, v1, fake_clock):
     whale_b = _agent(client, "whale", "鲸仔B")
     assert [k["door_id"] for k in client.get(f"/player/{whale_b}").json()["keys"]] == ["door_home"]
     # 钥匙不能走 QQ（实物）
-    assert client.post("/qq/send", json={"entity_id": whale_b, "to": "achan", "kind": "file", "file_ref": {"item": "key"}}).json()["reason"] == "not_transferable"
+    assert client.post("/qq/send", json={"entity_id": whale_b, "to": "achan", "kind": "file", "file_ref": {"item": "key"}}).json()["reason"] == "files_not_supported"   # v1.1：QQ 不传任何文件
 
 
 def test_map_doors_and_access_shape(client, v1):

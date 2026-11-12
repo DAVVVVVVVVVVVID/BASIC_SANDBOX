@@ -19,7 +19,7 @@ op 一览（player 字段可填 id 或唯一的 name）：
   respond        {player, request_id, accept, message}
   say            {player, room, text}
   exit_chat      {player, room}
-  clear_cooldowns {player?}                          清物品冷却与对话冷却
+  clear_cooldowns {player?}                          清物品冷却、每日使用时长（v1.1）与对话冷却
 """
 
 import os
@@ -427,12 +427,12 @@ def op_clear_cooldowns(step: dict) -> dict:
     with world_state.STATE_LOCK:
         if step.get("player"):
             pid = _resolve(step["player"])
-            world_state._last_used.pop(pid, None); world_state._use_history.pop(pid, None)
+            world_state._last_used.pop(pid, None); world_state._use_history.pop(pid, None); world_state._daily_use.pop(pid, None)
             chat_state._last_chat_end.pop(pid, None)
             for k in [k for k in chat_state._last_pair_end if pid in k]:
                 chat_state._last_pair_end.pop(k, None)
         else:
-            world_state._last_used.clear(); world_state._use_history.clear()
+            world_state._last_used.clear(); world_state._use_history.clear(); world_state._daily_use.clear()
             chat_state._last_chat_end.clear(); chat_state._last_pair_end.clear()
     return {"ok": True}
 

@@ -72,7 +72,7 @@ def test_ws_upsert_carries_away():
 
 def test_beds_have_no_cooldown_but_others_do(client, fake_clock):
     from game.object_types import OBJECT_TYPES
-    assert OBJECT_TYPES["bed"]["cooldown_s"] == 0 and OBJECT_TYPES["bed_21"]["cooldown_s"] == 0 and "cooldown_s" not in OBJECT_TYPES["fishing_spot"]
+    assert OBJECT_TYPES["bed"]["cooldown_s"] == 0 and OBJECT_TYPES["bed_21"]["cooldown_s"] == 0 and OBJECT_TYPES["fishing_spot"]["cooldown_s"] == 0   # v1.1：钓位也无冷却（每日 3 h 上限）
     pid = join(client, "w")
     place(pid, *BED_STAND)
     assert action(client, pid, "use")["success"]
@@ -86,4 +86,7 @@ def test_beds_have_no_cooldown_but_others_do(client, fake_clock):
     fake_clock.t = datetime(2026, 11, 10, 12, 0, tzinfo=GAME_TZ).timestamp()
     place(pid, 52, 19, "right")
     assert action(client, pid, "use")["success"]; assert action(client, pid, "leave")["success"]
-    assert action(client, pid, "use")["reason"] == "object_cooldown"          # 钓位仍 30 min
+    assert action(client, pid, "use")["success"]                               # v1.1：钓位占用语义，立刻可回
+    action(client, pid, "leave"); place(pid, 42, 35, "up")
+    assert action(client, pid, "use")["success"]; assert action(client, pid, "leave")["success"]
+    assert action(client, pid, "use")["reason"] == "object_cooldown"          # 浴缸仍 30 min

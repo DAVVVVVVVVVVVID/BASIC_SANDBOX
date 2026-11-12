@@ -121,9 +121,16 @@ def test_compose_requires_pc_music_and_time_then_deliver_commission(client, v1, 
     assert cm["client"] == "npc_rest_owner" and cm["status"] == "open" and cm["fee"] == 200
     assert client.get("/commissions").json()["count"] == 1
     r = action(client, whale, "compose", {"title": "夜航", "commission_id": cm["id"], "text": "歌词由 C 填"})
-    assert r["success"] and r["result"]["item"] == "song" and r["result"]["meta"]["title"] == "夜航" and r["result"]["meta"]["commission_id"] == cm["id"]
+    assert r["success"] and r["result"]["item"] == "cd" and r["result"]["meta"]["title"] == "夜航" and r["result"]["meta"]["commission_id"] == cm["id"]   # v1.1 Q-5：实体 CD
     p = world_state._players[whale]
-    assert inventory.count(p, "song") == 1
+    assert inventory.count(p, "cd") == 1
+    # 再刻一张：10 分钟，busy kind burning；中途不离开
+    assert action(client, whale, "burn_cd", {"title": "不存在"})["reason"] == "no_item"
+    rb = action(client, whale, "burn_cd", {})
+    assert rb["success"] and rb["result"]["duration_s"] == 600 and client.get(f"/player/{whale}").json()["busy"]["kind"] == "burning"
+    assert action(client, whale, "burn_cd", {})["reason"] == "already_burning"
+    fake_clock.advance(601); _tick(fake_clock, 1)
+    assert inventory.count(p, "cd") == 2 and client.get(f"/player/{whale}").json()["busy"] is None and "burning" not in p["tags"]
     # 公告栏读到委托
     action(client, whale, "leave"); place(whale, 28, 18, "up")
     nb = action(client, whale, "use")
@@ -131,16 +138,15 @@ def test_compose_requires_pc_music_and_time_then_deliver_commission(client, v1, 
     # 交付：give 给委托人 → 酬金 + 亲密度 +15
     place(whale, 10, 10, "up"); place(owner, 11, 10, "left")
     gold0 = p["gold"]
-    r = action(client, whale, "give", {"target": owner, "item": "song"})
+    r = action(client, whale, "give", {"target": owner, "item": "cd"})
     assert r["success"] and r["result"]["commission"]["status"] == "delivered" and r["result"]["gold_delta"] == 200
     assert p["gold"] == gold0 + 200 and world_state._players[owner]["closeness"][whale] == 15.0
-    assert inventory.count(world_state._players[owner], "song") == 1 and inventory.count(p, "song") == 0
+    assert inventory.count(world_state._players[owner], "cd") == 1 and inventory.count(p, "cd") == 1      # 还剩刻的那张
     assert client.get("/commissions").json()["count"] == 0 and client.get("/commissions", params={"status": "all"}).json()["count"] == 1
     assert [x for x in _ledger() if x["source"] == "song_fee"][0]["delta"] == 200
-    # 没有委托时 give song 只是转交
-    inventory.add(p, "song", 1, meta={"title": "无主"})
-    r = action(client, whale, "give", {"target": owner, "item": "song"})
-    assert r["success"] and "commission" not in r["result"]
+    # 没有委托时 give cd 只是转交
+    r = action(client, whale, "give", {"target": owner, "item": "cd"})
+    assert r["success"] and "commission" not in r["result"] and inventory.count(p, "cd") == 0
 
 
 def test_make_video_on_pc_and_daily_commission_refresh(client, v1, fake_clock, monkeypatch):
