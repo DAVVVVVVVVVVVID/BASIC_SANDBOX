@@ -45,6 +45,19 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5r. world-v1.1 批 ①+④：食物重做 + 七变量配置化（总控 whale-43 11-13；tag `world-v1.1-a`）—— 完成
+
+依据 `whale/docs/review/numeric-proposal-v1.md`（主播拍板）§1 / §1.2 / §2.1 / §4.1 + pending-B 11-13 段；十四问全按默认值。对外形状只加不删；详见 api-spec **§12**。
+- **食物**：`items.json` 新 `home_meal` / `fish_dish` / `spoiled_food`，每种食物 `eat {fullness, mood?, minutes}` + `spoil_days`（食材 5 / 饭菜 3 / 包装品不坏）；鱼改 15 / 收 10 为食材；便当保留为旧物品不再产。**背包按叠记保质期**（同种不同到期日分叠，视图 `expires_at / expires_in_days / spoils_in_days`），10 种 × 20 个、钥匙不占种；到期整叠变坏食（ws `spoiled` 两种形状 + external + pendingMessage）；新 `discard`。
+- **冰箱 = 存储**：`contents[]` + `storage {capacity 20, used}`（`stock` 保留为派生计数），`store` 任何 food / material、新 `take`（先拿最早到期）、`use` 只回内容；**不自动补货**（`fridge.restock_enabled` 默认 false，bench 可开）；初始 合租房 6 饭 + 4 食材 / NPC 家 4 饭；检查点经 meta `food.fridge_contents` 保留保质期，旧检查点按回填时刻重建。夹具 `set_fridge` 不带 item = 整台清空（R1）。
+- **灶台按份**：`use stove {item, qty}` 立即扣 n 份、20 + 10×(n−1) 分钟产 n 份、提前走白费（ws `cook_cancelled`）、`cooking` 字段（物品视图与 use result，`ready_at` ISO）、厨师后厨灶台不扣料；无冷却。
+- **进食 = 餐桌类上的持续动作**：`dining` / `dining_allow`（长椅简餐清单）、`use 餐桌 → eat {item}`，开吃即扣、**每 tick 按已过时间精确累计**（最初用 timed buff 实现，单 tick 跨过结束时刻会丢最后一段，单测抓到后改为 food.on_tick 增量记账）、离桌按比例结算（ws `eat_cancelled`）、吃完 ws `eat_done`；`GET /player` / `players[]` / ws `busy {kind, item, object, started_at, ends_at, remaining_s, progress, gain}`；餐厅坐下免费、`eat meal` 开吃扣 20 给厨师；`streaming` / `not_at_table` / `not_allowed_here` / `already_eating`。同桌社交改 `table_social`（有第二人才加，家 8 / 餐厅 16 /h）。
+- **供应**：柜台 / 鱼摊 `daily_supply`（12/8/6/10/3、鱼 6）08:00 `stock := daily_supply`；杂货店 09–22（柜台 + 门）；柜台 / 鱼摊 / 冰箱 / 灶台 `cooldown_s 0`。
+- **七变量**：新 `game/needs.json`（模块 `needs_cfg`；`game/needs.py` 是旧的需求标签模块，第一版误覆盖已从 git 恢复），`buff_tick.DECAY_RATES` 改为从它派生（sandbox / live / asleep 三套；night mult 1.0）；衰减按 `sleeping` tag 走睡着那套、`working` tag 精力再 −3/h、live 饱腹再 −3/h；床 +10/h；物品不再各带精力 / 饱腹成本；新 `game/social.py`：聊天房在房 +32/h 社交 +4/h 娱乐、`say` 15 分钟窗口 +8、QQ 每条 +1 每小时 ≤ 12、下播 +10；手机改持续（`browsing`，fun +15/h，进入拉 feed，没信号也能坐）；沙发 / 游戏机 +20/h、长椅 +5/h。**self_sync delta 多 `asleep` / `working` 两字段**（A 的 whale-self state.py 需按同一套速率算，否则两边会漂；已告 A）。
+- **地图 v1**：NPC 家 + 餐厅后厨加 4 灶台 + 3 餐桌（小千家餐桌放她房间，厨房 2 格宽且 (16,39) 要留给厨房门），68 物品，mapVersion 变。
+- 测试：改 24 个旧测试到新数值 / 新流程（含 FakeClock 起点改到 2026-11-10 16:00——保质期按钟算，原 2027 起点会让启动时装的饭菜在 `_at(11-10)` 的测试里立刻过期），新增 / 重写 fridge 存储、灶台按份、餐桌进食、餐厅 meal、长椅清单、睡觉 / 工作 / 直播衰减、保鲜变坏、检查点保留等断言；**330 passed**。`scripts/verify_day_cycle.py` 期望改为上新 8 / 杂货店 22:00 / 冰箱不补货。
+- 待 -b / world-v1.1：每日上限（`daily_limit_min` 已进物品视图，`daily_used_min` 现为 null）、CD / 稿子、QQ 去文件、配钥匙、货币 / 房租。
+
 ## 5q. X5 pilot 两处夹具问题（总控 11-11 下午）—— 已修
 
 - **① `set_fridge 0` 后冰箱又能吃（R1，饱腹 17 → 57）**：根因不是 `use` 不查库存——`use` 对 fridge 自 W11 ④ 起就按 `stock` 判 `empty` 且扣份（8091 复现：`reset → set_time 22:30 → set_fridge 0` 后下一 tick `/world` 冰箱 `stock` 已回到 2）。真正原因是 **`reset` 清掉了当天的补货记录，下一 tick 的每日补货（08:00，+2）在 22:30 补发**，把夹具写的 0 盖掉。修法只在夹具 op 路径：`set_fridge` / `set_stock` 若当前游戏时刻已过该物品 `restock_at`，把今天的补货记为已做（detail 多一个 `restock_pinned`），夹具值保持到次日补货或下一次 set_*；补货时刻之前写的不钉（到点照常补）。正常游戏逻辑不动。

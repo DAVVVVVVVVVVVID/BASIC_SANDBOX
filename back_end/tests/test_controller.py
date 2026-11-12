@@ -55,7 +55,7 @@ def test_offline_agent_keeps_ticking(client, fake_clock):
     f0 = p["fullness"]
     fake_clock.advance(600)
     ticker.tick_once(checkpoint=False)
-    assert p["fullness"] == pytest.approx(f0 - 12 * 600 / 3600, abs=1e-6)
+    assert p["fullness"] == pytest.approx(f0 - 3 * 600 / 3600, abs=1e-6)       # world-v1.1：醒着 −3/h
 
 
 def test_heartbeat_and_rejoin_restore_online(client):

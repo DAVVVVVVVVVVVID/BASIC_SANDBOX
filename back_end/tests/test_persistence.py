@@ -54,9 +54,9 @@ def test_roundtrip_players_objects_time(client, fake_clock):
     assert time_state.game_now_ts() - g_before == pytest.approx(60)
     # 停机补算：20s × 3 = 60 游戏秒，上限 8h
     assert info["catch_up_game_ms"] == pytest.approx(60_000)
-    # catch_up 后 bed energy_regen +25/h 减衰减 8/h，补 60 游戏秒
+    # catch_up 后 bed energy_regen +10/h（睡着不衰减，world-v1.1），补 60 游戏秒
     persistence.catch_up(info["catch_up_game_ms"])
-    assert p["energy"] == pytest.approx(20.0 + 60 * (25 - 8) / 3600, abs=0.01)
+    assert p["energy"] == pytest.approx(20.0 + 60 * 10 / 3600, abs=0.01)
     # 重启后 GET /player 仍能读到她
     r = client.get(f"/player/{pid}")
     assert r.status_code == 200 and r.json()["usingObjectId"] == BED_ID

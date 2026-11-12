@@ -1,6 +1,7 @@
 """W10 ④ 金币与背包：初始金币、/world shop[]、buy/sell/eat/give、insufficient_funds、营业时间、/admin/income、日薪时薪、
 餐厅吃饭扣款、state 行 gold、经济 JSONL 与导出、检查点。数值全来自 economy.json / items.json。"""
 import json
+import pytest
 from datetime import date, datetime
 
 from game import world_state, ticker, economy, inventory, persistence
@@ -45,8 +46,9 @@ def test_world_objects_carry_shop_listing(client):
     shop = objs[COUNTER]["shop"]
     assert [r["type"] for r in shop] == ["bait", "bread", "gift", "ingredients", "sweets"]
     bread = next(r for r in shop if r["type"] == "bread")
-    assert bread == {"type": "bread", "item": "bread", "name": "面包", "price": 5, "sell": None, "stock": 10}   # W11：库存
-    assert objs[TABLE]["shop"] is None and objs[COUNTER]["openHours"] == [["09:00", "20:00"]]
+    assert bread == {"type": "bread", "item": "bread", "name": "面包", "price": 5, "sell": None, "stock": 8}    # v1.1：每日上新 8
+    assert objs[COUNTER]["daily_supply"]["bread"] == 8 and objs[COUNTER]["restock_at"] == "08:00"
+    assert objs[TABLE]["shop"] is None and objs[COUNTER]["openHours"] == [["09:00", "22:00"]]              # v1.1：杂货店到 22:00
 
 
 def test_buy_eat_sell_and_insufficient_funds(client, fake_clock):
@@ -66,13 +68,24 @@ def test_buy_eat_sell_and_insufficient_funds(client, fake_clock):
     world_state._players[whale]["gold"] = 20
     r = action(client, whale, "buy", {"item": "gift"})
     assert r["success"] is False and r["reason"] == "insufficient_funds" and r["result"]["price"] == 25 and r["result"]["gold"] == 20
-    # 吃：饱腹 +25（随处吃）
+    # 吃（world-v1.1）：只能坐在餐桌类上吃；长椅是简餐处；面包 5 分钟线性 +20
     world_state._players[whale]["fullness"] = 40.0
     place(whale, 10, 10, "up")
+    assert action(client, whale, "eat", {"item": "bread"})["reason"] == "not_at_table"
+    place(whale, 32, 26, "up"); assert action(client, whale, "use")["success"]                 # bench_square_1
     r = action(client, whale, "eat", {"item": "bread"})
-    assert r["success"] and r["result"]["vars"]["fullness"] == 65.0 and inventory.count(world_state._players[whale], "bread") == 1
+    assert r["success"] and r["result"]["duration_s"] == 300 and r["result"]["gain"] == {"fullness": 20.0} and inventory.count(world_state._players[whale], "bread") == 1
+    assert action(client, whale, "eat", {"item": "bread"})["reason"] == "already_eating"
+    pv = client.get(f"/player/{whale}").json()
+    assert pv["busy"]["kind"] == "eating" and pv["busy"]["item"] == "bread" and "eating" in pv["tags"]
+    ticker.tick_once(checkpoint=False); fake_clock.advance(150); ticker.tick_once(checkpoint=False)
+    assert world_state._players[whale]["fullness"] == pytest.approx(40 + 10 - 3 * 150 / 3600, abs=0.05)   # 吃一半涨一半（减衰减）
+    fake_clock.advance(160); ticker.tick_once(checkpoint=False)
+    assert client.get(f"/player/{whale}").json()["busy"] is None and world_state._players[whale]["fullness"] == pytest.approx(60 - 3 * 310 / 3600, abs=0.05)
     assert action(client, whale, "eat", {"item": "gift"})["reason"] == "not_edible"
-    assert action(client, whale, "eat", {"item": "fish"})["reason"] == "no_item"
+    assert action(client, whale, "eat", {"item": "home_meal"})["reason"] == "no_item"
+    assert action(client, whale, "eat", {"item": "ingredients"})["reason"] == "not_allowed_here"          # 长椅不许吃生食材
+    action(client, whale, "leave")
     # 卖：杂货店不收；（鱼摊 / 吧台收鱼在 v1 地图，这里只验 reason）
     place(whale, *COUNTER_STAND)
     assert action(client, whale, "sell", {"item": "bread"})["reason"] == "not_buying"
@@ -87,7 +100,7 @@ def test_buy_eat_sell_and_insufficient_funds(client, fake_clock):
 def test_shop_hours_and_no_shop(client, fake_clock):
     whale = _agent(client, "whale")
     place(whale, *COUNTER_STAND)
-    _at(fake_clock, 21, 0)
+    _at(fake_clock, 22, 30)
     r = action(client, whale, "buy", {"item": "bread"})
     assert r["success"] is False and r["reason"] == "shop_closed" and r["result"]["opens_at"] == "09:00"
     _at(fake_clock, 9, 30)
@@ -130,13 +143,20 @@ def test_restaurant_meal_charges_and_insufficient_funds(client, fake_clock):
     place(whale, 46, 33, "up"); place(owner, 50, 30, "up")
     r = action(client, whale, "use")
     assert r["success"] and r["result"]["objectId"] == TABLE
+    assert client.get(f"/player/{whale}").json()["gold"] == 300                                            # v1.1：坐下免费
+    r = action(client, whale, "eat", {"item": "meal"})                                                     # 点一顿：开吃扣 20、30 分钟 +45 心情 +5
+    assert r["success"] and r["result"]["price"] == 20 and r["result"]["duration_s"] == 1800 and r["result"]["gain"] == {"fullness": 45.0, "mood": 5.0}
     assert client.get(f"/player/{whale}").json()["gold"] == 300 - 20 and client.get(f"/player/{owner}").json()["gold"] == 3000 + 20
     action(client, whale, "leave")
+    assert client.get(f"/player/{whale}").json()["busy"] is None                                           # 离桌 = 中断
     world_state._players[whale]["gold"] = 5
     world_state._last_used.clear()
-    r = action(client, whale, "use")
+    assert action(client, whale, "use")["success"]
+    r = action(client, whale, "eat", {"item": "meal"})
     assert r["success"] is False and r["reason"] == "insufficient_funds" and r["result"]["price"] == 20
-    assert world_state._players[whale]["usingObjectId"] is None
+    assert world_state._players[whale]["usingObjectId"] == TABLE                                           # 仍坐着
+    action(client, whale, "leave"); place(whale, 32, 26, "up"); assert action(client, whale, "use")["success"]
+    assert action(client, whale, "eat", {"item": "meal"})["reason"] == "not_allowed_here"                  # 长椅点不了菜
 
 
 def test_admin_income_and_wages_by_schedule(client, fake_clock):

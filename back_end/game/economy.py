@@ -72,21 +72,28 @@ def shop_listing(obj_type: str, stock: dict | None = None) -> list[dict] | None:
 
 
 def initial_stock(obj_type: str) -> dict | None:
-    """W11 ④：商店按 shops[].stock，冰箱按 fridge.initial；其余 None。"""
+    """商店按 shops[].daily_supply（缺省 stock）；冰箱给空表（内容由 food.init_contents 按物品 id 填，stock 是派生计数）；其余 None。"""
     s = shop_for(obj_type)
     if s is not None:
-        return {k: int(v) for k, v in (s.get("stock") or {}).items()}
+        return {k: int(v) for k, v in (s.get("daily_supply") or s.get("stock") or {}).items()}
     if obj_type == "fridge":
-        f = _CFG.get("fridge", {})
-        return {f.get("consumes", "ingredients"): int(f.get("initial", 0))}
+        return {}
     return None
+
+
+def daily_supply(obj_type: str) -> dict | None:
+    s = shop_for(obj_type)
+    if s is None:
+        return None
+    return {k: int(v) for k, v in (s.get("daily_supply") or s.get("stock") or {}).items()}
 
 
 _restocked: dict[str, str] = {}      # "<obj_id>:<day>" -> hm
 
 
 def restock_tick(gts: float, objects: list[dict]) -> int:
-    """每日 restock_at：商店补到配置水位（只补不减），冰箱 +restock_qty 不超过 max。返回补货物品数。调用方持 STATE_LOCK。"""
+    """每日 restock_at：商店 restock_mode=reset（v1.1 默认）→ stock := daily_supply（固定上新、卖完即止）；legacy → 补到水位只补不减。
+    冰箱只在 fridge.restock_enabled 时 +restock_qty 不超过 max（v1.1 默认关）。返回补货物品数。调用方持 STATE_LOCK。"""
     from game.time_state import _game_dt
     dt = _game_dt(gts); day = dt.strftime("%Y-%m-%d"); hm = dt.strftime("%H:%M")
     n = 0
@@ -95,9 +102,12 @@ def restock_tick(gts: float, objects: list[dict]) -> int:
             continue
         s = shop_for(o["type"])
         if s is not None:
-            at = s.get("restock_at", "08:00"); target = s.get("stock") or {}
+            at = s.get("restock_at", "08:00"); target = s.get("daily_supply") or s.get("stock") or {}
         elif o["type"] == "fridge":
-            f = _CFG.get("fridge", {}); at = f.get("restock_at", "08:00"); target = None
+            f = _CFG.get("fridge", {})
+            if not f.get("restock_enabled", False):
+                continue
+            at = f.get("restock_at", "08:00"); target = None
         else:
             continue
         key = f"{o['id']}:{day}"
@@ -106,11 +116,17 @@ def restock_tick(gts: float, objects: list[dict]) -> int:
         _restocked[key] = hm
         before = dict(o["stock"])
         if target is not None:
-            for item, lvl in target.items():
-                o["stock"][item] = max(int(o["stock"].get(item, 0)), int(lvl))
+            if (s.get("restock_mode") or "reset") == "reset":
+                o["stock"] = {item: int(lvl) for item, lvl in target.items()}
+            else:
+                for item, lvl in target.items():
+                    o["stock"][item] = max(int(o["stock"].get(item, 0)), int(lvl))
         else:
+            from game import food, inventory
             f = _CFG.get("fridge", {}); item = f.get("consumes", "ingredients")
-            o["stock"][item] = min(int(o["stock"].get(item, 0)) + int(f.get("restock_qty", 2)), int(f.get("max", 4)))
+            cur = int(o["stock"].get(item, 0)); add = max(0, min(int(f.get("restock_qty", 2)), int(f.get("max", 4)) - cur))
+            if add:
+                food.store(o, item, add, inventory.expires_at_for(item, gts))
         if o["stock"] != before:                       # 按配置定时补货是确定性的，不记 external
             n += 1
     return n

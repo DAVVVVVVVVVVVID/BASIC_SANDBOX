@@ -16,10 +16,12 @@ from game.time_state import GAME_TZ
 from tests.conftest import BED_ID, BED_STAND, join, action, place
 
 # ── 参考自我层（移植自 whale-self state.py，sandbox/live 两套速率） ─────────────
-RATES = {
-    "sandbox": {"fullness": -12 / 3600, "energy": -8 / 3600, "social": -6 / 3600, "fun": -10 / 3600},
-    "live":    {"fullness": -12 / 3600, "energy": -8 / 3600, "social": -0.12,     "fun": -10 / 3600},
+RATES = {   # world-v1.1 needs.json：醒着；live 饱腹再 −3；asleep 另一套；working 精力再 −3（参考模型按 delta 里的 asleep / working 标记）
+    "sandbox": {"fullness": -3 / 3600, "energy": -3 / 3600, "social": -2 / 3600, "fun": -2 / 3600},
+    "live":    {"fullness": -6 / 3600, "energy": -3 / 3600, "social": -2 / 3600, "fun": -2 / 3600},
+    "asleep":  {"fullness": -1.5 / 3600, "energy": 0.0, "social": 0.0, "fun": 0.0},
 }
+WORK_EXTRA = -3 / 3600
 HALF = {"sandbox": 7200.0, "live": 70.0}
 
 
@@ -59,12 +61,11 @@ class RefSelfLayer:
         if dt <= 0:
             return
         v = self.doc["vars"]; scene = self.doc["scene"]
-        for k, r in RATES[scene].items():
-            if k == "energy":
-                ns = _night_seconds(start, end)
-                d = r * (dt - ns) + r * 1.5 * ns
-            else:
-                d = r * dt
+        rates = RATES["asleep"] if self.doc.get("asleep") else RATES[scene]
+        for k, r in rates.items():
+            if k == "energy" and self.doc.get("working"):
+                r = r + WORK_EXTRA
+            d = r * dt
             v[k] = _clamp(v[k] + d)
         b = self.base()
         v["mood"] = _clamp(b + (v["mood"] - b) * math.pow(0.5, dt / HALF[scene]))
@@ -88,10 +89,10 @@ class RefSelfLayer:
             body = json.loads(request.content)
             self.calls.append(body)
             now = datetime.fromisoformat(body["ts"])
-            if body.get("scene") and body["scene"] != self.doc["scene"]:
-                self.catch_up(now); self.doc["scene"] = body["scene"]
-            else:
-                self.catch_up(now)
+            self.catch_up(now)
+            if body.get("scene"):
+                self.doc["scene"] = body["scene"]
+            self.doc["asleep"] = bool(body.get("asleep")); self.doc["working"] = bool(body.get("working"))
             for k, d in body["vars_delta"].items():
                 self.doc["vars"][k] = round(_clamp(self.doc["vars"][k] + float(d)), 3)
             self.doc["last_tick_ts"] = now.isoformat(timespec="seconds")
@@ -207,12 +208,12 @@ def test_unreachable_then_recover_merges_pending(client, ref, fake_clock):
     assert self_sync.stats["failed"] >= 1 and self_sync.stats["sent"] == 0
     assert p["energy"] > 100 - 1 or p["energy"] > 30         # 本地照常 tick
     pend = self_sync.snapshot_stats()["pending"][pid]
-    assert pend.get("energy", 0) > 0.5                         # 失败批已合回 pending（bed +25/h × 120 s ≈ 0.83）
+    assert pend.get("energy", 0) > 0.3                         # 失败批已合回 pending（bed +10/h × 120 s ≈ 0.33，v1.1）
     ref.down = False
     _simulate(client, fake_clock, ref, 31)
     assert self_sync.stats["sent"] >= 1
     sent_energy = sum(c["vars_delta"].get("energy", 0) for c in ref.calls)
-    assert sent_energy > 0.5                                   # 累积的增量一次补发
+    assert sent_energy > 0.3                                   # 累积的增量一次补发
     diffs = _diff(p, ref, _now_dt(fake_clock))
     assert max(diffs.values()) < 0.5, diffs
 
@@ -239,7 +240,7 @@ def test_live_scene_rates_agree(client, ref, fake_clock):
     assert ref.doc["scene"] == "live"
     diffs = _diff(p, ref, _now_dt(fake_clock))
     assert max(diffs.values()) < 0.5, diffs
-    assert p["social"] < 70 - 30                              # live 下 social 掉得快
+    assert p["fullness"] < 70 - 0.4                           # v1.1：live 下饱腹 −6/h（300 s ≈ 0.5），social 同醒着
 
 
 def test_restart_reseeds_from_self(client, ref, fake_clock):

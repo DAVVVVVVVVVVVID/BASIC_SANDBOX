@@ -154,27 +154,62 @@ def handle_sell(entity_id: str, payload: dict) -> ActionResponse:
 
 
 def handle_eat(entity_id: str, payload: dict) -> ActionResponse:
+    """world-v1.1 §1：进食 = 餐桌类物品上的持续动作。
+    须正坐在 object_types 带 `dining` 的物品上（否则 not_at_table）；`dining.allow` 非空时只许清单内物品（not_allowed_here）；
+    直播中 streaming；吃着不能再吃 already_eating。开吃即扣物品（或餐厅扣钱），饱腹 / 心情按 minutes 线性涨，吃完涨完；中途 leave 按比例。
+    餐厅：eat {item:"meal"} 在 `dining.meal` 的桌上，按 economy.meal 扣 price 给厨师。"""
+    from game import food
+    from game.time_state import game_now_ts
     with STATE_LOCK:
         p = _players.get(entity_id)
         if p is None:
             return ActionResponse(success=False, type="eat", reason="player_not_found")
-        if not p.get("canUse", True):
-            return ActionResponse(success=False, type="eat", reason="use_disabled")
         item = _item(payload)
-        d = inventory.item_def(item or "")
-        if d is None:
+        if not item:
             return ActionResponse(success=False, type="eat", reason="unknown_item", result={"item": item})
-        if d.get("class") != "food" or not d.get("eat"):
-            return ActionResponse(success=False, type="eat", reason="not_edible", result=_item_fields(item, 1))
-        if inventory.count(p, item) < 1:
-            return ActionResponse(success=False, type="eat", reason="no_item", result=_item_fields(item, 1))
-        inventory.remove(p, item, 1)
-        applied = {}
-        for var, delta in d["eat"].items():
-            add_var(p, var, float(delta)); applied[var] = round(float(p.get(var, 0.0)), 3)      # 吃后的值
+        if food.is_streaming(p):
+            return ActionResponse(success=False, type="eat", reason="streaming", result={"message": "直播中不能吃东西，下播再说。", **(_item_fields(item, 1) if item != food.MEAL_ITEM else {"item": item})})
+        obj = get_object_by_id(p.get("usingObjectId") or "") if p.get("usingObjectId") else None
+        rule = food.dining_rule(obj)
+        if rule is None:
+            return ActionResponse(success=False, type="eat", reason="not_at_table",
+                                  result={"message": "得先在餐桌边坐下（use 餐桌 / 长椅 / 吧台）才能吃。", "item": item, "usingObjectId": p.get("usingObjectId")})
+        if food.is_busy(entity_id):
+            return ActionResponse(success=False, type="eat", reason="already_eating", result={"busy": food.busy_view(entity_id), "item": item})
+        gts = game_now_ts()
+        if item == food.MEAL_ITEM:                                       # 餐厅一顿
+            if not rule.get("meal"):
+                return ActionResponse(success=False, type="eat", reason="not_allowed_here", result={"message": "这里不是餐厅，点不了菜。", "item": item, "objectId": obj["id"]})
+            mc = food.meal_cfg(); price = int(mc.get("price", 20))
+            if int(p.get("gold", 0)) < price:
+                return ActionResponse(success=False, type="eat", reason="insufficient_funds",
+                                      result={"message": f"一顿要 {price} 金币，身上只有 {int(p.get('gold', 0))}。", "item": item, "price": price, "gold": int(p.get("gold", 0)), "objectId": obj["id"]})
+            economy.ledger("buy", p, -price, item="meal", qty=1, price=price, shop=obj["id"], shop_type=obj["type"])
+            owner = next((q for q in _players.values() if q.get("agent_id") == (mc.get("owner") or "npc_rest_owner")), None)
+            if owner is not None and owner["id"] != p["id"]:
+                economy.ledger("income", owner, price, source="restaurant_meal", shop=obj["id"], peer=p["id"])
+            gain = {k: float(v) for k, v in (mc.get("gain") or {}).items()}; minutes = float(mc.get("minutes", 30))
+            name = "一顿饭"; fields = {"item": item, "item_name": name, "qty": 1, "price": price, "gold_delta": -price, "gold": p["gold"]}
+        else:
+            d = inventory.item_def(item)
+            if d is None:
+                return ActionResponse(success=False, type="eat", reason="unknown_item", result={"item": item})
+            if not d.get("eat"):
+                return ActionResponse(success=False, type="eat", reason="not_edible", result=_item_fields(item, 1))
+            allow = rule.get("allow")
+            if allow is not None and item not in allow:
+                return ActionResponse(success=False, type="eat", reason="not_allowed_here",
+                                      result={"message": f"{obj['name']}这儿只能吃简餐（{'、'.join((inventory.item_def(a) or {}).get('name', a) for a in allow)}）。", "allowed": list(allow), **_item_fields(item, 1), "objectId": obj["id"]})
+            if inventory.count(p, item) < 1:
+                return ActionResponse(success=False, type="eat", reason="no_item", result=_item_fields(item, 1))
+            inventory.remove(p, item, 1)
+            gain = {k: float(v) for k, v in d["eat"].items() if k != "minutes"}; minutes = float(d["eat"].get("minutes", 5))
+            name = d["name"]; fields = _item_fields(item, 1)
+        busy = food.start_eating(p, obj, item, gain, minutes, gts)
         mark_input(entity_id)
         return ActionResponse(success=True, type="eat", result={
-            "message": f"吃了{d['name']}。", **_item_fields(item, 1), "effects": d["eat"], "vars": applied, "inventory": inventory.view(p)})
+            "message": f"开始吃{name}，{minutes:.0f} 分钟吃完。", **fields, "duration_s": int(minutes * 60), "ends_at": busy["ends_at"],
+            "gain": gain, "busy": busy, "objectId": obj["id"], "inventory": inventory.view(p)})
 
 
 def _find_target(player: dict, ref: str | None) -> tuple[dict | None, str | None]:
@@ -256,43 +291,124 @@ def _song_meta(payload: dict, giver: dict, target: dict) -> dict:
     return dict((songs[-1].get("meta") or {})) if songs else {}
 
 
+def _storage_target(p: dict, payload: dict, typ: str) -> tuple[dict | None, ActionResponse | None]:
+    oid = payload.get("object_id") or payload.get("objectId")
+    if oid:
+        obj = get_object_by_id(oid)
+        if obj is None:
+            return None, ActionResponse(success=False, type=typ, reason="no_object")
+        if not _adjacent(p, obj):
+            return None, ActionResponse(success=False, type=typ, reason="object_too_far")
+    else:
+        dx, dy = _DIR[p["facing"]]
+        obj = get_object_at(p["position"]["x"] + dx, p["position"]["y"] + dy)
+        if obj is None:
+            return None, ActionResponse(success=False, type=typ, reason="no_object")
+    if obj.get("contents") is None:
+        return None, ActionResponse(success=False, type=typ, reason="not_storage", result={"objectId": obj["id"]})
+    return obj, None
+
+
 def handle_store(entity_id: str, payload: dict) -> ActionResponse:
-    """W11 ④：把背包里的食材放进冰箱（相邻；不超过 fridge.max）。payload {item?="ingredients", qty?=1, object_id?}。"""
+    """world-v1.1：把背包里的食物 / 食材放进冰箱（相邻或 object_id；按叠带保质期；容量 economy.fridge.capacity）。payload {item, qty?=1, object_id?}。"""
+    from game import food
     with STATE_LOCK:
         p = _players.get(entity_id)
         if p is None:
             return ActionResponse(success=False, type="store", reason="player_not_found")
         if not p.get("canUse", True):
             return ActionResponse(success=False, type="store", reason="use_disabled")
-        oid = payload.get("object_id") or payload.get("objectId")
-        if oid:
-            obj = get_object_by_id(oid)
-            if obj is None:
-                return ActionResponse(success=False, type="store", reason="no_object")
-            if not _adjacent(p, obj):
-                return ActionResponse(success=False, type="store", reason="object_too_far")
-        else:
-            dx, dy = _DIR[p["facing"]]
-            obj = get_object_at(p["position"]["x"] + dx, p["position"]["y"] + dy)
-            if obj is None:
-                return ActionResponse(success=False, type="store", reason="no_object")
-        fc = economy.cfg().get("fridge", {})
-        if obj["type"] != "fridge" or obj.get("stock") is None:
-            return ActionResponse(success=False, type="store", reason="not_storage", result={"objectId": obj["id"]})
-        item = _item(payload) or fc.get("consumes", "ingredients"); qty = _qty(payload)
-        if item != fc.get("consumes", "ingredients"):
+        obj, err = _storage_target(p, payload, "store")
+        if err:
+            return err
+        item = _item(payload) or "ingredients"; qty = _qty(payload)
+        d = inventory.item_def(item)
+        if d is None:
+            return ActionResponse(success=False, type="store", reason="unknown_item", result={"objectId": obj["id"], "item": item})
+        if d.get("class") not in ("food", "material"):
             return ActionResponse(success=False, type="store", reason="not_storable", result={"objectId": obj["id"], **_item_fields(item, qty)})
         if inventory.count(p, item) < qty:
             return ActionResponse(success=False, type="store", reason="no_item", result={"objectId": obj["id"], **_item_fields(item, qty), "have": inventory.count(p, item)})
-        room = int(fc.get("max", 4)) - int(obj["stock"].get(item, 0))
+        room = food.capacity(obj) - food.used(obj)
         if room <= 0:
-            return ActionResponse(success=False, type="store", reason="storage_full", result={"objectId": obj["id"], "stock": dict(obj["stock"])})
+            return ActionResponse(success=False, type="store", reason="storage_full", result={"objectId": obj["id"], "capacity": food.capacity(obj), "used": food.used(obj)})
         qty = min(qty, room)
-        inventory.remove(p, item, qty)
-        obj["stock"][item] = int(obj["stock"].get(item, 0)) + qty
+        # 按叠搬：先搬最早到期的，保质期跟着走
+        moved = 0
+        for e in sorted([e for e in inventory.ensure(p) if e.get("type") == item], key=lambda e: (e.get("expires_at") is None, e.get("expires_at") or 0.0)):
+            if moved >= qty:
+                break
+            n = min(qty - moved, int(e.get("count", 0)))
+            food.store(obj, item, n, e.get("expires_at"))
+            inventory.remove_entry(p, e, n); moved += n
         mark_input(entity_id)
-        return ActionResponse(success=True, type="store", result={"message": f"把 {qty} 份{_item_fields(item, qty)['item_name']}放进了{obj['name']}。",
-                                                                  "objectId": obj["id"], **_item_fields(item, qty), "stock": dict(obj["stock"]), "inventory": inventory.view(p)})
+        from game.time_state import game_now_ts
+        return ActionResponse(success=True, type="store", result={"message": f"把 {moved} 份{d['name']}放进了{obj['name']}。",
+                                                                  "objectId": obj["id"], **_item_fields(item, moved), "stock": dict(obj["stock"]),
+                                                                  "contents": food.contents_view(obj, game_now_ts()), "storage": {"capacity": food.capacity(obj), "used": food.used(obj)},
+                                                                  "inventory": inventory.view(p)})
+
+
+def handle_take(entity_id: str, payload: dict) -> ActionResponse:
+    """world-v1.1：从冰箱拿出 {item, qty?=1, object_id?}（先拿最早到期的，保质期跟着走）。失败 not_storage / not_in_storage / inventory_full / stack_full。"""
+    from game import food
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="take", reason="player_not_found")
+        if not p.get("canUse", True):
+            return ActionResponse(success=False, type="take", reason="use_disabled")
+        obj, err = _storage_target(p, payload, "take")
+        if err:
+            return err
+        item = _item(payload); qty = _qty(payload)
+        if not item or inventory.item_def(item) is None:
+            return ActionResponse(success=False, type="take", reason="unknown_item", result={"objectId": obj["id"], "item": item})
+        have = int((obj.get("stock") or {}).get(item, 0))
+        if have < 1:
+            return ActionResponse(success=False, type="take", reason="not_in_storage", result={"objectId": obj["id"], **_item_fields(item, qty), "stock": dict(obj["stock"])})
+        qty = min(qty, have)
+        # 先探背包放得下多少（种数 / 每种 20）
+        room_kind = item in inventory.kinds(p) or len(inventory.kinds(p)) < inventory.MAX_KINDS or not inventory.counts_toward_kinds(item)
+        if not room_kind:
+            return ActionResponse(success=False, type="take", reason="inventory_full", result={"objectId": obj["id"], **_item_fields(item, qty)})
+        cap_left = inventory.MAX_PER_KIND - inventory.count(p, item)
+        if cap_left <= 0:
+            return ActionResponse(success=False, type="take", reason="stack_full", result={"objectId": obj["id"], **_item_fields(item, qty), "max_per_kind": inventory.MAX_PER_KIND})
+        qty = min(qty, cap_left)
+        taken = 0
+        for n, exp in food.take(obj, item, qty):
+            inventory.add(p, item, n, expires_at=exp); taken += n
+        mark_input(entity_id)
+        from game.time_state import game_now_ts
+        d = inventory.item_def(item)
+        msg = f"从{obj['name']}拿出 {taken} 份{d['name']}。"
+        if item == "spoiled_food":
+            msg += "已经坏了，丢掉吧（discard）。"
+        return ActionResponse(success=True, type="take", result={"message": msg, "objectId": obj["id"], **_item_fields(item, taken), "stock": dict(obj["stock"]),
+                                                                 "contents": food.contents_view(obj, game_now_ts()), "storage": {"capacity": food.capacity(obj), "used": food.used(obj)},
+                                                                 "inventory": inventory.view(p)})
+
+
+def handle_discard(entity_id: str, payload: dict) -> ActionResponse:
+    """world-v1.1：丢掉背包里的东西 {item, qty?=1}（任何物品；钥匙回池走 give / 删角色，这里不许丢）。"""
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="discard", reason="player_not_found")
+        item = _item(payload); qty = _qty(payload)
+        d = inventory.item_def(item or "")
+        if d is None:
+            return ActionResponse(success=False, type="discard", reason="unknown_item", result={"item": item})
+        if d.get("class") == "key":
+            return ActionResponse(success=False, type="discard", reason="not_discardable", result=_item_fields(item, qty))
+        have = inventory.count(p, item)
+        if have < 1:
+            return ActionResponse(success=False, type="discard", reason="no_item", result={**_item_fields(item, qty), "have": have})
+        qty = min(qty, have)
+        inventory.remove(p, item, qty)
+        mark_input(entity_id)
+        return ActionResponse(success=True, type="discard", result={"message": f"丢掉了 {qty} 个{d['name']}。", **_item_fields(item, qty), "inventory": inventory.view(p)})
 
 
 def handle_compose(entity_id: str, payload: dict) -> ActionResponse:

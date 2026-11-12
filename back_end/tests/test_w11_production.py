@@ -65,27 +65,45 @@ def test_fishing_rolls_every_interval_and_bait(client, v1, fake_clock, monkeypat
 
 # ── ① 灶台 ──
 def test_stove_consumes_ingredients_and_produces_bento_after_30min(client, v1, fake_clock):
+    """world-v1.1 §1.1：灶台按份——use {item, qty} 立即扣 n 份，20 + 10×(n−1) 分钟后产 n 份家常菜（带保质期 3 天）；中途走白费；吃要到餐桌。"""
     _at(fake_clock, 10, 0)
     whale = _agent(client, "whale")
     place(whale, 8, 30, "up")
     r = action(client, whale, "use")
-    assert r["success"] is False and r["reason"] == "no_ingredients"                     # 没食材不开火
+    assert r["success"] is False and r["reason"] == "no_ingredients" and r["result"]["have"] == 0    # 没食材不开火
     p = world_state._players[whale]
-    inventory.add(p, "ingredients", 2)
-    assert action(client, whale, "use")["success"] and inventory.count(p, "ingredients") == 1
+    inventory.add(p, "ingredients", 3)
+    r = action(client, whale, "use", {"item": "ingredients", "qty": 2})
+    assert r["success"] and inventory.count(p, "ingredients") == 1
+    assert r["result"]["cooking"]["portions"] == 2 and r["result"]["cooking"]["product"] == "home_meal" and r["result"]["cooking"]["ready_in_min"] == 30
+    stove = next(o for o in client.get("/world", params={"fields": "objects"}).json()["objects"] if o["id"] == "stove")
+    assert stove["cooking"]["by"] == whale and stove["cooking"]["ready_at"].endswith("10:30:00+08:00") and stove["work"] is True
+    assert "working" in p["tags"] and "cooking" in p["tags"]
     fake_clock.advance(20 * 60); _tick(fake_clock, 1)
-    assert inventory.count(p, "bento") == 0
-    fake_clock.advance(10 * 60 + 5); _tick(fake_clock, 1)                                # 满 30 分钟 → 便当 ×2
-    assert inventory.count(p, "bento") == 2
+    assert inventory.count(p, "home_meal") == 0
+    fake_clock.advance(10 * 60 + 5); _tick(fake_clock, 1)                                # 满 30 分钟 → 家常菜 ×2
+    assert inventory.count(p, "home_meal") == 2
+    assert next(e for e in p["inventory"] if e["type"] == "home_meal")["expires_at"] == pytest.approx(fake_clock.t + 3 * 86400, abs=5)
     fake_clock.advance(10 * 60); _tick(fake_clock, 1)
-    assert inventory.count(p, "bento") == 2                                              # 只产一次
+    assert inventory.count(p, "home_meal") == 2                                          # 只产一次
     action(client, whale, "leave")
-    # 提前走：食材耗了、没便当
-    place(whale, 8, 30, "up"); world_state._last_used.clear()
-    assert action(client, whale, "use")["success"] and inventory.count(p, "ingredients") == 0
+    assert "working" not in p["tags"]
+    # 提前走：食材耗了、没菜（ws cook_cancelled）
+    place(whale, 8, 30, "up")
+    assert action(client, whale, "use")["success"] and inventory.count(p, "ingredients") == 0   # 无冷却
     fake_clock.advance(5 * 60); _tick(fake_clock, 1)
-    assert action(client, whale, "leave")["success"] and inventory.count(p, "bento") == 2
-    assert action(client, whale, "eat", {"item": "bento"})["success"]                    # 便当随处吃
+    assert action(client, whale, "leave")["success"] and inventory.count(p, "home_meal") == 2
+    # 吃：不在餐桌不行；到合租房餐桌 15 分钟 +40
+    assert action(client, whale, "eat", {"item": "home_meal"})["reason"] == "not_at_table"
+    place(whale, 11, 24, "up"); assert action(client, whale, "use")["success"]
+    p["fullness"] = 30.0
+    r = action(client, whale, "eat", {"item": "home_meal"})
+    assert r["success"] and r["result"]["duration_s"] == 900 and inventory.count(p, "home_meal") == 1
+    fake_clock.advance(900); _tick(fake_clock, 1)
+    assert p["fullness"] == pytest.approx(70 - 3 * 902 / 3600, abs=0.05) and client.get(f"/player/{whale}").json()["busy"] is None
+    # 直播中不能吃
+    p["tags"].append("streaming")
+    assert action(client, whale, "eat", {"item": "home_meal"})["reason"] == "streaming"
 
 
 # ── ① compose / make_video / 委托 ──
@@ -205,7 +223,7 @@ def test_shop_stock_out_of_stock_and_daily_restock(client, fake_clock):
     r = action(client, whale, "buy", {"item": "gift"})
     assert r["success"] is False and r["reason"] == "out_of_stock" and r["result"]["stock"] == 0
     shop = {x["type"]: x for x in next(o for o in client.get("/world", params={"fields": "objects"}).json()["objects"] if o["id"] == "counter_grocer")["shop"]}
-    assert shop["gift"]["stock"] == 0 and shop["bread"]["stock"] == 10
+    assert shop["gift"]["stock"] == 0 and shop["bread"]["stock"] == 8
     _at(fake_clock, 8, 30); _tick(fake_clock, 1)                                          # 次日（这里直接拨到 08:30，另一天的 key）→ 补到水位
     assert counter["stock"]["gift"] == 3
     _at(fake_clock, 9, 0); _tick(fake_clock, 1)
@@ -214,33 +232,46 @@ def test_shop_stock_out_of_stock_and_daily_restock(client, fake_clock):
     assert o["stock"]["gift"] == 3 and {x["type"]: x for x in o["shop"]}["gift"]["stock"] == 3
 
 
-def test_fridge_stock_empty_store_and_restock(client, fake_clock):
+def test_fridge_stock_empty_store_and_restock(client, fake_clock, monkeypatch):
+    """world-v1.1：冰箱 = 存储（contents 按叠带保质期、容量 20、不自动补货）；use 只回内容；store / take 搬叠；检查点保留。"""
+    from game import food
     _at(fake_clock, 7, 0)
-    whale = _agent(client, "whale")
+    whale = _agent(client, "whale"); p = world_state._players[whale]
     fridge = world_state.get_object_by_id("fridge_kitchen")
-    assert fridge["stock"] == {"ingredients": 2}
+    assert fridge["stock"] == {"home_meal": 4} and fridge["storage"] == {"capacity": 20, "used": 4}          # NPC / 测试图默认 4 份饭
     place(whale, fridge["position"]["x"], fridge["position"]["y"] + 1, "up")
-    assert action(client, whale, "use")["success"] and fridge["stock"]["ingredients"] == 1
-    world_state._last_used.clear()
-    r = action(client, whale, "use"); assert r["success"] and r["result"]["stock"] == {"ingredients": 0}
-    world_state._last_used.clear()
     r = action(client, whale, "use")
-    assert r["success"] is False and r["reason"] == "empty"
-    # store：放食材进去（不超过 4）
-    inventory.add(world_state._players[whale], "ingredients", 6)
-    r = action(client, whale, "store", {"qty": 6})
-    assert r["success"] and r["result"]["stock"] == {"ingredients": 4} and inventory.count(world_state._players[whale], "ingredients") == 2
-    assert action(client, whale, "store", {"qty": 1})["reason"] == "storage_full"
-    assert action(client, whale, "store", {"item": "fish"})["reason"] == "not_storable"
-    # 08:00 补 2 份不超过 4
-    fridge["stock"]["ingredients"] = 3
+    assert r["success"] and r["result"]["empty"] is False and r["result"]["contents"][0]["expires_in_days"] == 3 and fridge["stock"] == {"home_meal": 4}
+    # take：拿 2 份出来，保质期跟着走
+    r = action(client, whale, "take", {"item": "home_meal", "qty": 2})
+    assert r["success"] and r["result"]["stock"] == {"home_meal": 2} and inventory.count(p, "home_meal") == 2
+    assert p["inventory"][0]["expires_at"] == pytest.approx(fridge["contents"][0]["expires_at"], abs=1)
+    assert action(client, whale, "take", {"item": "fish"})["reason"] == "not_in_storage"
+    # store：食材 / 食物都能放；容量 20
+    inventory.add(p, "ingredients", 20); inventory.add(p, "gift", 1)
+    r = action(client, whale, "store", {"item": "ingredients", "qty": 6})
+    assert r["success"] and r["result"]["stock"] == {"home_meal": 2, "ingredients": 6} and inventory.count(p, "ingredients") == 14
+    r = action(client, whale, "store", {"item": "ingredients", "qty": 14})
+    assert r["success"] and r["result"]["qty"] == 12 and r["result"]["storage"] == {"capacity": 20, "used": 20}   # 只放得下 12
+    assert action(client, whale, "store", {"item": "ingredients", "qty": 1})["reason"] == "storage_full"
+    assert action(client, whale, "store", {"item": "gift"})["reason"] == "not_storable"
+    objs = {o["id"]: o for o in client.get("/world", params={"fields": "objects"}).json()["objects"]}
+    assert {c["item"]: c["count"] for c in objs["fridge_kitchen"]["contents"]} == {"home_meal": 2, "ingredients": 18}
+    assert all("expires_at" in c and c["expires_in_days"] in (3, 5) for c in objs["fridge_kitchen"]["contents"])
+    # 不自动补货：08:00 过后不变
     _at(fake_clock, 8, 1); _tick(fake_clock, 1)
-    assert fridge["stock"]["ingredients"] == 4
-    # 检查点保留库存
+    assert fridge["stock"] == {"home_meal": 2, "ingredients": 18}
+    # 检查点保留内容（含保质期）
+    exp0 = fridge["contents"][0]["expires_at"]
     persistence.save_checkpoint(); world_state._reset_for_tests()
-    assert world_state.get_object_by_id("fridge_kitchen")["stock"] == {"ingredients": 2}
+    assert world_state.get_object_by_id("fridge_kitchen")["stock"] == {"home_meal": 4}
     persistence.load_checkpoint()
-    assert world_state.get_object_by_id("fridge_kitchen")["stock"] == {"ingredients": 4}
+    f2 = world_state.get_object_by_id("fridge_kitchen"); p = world_state._players[whale]      # 回填后是新的 dict
+    assert f2["stock"] == {"home_meal": 2, "ingredients": 18} and f2["contents"][0]["expires_at"] == pytest.approx(exp0, abs=1)
+    # 保鲜：饭菜 3 天（从 16:00 装进去起算）→ 4 天后已变坏食（背包里的 2 份也坏），食材 5 天还没到
+    fake_clock.advance(4 * 86400); _tick(fake_clock, 1)
+    assert f2["stock"] == {"spoiled_food": 2, "ingredients": 18} and inventory.count(p, "spoiled_food") == 2 and inventory.count(p, "home_meal") == 0
+    assert action(client, whale, "discard", {"item": "spoiled_food", "qty": 2})["success"] and inventory.count(p, "spoiled_food") == 0
 
 
 # ── ⑤ 地图开关 ──

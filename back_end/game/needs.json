@@ -1,0 +1,47 @@
+{
+  "_doc": "world-v1.1 七变量数值（numeric-proposal-v1 §1.2 / §2.1 / §4.1，主播 11-12/13 拍板）。每小时点数；醒 / 睡两套衰减（睡 = tags 含 sleeping）；extra：直播中（scene live）饱腹再扣、使用 work 类物品（tags 含 working）精力再扣；睡觉恢复由床的 energy_regen 给（+10/h）。social / fun 的来源见各段；mood 仍回基线 + 事件。",
+  "decay_per_hour": {
+    "awake": {
+      "fullness": -3.0,
+      "energy": -3.0,
+      "social": -2.0,
+      "fun": -2.0
+    },
+    "asleep": {
+      "fullness": -1.5,
+      "energy": 0.0,
+      "social": 0.0,
+      "fun": 0.0
+    }
+  },
+  "extra_per_hour": {
+    "live": {
+      "fullness": -3.0
+    },
+    "work": {
+      "energy": -3.0
+    }
+  },
+  "night_energy_mult": 1.0,
+  "conversation": {
+    "_doc": "线下对话：聊天房里按在房计时 +32/h；say 通道按 15 分钟窗口，窗口内 2 格内有 say 往来即 +8（说者与听者各一次）；聊天附带娱乐 +4/h",
+    "social_per_hour": 32.0,
+    "say_window_min": 15,
+    "say_social_per_window": 8.0,
+    "fun_per_hour": 4.0
+  },
+  "qq": {
+    "social_per_message": 1.0,
+    "max_messages_per_hour": 12
+  },
+  "live_session_social": 10.0,
+  "thresholds": {
+    "fullness_hungry": 25,
+    "fullness_hard": 15,
+    "fullness_blackout": 8,
+    "energy_tired": 30,
+    "energy_hard": 15,
+    "social_low": 30,
+    "social_hard": 15
+  }
+}

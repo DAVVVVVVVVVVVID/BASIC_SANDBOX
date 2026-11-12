@@ -61,19 +61,20 @@ def test_generic_clamp_and_alias():
 
 
 def test_instant_object_uses_generic_clamp(client):
-    """注入一个 fridge（fullness +40 / energy +5 / fun −2）验证 instant_effect 走通用路径。"""
+    """注入一个 book（fun +60 / energy −2）验证 instant_effect 走通用路径（冰箱 v1.1 起无效果）。"""
     pid = join(client)
-    fridge = world_state._build_objects([{"id": "fridge_test", "type": "fridge", "position": {"x": 0, "y": 0}}])[0]
-    world_state._OBJECTS.append(fridge)
+    book = world_state._build_objects([{"id": "book_test", "type": "book", "position": {"x": 0, "y": 0}}])[0]
+    world_state._OBJECTS.append(book)
     try:
         p = world_state._players[pid]
-        p["energy"] = 97.0; p["fun"] = 50.0
-        world_state.apply_instant_object("fridge_test", pid)
-        assert p["fullness"] == 100.0 and p["hp"] == 100.0   # 70+40 clamp
-        assert p["energy"] == 100.0                           # 97+5 clamp
-        assert p["fun"] == 48.0
+        p["energy"] = 1.0; p["fun"] = 50.0
+        world_state.apply_instant_object("book_test", pid)
+        assert p["fun"] == 100.0                              # 50+60 clamp
+        assert p["energy"] == 0.0                             # 1−2 clamp
+        world_state.apply_var_delta(p, "hp", 50)
+        assert p["fullness"] == 100.0 and p["hp"] == 100.0    # 别名
     finally:
-        world_state._OBJECTS.remove(fridge)
+        world_state._OBJECTS.remove(book)
 
 
 def test_hp_regen_handler_keeps_alias_in_sync():

@@ -49,7 +49,7 @@ def test_world_and_perceive_show_open_and_zero_advertise(client, fake_clock):
     fake_clock.t = _ts(15, 30)
     objs = {o["id"]: o for o in client.get("/world").json()["objects"]}
     assert objs[TABLE_ID]["open"] is False and objs[TABLE_ID]["opensAt"] == "17:00"
-    assert objs[TABLE_ID]["advertise"] == {"fullness": 0, "social": 0, "fun": 0}
+    assert objs[TABLE_ID]["advertise"] == {"fullness": 0, "social": 0}
     assert objs[COUNTER_ID]["open"] is True and objs[COUNTER_ID]["opensAt"] is None and objs[COUNTER_ID]["advertise"]["fullness"] > 0
     assert objs["bed_whale"]["open"] is True and objs["bed_whale"]["openHours"] is None
     pid = join(client, "h")

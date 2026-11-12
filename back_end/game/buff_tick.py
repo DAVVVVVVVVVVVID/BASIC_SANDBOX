@@ -31,14 +31,25 @@ VAR_ALIASES: dict[str, str] = {"hp": "fullness"}
 VAR_MIN, VAR_MAX = 0.0, 100.0
 
 SCENES = ("sandbox", "live")
-# 每游戏秒变化量（负为衰减）
-DECAY_RATES: dict[str, dict[str, float]] = {
-    "sandbox": {"fullness": -12 / 3600, "energy": -8 / 3600, "social": -6 / 3600, "fun": -10 / 3600},
-    "live":    {"fullness": -12 / 3600, "energy": -8 / 3600, "social": -0.12,     "fun": -10 / 3600},
-}
+# 每游戏秒变化量（负为衰减）。world-v1.1：从 game/needs.json 读（醒 / 睡两套 + 直播 / 工作额外），这里的表只是「醒着」的派生视图（self_sync 等旧引用同源）。
+def _load_rates() -> dict[str, dict[str, float]]:
+    from game import needs_cfg as needs
+    awake = {v: needs.per_hour("awake", v) / 3600.0 for v in ("fullness", "energy", "social", "fun")}
+    live = dict(awake); live["fullness"] += needs.extra_per_hour("live", "fullness") / 3600.0
+    asleep = {v: needs.per_hour("asleep", v) / 3600.0 for v in ("fullness", "energy", "social", "fun")}
+    return {"sandbox": awake, "live": live, "asleep": asleep}
+
+
+DECAY_RATES: dict[str, dict[str, float]] = _load_rates()
+
+
+def reload_rates() -> None:
+    DECAY_RATES.clear(); DECAY_RATES.update(_load_rates())
+
+
 MOOD_HALF_LIFE_S = {"sandbox": 120 * 60.0, "live": 70.0}
 NIGHT_HOURS = range(0, 6)
-NIGHT_ENERGY_MULT = 1.5
+NIGHT_ENERGY_MULT = 1.0           # world-v1.1：不分昼夜（needs.json night_energy_mult；旧值 1.5）
 CLOSENESS_PER_DAY = -1.0
 MOOD_BASE_DEFAULT = 65.0
 
@@ -170,12 +181,17 @@ def _handler_decay(player: dict, buff: dict, delta: float) -> None:
     if scene not in DECAY_RATES:
         scene = "sandbox"
     skip = _TICK_CTX["skip_vars"]
-    rates = DECAY_RATES[scene]
+    tags = player.get("tags") or []
+    rates = DECAY_RATES["asleep"] if "sleeping" in tags else DECAY_RATES[scene]      # world-v1.1：睡着另一套（精力 / 社交 / 娱乐不降）
     end_ts = _TICK_CTX["game_end_ts"]
+    from game import needs_cfg as needs
+    work_extra = needs.extra_per_hour("work", "energy") / 3600.0 if "working" in tags else 0.0   # 使用 work 类物品：精力再扣
     for var, r in rates.items():
         if var in skip:
             continue
-        if var == "energy" and end_ts is not None:
+        if var == "energy":
+            r = r + work_extra
+        if var == "energy" and end_ts is not None and NIGHT_ENERGY_MULT != 1.0:
             ns = night_seconds(end_ts - dt, end_ts)
             d = r * (dt - ns) + r * NIGHT_ENERGY_MULT * ns
         else:
@@ -190,6 +206,18 @@ def _handler_decay(player: dict, buff: dict, delta: float) -> None:
         dec = CLOSENESS_PER_DAY * dt / 86400.0
         for k in list(player["closeness"].keys()):
             add_closeness(player, k, dec)
+
+
+def _handler_table_social(player: dict, buff: dict, delta: float) -> None:
+    """world-v1.1：同桌社交——只有这张桌上还有第二个人时才按 value（点 / 游戏秒）加。buff.source = 物品 id。"""
+    try:
+        from game.world_state import get_object_by_id
+        obj = get_object_by_id(buff.get("source") or "")
+    except Exception:
+        obj = None
+    if obj is None or int(obj.get("currentUsers", 0)) < 2:
+        return
+    add_var(player, "social", buff["value"] * delta / 1000.0)
 
 
 def _handler_no_move(player: dict, buff: dict, delta: float) -> None:
@@ -220,6 +248,7 @@ EFFECT_HANDLERS: dict = {
     "emotion_tag":     _handler_emotion_tag,
     "closeness_delta": _handler_closeness_delta,
     "decay":           _handler_decay,
+    "table_social":    _handler_table_social,
     "no_move":         _handler_no_move,
     "no_interact":     _handler_no_interact,
     "no_use":          _handler_no_use,

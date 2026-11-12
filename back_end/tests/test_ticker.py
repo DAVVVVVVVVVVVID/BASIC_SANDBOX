@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from game import ticker, time_state, world_state
 from tests.conftest import BED_ID, BED_STAND, place, join, action
 
-BED_NET = (25 - 8) / 3600      # bed energy_regen +25/h − 白天衰减 8/h，点/游戏秒（假时钟 16:00 北京时间）
+BED_NET = 10 / 3600            # world-v1.1：bed energy_regen +10/h，睡着不衰减，点/游戏秒
 
 
 def _bed_user(client) -> str:

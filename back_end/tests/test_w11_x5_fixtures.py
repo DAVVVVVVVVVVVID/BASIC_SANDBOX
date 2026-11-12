@@ -33,9 +33,11 @@ def test_set_fridge_set_stock_force_closed(client, v1, bench_env, fake_clock):
     _at(fake_clock, 12, 0)
     whale = _agent(client, "whale"); world_state._players[whale]["gold"] = 300
     r = _run(client, [{"op": "set_fridge", "id": "fridge_home", "qty": 0}, {"op": "set_stock", "shop": "counter", "item": "bread", "qty": 0}])
-    assert r["ok"] and r["steps"][0]["detail"]["stock"] == {"ingredients": 0} and r["steps"][1]["detail"]["stock"]["bread"] == 0
+    assert r["ok"] and r["steps"][0]["detail"]["stock"] == {} and r["steps"][0]["detail"]["contents"] == [] and r["steps"][1]["detail"]["stock"]["bread"] == 0   # v1.1：不带 item = 整台清空
     place(whale, 3, 30, "up")
-    assert action(client, whale, "use")["reason"] == "empty"
+    r0 = action(client, whale, "use"); assert r0["success"] and r0["result"]["empty"] is True
+    r = _run(client, [{"op": "set_fridge", "id": "fridge_home", "item": "home_meal", "qty": 3}])
+    assert r["steps"][0]["detail"]["stock"] == {"home_meal": 3}
     place(whale, 55, 36, "up")
     assert action(client, whale, "buy", {"item": "bread"})["reason"] == "out_of_stock"
     assert next(o for o in client.get("/world", params={"fields": "objects"}).json()["objects"] if o["id"] == "counter")["stock"]["bread"] == 0
@@ -83,13 +85,15 @@ def test_economy_path_override_and_sha(client, tmp_path, monkeypatch):
     assert economy.info()["sha256"] == base["sha256"]
 
 
-def test_full_game_day_at_x6_triggers_restock_wages_and_hours(client, v1, fake_clock):
+def test_full_game_day_at_x6_triggers_restock_wages_and_hours(client, v1, fake_clock, monkeypatch):
     """模拟 ×6 速的一整个游戏日：每 tick 推 1.2 游戏秒（200 ms × 6）太慢，这里按 60 游戏秒一步、1440 步；检查 08:00 补货恰一次、
     日薪 / 时薪按点、餐厅 / 杂货店 open 在 11/14/17/21 与 09/20 切换。"""
+    from game import food
+    monkeypatch.setitem(economy.cfg()["fridge"], "restock_enabled", True)       # v1.1 默认不补货；这里验开关打开时的旧行为
     _at(fake_clock, 7, 0)
     achan = _agent(client, "achan"); xq = _agent(client, "npc_xiaoqian"); grocer = _agent(client, "npc_grocer")
     fridge = world_state.get_object_by_id("fridge_home"); counter = world_state.get_object_by_id("counter"); table = world_state.get_object_by_id("table_rest_1")
-    fridge["stock"]["ingredients"] = 0; counter["stock"]["bread"] = 4
+    fridge["contents"] = []; food.refresh_stock(fridge); counter["stock"]["bread"] = 4
     timeline = {}
     opens = []
     last = None
@@ -100,10 +104,10 @@ def test_full_game_day_at_x6_triggers_restock_wages_and_hours(client, v1, fake_c
         if state != last:
             opens.append((hm, state)); last = state
         if hm in ("07:59", "08:00", "08:01", "09:00", "18:29", "18:31", "20:01", "06:59"):
-            timeline[hm] = {"fridge": fridge["stock"]["ingredients"], "bread": counter["stock"]["bread"],
+            timeline[hm] = {"fridge": fridge["stock"].get("ingredients", 0), "bread": counter["stock"]["bread"],
                             "achan": world_state._players[achan]["gold"], "xq": world_state._players[xq]["gold"], "grocer": world_state._players[grocer]["gold"]}
     assert timeline["07:59"]["fridge"] == 0 and timeline["08:01"]["fridge"] == 2 and timeline["06:59"]["fridge"] == 2          # 08:00 +2，当日只一次
-    assert timeline["07:59"]["bread"] == 4 and timeline["08:01"]["bread"] == 10                                              # 商店补到水位
+    assert timeline["07:59"]["bread"] == 4 and timeline["08:01"]["bread"] == 8                                               # v1.1：固定上新到 daily_supply
     assert timeline["18:29"]["achan"] == 2000 and timeline["18:31"]["achan"] == 2150 and timeline["06:59"]["achan"] == 2150     # 阿蝉 18:30 一次
     assert timeline["06:59"]["xq"] == 400 + 48 and timeline["06:59"]["grocer"] == 3100                                        # 小千 4 小时、老板娘 20:00
     transitions = [(hm, s) for hm, s in opens]
@@ -112,15 +116,16 @@ def test_full_game_day_at_x6_triggers_restock_wages_and_hours(client, v1, fake_c
     rest_changes = [(hm, s[0]) for i, (hm, s) in enumerate(transitions) if i == 0 or s[0] != transitions[i - 1][1][0]]
     groc_changes = [(hm, s[1]) for i, (hm, s) in enumerate(transitions) if i == 0 or s[1] != transitions[i - 1][1][1]]
     assert [x for x in rest_changes if x[0] != "07:01"] == [("11:00", True), ("14:00", False), ("17:00", True), ("21:00", False)], rest_changes
-    assert [x for x in groc_changes if x[0] != "07:01"] == [("09:00", True), ("20:00", False)], groc_changes
+    assert [x for x in groc_changes if x[0] != "07:01"] == [("09:00", True), ("22:00", False)], groc_changes                # v1.1：杂货店到 22:00
 
 
-def test_set_fridge_pins_todays_restock(client, v1, bench_env, fake_clock):
+def test_set_fridge_pins_todays_restock(client, v1, bench_env, fake_clock, monkeypatch):
     """X5 pilot ①（R1）：reset 清掉补货记录后 set_time 22:30 + set_fridge 0，下一 tick 的每日补货不得把 0 盖回 2；use 应得 empty 且饱腹不涨。"""
     r = _run(client, [{"op": "reset"}, {"op": "set_time", "time": "22:30"},
                       {"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 3, "y": 30, "facing": "up", "vars": {"fullness": 17}},
                       {"op": "set_fridge", "id": "fridge_home", "qty": 0}])
-    assert r["ok"] and r["steps"][-1]["detail"]["stock"] == {"ingredients": 0} and r["steps"][-1]["detail"]["restock_pinned"]
+    monkeypatch.setitem(economy.cfg()["fridge"], "restock_enabled", True)       # 开着补货才有「被盖掉」的风险
+    assert r["ok"] and r["steps"][-1]["detail"]["stock"] == {} and r["steps"][-1]["detail"]["restock_pinned"]
     assert r["steps"][-1]["detail"]["restock_state"] == "pinned"
     # 今天已补过再 set_fridge：不再钉，但值同样保持
     r2 = _run(client, [{"op": "set_fridge", "id": "fridge_home", "qty": 0}])
@@ -129,9 +134,9 @@ def test_set_fridge_pins_todays_restock(client, v1, bench_env, fake_clock):
     for _ in range(3):
         ticker.tick_once(checkpoint=False); fake_clock.advance(1)
     fridge = world_state.get_object_by_id("fridge_home")
-    assert fridge["stock"] == {"ingredients": 0}
+    assert fridge["stock"] == {}
     res = action(client, whale, "use")
-    assert res["success"] is False and res["reason"] == "empty"
+    assert res["success"] and res["result"]["empty"] is True
     assert world_state._players[whale]["fullness"] <= 17          # 没涨（自然衰减可忽略）
     # 次日 08:00 照常补货 +2
     from datetime import timedelta

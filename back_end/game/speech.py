@@ -36,6 +36,10 @@ def say(entity_id: str, text: str) -> tuple[dict | None, str | None]:
                 del box[: len(box) - SAY_QUEUE_MAX]
             heard.append(q["id"])
     ws.mark_input(entity_id)
+    if heard:                                                       # world-v1.1 §4.1：线下 say 往来按 15 分钟窗口 +8
+        from game import social
+        from game.time_state import game_now_ts
+        social.mark_say(game_now_ts(), p, [ws._players[h] for h in heard if h in ws._players])
     chat_log.log_say(entity_id, p.get("name"), heard, text, p.get("controller", "human"), msg["position"])
     try:
         from routers.ws import hub

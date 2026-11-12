@@ -187,8 +187,9 @@ def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: 
                 if rp is not None and inventory.add(rp, file_ref["item"], 1, meta=file_ref.get("meta")) is None:
                     delivered.append(t)
             msg["item_delivered_to"] = delivered
-        if SOCIAL_PER_MESSAGE:
-            add_var(p, "social", SOCIAL_PER_MESSAGE)
+        from game import social as _social
+        from game.time_state import game_now_ts as _gnt
+        _social.qq_credit(_gnt(), p, 1)                              # world-v1.1 §4.1：每条 +1，每小时 ≤ 12
         world_state.mark_input(entity_id)
         _log({**{k: v for k, v in msg.items() if k not in ("read_by", "kind")}, "msg_kind": msg["kind"], "kind": "message"})
         _push({"event": "message", **{k: v for k, v in msg.items() if k not in ("read_by",)}})
@@ -351,8 +352,10 @@ def read(entity_id: str, *, peer: str | None = None) -> tuple[dict | None, str |
         if "reading" not in p["tags"]:
             p["tags"].append("reading")
         apply_control_flags(p)
-        if got and SOCIAL_PER_MESSAGE:
-            add_var(p, "social", SOCIAL_PER_MESSAGE * len(got))
+        if got:
+            from game import social as _social
+            from game.time_state import game_now_ts as _gnt
+            _social.qq_credit(_gnt(), p, len(got))
         world_state.mark_input(entity_id)
         _log({"kind": "read", "account": me, "peer": peer_acc, "ids": [m["id"] for m in got], "count": len(got),
               "busy_game_seconds": READ_GAME_SECONDS})

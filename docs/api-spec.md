@@ -88,7 +88,8 @@
 |------|------|
 | `advertise` | **B5** Sims 式广告值 `{ fullness \| energy \| social \| fun \| mood: 0–100 }`，供规划器做软偏好打分；来自 `object_types.json` 的 `advertise`，可能为空对象 |
 | `usePos` / `useFacing` | **W10 ②** 使用者站位与朝向。`usePos: [{x,y}]` 是**绝对格**（由 `object_types.json` 的 `use_pos: [[dx,dy],…]` 相对物品 `position` 换算），按使用顺序分配（第 1 个使用者拿第 1 格，已占的跳过）；`null` = 原地不动（冰箱、柜台等）。`useFacing`: `up/down/left/right`，`null` = 面向物品中心。**后端在 `use` 时真的把人挪到该格并转向**（床 / 沙发 / 长椅 = 躺坐在物品格上；桌类 = 物品南侧一格朝 up；餐桌 4 座南北各两格），`leave` 回到 use 前的格与朝向，`pos_seq` 各 +1。perceive 不带这两个字段。E 的假设写的是相对格偏移 `use_pos`——实现下发的是**绝对格 `usePos`**，前端直接画在该格即可 |
-| `shop` | **W10 ④** 商店物品 `[{type, item, name, price, sell, stock}]`（`type` 与 `item` 同值 = `items.json` 键；`price` 买价、`sell` 收购价，`null` = 不卖 / 不收）。**W11 ④** `stock` 为当前库存数（买走就减、卖给店就加、每日 `restock_at` 补到 `economy.json` `shops[].stock` 水位）；只有 `economy.json` 的 `shops` 里的类型（`shop_counter` / `fish_stall` / `bar`）有，其余 `null`。营业时间沿用物品的 `openHours` |
+| `shop` | **W10 ④** 商店物品 `[{type, item, name, price, sell, stock}]`（`type` 与 `item` 同值 = `items.json` 键；`price` 买价、`sell` 收购价，`null` = 不卖 / 不收）。**v1.1** `stock` = 今日剩余（买走就减、卖给店就加），每日 `restock_at`（08:00）**重置为 `daily_supply`**（固定上新、卖完即止，老板不进货）；物品另带 `daily_supply {item: qty}` / `restock_at`。只有 `economy.json` 的 `shops` 里的类型（`shop_counter` / `fish_stall` / `bar`）有，其余 `null`。营业时间沿用物品的 `openHours` |
+| `dining` / `dining_allow` / `work` / `storage` / `contents` / `cooking` / `daily_limit_min` / `daily_used_min` | **world-v1.1 §12** 餐桌类标记与简餐清单；工作类标记；冰箱 `storage {capacity, used}` + `contents [{item, name, count, expires_at, expires_in_days, spoiled}]`；灶台 `cooking {by, item, portions, product, started_at, ready_at, ready_in_min}`；每日上限（-b 批生效，之前 `null`） |
 | `stock` | **W11 ④** 库存 `{item: n}`：商店同上；冰箱 `{"ingredients": n}`（初始 2，每日 08:00 +2 不超过 4，`use` 吃一份、`store` 放进去）；其余 `null`。进检查点 |
 
 **顶层新增（W10 ①）：** `decor`：装饰层 `[{id, kind, tiles: [{x,y}]}]`，`kind`: `path`（小径，可走）/ `pond`（池塘，不可走）/ `clothesline` / `flowerbed`（只记位置，不改 tile）。**不可交互、不是物品**；树是普通 `tree` 物品（`placeholder`）。`?fields=decor` 可单取。v0 图为空数组。
@@ -102,7 +103,8 @@
 | `away` | **W8 Q0e** human 连续 120 s 无输入（动作 / `GET /player` / `POST heartbeat` / 聊天请求、响应、发言）→ `true`，任一输入即清；agent 恒 `false`。away 的人**不算在场**：perceive 的 `players_in_view` / `needs.closeness` 与 `GET /chat/nearby` 不列出，`POST /chat/request` 邀请到 away 的人返回 `{success:false, reason:"target_away", away:[ids]}`。`/ws/world` 的 `players.upsert` 同步带 |
 | `stateLabel` / `usingObjectId` / `tags` | **W5 E①** 与 `GET /player` 同义；前端叠加层（睡觉 / 吃饭 / 直播中）直接读，不必反查 userList |
 | `pos_seq` | **W5 E⑥** 位置单调序号：每次坐标实际变化 +1（转向不变），重启后保留；客户端预测校正用它排乱序 |
-| `gold` / `inventory` | **W10 ④** 金币余额（整数）与背包 `[{type, name, class, count, meta?}]`（≤ 10 种；`type` = `items.json` 键，`class`: food / material / consumable / gift / file）。`GET /player/{id}` 同形状 |
+| `gold` / `inventory` | **W10 ④** 金币余额（整数）与背包 `[{type, name, class, count, meta?, expires_at?, expires_in_days?, spoils_in_days?}]`（**v1.1：10 种 × 每种 20 个**，钥匙不占种；`type` = `items.json` 键，`class`: food / material / consumable / gift / key / file(旧)）。`GET /player/{id}` 同形状 |
+| `busy` | **world-v1.1 §12** 进食进度 `{kind: "eating", item, object, started_at, ends_at, remaining_s, progress 0–1, gain}`，不忙为 `null`；`GET /player/{id}` 与 ws `players.upsert` 同带 |
 
 ---
 
@@ -450,9 +452,11 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 | `go_to` | **W9** `move_to_area` 的别名：`{ area_id | target, area_type?="arena" }`，响应 `type: "go_to"`，其余同 move_to_area | agent |
 | `buy` | **W10 ④** 在商店买 | `{ item \| item_id, qty?=1, object_id? }`（缺 `object_id` = 面前的物品；给了须相邻） | agent / E |
 | `sell` | **W10 ④** 卖给商店（`shop[].sell` 非空的物品） | `{ item \| item_id, qty?=1, object_id? }` | agent / E |
-| `eat` | **W10 ④** 吃背包里的食物（随处吃），按 `items.json` 的 `eat` 加需求值 | `{ item \| item_id }` | agent / E |
+| `eat` | **world-v1.1 §12** 只能坐在餐桌类物品上吃（`use` 餐桌 → `eat`）；持续动作：开吃即扣物品，饱腹 / 心情按 `items.json` `eat.minutes` 线性涨、吃完涨完、中途 `leave` 按比例；餐厅 `{item:"meal"}` 开吃扣 20。失败 `not_at_table` / `not_allowed_here` / `streaming` / `already_eating` / `no_item` / `not_edible` / `insufficient_funds` | `{ item \| item_id }` | agent / E |
 | `give` | **W10 ④** 当面给别人（2 格内）；`gift` 类按 `items.json` 的 `give` 给对方亲密度 / 心情；**W11** 给委托人一首 `song` = 交付委托（酬金入账、委托人亲密度 +15） | `{ target, item \| item_id, qty?=1, commission_id? }`（`target` = player id / agent_id / 名字） | agent / E |
-| `store` | **W11 ④** 把食材放进冰箱（相邻；不超过 `fridge.max` 4） | `{ item?="ingredients", qty?=1, object_id? }` | agent |
+| `store` | **world-v1.1 §12** 把背包里的食物 / 食材放进冰箱（相邻或 `object_id`；按叠带保质期；容量 `fridge.capacity` 20）。失败 `not_storage` / `not_storable` / `storage_full {capacity, used}` / `no_item` | `{ item, qty?=1, object_id? }` | agent / E |
+| `take` | **world-v1.1 §12** 从冰箱拿出（先拿最早到期的，保质期跟着走）。失败 `not_storage` / `not_in_storage` / `inventory_full` / `stack_full` | `{ item, qty?=1, object_id? }` | agent / E |
+| `discard` | **world-v1.1 §12** 丢掉背包里的东西（任何物品；钥匙不许丢 `not_discardable`） | `{ item, qty?=1 }` | agent / E |
 | `knock` | **§3.41** 在上锁的家门外敲门（见「门禁」一节） | `{ door_id }` 或 `{ target_tile {x,y} }` 或 `{ home: <sector> }` | agent / E |
 | `open_door` | **§3.41** 站在门内侧相邻格开门（不需钥匙），敞开 60 游戏秒 | `{ door_id }` | agent / E |
 | `say` | **Q6（实验 X4）靠近即可说**：曼哈顿 ≤ 2 格、同 sector 的在场玩家在**下一次 perceive** 的 `nearby_speech[]` 看到 `{from, from_name, text, ts}`（读过即清，队列 ≤ 20）；不开房间、不走邀请。`result {message, heard_by[], heard_count, range, position}`；失败 `empty_text` / `text_too_long`（> 200）。聊天 JSONL 多一种行 `kind: "say"`（`from, from_name, to: heard_by[], text, controller, position`，`room_id: null`）；ws `{type:"say", from, from_name, text, position, heard_by}`；动作日志照常 | `{ text }` | agent |
@@ -467,7 +471,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 |---|---|
 | 成功响应 `result` | `buy`: `{message, objectId, item, item_name, qty, price(总价), gold_delta, gold, inventory}`；`sell`: 同形（`gold_delta` 为正）；`eat`: `{message, item, item_name, qty, effects, vars(吃后的值), inventory}`；`give`: `{message, item, item_name, qty, target, target_name, target_effects{closeness?, mood?}, inventory}` |
 | 失败 `reason` | `insufficient_funds`（`result` 带 `price` / `gold` / `message`）、`no_object`（面前没物品）、`object_too_far`、`no_shop`（不是商店）、`shop_closed`（`result.opens_at`）、`not_for_sale` / `not_buying`、`unknown_item`、`no_item`（`result.have`）、`inventory_full`（≤ 10 种；give 时是对方满包，自己不扣）、`not_edible`、`target_not_found`、`target_too_far`（> 2 格）、`use_disabled`（reading / no_use 中） |
-| 店主入账 | 买东西的钱进店主账户（`economy.json` `shops[].owner`：`shop_counter` → `npc_grocer`，`fish_stall` → `npc_fisher`，`bar` → `npc_rest_owner`），店主在线才有人收；卖给商店同理从店主扣。**餐厅吃饭**：`use` 餐桌（`restaurant_table`）时扣 `meal_price`（20），钱不够 `use` 失败 `insufficient_funds`，不坐下 |
+| 店主入账 | 买东西的钱进店主账户（`economy.json` `shops[].owner`：`shop_counter` → `npc_grocer`，`fish_stall` → `npc_fisher`，`bar` → `npc_rest_owner`），店主在线才有人收；卖给商店同理从店主扣。**餐厅吃饭（v1.1）**：坐下免费，`eat {item:"meal"}` 开吃扣 `economy.meal.price`（20），钱不够 `insufficient_funds`、仍坐着（§12.4） |
 | 流水 | 每笔金币变动一行 `data/economy/<date>.jsonl`（`kind`: buy / sell / income / expense / wage；`account, entity, delta, balance, item?, qty?, price?, shop?, peer?, source?, label?`），`GET /admin/export?kinds=economy` 导出；ws 推 `{type:"economy", ...同行}` |
 | ws `action` 事件 | buy / sell / eat / give 另带 `item, item_name, qty, price, gold_delta, gold, target, target_name`（有则带），给 E 的气泡 |
 | QQ 转交 | 文件类物品（`class: file`：song / script / image）走 `POST /qq/send kind=file`，是**复制**（发送者保留）；实物只能 `give` |
@@ -750,7 +754,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 | `no_object_in_front` | 正前方没有对象 |
 | `not_interactable` | 对象不可交互，`result.message` 为对象的 `failureMessage` |
 | `object_full` | 对象已满（仅 continuous），`result.message` 为对象的 `failureMessage` |
-| `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message`。**W8 Q0e：床类（`bed` / `bed_21`）无冷却**（类型级 `cooldown_s: 0`），其余仍 30 分钟 |
+| `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message`。**W8 Q0e：床类（`bed` / `bed_21`）无冷却**（类型级 `cooldown_s: 0`）；**world-v1.1：冰箱 / 灶台 / 柜台 / 鱼摊也无冷却**（存储 / 加工 / 交易处，每日上限放在商品供应上）；工作 / 娱乐类的冷却在 -b 批改为每日时长上限 |
 | `feed_unavailable` | **B10** 手机（`external: feed`）拉自我层 `GET /self/feed` 失败（不可达 / 超时 3 s）。`result.message` 为「手机没信号…」，`result.phone.status = "no_signal"`；物品仍算使用过（有冷却），其余 instant 效果已结算 |
 | `live_unavailable` | **B11** 直播台（`external: live`）向自我层 `POST /self/live/start` 失败，**或使用者是人类玩家（没有 `agent_id`，§3.11 B4：阿蝉不能替她开播）**。不进入物品、不计冷却，`result.error` 为错误摘要 |
 | `game_unavailable` | **B18（W6；W10-4b）** 游戏机（`external: game`）向 D 的 brain `GET /game/state` 不可达，或 `POST /game/start` 后 120 s 内没等到 `alive=true`。不进入物品、不计冷却，`result.error` 为 `brain_unreachable` / `start_timeout` / 异常摘要 |
@@ -1108,7 +1112,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 |---|---|---|---|---|
 | `bed` / `bed_21` | continuous | energy +25 / +20 每小时（睡 8 h ≈ +200）；fun −1/h | energy 80 / 70 | 8 h |
 | `bath` | continuous | fun +20/h、energy +10/h、mood +6/h；fullness −2/h | fun 25、energy 30、mood 10 | 30 min |
-| `fridge` | instant | fullness +40（≈ 日衰减 / 3 餐）、energy +5；fun −2 | fullness 60、fun 5 | — |
+| `fridge` | instant（**v1.1 存储**） | **world-v1.1 §12**：储物柜，`use` 只回 `contents` / `storage`（无效果、无冷却）；`store` / `take` 放取；不自动补货 | fullness 40（规划提示） | — |
 | `desk` / `desk_12` | continuous | mood +3/h；fun −3/h、energy −4/h | fun 5、mood 15（desk_12 另 social 5） | 1 h |
 | `book` | instant | fun +60（≈ 日衰减 / 4 次）；energy −2 | fun 40 | — |
 | `phone` | instant | `external: feed`；fun +15、social +5；energy −2 | fun 10、social 3 | — |
@@ -1122,7 +1126,9 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 所有 continuous 类型都带 `max_users`（`GET /world` 的 `maxUsers`）；社交物品靠多人同用产生「在同一处」的 `players_in_view`。
 
-**营业时间（B20，W7）：** `object_types.json` 的 `open_hours: [["HH:MM","HH:MM"], ...]`（游戏时间，Asia/Shanghai）。餐馆桌子 `11:00–14:00 / 17:00–21:00`，杂货店柜台 `09:00–20:00`，码头钓位 `06:00–20:00`（「日出后」，假设）；其他物品全天。`GET /world` 与 perceive 的每个物品带 `open`（bool）、`opensAt`（关门时 `"HH:MM"`，开门时 `null`）、`openHours`；**关门时 `advertise` 全部为 0**（`GET /world`、perceive 一致，让规划器的软偏好自然变成「等开门」）。`/ws/world` 的 `objects` 推送带 `open`。地图上：餐馆（sector `restaurant`：`dining` 两张四人桌 + `rest_kitchen` fridge）、广场两条长椅、码头两个钓位、杂货店柜台（替代原 desk），四个 NPC 家各有 fridge；共 30 个物品，全部从出生点 BFS 可达。
+> **world-v1.1（§12）起上表的收益 / 成本数值已被 `game/needs.json` + 新 `object_types.json` 取代**：物品不再各带精力 / 饱腹成本（统一由衰减承担：醒 −3/h、使用 work 类再 −3/h、直播中饱腹再 −3/h）；床 +10/h 且睡着不衰减；长椅 fun +5/h、沙发 / 游戏机 fun +20/h、手机改持续 fun +15/h；餐桌类的同桌社交 `table_social`（家 +8/h、餐厅 +16/h，有第二人才加）、吧台 social +6/h；直播台 / 电脑 / 琴房电脑 / 钓位 / 灶台 / 书桌带 `work: true`。各类型的当前值以 `object_types.json` 为准。
+
+**营业时间（B20，W7）：** `object_types.json` 的 `open_hours: [["HH:MM","HH:MM"], ...]`（游戏时间，Asia/Shanghai）。餐馆桌子 `11:00–14:00 / 17:00–21:00`，杂货店柜台 **`09:00–22:00`（v1.1，覆盖她下播）**，码头钓位 `06:00–20:00`（「日出后」，假设）；其他物品全天。`GET /world` 与 perceive 的每个物品带 `open`（bool）、`opensAt`（关门时 `"HH:MM"`，开门时 `null`）、`openHours`；**关门时 `advertise` 全部为 0**（`GET /world`、perceive 一致，让规划器的软偏好自然变成「等开门」）。`/ws/world` 的 `objects` 推送带 `open`。地图上：餐馆（sector `restaurant`：`dining` 两张四人桌 + `rest_kitchen` fridge）、广场两条长椅、码头两个钓位、杂货店柜台（替代原 desk），四个 NPC 家各有 fridge；共 30 个物品，全部从出生点 BFS 可达。
 
 ### Object 原型
 
@@ -1471,6 +1477,66 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 检查点 meta `doors`：请求、敞开窗口、钥匙槽位（钥匙本身在玩家背包里）。常量 `doors.KNOCK_EXPIRE_S = 90`、`OPEN_S = 60`、`KNOCK_RANGE = 2`。
 
 ---
+
+## 12. world-v1.1：食物重做 + 七变量配置化（-a 批，主播拍板 §3.52；`docs/review/numeric-proposal-v1.md` §1 / §1.2 / §2.1 / §4.1）
+
+> 只加字段不删；旧字段（`stock`、`shop[].stock`、`meal_price`、`bento`、文件类物品）保留为兼容视图或旧检查点用。数值全在配置：`game/needs.json`（衰减 / 来源）、`game/items.json`（物品 / 保质期 / 进食时长）、`game/economy.json`（供应 / 冰箱 / 灶台 / 餐厅）、`game/object_types.json`（餐桌类 / 工作类 / 效果）。
+
+### 12.1 物品（items.json）
+
+| 物品 | class | 买 / 收 | 吃（餐桌类上，线性） | 保质期 | 说明 |
+|---|---|---|---|---|---|
+| `bread` 面包 | food | 5 / 2 | 5 min，fullness +20 | 不坏 | 杂货店每日 8 |
+| `sweets` 甜食 | food | 6 / 2 | 5 min，fullness +5、mood +6 | 不坏 | 每日 6 |
+| `ingredients` 食材 | material | 8 / 3 | 生吃 5 min，+10 | 5 天 | 每日 12；灶台 → 家常菜 |
+| `fish` 鱼 | material | 15 / 10（鱼摊） | 生吃 5 min，+10 | 5 天 | 鱼摊每日 6；钓位出；灶台 → 鱼料理 |
+| `home_meal` 家常菜 | food | — | 15 min，+40 | 3 天 | 灶台产 |
+| `fish_dish` 鱼料理 | food | — | 15 min，+45、mood +3 | 3 天 | 灶台产 |
+| `spoiled_food` 坏掉的食物 | food | — | 5 min，+0、mood −3 | — | 到期自动变成；`discard` 丢 |
+| `bento` 便当（旧） | food | — | 15 min，+40 | 3 天 | 只为旧检查点保留，不再产 |
+| `bait` 鱼饵 3 / `gift` 小礼物 25 / `key` 钥匙 | | | | | 不变；食物类 `give` 对方亲密度 +3 |
+
+背包 **10 种 × 每种 20 个**（`inventory_full` / `stack_full`），钥匙不占种。保质期从获得（买 / 钓 / 做 / 夹具给）那一刻起算 N×24 游戏小时，冰箱里同样计；同种不同到期日分叠（`inventory[]` 每条带 `expires_at` ISO / `expires_in_days`；同种合并时 `spoils_in_days` = 最早到期）。到期那叠整叠变 `spoiled_food`：ws `{type:"spoiled", entity, item, qty}`（背包）/ `{type:"spoiled", object, object_type, position, item, qty}`（冰箱）、external `kind: spoiled`、`pendingMessage`。
+
+### 12.2 冰箱 = 存储
+
+- `/world.objects[]`（type `fridge`）：`storage {capacity: 20, used}`、`contents [{item, name, count, expires_at, expires_in_days, spoiled}]`；`stock` 仍为按种计数。**不自动补货**（`economy.fridge.restock_enabled` 默认 false；bench 可开，开则沿用旧的 +2 / 上限 4）。初始内容 `economy.fridge.initial`：`fridge_home` 6 家常菜 + 4 食材，其他 `default` 4 家常菜（§1.3 护栏，约三天）。
+- `use` 冰箱：成功，`result {message, contents, storage, stock, empty}`，无效果无冷却。`store {item, qty, object_id?}`：food / material 类可放，按叠搬、保质期跟着走；`take {item, qty, object_id?}`：先拿最早到期的。旧检查点只有 `stock` → 回填时按当时起算保质期重建 `contents`。
+- 夹具 `set_fridge {id?, qty, item?, clear?}`：不带 `item` = **整台清空后放 qty 份食材**（qty 0 = 空冰箱，R1）；带 `item` = 只重写该种；detail 多 `contents`。
+
+### 12.3 灶台按份
+
+`use <灶台> {item?="ingredients"|"fish", qty?=1}`：立即扣 n 份（`no_ingredients {item, have, need}` / `not_cookable {item, cookable}`），**20 + 10×(n−1) 分钟**后产 n 份 `recipes[item]` 到背包（ws `produce via=stove, portions`，背包放不下则 `pendingMessage` 提示）；成功 `result.cooking {by, item, portions, product, started_at, ready_at, ready_in_min}`，物品视图同带 `cooking`。**提前 `leave` = 白费**（ws `cook_cancelled`、external `produce action=cancelled`、`pendingMessage`）。`free_for_owner`（`stove_rest` → `npc_rest_owner`）：厨师在后厨灶台做不扣食材。灶台 `work: true`、无冷却、最长 90 min。最多 `max_portions` 6 份。
+
+### 12.4 进食 = 餐桌类上的持续动作
+
+- 餐桌类 = `object_types` 带 `dining`：`dining_table`（合租房 / NPC 家，免费全天）、`restaurant_table`（营业时段）、`bar`、`bench`（**简餐处** `dining_allow: ["bread","sweets","home_meal","fish_dish","bento","spoiled_food"]`，其他 `null` = 不限）。`/world.objects[]` 带 `dining` / `dining_allow`。
+- 流程：`use` 餐桌（坐下；**餐厅坐下免费**）→ `eat {item}`。成功 `result {message, item, item_name, qty, duration_s, ends_at, gain {var: total}, busy, objectId, inventory}`，物品开吃即扣；之后每 tick 按已过时间线性加（精确累计，不丢最后一段），吃完涨完；`leave` / 被请出 → 结算到此刻（按比例），ws `eat_cancelled {entity, item, reason, applied}`。期间 `tags` 含 `eating`、`busy` 非空；结束 ws `eat_done {entity, item, gain, object}`、`pendingMessage`。
+- 餐厅：`eat {item: "meal"}`（不在背包）只在 `dining.meal` 的桌上（`restaurant_table`），**开吃扣 `economy.meal.price` 20** 给厨师（`npc_rest_owner`），30 min，+45、mood +5；钱不够 `insufficient_funds {price, gold}`，仍坐着。
+- 失败：`not_at_table`（没坐在餐桌类，`result.usingObjectId`）/ `not_allowed_here {allowed}`（长椅吃饭菜 / 非餐厅点菜）/ `streaming`（scene=live 或 tag streaming，再饿也等下播）/ `already_eating {busy}` / `no_item` / `not_edible` / `unknown_item`。
+- 同桌社交：`table_social` 效果只在该桌 `currentUsers ≥ 2` 时加（家 +8/h、餐厅 +16/h）；吧台 social +6/h 不需同桌。
+
+### 12.5 商店供应
+
+杂货店 `09:00–22:00`（柜台 `open_hours` 与 `door_grocery` 同改）。`shops[].daily_supply`：柜台 食材 12 / 面包 8 / 甜食 6 / 鱼饵 10 / 礼物 3，鱼摊 鱼 6；每日 `restock_at` 08:00 **`stock := daily_supply`**（`restock_mode: "reset"`；legacy 为补到水位）。柜台 / 鱼摊 / 冰箱 / 灶台 `cooldown_s: 0`。
+
+### 12.6 七变量（needs.json；沙盒记账，agent 只读）
+
+| 变量 | 醒着 | 睡着（tag `sleeping`） | 额外 | 来源 |
+|---|---|---|---|---|
+| fullness | −3/h | −1.5/h | 直播中（scene live）再 −3/h | 进食（§12.4） |
+| energy | −3/h | 0，床 +10/h | 使用 work 类物品（tag `working`）再 −3/h | 床 |
+| social | −2/h | 0 | — | 聊天房在房 +32/h（= +8 / 15 min）；`say` 有人听到按 15 分钟窗口每人 +8；同桌 +8 / +16 /h；吧台 +6/h；QQ 每条 +1、每人每小时 ≤ 12 条；下播（leave 直播台）+10 |
+| fun | −2/h | 0 | — | 手机 +15/h（持续使用）、沙发 / 游戏机 +20/h、长椅 +5/h、钓位 +18/h、聊天房附带 +4/h、书架瞬时 +60 |
+| mood | 回基线（半衰期 120 min / live 70 s） | 同 | — | 事件 / 甜食 +6 / 鱼料理 +3 / 餐厅 +5 / 坏食 −3 |
+
+不再分昼夜（`night_energy_mult` 1.0）。work 类：`pc` / `pc_desk` / `pc_music` / `stream_desk` / `desk` / `desk_12` / `reading_desk` / `classroom_desk` / `fishing_spot` / `stove`（`/world.objects[].work`），进入挂 `working`、离开摘。**手机改持续使用**：`use phone` 进入拉一次 feed（`result.phone`；没信号也能坐着，只是没摘要）、tag `browsing`、fun +15/h、`leave` 结束；`reading`（读 QQ 的一分钟）照旧可叠。直播台 / 电脑不再挂 social / fun / energy / fullness 的 regen。
+
+自我层同步（`POST /self/state/delta`）**多两个字段** `asleep` / `working`（bool），自我层 catch_up 按同一套醒 / 睡 / 工作速率算才不漂（A 侧改 `whale_self/state.py`）。
+
+### 12.7 地图 v1
+
+NPC 家（渔夫 / 小千 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；小千家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。
 
 ## 10. 金币与入账（W10 ④）
 

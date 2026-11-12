@@ -16,6 +16,7 @@ STANDS = {
     "bath_regular": (42, 35, "up"), "table_rest_1": (46, 33, "up"), "table_rest_2": (50, 33, "up"),
     "bench_square_1": (32, 26, "up"), "bench_square_2": (38, 26, "up"),
     "fishing_spot_1": (52, 17, "right"), "fishing_spot_2": (52, 19, "right"),
+    "phone_whale": (10, 8, "up"),            # world-v1.1：手机改持续使用
 }
 CONTINUOUS = [o["id"] for o in world_state._OBJECTS if o["prototype"] == "continuous"]
 

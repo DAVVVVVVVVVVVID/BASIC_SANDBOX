@@ -40,26 +40,31 @@ def test_new_player_has_decay_meta_buff():
 
 
 def test_one_game_hour_daytime_reconciliation():
-    """12:00–13:00（无夜间倍率）：fullness −12、energy −8、social −6、fun −10、mood 半衰期 120 min、closeness −1/天。"""
+    """12:00–13:00 醒着（world-v1.1 needs.json）：fullness −3、energy −3、social −2、fun −2、mood 半衰期 120 min、closeness −1/天。"""
     p = _player()
     _run(p, 3600, _ts(13))
-    assert p["fullness"] == pytest.approx(58.0, abs=1e-6)
+    assert p["fullness"] == pytest.approx(67.0, abs=1e-6)
     assert p["hp"] == p["fullness"]
-    assert p["energy"] == pytest.approx(92.0, abs=1e-6)
-    assert p["social"] == pytest.approx(54.0, abs=1e-6)
-    assert p["fun"] == pytest.approx(50.0, abs=1e-6)
+    assert p["energy"] == pytest.approx(97.0, abs=1e-6)
+    assert p["social"] == pytest.approx(58.0, abs=1e-6)
+    assert p["fun"] == pytest.approx(58.0, abs=1e-6)
     assert p["mood"] == pytest.approx(65 + 10 * 0.5 ** 0.5, abs=1e-6)
     assert p["closeness"]["achan"] == pytest.approx(72 - 1 / 24, abs=1e-6)
     assert p["last_tick_ts"] == datetime.fromtimestamp(_ts(13), GAME_TZ).isoformat(timespec="seconds")
 
 
 def test_night_energy_multiplier():
+    """world-v1.1：不分昼夜（night_energy_mult 1.0）；睡着（tag sleeping）精力 / 社交 / 娱乐不降、饱腹 −1.5/h。"""
     p = _player()
-    _run(p, 3600, _ts(3))                 # 02:00–03:00 全在凌晨
-    assert p["energy"] == pytest.approx(88.0, abs=1e-6)
-    p = _player()
-    _run(p, 3600, _ts(6, 30))             # 05:30–06:30：半小时夜间
-    assert p["energy"] == pytest.approx(100 - 8 * 0.5 * 1.5 - 8 * 0.5, abs=1e-6)
+    _run(p, 3600, _ts(3))                 # 02:00–03:00 醒着熬夜：同白天 −3
+    assert p["energy"] == pytest.approx(97.0, abs=1e-6)
+    p = _player(); p["tags"] = ["sleeping"]
+    _run(p, 3600, _ts(3))
+    assert p["energy"] == pytest.approx(100.0, abs=1e-6) and p["social"] == pytest.approx(60.0, abs=1e-6) and p["fun"] == pytest.approx(60.0, abs=1e-6)
+    assert p["fullness"] == pytest.approx(68.5, abs=1e-6)
+    p = _player(); p["tags"] = ["working"]   # 工作中：精力再 −3/h
+    _run(p, 3600, _ts(13))
+    assert p["energy"] == pytest.approx(94.0, abs=1e-6)
 
 
 def test_night_seconds_helper():
@@ -70,9 +75,9 @@ def test_night_seconds_helper():
 def test_live_scene_rates():
     p = _player(scene="live", social=60.0, mood=75.0)
     _run(p, 60, _ts(12, 1))
-    assert p["social"] == pytest.approx(60 - 0.12 * 60, abs=1e-6)
+    assert p["social"] == pytest.approx(60 - 2 / 60, abs=1e-6)         # world-v1.1：直播中社交同醒着 −2/h（一场 +10 在下播时加）
     assert p["mood"] == pytest.approx(65 + 10 * 0.5 ** (60 / 70), abs=1e-6)
-    assert p["fullness"] == pytest.approx(70 - 12 / 60, abs=1e-6)   # 其余速率同 sandbox
+    assert p["fullness"] == pytest.approx(70 - 6 / 60, abs=1e-6)       # 直播中饱腹 −3 再 −3
 
 
 def test_mood_relaxes_toward_profile_baseline():
@@ -119,20 +124,20 @@ def test_catch_up_caps_fullness_energy_at_4h_others_8h():
     end = _ts(20)                               # 12:00–20:00，无夜间
     r = catch_up_tick(p, 8 * 3600 * 1000, end)
     assert r == {"full_ms": 4 * 3600 * 1000, "partial_ms": 4 * 3600 * 1000}
-    assert p["fullness"] == pytest.approx(70 - 12 * 4, abs=1e-4)    # 只扣 4 h
-    assert p["energy"] == pytest.approx(100 - 8 * 4, abs=1e-4)
-    assert p["social"] == pytest.approx(60 - 6 * 8, abs=1e-4)       # 扣满 8 h
-    assert p["fun"] == pytest.approx(90 - 10 * 8, abs=1e-4)
+    assert p["fullness"] == pytest.approx(70 - 3 * 4, abs=1e-4)     # 只扣 4 h
+    assert p["energy"] == pytest.approx(100 - 3 * 4, abs=1e-4)
+    assert p["social"] == pytest.approx(60 - 2 * 8, abs=1e-4)       # 扣满 8 h
+    assert p["fun"] == pytest.approx(90 - 2 * 8, abs=1e-4)
     assert p["closeness"]["achan"] == pytest.approx(72 - 8 / 24, abs=1e-4)
 
 
 def test_catch_up_total_capped_at_8h_and_short_downtime_full():
     p = _player(fullness=70.0, social=60.0)
     catch_up_tick(p, 30 * 3600 * 1000, _ts(20))
-    assert p["social"] == pytest.approx(12.0, abs=1e-4)
+    assert p["social"] == pytest.approx(44.0, abs=1e-4)
     p = _player(fullness=70.0)
     catch_up_tick(p, 3600 * 1000, _ts(13))
-    assert p["fullness"] == pytest.approx(58.0, abs=1e-4)
+    assert p["fullness"] == pytest.approx(67.0, abs=1e-4)
 
 
 def test_catch_up_second_phase_keeps_object_buffs_but_does_not_apply_them():

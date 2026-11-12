@@ -79,7 +79,7 @@ def test_file_only_transferable_items(client):
     assert ok["success"] and ok["message"]["kind"] == "file" and ok["message"]["file_ref"]["item"] == "song"
     assert ok["message"]["item_delivered_to"] == ["achan"]
     inv = client.get(f"/player/{achan}").json().get("inventory")
-    assert inv == [{"type": "song", "name": "歌（文件）", "class": "file", "count": 1, "meta": {"title": "夜航"}}]
+    assert inv == [{"type": "song", "name": "歌（文件，旧）", "class": "file", "count": 1, "meta": {"title": "夜航"}}]
     assert world_state._players[whale]["inventory"] == []                                  # 文件是复制，发送者不扣（本来也没有）
 
 

@@ -138,6 +138,7 @@ edge("door_music", "door", (37, 7), (37, 6), "音乐楼门", open_hours=[["08:00
 house(47, 1, 57, 7, "fisher_house", rooms=[(48, 2, 51, 6, "fisher_bedroom"), (53, 2, 56, 6, "fisher_kitchen")], doors=[(52, 7)])
 wall(52, 2, 52, 5, door=(52, 4), ar="fisher_bedroom")   # (52,6) 留作门内过道
 obj("bed_fisher", "bed", 48, 2); obj("fridge_fisher", "fridge", 56, 2)
+obj("stove_fisher", "stove", 53, 2); obj("table_fisher", "dining_table", 54, 4)      # world-v1.1：NPC 家灶台 + 餐桌
 edge("door_fisher", "door", (52, 8), (52, 7), "渔夫家门", owner=["npc_fisher"])      # §3.41：钥匙门（owner = 初始发钥匙的人）
 access["fisher_bedroom"] = {"owner": ["npc_fisher"]}                                      # §3.41：进了家门房间不再单独锁
 access["fisher_kitchen"] = {"owner": ["npc_fisher"]}
@@ -175,18 +176,20 @@ obj("notice_board_square", "notice_board", 33, 29)
 house(46, 22, 56, 30, "restaurant", rooms=[(47, 23, 52, 29, "dining"), (54, 23, 55, 29, "rest_kitchen")], doors=[(51, 30)])   # 南门
 wall(53, 23, 53, 29, door=(53, 26), ar="dining")
 obj("table_rest_1", "restaurant_table", 48, 23); obj("table_rest_2", "restaurant_table", 48, 28); obj("bar", "bar", 51, 25); obj("fridge_rest", "fridge", 55, 23)
+obj("stove_rest", "stove", 55, 25)                        # world-v1.1：餐厅后厨灶台（厨师用不耗食材）
 edge("door_restaurant", "door", (51, 31), (51, 30), "餐厅门", open_hours=[["11:00", "14:00"], ["17:00", "21:00"]], owner=["npc_rest_owner"])   # §3.38：店主随时双向
 
 # ── 杂货店（x46–56,y32–38）门朝小巷 (50,32) ────────────────────────────────────
 house(46, 32, 56, 38, "grocery", rooms=[(47, 33, 55, 37, "grocery_shop")], doors=[(51, 38)])   # 南门
 obj("counter", "shop_counter", 55, 35); obj("shelf_1", "shelf", 47, 33); obj("shelf_2", "shelf", 47, 37); obj("shelf_3", "shelf", 55, 33)
 fill(46, 39, 57, 39, "F", "outside", "lane")             # 杂货店门前小巷
-edge("door_grocery", "door", (51, 39), (51, 38), "杂货店门", open_hours=[["09:00", "20:00"]], owner=["npc_grocer"])   # §3.38
+edge("door_grocery", "door", (51, 39), (51, 38), "杂货店门", open_hours=[["09:00", "22:00"]], owner=["npc_grocer"])   # world-v1.1：到 22:00，覆盖她下播   # §3.38
 
 # ── 小千家（x12–20,y36–41）与店主们的家（x22–29,y36–46）────────────────────────
 house(12, 36, 20, 41, "xiaoqian_house", rooms=[(13, 37, 16, 40, "xiaoqian_room"), (18, 37, 19, 40, "xiaoqian_kitchen")], doors=[(16, 41)])   # 南门
 wall(17, 37, 17, 40, door=(17, 39), ar="xiaoqian_room")
 obj("bed_xiaoqian", "bed", 13, 37); obj("fridge_xiaoqian", "fridge", 19, 37)
+obj("stove_xiaoqian", "stove", 18, 37); obj("table_xiaoqian", "dining_table", 14, 38)   # world-v1.1：厨房只有 2 格宽，餐桌放她房间中段（(16,39) 要留给厨房门）
 fill(12, 42, 29, 42, "F", "outside", "lane"); fill(22, 47, 29, 47, "F", "outside", "lane")   # 小千家 / 店主家门前小巷
 edge("door_xiaoqian", "door", (16, 42), (16, 41), "小千家门", owner=["npc_xiaoqian"])
 access["xiaoqian_room"] = {"owner": ["npc_xiaoqian"]}
@@ -195,6 +198,7 @@ house(22, 36, 29, 46, "owners_house", rooms=[(23, 37, 28, 39, "owner_rest_room")
 arena[46][26] = R("owner_grocer_room")                    # 门格归它所邻的杂货店主房
 wall(23, 40, 28, 40, door=(25, 40), ar="owner_rest_room"); wall(23, 43, 28, 43, door=(25, 43), ar="owners_kitchen")
 obj("bed_owner_rest", "bed_21", 27, 37); obj("fridge_owners", "fridge", 23, 41); obj("bed_owner_grocer", "bed_21", 27, 45)
+obj("stove_owners", "stove", 24, 41); obj("table_owners", "dining_table", 26, 41)   # world-v1.1
 edge("door_owners", "door", (26, 47), (26, 46), "店主家门", owner=["npc_rest_owner", "npc_grocer"])
 for a_ in ("owner_rest_room", "owners_kitchen", "owner_grocer_room"):
     access[a_] = {"owner": ["npc_rest_owner", "npc_grocer"]}

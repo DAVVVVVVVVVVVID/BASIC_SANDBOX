@@ -30,7 +30,7 @@ def test_outdoor_perceive_sees_whole_world_and_bed(client):
     ids = {o["id"] for o in storage["objects"]}
     assert BED_ID in ids and {"desk_whale", "phone_whale", "stream_desk_whale"} <= ids
     bed = next(o for o in storage["objects"] if o["id"] == BED_ID)
-    assert bed["type"] == "bed" and bed["maxUsers"] == 1 and bed["currentUsers"] == 0 and bed["advertise"] == {"energy": 80, "fun": 0}
+    assert bed["type"] == "bed" and bed["maxUsers"] == 1 and bed["currentUsers"] == 0 and bed["advertise"] == {"energy": 80}
     square = next(a for a in sectors["outside"]["arenas"] if a["id"] == "square")
     assert square["current"] is True and {o["type"] for o in square["objects"]} == {"bench"}
     assert sum(a["current"] for s in tree["sectors"] for a in s["arenas"]) == 1

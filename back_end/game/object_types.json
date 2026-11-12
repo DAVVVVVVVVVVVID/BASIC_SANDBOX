@@ -31,12 +31,7 @@
       {
         "type": "buff",
         "key": "energy_regen",
-        "value": 0.006944
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": -0.000278
+        "value": 0.002778
       },
       {
         "type": "tag",
@@ -44,8 +39,7 @@
       }
     ],
     "advertise": {
-      "energy": 80,
-      "fun": 0
+      "energy": 80
     },
     "cooldown_s": 0,
     "use_pos": [
@@ -101,11 +95,6 @@
         "value": 0.001667
       },
       {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": -0.000556
-      },
-      {
         "type": "tag",
         "key": "taking_bath"
       }
@@ -127,35 +116,20 @@
     "prototype": "instant",
     "name": "fridge",
     "interactable": true,
-    "description": "不知道为什么冰箱总会自动冒出食物，偶尔来吃一点吧",
+    "description": "合租房的冰箱，放食材和做好的饭菜；食物会坏，看清保质期。",
     "size": [
       1,
       1
     ],
     "sprite": "tree",
-    "success_message": "好吃！",
-    "failure_message": "没东西吃了",
-    "effects": [
-      {
-        "type": "instant_effect",
-        "key": "fullness",
-        "value": 40
-      },
-      {
-        "type": "instant_effect",
-        "key": "energy",
-        "value": 5
-      },
-      {
-        "type": "instant_effect",
-        "key": "fun",
-        "value": -2
-      }
-    ],
+    "success_message": "冰箱是储物柜：take 拿出来，到餐桌 eat；store 放进去。",
+    "failure_message": "冰箱空了。",
+    "effects": [],
     "advertise": {
-      "fullness": 60,
-      "fun": 5
-    }
+      "fullness": 40
+    },
+    "cooldown_s": 0,
+    "storage": true
   },
   "desk": {
     "prototype": "continuous",
@@ -187,23 +161,13 @@
         "key": "no_use"
       },
       {
+        "type": "tag",
+        "key": "working"
+      },
+      {
         "type": "buff",
         "key": "mood_regen",
         "value": 0.000833
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": -0.000833
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001111
-      },
-      {
-        "type": "tag",
-        "key": "working"
       }
     ],
     "advertise": {
@@ -217,7 +181,8 @@
         1
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "work": true
   },
   "bed_21": {
     "prototype": "continuous",
@@ -250,12 +215,7 @@
       {
         "type": "buff",
         "key": "energy_regen",
-        "value": 0.005556
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": -0.000278
+        "value": 0.002778
       },
       {
         "type": "tag",
@@ -263,8 +223,7 @@
       }
     ],
     "advertise": {
-      "energy": 70,
-      "fun": 0
+      "energy": 80
     },
     "cooldown_s": 0,
     "use_pos": [
@@ -332,23 +291,13 @@
         "key": "no_use"
       },
       {
+        "type": "tag",
+        "key": "working"
+      },
+      {
         "type": "buff",
         "key": "mood_regen",
         "value": 0.000833
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": -0.000833
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001111
-      },
-      {
-        "type": "tag",
-        "key": "working"
       }
     ],
     "advertise": {
@@ -362,45 +311,48 @@
         2
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "work": true
   },
   "phone": {
-    "prototype": "instant",
+    "prototype": "continuous",
     "name": "手机",
+    "interactable": true,
+    "description": "一部旧手机，能刷到直播间和 B 站的动静。",
     "size": [
       1,
       1
     ],
     "sprite": "book",
-    "interactable": true,
-    "description": "一部旧手机，能刷到直播间和 B 站的动静。",
     "effects": [
       {
         "type": "external",
         "key": "feed"
       },
       {
-        "type": "instant_effect",
-        "key": "fun",
-        "value": 15
+        "type": "buff",
+        "key": "no_move"
       },
       {
-        "type": "instant_effect",
-        "key": "social",
-        "value": 5
+        "type": "buff",
+        "key": "fun_regen",
+        "value": 0.004167
       },
       {
-        "type": "instant_effect",
-        "key": "energy",
-        "value": -2
+        "type": "tag",
+        "key": "browsing"
       }
     ],
     "advertise": {
-      "fun": 10,
-      "social": 3
+      "fun": 30
     },
-    "success_message": "你拿起手机刷了一会儿。",
-    "failure_message": "手机现在用不了。"
+    "max_users": 1,
+    "use_state_label": "{entity} 在刷手机",
+    "max_duration": 7200,
+    "success_message": "你拿起手机开始刷 B 站。",
+    "failure_message": "手机现在用不了。",
+    "leave_message": "你放下手机。",
+    "daily_limit_min": 120
   },
   "stream_desk": {
     "prototype": "continuous",
@@ -420,26 +372,6 @@
       {
         "type": "buff",
         "key": "no_move"
-      },
-      {
-        "type": "buff",
-        "key": "social_regen",
-        "value": 0.005556
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": 0.002222
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001667
-      },
-      {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": -0.000833
       },
       {
         "type": "tag",
@@ -462,7 +394,8 @@
         1
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "work": true
   },
   "restaurant_table": {
     "prototype": "continuous",
@@ -481,31 +414,8 @@
       },
       {
         "type": "buff",
-        "key": "no_interact"
-      },
-      {
-        "type": "buff",
-        "key": "no_use"
-      },
-      {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": 0.011111
-      },
-      {
-        "type": "buff",
-        "key": "social_regen",
+        "key": "table_social",
         "value": 0.004444
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": 0.001111
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.000556
       },
       {
         "type": "tag",
@@ -514,13 +424,12 @@
     ],
     "advertise": {
       "fullness": 55,
-      "social": 45,
-      "fun": 10
+      "social": 45
     },
     "max_users": 4,
-    "use_state_label": "{entity} 正在餐馆吃饭",
+    "use_state_label": "{entity} 坐在餐馆",
     "max_duration": 2700,
-    "success_message": "你在餐馆坐下，点了今天的例菜。",
+    "success_message": "你在餐馆坐下。点一顿用 eat meal。",
     "failure_message": "这桌坐满了。",
     "leave_message": "吃完了，你离开了餐馆。",
     "open_hours": [
@@ -550,7 +459,11 @@
         1,
         -1
       ]
-    ]
+    ],
+    "dining": {
+      "allow": null,
+      "meal": true
+    }
   },
   "bench": {
     "prototype": "continuous",
@@ -577,33 +490,20 @@
       },
       {
         "type": "buff",
-        "key": "energy_regen",
-        "value": 0.001667
-      },
-      {
-        "type": "buff",
         "key": "fun_regen",
-        "value": 0.001667
-      },
-      {
-        "type": "buff",
-        "key": "social_regen",
-        "value": 0.001667
-      },
-      {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": -0.000278
+        "value": 0.001389
       },
       {
         "type": "tag",
         "key": "resting"
+      },
+      {
+        "type": "tag",
+        "key": "dining"
       }
     ],
     "advertise": {
-      "fun": 20,
-      "social": 25,
-      "energy": 15
+      "fun": 15
     },
     "max_users": 2,
     "use_state_label": "{entity} 坐在长椅上",
@@ -621,7 +521,17 @@
         0
       ]
     ],
-    "use_facing": "down"
+    "use_facing": "down",
+    "dining": {
+      "allow": [
+        "bread",
+        "sweets",
+        "home_meal",
+        "fish_dish",
+        "bento",
+        "spoiled_food"
+      ]
+    }
   },
   "fishing_spot": {
     "prototype": "continuous",
@@ -657,16 +567,6 @@
         "value": 0.001111
       },
       {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.000833
-      },
-      {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": -0.000556
-      },
-      {
         "type": "tag",
         "key": "fishing"
       }
@@ -686,7 +586,8 @@
         "06:00",
         "20:00"
       ]
-    ]
+    ],
+    "work": true
   },
   "shop_counter": {
     "prototype": "instant",
@@ -708,10 +609,11 @@
     "open_hours": [
       [
         "09:00",
-        "20:00"
+        "22:00"
       ]
     ],
-    "bible_note": "审核 11-10 ②：去掉遗留即时效果（原 fullness +15 / social +6 / energy −1），advertise 保留作「来这里能买到吃的」的规划提示。"
+    "bible_note": "审核 11-10 ②：去掉遗留即时效果（原 fullness +15 / social +6 / energy −1），advertise 保留作「来这里能买到吃的」的规划提示。",
+    "cooldown_s": 0
   },
   "game_console": {
     "prototype": "continuous",
@@ -735,7 +637,7 @@
       {
         "type": "buff",
         "key": "fun_regen",
-        "value": 0.008333
+        "value": 0.005556
       },
       {
         "type": "buff",
@@ -743,23 +645,13 @@
         "value": 0.001111
       },
       {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001667
-      },
-      {
-        "type": "buff",
-        "key": "social_regen",
-        "value": -0.000556
-      },
-      {
         "type": "tag",
         "key": "gaming"
       }
     ],
     "advertise": {
-      "fun": 85,
-      "mood": 20
+      "fun": 60,
+      "mood": 15
     },
     "max_users": 1,
     "use_state_label": "{entity} 玩游戏中",
@@ -795,26 +687,6 @@
         "key": "no_move"
       },
       {
-        "type": "buff",
-        "key": "social_regen",
-        "value": 0.005556
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": 0.002222
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001667
-      },
-      {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": -0.000833
-      },
-      {
         "type": "tag",
         "key": "streaming"
       }
@@ -829,7 +701,6 @@
     "success_message": "直播开始了。",
     "failure_message": "直播台现在用不了。",
     "leave_message": "直播结束，你关掉了摄像头。",
-    "placeholder": true,
     "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
     "use_pos": [
       [
@@ -837,7 +708,8 @@
         1
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "work": true
   },
   "pc_desk": {
     "prototype": "continuous",
@@ -869,23 +741,13 @@
         "key": "no_use"
       },
       {
+        "type": "tag",
+        "key": "working"
+      },
+      {
         "type": "buff",
         "key": "mood_regen",
         "value": 0.000833
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": -0.000833
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001111
-      },
-      {
-        "type": "tag",
-        "key": "working"
       }
     ],
     "advertise": {
@@ -893,7 +755,6 @@
       "mood": 15,
       "social": 0
     },
-    "placeholder": true,
     "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
     "use_pos": [
       [
@@ -901,7 +762,8 @@
         1
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "work": true
   },
   "stove": {
     "prototype": "continuous",
@@ -913,12 +775,12 @@
       1
     ],
     "sprite": "desk",
-    "success_message": "开始工作吧！",
-    "failure_message": "还不想工作",
+    "success_message": "开火做饭。",
+    "failure_message": "灶台现在用不了。",
     "max_users": 1,
     "use_state_label": "{entity} 正在做饭",
-    "max_duration": 1800,
-    "leave_message": "工作很久了，休息一下吧",
+    "max_duration": 5400,
+    "leave_message": "你离开了灶台。",
     "effects": [
       {
         "type": "buff",
@@ -933,21 +795,6 @@
         "key": "no_use"
       },
       {
-        "type": "buff",
-        "key": "mood_regen",
-        "value": 0.000833
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": -0.000833
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001111
-      },
-      {
         "type": "tag",
         "key": "cooking"
       }
@@ -955,7 +802,6 @@
     "advertise": {
       "fullness": 30
     },
-    "placeholder": true,
     "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
     "use_pos": [
       [
@@ -963,7 +809,9 @@
         1
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "work": true,
+    "cooldown_s": 0
   },
   "sofa_tv": {
     "prototype": "continuous",
@@ -990,23 +838,8 @@
       },
       {
         "type": "buff",
-        "key": "energy_regen",
-        "value": 0.001667
-      },
-      {
-        "type": "buff",
         "key": "fun_regen",
-        "value": 0.001667
-      },
-      {
-        "type": "buff",
-        "key": "social_regen",
-        "value": 0.001667
-      },
-      {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": -0.000278
+        "value": 0.005556
       },
       {
         "type": "tag",
@@ -1014,16 +847,14 @@
       }
     ],
     "advertise": {
-      "fun": 30,
-      "energy": 15
+      "fun": 40
     },
     "max_users": 2,
     "use_state_label": "{entity} 在看电视",
     "max_duration": 3600,
-    "success_message": "你在长椅上坐下来。",
-    "failure_message": "长椅坐满了。",
-    "leave_message": "你从长椅上站起来。",
-    "placeholder": true,
+    "success_message": "你在沙发上坐下，打开了电视。",
+    "failure_message": "沙发坐满了。",
+    "leave_message": "你关掉电视站起来。",
     "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
     "use_pos": [
       [
@@ -1054,48 +885,23 @@
       },
       {
         "type": "buff",
-        "key": "no_interact"
-      },
-      {
-        "type": "buff",
-        "key": "no_use"
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": 0.001667
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": 0.001667
-      },
-      {
-        "type": "buff",
         "key": "social_regen",
         "value": 0.001667
       },
       {
-        "type": "buff",
-        "key": "fullness_regen",
-        "value": -0.000278
-      },
-      {
         "type": "tag",
-        "key": "resting"
+        "key": "dining"
       }
     ],
     "advertise": {
-      "social": 35,
-      "fun": 10
+      "social": 35
     },
     "max_users": 2,
     "use_state_label": "{entity} 坐在吧台",
     "max_duration": 3600,
-    "success_message": "你在长椅上坐下来。",
-    "failure_message": "长椅坐满了。",
-    "leave_message": "你从长椅上站起来。",
-    "placeholder": true,
+    "success_message": "你在吧台坐下。",
+    "failure_message": "吧台坐满了。",
+    "leave_message": "你从吧台起身。",
     "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
     "use_pos": [
       [
@@ -1107,7 +913,10 @@
         1
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "dining": {
+      "allow": null
+    }
   },
   "fish_stall": {
     "prototype": "instant",
@@ -1132,8 +941,8 @@
         "20:00"
       ]
     ],
-    "placeholder": true,
-    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿 审核 11-10 ②：去掉遗留即时效果（原 fullness +15 / social +6 / energy −1），advertise 保留作「来这里能买到吃的」的规划提示。"
+    "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿 审核 11-10 ②：去掉遗留即时效果（原 fullness +15 / social +6 / energy −1），advertise 保留作「来这里能买到吃的」的规划提示。",
+    "cooldown_s": 0
   },
   "notice_board": {
     "prototype": "instant",
@@ -1156,7 +965,6 @@
     "advertise": {
       "fun": 10
     },
-    "placeholder": true,
     "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿"
   },
   "pc_music": {
@@ -1189,30 +997,19 @@
         "key": "no_use"
       },
       {
+        "type": "tag",
+        "key": "composing"
+      },
+      {
         "type": "buff",
         "key": "mood_regen",
         "value": 0.000833
-      },
-      {
-        "type": "buff",
-        "key": "fun_regen",
-        "value": -0.000833
-      },
-      {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001111
-      },
-      {
-        "type": "tag",
-        "key": "composing"
       }
     ],
     "advertise": {
       "fun": 25,
       "mood": 10
     },
-    "placeholder": true,
     "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
     "use_pos": [
       [
@@ -1220,7 +1017,8 @@
         1
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "work": true
   },
   "reading_desk": {
     "prototype": "continuous",
@@ -1262,11 +1060,6 @@
         "value": -0.000833
       },
       {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001111
-      },
-      {
         "type": "tag",
         "key": "reading"
       }
@@ -1275,7 +1068,6 @@
       "fun": 20,
       "mood": 10
     },
-    "placeholder": true,
     "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
     "use_pos": [
       [
@@ -1286,7 +1078,8 @@
         1,
         0
       ]
-    ]
+    ],
+    "work": true
   },
   "classroom_desk": {
     "prototype": "continuous",
@@ -1328,11 +1121,6 @@
         "value": -0.000833
       },
       {
-        "type": "buff",
-        "key": "energy_regen",
-        "value": -0.001111
-      },
-      {
         "type": "tag",
         "key": "working"
       }
@@ -1341,7 +1129,6 @@
       "fun": 5,
       "social": 10
     },
-    "placeholder": true,
     "bible_note": "世界设定 v1.0 草图占位：数值沿用旧表，等 03-objects 定稿",
     "use_pos": [
       [
@@ -1349,7 +1136,8 @@
         1
       ]
     ],
-    "use_facing": "up"
+    "use_facing": "up",
+    "work": true
   },
   "tree": {
     "prototype": "instant",
@@ -1364,8 +1152,7 @@
     "effects": [],
     "advertise": {},
     "success_message": "",
-    "failure_message": "这不能用。",
-    "placeholder": true
+    "failure_message": "这不能用。"
   },
   "shelf": {
     "prototype": "instant",
@@ -1380,8 +1167,7 @@
     "effects": [],
     "advertise": {},
     "success_message": "",
-    "failure_message": "这不能用。",
-    "placeholder": true
+    "failure_message": "这不能用。"
   },
   "boat": {
     "prototype": "instant",
@@ -1396,8 +1182,7 @@
     "effects": [],
     "advertise": {},
     "success_message": "",
-    "failure_message": "这不能用。",
-    "placeholder": true
+    "failure_message": "这不能用。"
   },
   "fountain": {
     "prototype": "instant",
@@ -1412,8 +1197,7 @@
     "effects": [],
     "advertise": {},
     "success_message": "",
-    "failure_message": "这不能用。",
-    "placeholder": true
+    "failure_message": "这不能用。"
   },
   "piano": {
     "prototype": "instant",
@@ -1428,8 +1212,7 @@
     "effects": [],
     "advertise": {},
     "success_message": "",
-    "failure_message": "这不能用。",
-    "placeholder": true
+    "failure_message": "这不能用。"
   },
   "dining_table": {
     "prototype": "continuous",
@@ -1448,7 +1231,7 @@
       },
       {
         "type": "buff",
-        "key": "social_regen",
+        "key": "table_social",
         "value": 0.002222
       },
       {
@@ -1461,7 +1244,7 @@
     },
     "max_users": 4,
     "use_state_label": "{entity} 坐在餐桌边",
-    "max_duration": 3600,
+    "max_duration": 7200,
     "success_message": "你在餐桌边坐下。",
     "failure_message": "餐桌边坐满了。",
     "leave_message": "你从餐桌边起身。",
@@ -1483,6 +1266,9 @@
         -1
       ]
     ],
-    "bible_note": "审核 11-10 ①：合租房 table_home 原误用 restaurant_table（收 20 金币、只在营业时段）。家用餐桌免费、全天；03-objects「吃背包食物时社交 +8（有人同桌）」按 +8/h social_regen 近似，吃东西用 eat。"
+    "bible_note": "审核 11-10 ①：合租房 table_home 原误用 restaurant_table（收 20 金币、只在营业时段）。家用餐桌免费、全天；03-objects「吃背包食物时社交 +8（有人同桌）」按 +8/h social_regen 近似，吃东西用 eat。",
+    "dining": {
+      "allow": null
+    }
   }
 }

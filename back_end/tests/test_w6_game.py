@@ -73,9 +73,9 @@ def _agent(client):
 def test_console_type_and_map():
     from game.object_types import OBJECT_TYPES
     t = OBJECT_TYPES["game_console"]
-    assert t["prototype"] == "continuous" and t["advertise"]["fun"] >= 80 and t["max_users"] == 1
+    assert t["prototype"] == "continuous" and t["advertise"]["fun"] >= 50 and t["max_users"] == 1
     assert any(e["type"] == "external" and e["key"] == "game" for e in t["effects"])
-    assert any(e["key"] == "energy_regen" and e["value"] < 0 for e in t["effects"])
+    assert any(e["key"] == "fun_regen" and abs(e["value"] - 20 / 3600) < 1e-6 for e in t["effects"])    # world-v1.1：玩 +20/h，娱乐不耗精力
     o = world_state.get_object_by_id(CONSOLE_ID)
     assert o and world_state.get_zone_at(o["position"]["x"], o["position"]["y"])["arena"] == "storage"
 

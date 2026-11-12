@@ -46,6 +46,17 @@ class GameObject(BaseModel):
     useFacing: Optional[str] = None                 # W10：使用者朝向；null = 面向物品
     shop: Optional[List[dict]] = None               # W10 ④：商店物品 [{type,item,name,price,sell,stock}]；非商店 null
     stock: Optional[dict] = None                    # W11 ④：库存 {item: n}（商店 / 冰箱）；其余 null
+    # world-v1.1
+    dining: Optional[bool] = None                   # 餐桌类（唯一进食地点）
+    dining_allow: Optional[List[str]] = None        # 长椅 = 简餐处：只许清单内物品；null = 不限
+    work: Optional[bool] = None                     # 工作 / 创作类（精力额外 −3/h；每日时长上限）
+    daily_limit_min: Optional[int] = None           # 每人每日使用上限（分钟），-b 批生效
+    daily_used_min: Optional[float] = None          # 按 ?player= 请求者（旁观页无 player 为 null）
+    storage: Optional[dict] = None                  # 冰箱 {capacity, used}
+    contents: Optional[List[dict]] = None           # 冰箱 [{item, name, count, expires_at, expires_in_days, spoiled}]
+    daily_supply: Optional[dict] = None             # 商店每日上新 {item: qty}
+    restock_at: Optional[str] = None                # "08:00"
+    cooking: Optional[dict] = None                  # 灶台 {by, item, portions, product, started_at, ready_at, ready_in_min}
     successMessage: Optional[str] = None
     failureMessage: Optional[str] = None
     currentUsers: int

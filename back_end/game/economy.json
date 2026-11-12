@@ -1,5 +1,5 @@
 {
-  "_doc": "W10 ④ 金币（06-economy.md 草稿假设值，全部可改）。initial_gold 按 agent_id，human 用 default。wages：按日程由 tick 结算（kind daily 在 pay_at 一次结清；hourly 在 hours 区间内每满 1 游戏小时结一次）。prices 在 items.json。 W11：production（产出链）、commissions（委托）、live_income（直播收入）、fridge（冰箱补货）、shops[].stock / restock_at（库存与每日补货）。",
+  "_doc": "world-v1.1 金币与供给（numeric-proposal-v1）。initial_gold 按 agent_id，human 用 default（③ 批改 3000）。wages 按日程由 tick 结算。shops[].daily_supply：每日 restock_at 固定上新（stock := daily_supply，卖完即止，老板不进货）。fridge：存储类（capacity 份、不自动补货 restock_enabled=false；initial 按物品 id / default 的初始内容）。production.stove：按份计时（minutes_first + minutes_extra×(n−1)），recipes 食材 → 成品，free_for_owner 的灶台由店主用时不扣食材。meal：餐厅一顿（eat {item:\"meal\"} 在餐厅桌上，开吃扣钱）。",
   "initial_gold": {
     "default": 300,
     "whale": 300,
@@ -58,13 +58,21 @@
       ],
       "buys": [],
       "stock": {
-        "bread": 10,
-        "sweets": 10,
-        "ingredients": 10,
+        "ingredients": 12,
+        "bread": 8,
+        "sweets": 6,
         "bait": 10,
         "gift": 3
       },
-      "restock_at": "08:00"
+      "restock_at": "08:00",
+      "daily_supply": {
+        "ingredients": 12,
+        "bread": 8,
+        "sweets": 6,
+        "bait": 10,
+        "gift": 3
+      },
+      "restock_mode": "reset"
     },
     "fish_stall": {
       "owner": "npc_fisher",
@@ -75,9 +83,13 @@
         "fish"
       ],
       "stock": {
-        "fish": 5
+        "fish": 6
       },
-      "restock_at": "08:00"
+      "restock_at": "08:00",
+      "daily_supply": {
+        "fish": 6
+      },
+      "restock_mode": "reset"
     },
     "bar": {
       "owner": "npc_rest_owner",
@@ -86,11 +98,13 @@
         "fish"
       ],
       "stock": {},
-      "restock_at": "08:00"
+      "restock_at": "08:00",
+      "daily_supply": {},
+      "restock_mode": "reset"
     }
   },
   "production": {
-    "_doc": "03-objects 3.1 假设值。fishing：每 interval_min 游戏分钟掷一次，p / 有鱼饵 p_bait（每次掷消耗 1 鱼饵）；stove：use 时消耗 consumes，满 minutes 后产 produces；compose / make_video：在 objects 类型物品上使用满 min_minutes 后动作成功产 item。",
+    "_doc": "03-objects 3.1 → v1.1。fishing：每 interval_min 游戏分钟掷一次，p / 有鱼饵 p_bait（每次掷消耗 1 鱼饵）；stove：use {item, qty} 立即扣 n 份食材，minutes_first + minutes_extra×(n−1) 后产 n 份 recipes[item]（提前 leave 白费）；compose / make_video：在 objects 类型物品上使用满 min_minutes 后动作成功产 item。",
     "fishing": {
       "interval_min": 40,
       "p": 0.5,
@@ -99,13 +113,23 @@
       "bait": "bait"
     },
     "stove": {
+      "minutes_first": 20,
+      "minutes_extra": 10,
+      "max_portions": 6,
+      "recipes": {
+        "ingredients": "home_meal",
+        "fish": "fish_dish"
+      },
+      "free_for_owner": {
+        "stove_rest": "npc_rest_owner"
+      },
       "consumes": {
         "ingredients": 1
       },
       "produces": {
-        "bento": 2
+        "home_meal": 1
       },
-      "minutes": 30
+      "minutes": 20
     },
     "compose": {
       "objects": [
@@ -152,11 +176,30 @@
     ]
   },
   "fridge": {
-    "_doc": "冰箱库存：use 消耗 1 份 consumes（没有则 empty）；每日 restock_at 补 restock_qty 份，不超过 max；初始 initial 份。store 动作可放食材进去。",
+    "_doc": "存储类：store / take；capacity 总份数；restock_enabled=false 不补货（实验 bench 可开，开则按 restock_qty / max 每日补 consumes）；initial 按物品 id，缺省 default。",
+    "capacity": 20,
+    "restock_enabled": false,
     "consumes": "ingredients",
-    "initial": 2,
     "restock_qty": 2,
     "max": 4,
-    "restock_at": "08:00"
+    "restock_at": "08:00",
+    "initial": {
+      "fridge_home": {
+        "home_meal": 6,
+        "ingredients": 4
+      },
+      "default": {
+        "home_meal": 4
+      }
+    }
+  },
+  "meal": {
+    "price": 20,
+    "minutes": 30,
+    "gain": {
+      "fullness": 45,
+      "mood": 5
+    },
+    "owner": "npc_rest_owner"
   }
 }

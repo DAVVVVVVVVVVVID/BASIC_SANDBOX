@@ -237,13 +237,13 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
     ext = external_effects.external_keys(obj)
 
     if obj.get("prototype") == "instant":
-        if obj["type"] == "fridge" and obj.get("stock") is not None:            # W11 ④：冰箱按库存吃
-            from game import economy as _eco
-            fitem = _eco.cfg().get("fridge", {}).get("consumes", "ingredients")
-            if int(obj["stock"].get(fitem, 0)) < 1:
-                return ActionResponse(success=False, type="use", reason="empty",
-                                      result={"message": "冰箱空了，去杂货店买点食材吧。", "objectId": obj["id"], "stock": dict(obj["stock"])})
-            obj["stock"][fitem] = int(obj["stock"].get(fitem, 0)) - 1
+        if obj.get("contents") is not None:                                     # world-v1.1：冰箱是储物柜，use 只回内容与提示（无效果、无冷却）
+            from game import food as _food
+            cv = _food.contents_view(obj, game_now_ts())
+            msg = ("冰箱空了，去杂货店买点食材吧。" if not cv else "冰箱里有：" + "、".join(f"{c['name']}×{c['count']}" for c in cv) + "。take 拿出来，到餐桌 eat。")
+            return ActionResponse(success=True, type="use",
+                                  result={"message": msg, "objectId": obj["id"], "contents": cv, "storage": {"capacity": _food.capacity(obj), "used": _food.used(obj)},
+                                          "stock": dict(obj.get("stock") or {}), "empty": not cv})
         apply_instant_object(obj["id"], entity_id)
         record_object_use(entity_id, obj["id"])            # B10：没信号也算用过（有冷却）
         result = {"message": obj.get("successMessage"), "objectId": obj["id"]}
@@ -278,19 +278,7 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
             },
         )
 
-    if obj["type"] == "restaurant_table":                   # W10 ④：餐厅吃饭 meal_price（economy.json），钱不够不坐下
-        from game import economy
-        price = int(economy.cfg().get("meal_price", 0))
-        pl = _players.get(entity_id, player)
-        if price and int(pl.get("gold", 0)) < price:
-            return ActionResponse(success=False, type="use", reason="insufficient_funds",
-                                  result={"message": f"一顿要 {price} 金币，身上只有 {int(pl.get('gold', 0))}。", "objectId": obj["id"],
-                                          "price": price, "gold": int(pl.get("gold", 0))})
-        if price:
-            economy.ledger("buy", pl, -price, item="meal", qty=1, price=price, shop=obj["id"], shop_type=obj["type"])
-            owner = economy_actions._owner_player("bar")
-            if owner is not None and owner["id"] != pl["id"]:
-                economy.ledger("income", owner, price, source="restaurant_meal", shop=obj["id"], peer=pl["id"])
+    # world-v1.1：餐厅坐下免费，点一顿在 eat {item:"meal"} 时扣钱（§1.1）
 
     if "live" in ext:                                       # B11 直播台：先开播，失败就不坐下
         live = external_effects.live_start(_players.get(entity_id, player), game_now_iso())
@@ -315,25 +303,34 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
         _players[entity_id]["game"] = g["game"]
 
     from game import production as _prod
-    perr = _prod.on_enter(_players.get(entity_id, player), obj, game_now_ts())     # W11 ①：灶台消耗食材、钓位开始计时
+    pl = _players.get(entity_id, player)
+    perr = _prod.on_enter(pl, obj, game_now_ts(), payload)     # W11 ① / v1.1：灶台按份扣食材并计时、钓位开始计时
     if perr:
-        return ActionResponse(success=False, type="use", reason=perr,
-                              result={"message": "没有食材，先去杂货店买点。", "objectId": obj["id"]})
+        extra = pl.pop("_use_err", None) or {}
+        msg = {"no_ingredients": "食材不够，先去杂货店买点。", "not_cookable": "这个不能下锅。"}.get(perr, obj.get("failureMessage"))
+        return ActionResponse(success=False, type="use", reason=perr, result={"message": msg, "objectId": obj["id"], **extra})
     enter_object(obj["id"], entity_id)
     record_object_use(entity_id, obj["id"])
     updated = get_player(entity_id)
-    return ActionResponse(
-        success=True,
-        type="use",
-        result={
-            "message":      obj.get("successMessage"),
-            "playerState":  updated["state"] if updated else "using",
-            "stateLabel":   updated["stateLabel"] if updated else None,
-            "objectId":     obj["id"],
-            "currentUsers": obj["currentUsers"],
-            "maxUsers":     obj["maxUsers"],
-        },
-    )
+    result = {
+        "message":      obj.get("successMessage"),
+        "playerState":  updated["state"] if updated else "using",
+        "stateLabel":   updated["stateLabel"] if updated else None,
+        "objectId":     obj["id"],
+        "currentUsers": obj["currentUsers"],
+        "maxUsers":     obj["maxUsers"],
+    }
+    if obj["type"] == "stove":
+        result["cooking"] = _prod.cooking_view(obj["id"], game_now_ts())
+        if result["cooking"]:
+            result["message"] = f"开火做 {result['cooking']['portions']} 份，{result['cooking']['ready_in_min']:.0f} 分钟后好。中途走就白费了。"
+    if "feed" in ext:                                           # world-v1.1：手机改持续使用，进入时拉一次 feed 摘要
+        digest = external_effects.fetch_feed(pl, game_now_iso())
+        set_phone_feed(entity_id, digest)
+        external_log.log("feed", entity_id, object=obj["id"], status=digest["status"], items=len(digest.get("items") or []))
+        result["phone"] = digest
+        result["message"] = external_effects.feed_text(digest) if digest["status"] == "ok" else result["message"]
+    return ActionResponse(success=True, type="use", result=result)
 
 
 def handle_leave(entity_id: str, payload: dict) -> ActionResponse:
@@ -560,6 +557,8 @@ _HANDLERS = {
     "give":         economy_actions.handle_give,
     # W11 ①④
     "store":        economy_actions.handle_store,
+    "take":         economy_actions.handle_take,
+    "discard":      economy_actions.handle_discard,
     "knock":        handle_knock,                 # §3.40
     "open_door":    handle_open_door,             # §3.41
     "say":          handle_say,                   # Q6 靠近即可说

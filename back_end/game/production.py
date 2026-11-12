@@ -2,7 +2,8 @@
 产出链（W11 ①，03-objects 3.1 假设值，全在 economy.json `production`）。
 
 - 钓位：使用中每 interval_min 游戏分钟掷一次（p；有鱼饵 p_bait，每次掷消耗 1 鱼饵），中了「鱼」进背包。
-- 灶台：use 时消耗食材（不够 → use 失败 no_ingredients），满 minutes 游戏分钟产便当 ×2；提前 leave 不产（食材已耗）。
+- 灶台（world-v1.1 按份）：use {item?="ingredients"|"fish", qty?=1} 立即扣 n 份食材（不够 → no_ingredients），minutes_first + minutes_extra×(n−1)
+  游戏分钟后产 n 份 recipes[item]（家常菜 / 鱼料理，带保鲜期）；提前 leave 白费（ws cook_cancelled）。free_for_owner 的灶台由店主用时不扣食材。
 - compose / make_video：POST /action，须正在使用配置里的物品类型且已用满 min_minutes；产「歌」/「电台文稿」（文件类，带 meta）。
 随机数用 SANDBOX_SEED 定种（seed 为空时真随机，记 external nondeterministic）；每次产出记 external `produce` 一行 + ws `produce` 事件。
 """
@@ -39,26 +40,68 @@ def _notify(player: dict, kind: str, item: str, qty: int, **fields) -> None:
 
 
 # ── 钓位 ──
-def on_enter(player: dict, obj: dict, gts: float) -> str | None:
-    """use 成功前调用：灶台检查并消耗食材；返回失败 reason 或 None。"""
+def stove_plan(player: dict, obj: dict, payload: dict | None) -> tuple[dict | None, str | None, dict | None]:
+    """算这次下厨：返回 (plan, reason, extra)。plan = {item, qty, product, minutes, free}。"""
     from game import inventory
-    pc = cfg()
+    sc = cfg().get("stove", {})
+    recipes = sc.get("recipes") or {"ingredients": "home_meal"}
+    item = (payload or {}).get("item") or "ingredients"
+    try:
+        qty = max(1, int((payload or {}).get("qty", 1)))
+    except (TypeError, ValueError):
+        qty = 1
+    qty = min(qty, int(sc.get("max_portions", 6)))
+    if item not in recipes:
+        return None, "not_cookable", {"item": item, "cookable": sorted(recipes)}
+    free_owner = (sc.get("free_for_owner") or {}).get(obj["id"])
+    free = bool(free_owner) and (player.get("agent_id") == free_owner)
+    have = inventory.count(player, item)
+    if not free and have < qty:
+        return None, "no_ingredients", {"item": item, "have": have, "need": qty}
+    minutes = float(sc.get("minutes_first", 20)) + float(sc.get("minutes_extra", 10)) * (qty - 1)
+    return {"item": item, "qty": qty, "product": recipes[item], "minutes": minutes, "free": free}, None, None
+
+
+def on_enter(player: dict, obj: dict, gts: float, payload: dict | None = None) -> str | None:
+    """use 成功前调用：灶台按份扣食材并开计时；钓位开始计时。返回失败 reason 或 None。失败细节在 player['_use_err']。"""
+    from game import inventory
+    player.pop("_use_err", None)
     if obj["type"] == "fishing_spot":
         _fish[player["id"]] = {"last_roll_gts": gts, "rolls": 0, "object": obj["id"]}
     elif obj["type"] == "stove":
-        need = pc.get("stove", {}).get("consumes", {})
-        for item, n in need.items():
-            if inventory.count(player, item) < n:
-                return "no_ingredients"
-        for item, n in need.items():
-            inventory.remove(player, item, n)
-        _stove[player["id"]] = {"start_gts": gts, "done": False, "object": obj["id"]}
+        plan, reason, extra = stove_plan(player, obj, payload)
+        if reason:
+            player["_use_err"] = extra or {}
+            return reason
+        if not plan["free"]:
+            inventory.remove(player, plan["item"], plan["qty"])
+        _stove[player["id"]] = {"start_gts": gts, "done": False, "object": obj["id"], "item": plan["item"], "qty": plan["qty"],
+                                "product": plan["product"], "minutes": plan["minutes"], "ready_gts": gts + plan["minutes"] * 60.0}
+    return None
+
+
+def cooking_view(obj_id: str, gts: float) -> dict | None:
+    """物品的 cooking 字段：{by, item, portions, product, started_at, ready_at, ready_in_min}。"""
+    for pid, st in _stove.items():
+        if st.get("object") == obj_id and not st.get("done"):
+            from game.food import _iso
+            return {"by": pid, "item": st.get("item"), "portions": st.get("qty"), "product": st.get("product"),
+                    "started_at": _iso(st["start_gts"]), "ready_at": _iso(st["ready_gts"]), "ready_in_min": max(0, round((st["ready_gts"] - gts) / 60.0, 1))}
     return None
 
 
 def on_leave(player: dict) -> None:
     _fish.pop(player["id"], None)
-    _stove.pop(player["id"], None)
+    st = _stove.pop(player["id"], None)
+    if st and not st.get("done"):                                  # 中途走：已扣的食材白费
+        from game import external_log, world_state
+        external_log.log("produce", player["id"], via="stove", action="cancelled", item=st.get("item"), qty=st.get("qty"), object=st.get("object"))
+        try:
+            from routers.ws import hub
+            hub.push_event({"type": "cook_cancelled", "entity": player["id"], "object": st.get("object"), "item": st.get("item"), "qty": st.get("qty")})
+        except Exception:
+            pass
+        world_state._pending_messages[player["id"]] = "饭没做完就走了，食材白费了。"
 
 
 def on_tick(gts: float, players: dict) -> None:
@@ -80,16 +123,20 @@ def on_tick(gts: float, players: dict) -> None:
             hit = _rng("fish", pid, st["object"], st["rolls"]).random() < prob
             if hit and inventory.add(p, fc.get("item", "fish"), 1) is None:
                 _notify(p, "fishing", fc.get("item", "fish"), 1, object=st["object"], roll=st["rolls"], bait=has_bait, p=prob)
-    sc = pc.get("stove", {})
     for pid, st in list(_stove.items()):
         p = players.get(pid)
         if p is None or p.get("usingObjectId") != st["object"]:
             _stove.pop(pid, None); continue
-        if not st["done"] and gts - st["start_gts"] >= float(sc.get("minutes", 30)) * 60.0:
+        if not st["done"] and gts >= st.get("ready_gts", st["start_gts"] + st.get("minutes", 20) * 60.0):
             st["done"] = True
-            for item, n in sc.get("produces", {}).items():
-                if inventory.add(p, item, n) is None:
-                    _notify(p, "stove", item, n, object=st["object"])
+            item, n = st.get("product", "home_meal"), int(st.get("qty", 1))
+            err = inventory.add(p, item, n, now_gts=gts)
+            if err is None:
+                _notify(p, "stove", item, n, object=st["object"], portions=n)
+            else:
+                from game import world_state
+                world_state._pending_messages[pid] = f"做好了 {n} 份，可是背包放不下（{err}）。"
+                _notify(p, "stove", item, 0, object=st["object"], portions=n, error=err)
 
 
 # ── compose / make_video ──
@@ -120,7 +167,7 @@ def craft(entity_id: str, kind: str, payload: dict) -> tuple[dict | None, str | 
             if payload.get(k) is not None:
                 meta[k] = payload[k]
         meta["created_at"] = game_now_iso(); meta["by"] = p.get("agent_id") or p["id"]
-        err = inventory.add(p, item, 1, meta=meta)
+        err = inventory.add(p, item, 1, meta=meta, expires_at=None)
         if err:
             return None, err, {"objectId": oid}
         _notify(p, kind, item, 1, object=oid, title=title, commission_id=meta.get("commission_id"))

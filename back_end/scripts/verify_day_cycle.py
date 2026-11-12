@@ -47,7 +47,7 @@ def main() -> int:
             if start_date is None:
                 start_date = ws_["date"]
             objs = {o["id"]: o for o in w["objects"]}
-            snap = {"fridge": objs["fridge_home"]["stock"]["ingredients"], "bread": objs["counter"]["stock"]["bread"],
+            snap = {"fridge": objs["fridge_home"]["stock"].get("ingredients", 0), "bread": objs["counter"]["stock"]["bread"],
                     "rest_open": objs["table_rest_1"]["open"], "groc_open": objs["counter"]["open"]}
             for p in w["players"]:
                 if p["id"] in pid2aid:
@@ -74,9 +74,8 @@ def main() -> int:
         hits = [hm for _, hm, kk, _, v in events if kk == k and v == want and lo <= hm <= hi]
         return hits[0] if hits else None
     checks = {
-        "08:00 冰箱 +2": at("fridge", 2, "08:00", "08:08"),
-        "08:00 商店补到水位": at("bread", 10, "08:00", "08:08"),
-        "09:00 杂货店开": at("groc_open", True, "09:00", "09:08"), "20:00 杂货店关": at("groc_open", False, "20:00", "20:08"),
+        "08:00 商店上新到 daily_supply": at("bread", 8, "08:00", "08:08"),          # v1.1：固定上新 8；冰箱不再自动补货（restock_enabled=false）
+        "09:00 杂货店开": at("groc_open", True, "09:00", "09:08"), "22:00 杂货店关": at("groc_open", False, "22:00", "22:08"),
         "11:00 餐厅开": at("rest_open", True, "11:00", "11:08"), "14:00 餐厅关": at("rest_open", False, "14:00", "14:08"),
         "17:00 餐厅开": at("rest_open", True, "17:00", "17:08"), "21:00 餐厅关": at("rest_open", False, "21:00", "21:08"),
         "18:30 阿蝉日薪": at("gold:achan", gold0["achan"] + 150, "18:30", "18:38"),

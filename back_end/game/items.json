@@ -1,12 +1,17 @@
 {
-  "_doc": "W10 背包物品目录（03-objects.md 3.2，数值为假设）。class：food 随处吃 / material 进冰箱灶台 / consumable 钓鱼耗材 / gift 送人 / file 文件类（可走 QQ）。price = 杂货店买价，sell = 卖出价（null 不可买 / 不可卖）。 key：钥匙（§3.41，meta.door_id 指门，总数固定，只能 give，不进 QQ）。",
+  "_doc": "world-v1.1 背包物品目录（numeric-proposal-v1 §1.1 / §1.2 / §2 I-3 / I-6 / Q-5）。class：food 成品（只能在餐桌类吃）/ material 食材（可生吃 +10、进灶台）/ consumable 钓鱼耗材 / gift 送人 / item 实体（CD / 稿子，当面 give）/ key 钥匙（不占种数）。price = 杂货店买价，sell = 收购价（null 不可买 / 不可收）。eat = {fullness, mood?, minutes}（在餐桌类上持续 minutes 游戏分钟线性涨）；spoil_days = 获得后 N×24 游戏小时变 spoiled_food（null 不坏）；give = 送出时对方亲密度 / 心情（食物类 +3）。背包 10 种 × 每种 20 个。",
   "bread": {
     "name": "面包",
     "class": "food",
     "price": 5,
     "sell": 2,
     "eat": {
-      "fullness": 25
+      "fullness": 20,
+      "minutes": 5
+    },
+    "spoil_days": null,
+    "give": {
+      "closeness": 3
     }
   },
   "sweets": {
@@ -15,32 +20,58 @@
     "price": 6,
     "sell": 2,
     "eat": {
-      "fullness": 10,
-      "mood": 6
+      "fullness": 5,
+      "mood": 6,
+      "minutes": 5
+    },
+    "spoil_days": null,
+    "give": {
+      "closeness": 3
     }
   },
   "bento": {
-    "name": "便当",
+    "name": "便当（旧）",
     "class": "food",
     "price": null,
     "sell": null,
     "eat": {
-      "fullness": 40
-    }
+      "fullness": 40,
+      "minutes": 15
+    },
+    "spoil_days": 3,
+    "give": {
+      "closeness": 3
+    },
+    "legacy": true
   },
   "ingredients": {
     "name": "食材",
     "class": "material",
     "price": 8,
-    "sell": 3
+    "sell": 3,
+    "eat": {
+      "fullness": 10,
+      "minutes": 5
+    },
+    "spoil_days": 5,
+    "cook": "home_meal",
+    "give": {
+      "closeness": 3
+    }
   },
   "fish": {
     "name": "鱼",
-    "class": "food",
-    "price": 12,
+    "class": "material",
+    "price": 15,
     "sell": 10,
     "eat": {
-      "fullness": 30
+      "fullness": 10,
+      "minutes": 5
+    },
+    "spoil_days": 5,
+    "cook": "fish_dish",
+    "give": {
+      "closeness": 3
     }
   },
   "bait": {
@@ -60,27 +91,71 @@
     }
   },
   "song": {
-    "name": "歌（文件）",
+    "name": "歌（文件，旧）",
     "class": "file",
     "price": null,
-    "sell": null
+    "sell": null,
+    "legacy": true
   },
   "script": {
-    "name": "电台文稿（文件）",
+    "name": "电台文稿（文件，旧）",
     "class": "file",
     "price": null,
-    "sell": null
+    "sell": null,
+    "legacy": true
   },
   "image": {
-    "name": "图片（文件）",
+    "name": "图片（文件，旧）",
     "class": "file",
     "price": null,
-    "sell": null
+    "sell": null,
+    "legacy": true
   },
   "key": {
     "name": "钥匙",
     "class": "key",
     "price": null,
     "sell": null
+  },
+  "home_meal": {
+    "name": "家常菜",
+    "class": "food",
+    "price": null,
+    "sell": null,
+    "eat": {
+      "fullness": 40,
+      "minutes": 15
+    },
+    "spoil_days": 3,
+    "give": {
+      "closeness": 3
+    }
+  },
+  "fish_dish": {
+    "name": "鱼料理",
+    "class": "food",
+    "price": null,
+    "sell": null,
+    "eat": {
+      "fullness": 45,
+      "mood": 3,
+      "minutes": 15
+    },
+    "spoil_days": 3,
+    "give": {
+      "closeness": 3
+    }
+  },
+  "spoiled_food": {
+    "name": "坏掉的食物",
+    "class": "food",
+    "price": null,
+    "sell": null,
+    "eat": {
+      "fullness": 0,
+      "mood": -3,
+      "minutes": 5
+    },
+    "spoil_days": null
   }
 }

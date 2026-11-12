@@ -194,6 +194,8 @@ def on_tick(game_ts: float, players: dict[str, dict]) -> int:
                 "scene": p.get("scene", "sandbox"),
                 "ts": _iso(game_ts),
                 "vars_delta": delta,
+                "asleep": "sleeping" in (p.get("tags") or []),      # world-v1.1：自我层按醒 / 睡两套衰减同源
+                "working": "working" in (p.get("tags") or []),      # world-v1.1：工作中精力再 −3/h
                 "snapshot": {v: float(p.get(v, 0.0)) for v in VARS},
             })
             n += 1
@@ -213,6 +215,7 @@ def process_batch(batch: dict, client: httpx.Client | None = None) -> bool:
     body = {
         "agent": batch["agent"], "scene": batch["scene"], "ts": batch["ts"],
         "vars_delta": batch["vars_delta"], "source": "sandbox_tick",
+        "asleep": bool(batch.get("asleep", False)), "working": bool(batch.get("working", False)),
     }
     try:
         own = client is None
@@ -273,7 +276,8 @@ def push_local_now(player: dict, game_ts: float) -> dict:
             delta = {v: round(float(player.get(v, 0.0)) - float(remote[v]), 6) for v in VARS if v in remote}
             delta = {k: d for k, d in delta.items() if abs(d) > 1e-6}
             if delta:
-                body = {"agent": agent, "scene": player.get("scene", "sandbox"), "ts": _iso(game_ts), "vars_delta": delta, "source": "scenario"}
+                body = {"agent": agent, "scene": player.get("scene", "sandbox"), "ts": _iso(game_ts), "vars_delta": delta, "source": "scenario",
+                        "asleep": "sleeping" in (player.get("tags") or []), "working": "working" in (player.get("tags") or [])}
                 r2 = c.post("/self/state/delta", json=body); r2.raise_for_status()
                 after = (r2.json().get("vars") or {})
             else:

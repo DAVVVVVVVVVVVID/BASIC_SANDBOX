@@ -10,21 +10,19 @@ def test_object_types_have_advertise_and_cost_and_no_hp():
     for name, t in OBJECT_TYPES.items():
         if not t.get("interactable", True) or t.get("placeholder"):      # W9：装饰物与 v1.0 草图占位类型，数值待定稿
             continue
-        if name in ("shop_counter", "fish_stall", "dining_table"):          # 审核 11-10：商店只承载 buy/sell 无即时效果；家用餐桌免费
-            continue
         assert isinstance(t.get("advertise"), dict), name
         keys = [e["key"] for e in t["effects"]]
         assert "hp" not in keys and "hp_regen" not in keys, name
-        negative = [e for e in t["effects"]
-                    if e["type"] in ("instant_effect", "buff") and isinstance(e.get("value"), (int, float))
-                    and e["value"] < 0 and e["key"].split("_")[0] in ("fullness", "energy", "social", "fun", "mood")]
-        assert negative, f"{name} 必须至少有一项成本"
+        # world-v1.1：物品不再各带精力 / 饱腹成本，成本统一由 needs.json 的衰减（醒 −3 / 工作再 −3 / 直播再 −3）承担
+        for e in t["effects"]:
+            if e["type"] == "buff" and e["key"] in ("energy_regen", "fullness_regen") and e.get("value", 0) < 0:
+                raise AssertionError(f"{name} 不该再自带精力 / 饱腹成本")
 
 
 def test_world_sends_advertise(client):
     objs = client.get("/world").json()["objects"]
     bed = next(o for o in objs if o["id"] == BED_ID)
-    assert bed["advertise"] == {"energy": 80, "fun": 0}
+    assert bed["advertise"] == {"energy": 80}
 
 
 def test_cooldown_blocks_reuse_then_expires(client, fake_clock):
@@ -62,21 +60,22 @@ def test_recent_uses_window_6h(client, fake_clock):
 
 
 def test_instant_object_applies_cost_and_cooldown(client, fake_clock):
+    """瞬时物品（书架 book：fun +60 / energy −2）：效果 + 30 分钟冷却。冰箱 v1.1 起是储物柜，无效果无冷却。"""
     pid = join(client)
-    fridge = world_state._build_objects([{"id": "fridge_t", "type": "fridge", "position": {"x": 3, "y": 4}}])[0]
-    world_state._OBJECTS.append(fridge)
+    book = world_state._build_objects([{"id": "book_t", "type": "book", "position": {"x": 3, "y": 4}}])[0]
+    world_state._OBJECTS.append(book)
     try:
-        place(pid, *BED_STAND)        # (3,5) 朝 up → (3,4) 现在是 fridge_t（_OBJECTS 顺序：床先匹配）
-        world_state._OBJECTS.remove(fridge); world_state._OBJECTS.insert(0, fridge)
+        place(pid, *BED_STAND)        # (3,5) 朝 up → (3,4) 现在是 book_t（_OBJECTS 顺序：床先匹配）
+        world_state._OBJECTS.remove(book); world_state._OBJECTS.insert(0, book)
         p = world_state._players[pid]
-        p["fun"] = 50.0
+        p["fun"] = 30.0; e0 = p["energy"]
         res = action(client, pid, "use")
-        assert res["success"] and res["result"]["objectId"] == "fridge_t"
-        assert p["fullness"] == 100.0 and p["fun"] == pytest.approx(48.0, abs=1e-3)
+        assert res["success"] and res["result"]["objectId"] == "book_t"
+        assert p["fun"] == pytest.approx(90.0, abs=1e-3) and p["energy"] == pytest.approx(e0 - 2, abs=1e-3)
         assert action(client, pid, "use")["reason"] == "object_cooldown"
         assert "reading" not in p["tags"]
     finally:
-        world_state._OBJECTS.remove(fridge)
+        world_state._OBJECTS.remove(book)
 
 
 def test_cooldown_survives_checkpoint(client, fake_clock):

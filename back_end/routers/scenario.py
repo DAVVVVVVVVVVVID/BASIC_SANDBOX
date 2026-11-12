@@ -297,12 +297,21 @@ def op_set_fridge(step: dict) -> dict:
     obj = world_state.get_object_by_id(step.get("id") or step.get("object") or "fridge_home")
     if obj is None or obj["type"] != "fridge":
         raise StepError(f"fridge not found: {step.get('id')}")
-    item = cfg().get("fridge", {}).get("consumes", "ingredients")
+    from game import food, inventory
+    item = step.get("item") or cfg().get("fridge", {}).get("consumes", "ingredients")
+    if inventory.item_def(item) is None:
+        raise StepError(f"unknown item: {item}")
     with world_state.STATE_LOCK:
-        obj["stock"] = obj.get("stock") or {}
-        obj["stock"][item] = max(0, int(step.get("qty", 0)))
+        qty = max(0, int(step.get("qty", 0)))
+        if "item" not in step:                                       # 不带 item：整台冰箱 = qty 份默认食材（qty 0 = 清空，R1「资源不可得」）
+            obj["contents"] = []
+        elif step.get("clear", True):                                # 带 item：只重写这一种（其他种类不动）
+            obj["contents"] = [c for c in (obj.get("contents") or []) if c["item"] != item]
+        if qty:
+            food.store(obj, item, qty, inventory.expires_at_for(item, world_state.game_now_ts()))
+        food.refresh_stock(obj)
         pinned, state = _pin_restock_today(obj)
-    return {"id": obj["id"], "stock": dict(obj["stock"]), "restock_pinned": pinned, "restock_state": state}
+    return {"id": obj["id"], "stock": dict(obj["stock"]), "contents": food.contents_view(obj, world_state.game_now_ts()), "restock_pinned": pinned, "restock_state": state}
 
 
 def op_set_stock(step: dict) -> dict:

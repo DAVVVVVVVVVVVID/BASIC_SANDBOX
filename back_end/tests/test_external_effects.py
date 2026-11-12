@@ -57,6 +57,7 @@ def test_phone_fetches_digest_into_perceive(client, fake_self):
     fun0, social0, energy0 = p["fun"], p["social"], p["energy"]
     res = action(client, pid, "use")
     assert res["success"] and res["result"]["objectId"] == PHONE_ID
+    assert p["usingObjectId"] == PHONE_ID and "browsing" in p["tags"]            # world-v1.1：手机改持续使用
     assert "有观众想听一首老歌" in res["result"]["message"] and "点歌" in res["result"]["message"]
     digest = res["result"]["phone"]
     assert digest["status"] == "ok" and digest["digest_ts"] == "2026-11-06T20:05:00+08:00"
@@ -64,7 +65,9 @@ def test_phone_fetches_digest_into_perceive(client, fake_self):
     assert set(item) <= set(external_effects.FEED_ITEM_FIELDS)        # 原文 / id / author 不进沙盒
     for bad in ("id", "source", "author", "text"):
         assert bad not in item
-    assert (p["fun"], p["social"], p["energy"]) == (fun0 + 15, social0 + 5, energy0 - 2)
+    assert (p["fun"], p["social"], p["energy"]) == (fun0, social0, energy0)        # 娱乐 +15/h 按时长线性给，进入时不跳
+    assert any(b["key"] == "fun_regen" and b["value"] > 0 for b in p["buffs"])
+    assert action(client, pid, "leave")["success"]
     per = client.get("/agent/perceive", params={"entity_id": pid}).json()
     assert per["phone"]["status"] == "ok" and per["phone"]["items"][0]["summary"] == "有观众想听一首老歌"
     assert "text" not in json.dumps(per["phone"])
@@ -75,12 +78,10 @@ def test_phone_no_signal_when_self_down_still_cooldown(client, fake_self):
     place(pid, *PHONE_STAND)
     fake_self.down = True
     res = action(client, pid, "use")
-    assert res["success"] is False and res["reason"] == "feed_unavailable"
-    assert "没信号" in res["result"]["message"]
-    assert res["result"]["phone"]["status"] == "no_signal"
+    assert res["success"] and res["result"]["phone"]["status"] == "no_signal"      # world-v1.1：没信号也能坐着刷，只是没摘要
     assert client.get("/agent/perceive", params={"entity_id": pid}).json()["phone"]["status"] == "no_signal"
-    assert world_state.object_cooldown_remaining(pid, PHONE_ID) > 1700       # 仍算用过
-    assert action(client, pid, "use")["reason"] == "object_cooldown"
+    assert action(client, pid, "leave")["success"]
+    assert world_state.object_cooldown_remaining(pid, PHONE_ID) > 1700       # 手机仍按类型冷却（-b 批改每日上限）
 
 
 def test_phone_empty_feed_and_perceive_null_before_use(client, fake_self):
@@ -144,8 +145,8 @@ def test_stream_desk_live_decay_rates_apply(client, fake_self, fake_clock):
     p["social"] = 50.0
     ticker.tick_once(checkpoint=False)
     fake_clock.advance(60); ticker.tick_once(checkpoint=False)
-    # live：social −0.12/s 衰减 + 直播 +20/h
-    assert p["social"] == pytest.approx(50 - 0.12 * 60 + 20 / 60, abs=0.01)
+    # world-v1.1：直播中社交同醒着 −2/h（直播台不再挂 social_regen；一场 +10 在下播时加）
+    assert p["social"] == pytest.approx(50 - 2 / 60, abs=0.01)
 
 
 def test_stream_desk_human_live_unavailable(client, fake_self):

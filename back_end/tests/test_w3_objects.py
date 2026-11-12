@@ -64,7 +64,7 @@ def test_object_rates_are_hourly_scale():
 
 
 def test_sleep_8h_restores_energy_from_0_to_about_100():
-    """22:00 睡到 06:00：bed +25/h × 8 = 200，减去衰减 8/h（0–6 点 ×1.5）≈ 80 → 0 起步应回到 ≈ 100（clamp）。"""
+    """world-v1.1 §2.1：bed +10/h、睡着不衰减 → 22:00 睡到 06:00 恰 +80；醒着 16 h −48 + 8 h 工作 −24 = 72 < 80。"""
     p = world_state._make_player("w", "w")
     p["energy"] = 0.0
     bed = OBJECT_TYPES["bed"]
@@ -72,24 +72,26 @@ def test_sleep_8h_restores_energy_from_0_to_about_100():
     end = _ts(6, day=11)
     for i in range(1, 8 * 60 + 1):               # 每游戏分钟一步
         run_tick(p, 60_000.0, game_ts=end - 8 * 3600 + i * 60)
-    assert p["energy"] >= 99.0, p["energy"]
-    # 不 clamp 的净值：200 − (6h×8 + 2h×12)... 用 energy=0 且 regen 只 4 h 验证线性：
-    p2 = world_state._make_player("w2", "w2"); p2["energy"] = 10.0   # 不贴 0 边界
+    assert p["energy"] == pytest.approx(80.0, abs=0.05), p["energy"]
+    p2 = world_state._make_player("w2", "w2"); p2["energy"] = 10.0
     world_state.apply_effects(p2, bed["effects"], source="bed_t")
     for i in range(1, 4 * 60 + 1):
-        run_tick(p2, 60_000.0, game_ts=_ts(16) + i * 60)     # 16:00–20:00 白天
-    assert p2["energy"] == pytest.approx(10 + 4 * (25 - 8), abs=0.05)
-    assert p2["fun"] == pytest.approx(60 - 4 * (10 + 1), abs=0.05)   # 睡觉 fun −1/h + 衰减 10/h
+        run_tick(p2, 60_000.0, game_ts=_ts(16) + i * 60)     # 16:00–20:00 白天睡 4 h
+    assert p2["energy"] == pytest.approx(10 + 4 * 10, abs=0.05)
+    assert p2["fun"] == pytest.approx(60.0, abs=0.05) and p2["social"] == pytest.approx(60.0, abs=0.05)   # 睡着娱乐 / 社交不降
+    assert p2["fullness"] == pytest.approx(70 - 4 * 1.5, abs=0.05)                                      # 睡着饱腹 −1.5/h
 
 
 def test_meal_restores_about_a_third_of_daily_decay(client):
+    """world-v1.1：冰箱是储物柜——use 只回内容，不涨任何值；吃要 take 出来到餐桌 eat（见 test_w11_production）。"""
     pid = join(client)
     place(pid, *FRIDGE_STAND)
     p = world_state._players[pid]
     p["fullness"] = 20.0; p["energy"] = 50.0; p["fun"] = 50.0
     res = action(client, pid, "use")
     assert res["success"] and res["result"]["objectId"] == FRIDGE_ID
-    assert p["fullness"] == 60.0 and p["energy"] == 55.0 and p["fun"] == 48.0
+    assert res["result"]["contents"][0]["item"] == "home_meal" and res["result"]["storage"]["capacity"] == 20
+    assert p["fullness"] == 20.0 and p["energy"] == 50.0 and p["fun"] == 50.0
 
 
 # ── B16 新地图 ────────────────────────────────────────────────────────────────

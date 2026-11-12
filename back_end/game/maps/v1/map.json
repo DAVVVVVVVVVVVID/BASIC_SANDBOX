@@ -22,9 +22,9 @@
   "tiles": [
     "##............................................############bbbbbb",
     "##.F..........FFF............FFFF..........FF.#...........bbbbbb",
-    "##.F.affafffa.FFF.affafffffa.FFFF.affffffa.FF.#.afff.fffa.bbbbbb",
+    "##.F.affafffa.FFF.affafffffa.FFFF.affffffa.FF.#.afff.affa.bbbbbb",
     "##.F.ffffffff.FFF.ffffffffff.FFFF.ffffffff.FF.#.afff.ffff.bbbbbb",
-    "##.F.ffffffff.FFF.fffffffffa.FFFF.ffffffff.FF.#.fffffffff.bbbbbb",
+    "##.F.ffffffff.FFF.fffffffffa.FFFF.ffffffff.FF.#.ffffffaaf.bbbbbb",
     "##.F.ffffffff.FFF.ffffffffff.FFFF.ffffffff.FF.#.ffff.ffff.bbbbbb",
     "##.F.....f....FFF.....f......FFFF....f.....FF.#.fffffffff.bbbbbb",
     "##.FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.#.....f.....bbbbbb",
@@ -45,7 +45,7 @@
     "##.affffa.fffff.##############FFFFFFFFFFFFFFFF...........#bbbbbb",
     "##.afffff.faaff.#######F######FFFaaFFFFFFFaaFF.faafff.fa.#bbbbbb",
     "##.ffffffffffff.##a####F###a##FFFFFFFFFFFFFFFF.ffffff.ff.#bbbbbb",
-    "##.ffffff.fffff.#######F######FFFFFFFFaaFFFFFF.ffffaa.ff.#bbbbbb",
+    "##.ffffff.fffff.#######F######FFFFFFFFaaFFFFFF.ffffaa.fa.#bbbbbb",
     "##.ffffff.fffff.#####a#Faa####FFFFFFFFaaFFFFFF.fffffffff.#bbbbbb",
     "##.fffffa.faaff.#######F######FFFFFFFFFFFFFFFF.ffffff.ff.#bbbbbb",
     "##........fffff.#FFFFFFFFFFFFFFFFFFFFFFFFFFFFF.faafff.ff.#bbbbbb",
@@ -57,11 +57,11 @@
     "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.fffffffff.Fbbbbbb",
     "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF.ffffffffa.Fbbbbbb",
     "##........##.........#........FF##############.fffffffff.#bbbbbb",
-    "##.fffffa.##.afff.fa.#.ffffaa.FF##############.affffffff.#bbbbbb",
-    "##.ffffff.##.afff.ff.#.ffffff.FF##############.....f.....#bbbbbb",
+    "##.fffffa.##.afff.aa.#.ffffaa.FF##############.affffffff.#bbbbbb",
+    "##.ffffff.##.aaaf.ff.#.ffffff.FF##############.....f.....#bbbbbb",
     "##.ffffff.##.fffffff.#.ffffff.FF##############FFFFFFFFFFFFbbbbbb",
     "##.aafffa.##.ffff.ff.#...f....FF##########################bbbbbb",
-    "##........##....f....#.afffff.FF##########################bbbbbb",
+    "##........##....f....#.aafaaf.FF##########################bbbbbb",
     "############FFFFFFFFFF.ffffff.FF##########################bbbbbb",
     "######################...f....FF##########################bbbbbb",
     "######################.ffffff.FF##########################bbbbbb",
@@ -510,7 +510,7 @@
       "open_hours": [
         [
           "09:00",
-          "20:00"
+          "22:00"
         ]
       ],
       "owner": [

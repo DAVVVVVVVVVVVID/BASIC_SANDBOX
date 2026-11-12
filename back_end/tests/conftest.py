@@ -15,11 +15,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
-from game import qq, economy, production, commissions, doors, speech, chat_profile  # noqa: E402
+from game import qq, economy, production, commissions, doors, speech, chat_profile, food, social  # noqa: E402
 
 
 class FakeClock:
-    def __init__(self, start: float = 1_800_000_000.0):
+    def __init__(self, start: float = 1_794_297_600.0):      # 2026-11-10 16:00 北京时间（原 1.8e9 = 2027-01-15 16:00；v1.1 后冰箱保质期按钟算，日期贴近 _at() 用的 11-10）
         self.t = start
 
     def __call__(self) -> float:
@@ -62,6 +62,10 @@ def fake_clock():
     time_state.set_clock(clk)
     time_state.reset_time()
     time_state.set_running(True)
+    from game import world_state, food
+    for o in world_state._OBJECTS:                    # world-v1.1：冰箱内容按假钟重算保质期
+        if o.get("contents") is not None:
+            food.init_contents(o, time_state.game_now_ts())
     yield clk
     time_state.set_clock(None)
 

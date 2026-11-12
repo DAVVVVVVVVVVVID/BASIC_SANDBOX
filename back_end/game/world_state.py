@@ -122,6 +122,8 @@ def _rebuild_objects_keep_runtime() -> None:
             o["userList"] = list(po["userList"]); o["currentUsers"] = po["currentUsers"]
             if po.get("stock") is not None:
                 o["stock"] = dict(po["stock"])
+            if po.get("contents") is not None:
+                o["contents"] = [dict(c) for c in po["contents"]]
     _TILES[:] = _generate_tiles()
     _TILE_LOOKUP.clear(); _TILE_LOOKUP.update({(t["x"], t["y"]): t for t in _TILES})
     global MAP_VERSION
@@ -288,6 +290,15 @@ def _build_objects(raw: list[dict]) -> list[dict]:
             "shop":           _shop_listing(inst["type"], _initial_stock(inst["type"])),   # W10 ④：商店物品 [{type,item,name,price,sell,stock}]（非商店 None）
             "stock":          _initial_stock(inst["type"]),  # W11 ④：库存 {item: n}（商店 / 冰箱），其余 None
             "openHours":      t.get("open_hours"),      # B20：营业时间 [[start, end], ...]，None = 全天
+            "dining":         bool(t.get("dining")),    # world-v1.1：餐桌类（唯一进食地点）
+            "dining_allow":   (t.get("dining") or {}).get("allow") if t.get("dining") else None,   # 长椅 = 简餐处：只许清单内物品；null = 不限
+            "work":           bool(t.get("work")),      # world-v1.1：工作 / 创作类（精力额外 −3/h、每日时长上限）
+            "daily_limit_min": t.get("daily_limit_min"),
+            "storage":        {"capacity": 0, "used": 0} if t.get("storage") else None,   # 冰箱：存储（contents 由 food 填）
+            "contents":       [] if t.get("storage") else None,
+            "daily_supply":   None,                     # 商店：每日上新量（下面填）
+            "restock_at":     None,
+            "cooking":        None,                     # 灶台：正在做的 {by, item, portions, product, started_at, ready_at, ready_in_min}
             "successMessage": t["success_message"],
             "failureMessage": t["failure_message"],
             "currentUsers":   0,
@@ -298,6 +309,13 @@ def _build_objects(raw: list[dict]) -> list[dict]:
             obj["useStateLabel"] = t["use_state_label"]
             obj["maxDuration"]   = t.get("max_duration")
             obj["leaveMessage"]  = t.get("leave_message")
+        from game.economy import daily_supply as _ds, shop_for as _sf
+        if _sf(inst["type"]) is not None:
+            obj["daily_supply"] = _ds(inst["type"]); obj["restock_at"] = (_sf(inst["type"]) or {}).get("restock_at", "08:00")
+        if t.get("storage"):
+            from game import food as _food
+            _food.init_contents(obj, game_now_ts())
+            obj["storage"] = {"capacity": _food.capacity(obj), "used": _food.used(obj)}
         result.append(obj)
     return result
 
@@ -763,6 +781,8 @@ def get_player(player_id: str) -> dict | None:
     data["door_request"] = doors.visitor_view(player_id)      # §3.40：我最近一次敲门 {id, home, status: pending|accepted|declined|no_answer, expires_at…}
     data["pending_knocks"] = doors.pending_for_owner(player)  # §3.40：我家待回应的敲门 [{id, visitor, visitor_name, home, door, expires_at}]
     data["keys"] = doors.keys_of(player)                      # §3.41：持有的钥匙 [{door_id, name}]（也在 inventory 里，type key）
+    from game import food
+    data["busy"] = food.busy_view(player_id)                  # world-v1.1：进食 {kind, item, started_at, ends_at, remaining_s, progress, gain}，否则 null
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -786,9 +806,15 @@ def get_all_players_snapshot() -> list[dict]:
             "pos_seq":       p.get("pos_seq", 0),      # E⑥：位置单调序号
             "gold":          int(p.get("gold", 0)),    # W10 ④
             "inventory":     _inv_view_safe(p),        # W10 ④：[{type, name, class, count}]
+            "busy":          _busy_view_safe(p["id"]),  # world-v1.1：进食进度（E 旁观页从 players[] 读）
         }
         for p in _players.values()
     ]
+
+
+def _busy_view_safe(pid: str) -> dict | None:
+    from game.food import busy_view
+    return busy_view(pid)
 
 
 def _inv_view_safe(p: dict) -> list[dict]:
@@ -865,6 +891,13 @@ def _object_view(obj: dict, game_ts: float) -> dict:
     view = dict(obj)
     view["open"] = is_open
     view["opensAt"] = opens_at
+    if obj.get("contents") is not None:                     # world-v1.1：冰箱内容（带保质期）
+        from game import food
+        view["contents"] = food.contents_view(obj, game_ts)
+        view["storage"] = {"capacity": food.capacity(obj), "used": food.used(obj)}
+    if obj.get("type") == "stove":
+        from game import production
+        view["cooking"] = production.cooking_view(obj["id"], game_ts)
     if not is_open and obj.get("advertise"):
         view["advertise"] = {k: 0 for k in obj["advertise"]}
     return view
@@ -1314,6 +1347,8 @@ def enter_object(obj_id: str, entity_id: str) -> None:
     # continuous 物品：buff（persistent 到 leave 为止 / timed）、tag、以及进入时的一次性 instant_effect
     apply_effects(player, obj["effects"], source=obj_id)
     apply_control_flags(player)           # Q0c：no_move 等立刻生效，不等下一 tick
+    if obj.get("work") and "working" not in player["tags"]:
+        player["tags"].append("working")  # world-v1.1 §2.1：工作中精力再 −3/h（decay 读这个 tag）
     if "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
         player["scene"] = "live"          # B11：直播中按 live 速率衰减
 
@@ -1514,10 +1549,11 @@ def leave_object(entity_id: str) -> dict | None:
     apply_control_flags(player)           # Q0c：leave 同一秒内即可 move（基线里四段寻路都卡在这）
     if obj:
         obj_tags = {e["key"] for e in obj["effects"] if e["type"] == "tag"}
-        player["tags"] = [t for t in player["tags"] if t not in obj_tags]
+        player["tags"] = [t for t in player["tags"] if t not in obj_tags and t != "working"]
 
-    from game import production
-    production.on_leave(player)           # W11：钓位 / 灶台状态清掉
+    from game import production, food
+    production.on_leave(player)           # W11：钓位 / 灶台状态清掉（v1.1：中途走白费）
+    food.cancel(player, "left_table", game_now_ts())     # world-v1.1：离开餐桌 = 进食中断，结算到此刻（按比例）
     _use_start_game_ts.pop(entity_id, None)
     if obj and "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
         player["scene"] = "sandbox"       # B11：下播
@@ -1525,6 +1561,8 @@ def leave_object(entity_id: str) -> dict | None:
         from game.time_state import game_now_iso
         external_effects.live_stop(player, game_now_iso())
         economy.synthetic_stream_income(player, obj_id)    # W11 ②：直播机未接前按 synthetic 入账
+        from game import social
+        social.live_session_end(player)                    # world-v1.1 §4.1：直播一场社交 +10
     if obj and "game" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
         from game import external_effects, external_log
         from game.time_state import game_now_iso
@@ -1715,7 +1753,11 @@ def _run_buff_tick_all(delta: float) -> None:
         economy.on_tick(gts, _players)                  # W10 ④：日薪 / 时薪按日程结算
         if economy.restock_tick(gts, _OBJECTS):         # W11 ④：商店 / 冰箱每日补货
             refresh_shop_views()
-        production.on_tick(gts, _players)               # W11 ①：钓位出鱼、灶台出便当
+        production.on_tick(gts, _players)               # W11 ①：钓位出鱼、灶台按份出菜
+        from game import food, social
+        food.on_tick(gts, _players)                     # world-v1.1：吃完
+        food.spoil_tick(gts, _players, _OBJECTS)        # world-v1.1：到期变坏食
+        social.on_tick(gts, delta, _players)            # world-v1.1：聊天房在房计时社交 / 娱乐
         commissions.on_tick(gts)                        # W11 ①：每日委托
         qq.on_tick(gts, _players)                       # W11 ③：未读消息的亲密度惩罚
         from game import doors
@@ -1745,7 +1787,7 @@ def export_runtime() -> dict:
             for pid, p in _players.items()
         }
         objects = {
-            o["id"]: {"currentUsers": o["currentUsers"], "userList": list(o["userList"]), "stock": o.get("stock")}
+            o["id"]: {"currentUsers": o["currentUsers"], "userList": list(o["userList"]), "stock": o.get("stock"), "contents": o.get("contents")}
             for o in _OBJECTS
         }
     return {"players": players, "objects": objects}
@@ -1793,6 +1835,14 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
                 o["currentUsers"] = len(o["userList"])
                 if rt.get("stock") is not None and o.get("stock") is not None:      # W11：库存回填（新加的物品类型保留初值）
                     o["stock"] = dict(rt["stock"])
+                if o.get("contents") is not None:                                     # world-v1.1：冰箱内容（旧检查点只有 stock → 按今天起算保质期重建）
+                    from game import food, inventory as _inv
+                    if rt.get("contents") is not None:
+                        o["contents"] = [dict(c) for c in rt["contents"]]
+                    elif rt.get("stock"):
+                        now = game_now_ts()
+                        o["contents"] = [{"item": it, "count": int(n), "expires_at": _inv.expires_at_for(it, now)} for it, n in rt["stock"].items() if int(n) > 0]
+                    food.refresh_stock(o)
         refresh_shop_views()
         return len(_players)
 
@@ -1808,8 +1858,14 @@ def _reset_for_tests() -> None:
         if _REMOVED_OBJECTS or _OBJ_ORIG_POS:
             restore_object()
         _REMOVED_OBJECTS.clear(); _OBJ_ORIG_POS.clear()
+        from game import food, social, needs_cfg
+        food._reset_for_tests(); social._reset_for_tests(); needs_cfg.reload()
+        from game.buff_tick import reload_rates
+        reload_rates()
         for o in _OBJECTS:
             o["stock"] = _initial_stock(o["type"])
+            if o.get("contents") is not None:
+                food.init_contents(o, game_now_ts())
         refresh_shop_views()
         for o in _OBJECTS:
             o["currentUsers"] = 0
