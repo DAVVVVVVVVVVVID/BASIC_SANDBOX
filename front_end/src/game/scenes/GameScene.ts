@@ -234,6 +234,7 @@ export default class GameScene extends Phaser.Scene {
         if (r === 'has_key' || r === 'not_owner') { push(r === 'has_key' ? '🔑 我有钥匙，不用敲' : '🔑 只有门的主人能配钥匙'); return }
       }
       if (a === 'take' && msg.success) { push(`🧊 从冰箱拿了${msg.item_name ?? itemMeta(msg.item ?? undefined).label}`); return }
+      if (a === 'discard' && msg.success) { push(`🗑 扔掉了${msg.item_name ?? itemMeta(msg.item ?? undefined).label}`); return }
       if (a === 'copy_key' && msg.success) { push(`🔑 配了把钥匙${typeof msg.price === 'number' ? ` -${msg.price} 金币` : ''}`); return }
       if (a === 'open_door' && msg.success) return   // door 事件另有门口气泡
       if (a === 'store' && msg.success) { push(`🧊 把${msg.item_name ?? itemMeta(msg.item ?? undefined).label}放进了冰箱`); return }
@@ -252,7 +253,7 @@ export default class GameScene extends Phaser.Scene {
     this.on('produce-event', (msg: import('../../types').WsProduce) => {
       if (!msg.entity) return
       const meta = itemMeta(msg.item ?? undefined, msg.item_name ?? undefined), name = msg.item_name ?? meta.label, n = msg.qty && msg.qty > 1 ? ` ×${msg.qty}` : ''
-      const verb = msg.via === 'fishing' ? '🎣 钓到了' : msg.via === 'stove' ? '🍳 做好了' : msg.via === 'compose' ? '🎼 写完了' : msg.via === 'make_video' ? '🎬 做完了' : '✨ 得到了'
+      const verb = msg.via === 'fishing' ? '🎣 钓到了' : msg.via === 'stove' ? '🍳 做好了' : msg.via === 'compose' ? '🎼 写完了' : msg.via === 'make_video' ? '🎬 做完了' : msg.via === 'burn_cd' ? '💿 刻好了' : '✨ 得到了'
       useGameStore.getState().pushBubble(msg.entity, `${verb}${meta.icon}${name}${n}`, 5000)
     })
     this.on('commission-event', (msg: import('../../types').WsCommission) => {

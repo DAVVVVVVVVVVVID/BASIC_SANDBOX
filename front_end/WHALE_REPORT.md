@@ -4,21 +4,21 @@
 
 # W10 · 2026-11-13：world-v1.1 显示项（总控 pending-E 七条，≈0.5 d；B 字段表 3fead88 `world-v1.1-a`）
 
-分支 `whale-frontend`，只改 `front_end/`。七条按 B 的三批接：**-a 批（食物 + 七变量）已在 8091 对真数据做完并实测**；-b（每日上限）/ v1.1（房租）的显示已接好字段、等数据上来就亮，不用再改。截图 `report_shots/w10/W10_v11_*.jpg`。
+分支 `whale-frontend`，只改 `front_end/`。七条按 B 的三批接：**-a（食物 + 七变量）与 -b（每日上限 / 配钥匙 / CD）两批已在 8091 对真数据做完并实测**；v1.1（房租）的显示已接好字段、等数据上来就亮，不用再改。截图 `report_shots/w10/W10_v11_*.jpg`。
 
 | # | 项 | 状态 | 做了什么 |
 |---|---|---|---|
 | ① | 冰箱面板 | 完成（-a 实测） | 操控页站冰箱旁，背包面板出「🧊 fridge 1/20」：按物品列、每份剩余保鲜天数（按 `expires_at` 对游戏时间算，≤1 天橙色）、坏掉灰字红「坏了」、每行「取」→ `take {item, qty:1, object_id}`；背包里的食物 / 食材出「放冰箱」→ `store`。旁观页：ws `spoiled`（冰箱形状）在冰箱格上冒「🤢 冰箱里的家常菜坏了」 |
 | ② | 餐桌进食进度条 | 完成（-a 实测） | `players[].busy {started_at, ends_at, gain}` 按游戏时间（`worldState.date+time`，+08:00）插值：旁观页头顶「🍴 吃饭中」下一条细进度条（每 250 ms 刷），信息面板 / React 面板一行「🍴 吃家常菜 · 剩 15 分钟 · 饱腹 +40」；操控页 HUD「正在」行 + 背包面板同句。ws `eat_done` → 「🍴 吃完了家常菜（饱腹 +40）」，`eat_cancelled` → 「没吃完就走了」。背包「吃」按钮只在餐桌 / 长椅旁且 `dining_allow` 许可时出（食材 / 鱼也可生吃），否则灰字「到餐桌吃 / 这儿不能吃」；失败 reason `not_at_table / not_allowed_here / streaming / already_eating` 各有气泡 |
 | ③ | 柜台 / 鱼摊今日上新 | 完成（-a 实测） | 商店列表每行「今日 12 · 剩 7」（`daily_supply` + `stock`），卖完红字「今日 8 · 卖完（08:00 上新）」 |
-| ④ | 创作 / 工作类今日已用 / 上限 | 接好等 -b | `players[].daily_use {type: {used_min, limit_min}}` → 操控 HUD「今日 🖥 电脑 3.5/6 h」行、旁观信息面板 / React 面板同行，到上限红字「今天用够了」；ws `daily_limit` → 「⏰ 电脑今天用够了（04:00 重置）」；reason `daily_limit` 气泡。-b 上来前 `daily_use` 为空就不显示 |
+| ④ | 创作 / 工作类今日已用 / 上限 | 完成（-b 54b1528 在 8091 实测） | `players[].daily_use {type: {used_min, limit_min}}` → 操控 HUD「今日 🖥 电脑 3.5/6 h」行、旁观信息面板 / React 面板同行，到上限红字「今天用够了」；ws `daily_limit` → 「⏰ 电脑今天用够了（04:00 重置）」；reason `daily_limit` 气泡。用过的才列（全 0 不占行），不满 1 小时按分钟「📺 电视 3 分/3 h」。实测：人类看电视 ≈2.5 游戏分钟后三处都出「电视 3 分/3 h」（`W10_v11b_dailyuse_*`） |
 | ⑤ | 房租 | 接好等 v1.1 | `players[].rent {amount, due_at, due_in_days, overdue, items}` → 「🏠 房租 300 · 12-01 到期（3 天后）」，两笔的人「= 住房 400 + 铺面 600」，欠租红「🏠 欠租 1000 · 房东催缴中」；人类 null 不显示。ws `rent` due_soon / paid / overdue / cleared 四种头顶气泡（用调试钩子模拟验过 `W10_v11_rent_bubble`） |
 | ⑥ | 背包 10 种 × 20 | 完成 | 标题「N/10 种 · 每种 ≤20」（钥匙不占种数），到上限红；数量 ×20 红；CD 🎵 / 稿子 📄 实体作品画带底框图标；新物品家常菜 🍲 / 鱼料理 🍛 / 坏食 🤢（灰）/ 餐厅一顿 🍽；`sweets` / `ingredients` 复数名也认 |
-| ⑦ | 旁观气泡 | 完成（事件钩子模拟 + -a 实测 eat） | 「今天用够了」「坏了」（背包 / 冰箱两形状）「房租到期 / 欠租 / 交了房租 / 补齐」「配了把钥匙 -15 金币」（action `copy_key`）；另：灶台 `cook_cancelled` → 「饭没做完就走了，食材白费了」，`take` → 「从冰箱拿了…」，头顶标签新增 `browsing` → 📱 刷手机、`working` → 🖥 工作中、`cooking` → 🍳 做饭中 |
+| ⑦ | 旁观气泡 | 完成（事件钩子模拟 + -a 实测 eat） | 「今天用够了」「坏了」（背包 / 冰箱两形状）「房租到期 / 欠租 / 交了房租 / 补齐」「配了把钥匙 -15 金币」（action `copy_key`，-b 实测：阿蝉 agent 在柜台配成功 → 气泡；人类非门主 → 「只有门的主人能配钥匙」，`W10_v11b_copykey_bubbles`）；`burning` 忙碌态 → 「💿 刻唱片《title》」，`produce via=burn_cd` → 「💿 刻好了」，`discard` → 「🗑 扔掉了…」；另：灶台 `cook_cancelled` → 「饭没做完就走了，食材白费了」，`take` → 「从冰箱拿了…」，头顶标签新增 `browsing` → 📱 刷手机、`working` → 🖥 工作中、`cooking` → 🍳 做饭中 |
 
 另做：灶台旁背包面板出「🍳 灶台」块——在做什么 ×几份、还要几分钟（按 `cooking.ready_at` 插值）、谁在做；背包里的食材 / 鱼出「下厨」→ `use stove {item, qty:1}`（未实测，等有食材时顺手验）。QQ 面板「发文件」已撤（B：`kind:file` 回 400）。纯函数都在 `src/game/v11.ts`，单测 `tests/v11.test.ts`（npm test 15/15）。
 
-8091 实测流程（人类 `E吃饭`）：传到冰箱旁 → 面板「取」食材 → scenario 给一份家常菜 → 传到餐桌旁 `use table_home` → 面板「吃」→ `busy.eating`、tags `dining, eating`、旁观头顶进度条 + 「吃饭中」、两页信息行「吃家常菜 · 剩 15 分钟 · 饱腹 +40」→ 柜台旁「今日 12 · 剩 12」。-b / v1.1 上来后再补 ④⑤ 的真数据截图。
+8091 实测流程（人类 `E吃饭`）：传到冰箱旁 → 面板「取」食材 → scenario 给一份家常菜 → 传到餐桌旁 `use table_home` → 面板「吃」→ `busy.eating`、tags `dining, eating`、旁观头顶进度条 + 「吃饭中」、两页信息行「吃家常菜 · 剩 15 分钟 · 饱腹 +40」→ 柜台旁「今日 12 · 剩 12」。v1.1 房租上来后再补 ⑤ 的真数据截图。
 
 ---
 

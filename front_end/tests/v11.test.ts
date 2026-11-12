@@ -34,6 +34,7 @@ test('柜台今日供应', () => {
 test('每日上限 / 房租 / 餐桌许可', () => {
   const lines = dailyUseLines({ pc: { used_min: 210, limit_min: 360 }, phone: { used_min: 0, limit_min: 120 }, stream_desk: { used_min: 240, limit_min: 240 } })
   assert.deepEqual(lines.map(l => l.text), ['🖥 电脑 3.5/6 h', '📺 直播台 4/4 h · 今天用够了'])
+  assert.equal(dailyUseLines({ pc: { used_min: 12, limit_min: 360 } })[0].text, '🖥 电脑 12 分/6 h')
   assert.equal(rentText({ amount: 300, due_at: '2026-12-01T08:00:00+08:00', due_in_days: 3 })!.text, '🏠 房租 300 · 12-01 到期（3 天后）')
   const od = rentText({ amount: 1000, overdue: true, items: [{ kind: 'home', amount: 400 }, { kind: 'shop', amount: 600 }] })!
   assert.equal(od.overdue, true); assert.match(od.text, /欠租 1000 = 住房 400 \+ 铺面 600/)

@@ -39,7 +39,8 @@ export function busyText(b: BusyState | null | undefined, nowMs: number | null):
   if (!b) return null
   const pr = busyProgress(b, nowMs)
   const m = itemMeta(b.item ?? undefined)
-  const verb = b.kind === 'eating' ? `🍴 吃${m.label}` : b.kind === 'cooking' ? `🍳 做${m.label}` : b.kind === 'burning' ? '🔥 烧着' : `⏳ ${b.kind}`
+  const title = (b as { title?: string }).title
+  const verb = b.kind === 'eating' ? `🍴 吃${m.label}` : b.kind === 'cooking' ? `🍳 做${m.label}` : b.kind === 'burning' ? `💿 刻唱片${title ? `《${title}》` : ''}` : `⏳ ${b.kind}`
   const rem = pr && pr.remainingS > 0 ? ` · 剩 ${fmtMin(pr.remainingS)}` : ''
   const g = gainText(b.gain)
   return `${verb}${rem}${g ? ` · ${g}` : ''}`
@@ -71,9 +72,10 @@ export function supplyText(o: Pick<GameObject, 'daily_supply' | 'stock' | 'resto
 export const WORK_NAMES: Record<string, string> = { pc: '电脑', pc_desk: '电脑', pc_music: '琴房电脑', stream_desk: '直播台', fishing_spot: '钓位', phone: '手机', game_console: '游戏机', tv: '电视', sofa_tv: '电视', piano: '钢琴', stove: '灶台' }
 const WORK_ICON: Record<string, string> = { pc: '🖥', pc_desk: '🖥', pc_music: '🎹', stream_desk: '📺', fishing_spot: '🎣', phone: '📱', game_console: '🎮', tv: '📺', sofa_tv: '📺', piano: '🎹', stove: '🍳' }
 const hrs = (min: number) => { const h = min / 60; return Number.isInteger(h) ? `${h}` : h.toFixed(1).replace(/\.0$/, '') }
+const used = (min: number) => min < 60 ? `${Math.round(min)} 分` : `${hrs(min)} h`
 export function dailyUseLines(du: DailyUse | null | undefined, all = false): { key: string; text: string; full: boolean }[] {
   if (!du) return []
-  return Object.entries(du).filter(([, v]) => v && (all || v.used_min > 0 || v.used_min >= v.limit_min)).map(([k, v]) => ({ key: k, full: v.used_min >= v.limit_min, text: `${WORK_ICON[k] ?? '🔧'} ${WORK_NAMES[k] ?? k} ${hrs(v.used_min)}/${hrs(v.limit_min)} h${v.used_min >= v.limit_min ? ' · 今天用够了' : ''}` }))
+  return Object.entries(du).filter(([, v]) => v && (all || v.used_min > 0 || v.used_min >= v.limit_min)).map(([k, v]) => ({ key: k, full: v.used_min >= v.limit_min, text: `${WORK_ICON[k] ?? '🔧'} ${WORK_NAMES[k] ?? k} ${v.used_min < 60 ? `${used(v.used_min)}/${hrs(v.limit_min)} h` : `${hrs(v.used_min)}/${hrs(v.limit_min)} h`}${v.used_min >= v.limit_min ? ' · 今天用够了' : ''}` }))
 }
 
 /** 房租一行：「🏠 房租 300 · 12-01 到期（3 天）」/ 欠租标红 */
