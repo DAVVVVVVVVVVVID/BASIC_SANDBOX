@@ -90,13 +90,15 @@ def test_rent_cycle_due_overdue_qq_clear_and_notice(client, v1, fake_clock):
     _at(fake_clock, 2027, 1, 1, 8, 1); _tick(fake_clock, 1)
     v = client.get(f"/player/{whale}").json()
     assert p["gold"] == 100 and v["rent"]["overdue"] is True and v["rent"]["owed"] == 300 and "欠着了" in v["pendingMessage"]
+    first = [m for m in client.get("/qq/inbox", params={"player": whale}).json()["messages"] if m["from"] == "town_hall"]
+    assert len(first) == 1 and "没交上" in first[0]["text"]                                   # 欠租当刻立即催一条（S12 阶段二 30 分钟内可见）
     mood0 = p["mood"]
     _at(fake_clock, 2027, 1, 2, 8, 1); _tick(fake_clock, 1)
     assert p["mood"] == pytest.approx(mood0 - 3, abs=0.5)
     inbox = client.get("/qq/inbox", params={"player": whale}).json()["messages"]
     assert inbox[-1]["from"] == "town_hall" and inbox[-1]["from_name"] == "镇公所" and "欠着房租 300" in inbox[-1]["text"]
     _at(fake_clock, 2027, 1, 2, 8, 5); _tick(fake_clock, 1)
-    assert len([m for m in client.get("/qq/inbox", params={"player": whale}).json()["messages"] if m["from"] == "town_hall"]) == 1   # 一天一条
+    assert len([m for m in client.get("/qq/inbox", params={"player": whale}).json()["messages"] if m["from"] == "town_hall"]) == 2   # 之后一天一条
     client.post("/admin/income", json={"entity_id": whale, "amount": 500, "source": "song_fee"})
     _tick(fake_clock, 1)
     assert p["gold"] == 300 and client.get(f"/player/{whale}").json()["rent"]["overdue"] is False

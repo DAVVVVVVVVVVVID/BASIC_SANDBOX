@@ -111,7 +111,9 @@ def on_tick(gts: float, players: dict) -> None:
                 _push({"event": "overdue", "account": acc, "entity": p["id"] if p else None, "amount": owed, "period": period, "balance": economy.balance(acc)})
                 from game import external_log
                 external_log.log("rent", p["id"] if p else None, account=acc, action="overdue", amount=owed, period=period, balance=economy.balance(acc))
-                _daily_done[acc] = day                 # 当天不再另催
+                _daily_done[acc] = day                 # 当天只催这一条
+                qq.system_send(cfg().get("landlord", "town_hall"), acc,
+                               f"{qq.display_name(acc)}，今天是交房租的日子，{total} 金币没交上（余额 {economy.balance(acc)}）。欠着也行，但请尽快补上。——镇公所")
         # ② 欠租：余额够了就补齐；否则每日 due_at 心情 −3 + 镇公所 QQ 催
         if acc in _due:
             owed = int(_due[acc]["amount"])
