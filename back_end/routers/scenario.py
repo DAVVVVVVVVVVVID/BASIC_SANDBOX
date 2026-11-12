@@ -20,7 +20,8 @@ op 一览（player 字段可填 id 或唯一的 name）：
   say            {player, room, text}
   exit_chat      {player, room}
   clear_cooldowns {player?}                          清物品冷却、每日使用时长（v1.1）与对话冷却
-  set_gold       {player, gold}                      把余额写成 gold（流水 adjust，账户同步；v1.1 验收 R6）
+  set_gold       {player, gold}                      把余额写成 gold（流水 adjust，账户同步；v1.1 验收 S12）
+  set_supply     {shop, item, qty}                   写商店当日上新量 daily_supply（08:00 补货按它；S11 清零杂货店食物）
 """
 
 import os
@@ -315,6 +316,20 @@ def op_set_fridge(step: dict) -> dict:
     return {"id": obj["id"], "stock": dict(obj["stock"]), "contents": food.contents_view(obj, world_state.game_now_ts()), "restock_pinned": pinned, "restock_state": state}
 
 
+def op_set_supply(step: dict) -> dict:
+    """world-v1.1 验收夹具（S11）：写商店某物品的当日上新量 daily_supply（08:00 补货按它；0 = 今天不上这货），stock 不动（要清今日剩余另用 set_stock）。"""
+    from game import inventory
+    obj = world_state.get_object_by_id(step.get("shop") or step.get("object") or "")
+    if obj is None or obj.get("daily_supply") is None:
+        raise StepError(f"shop not found: {step.get('shop')}")
+    item = step.get("item") or ""
+    if inventory.item_def(item) is None:
+        raise StepError(f"unknown item: {item}")
+    with world_state.STATE_LOCK:
+        obj["daily_supply"][item] = max(0, int(step.get("qty", 0)))
+    return {"shop": obj["id"], "daily_supply": dict(obj["daily_supply"]), "stock": dict(obj["stock"])}
+
+
 def op_set_gold(step: dict) -> dict:
     """world-v1.1 验收夹具：直接把某玩家余额写成 gold（走 ledger kind adjust，账户同步；R6「房租到期前钱不够」用）。"""
     from game import economy
@@ -512,7 +527,7 @@ OPS = {
     "move_object": op_move_object, "remove_object": op_remove_object, "restore_object": op_restore_object,   # X1 N5
     "self_events": op_self_events,                                                                           # X2 M3
     "qq_send": op_qq_send,                                                                                   # X4 C-QQ
-    "set_fridge": op_set_fridge, "set_stock": op_set_stock, "set_gold": op_set_gold, "force_closed": op_force_closed, "clear_closed": op_clear_closed,   # X5
+    "set_fridge": op_set_fridge, "set_stock": op_set_stock, "set_gold": op_set_gold, "set_supply": op_set_supply, "force_closed": op_force_closed, "clear_closed": op_clear_closed,   # X5
 }
 _SAMPLE_OPS = {"spawn", "teleport", "set_vars", "effects", "occupy", "release", "give_item", "produce"}
 

@@ -171,7 +171,7 @@ def restock_tick(gts: float, objects: list[dict]) -> int:
             continue
         s = shop_for(o["type"])
         if s is not None:
-            at = s.get("restock_at", "08:00"); target = s.get("daily_supply") or s.get("stock") or {}
+            at = s.get("restock_at", "08:00"); target = o.get("daily_supply") if o.get("daily_supply") is not None else (s.get("daily_supply") or s.get("stock") or {})
         elif o["type"] == "fridge":
             f = _CFG.get("fridge", {})
             if not f.get("restock_enabled", False):

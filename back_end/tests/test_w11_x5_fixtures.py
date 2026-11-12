@@ -225,15 +225,21 @@ def test_daily_limit_and_copy_key(client, v1, fake_clock):
 
 
 def test_set_gold_op_and_v11_fixture_preconditions(client, v1, bench_env, fake_clock):
-    """world-v1.1 验收夹具：set_gold 写余额走流水；R5（冰箱空 + 杂货店卖完、餐厅开）与 R6（房租到期前钱不够）前置条件能摆出来。"""
+    """world-v1.1 验收夹具：set_gold 写余额走流水；S11（冰箱空 + 杂货店卖完、餐厅开）与 S12（房租到期前钱不够）前置条件能摆出来。"""
     _at(fake_clock, 12, 10)
     r = _run(client, [{"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 12, "y": 26, "facing": "up", "vars": {"fullness": 20}}])
     whale = next(p["id"] for p in world_state._players.values() if p["name"] == "鲸仔")
     r = _run(client, [{"op": "set_fridge", "id": "fridge_home", "qty": 0}, {"op": "set_stock", "shop": "counter", "item": "bread", "qty": 0},
-                      {"op": "set_stock", "shop": "counter", "item": "ingredients", "qty": 0}, {"op": "set_gold", "player": whale, "gold": 120}])
+                      {"op": "set_stock", "shop": "counter", "item": "ingredients", "qty": 0}, {"op": "set_supply", "shop": "counter", "item": "bread", "qty": 0},
+                      {"op": "set_gold", "player": whale, "gold": 120}])
     assert r["ok"] and r["steps"][-1]["detail"] == {"player": whale, "gold": 120, "delta": -2880}
     objs = {o["id"]: o for o in client.get("/world", params={"fields": "objects"}).json()["objects"]}
-    assert objs["fridge_home"]["contents"] == [] and objs["counter"]["stock"]["bread"] == 0 and objs["counter"]["daily_supply"]["bread"] == 8 and objs["table_rest_1"]["open"] is True
+    assert objs["fridge_home"]["contents"] == [] and objs["counter"]["stock"]["bread"] == 0 and objs["counter"]["daily_supply"]["bread"] == 0 and objs["counter"]["daily_supply"]["sweets"] == 6 and objs["table_rest_1"]["open"] is True
+    # 08:00 补货按物品上的 daily_supply：面包今天不上、甜食补到 6
+    _run(client, [{"op": "set_time", "date": "2026-11-11", "time": "08:01"}]); ticker.tick_once(checkpoint=False); fake_clock.advance(1); ticker.tick_once(checkpoint=False)
+    counter = world_state.get_object_by_id("counter")
+    assert counter["stock"]["bread"] == 0 and counter["stock"]["sweets"] == 6 and counter["stock"]["ingredients"] == 12
+    _run(client, [{"op": "set_time", "date": "2026-11-10", "time": "12:10"}])
     p = client.get(f"/player/{whale}").json()
     assert p["gold"] == 120 and p["rent"]["amount"] == 300 and p["rent"]["balance"] == 120 and p["rent"]["overdue"] is False
     # 到期前 2 天：due_in_days ≤ 3；到期日不够 → 欠租
