@@ -1,4 +1,4 @@
-# world-v1.2 紧凑地图 · 草案（主播 2026-11-14 定方向；B 出稿，待主播点头后实现）
+# world-v1.2 紧凑地图（主播 2026-11-14 点头「按建议即可」+ 杂货店门改朝西；**已实现**：`scripts/gen_map_v12.py` → `game/maps/v1.2`，tag `world-v1.2`）
 
 > 原则（总控转达）：每栋楼**占地缩小**，外观由 Godot 侧**一张整栋贴图**（按占地尺寸画、底边锁格 Y 排序），室内仍瓦片拼；**楼名 / sector / arena / 门 id / 物品 id 全部不改**（agent 导航、日程锚点、夹具、A 的 judge 都按 id 走）；现有物品一个不少；室外物品占地按根部；整体缩到「家到餐厅 ≤ 1 分钟（×1 速 = 1 格 / 秒）」。
 > 生成 / 校验脚本：`cd back_end && uv run python scripts/draft_map_v12.py`（只打印，不写地图；主播点头后搬进 `gen_map_v12.py`）。
@@ -106,16 +106,16 @@ world-v1.2 草案 50x37（v1 为 64x48）
 | 灶台 stove | 站 (8,30) up | 站 **(3,16) up** |
 | 合租房餐桌 table_home | 站 (11,24) up | 站 **(7,12) up** |
 | 客厅（S11 起点） | (12,26) | **(9,13)** |
-| 广场（S01 / R1 / S08 起点） | (41,26) | **(26,14)**（喷泉旁） |
+| 广场（S01 / R1 / S08 起点） | (41,26) | **(28,14)**（喷泉 (26,12) 2×2 旁） |
 | 街道（S02 起点） | (45,19) | **(30,9)** |
 | 餐厅桌 table_rest_1 | 站 (48,24) up | 站 **(34,12) up** |
 | 餐厅门外（S11 deliver drop point） | (51,31) | **(36,18)** |
-| 杂货店柜台 counter（copy_key / S11） | 站 (55,36) up | 站 **(40,22) right** |
-| 杂货店门外 | (51,39) | **(38,25)** |
+| 杂货店柜台 counter（copy_key / S11） | 站 (55,36) up | 站 **(27,22) right**（柜台 (28,22)；店在 x22–29,y20–24，门 (22,22) 朝西开到南北街 (21,22)） |
+| 杂货店门外 | (51,39) | **(21,22)**（南北街） |
 | 琴房电脑 pc_music（每日上限测试） | 站 (34,3) up | 站 **(24,3) up** |
 | 长椅 bench_square_1 | 站 (33,24) up | 坐 **(23,11)**（走到 (23,12) 朝 up） |
-| 渔夫家门外 / 小千家门外（deliver） | (52,8) / (16,42) | **(37,7) / (16,26)** |
-| X1 夹具 S01…N5 坐标与 `docs/x1-shortest.json` | v1 | **随新图重出**（`scripts/path_table.py --map v1.2`；A 的 judge `--shortest` 读） |
+| 渔夫家门外 / 小千家门外 / 店主家门外（deliver） | (52,8) / (16,42) / (26,47) | **(37,7) / (16,26) / (36,26)** |
+| X1 夹具 S01…N5 坐标与 `docs/x1-shortest.json` | v1：13/67/71/85/24/—/50/17 | **v1.2：7/41/56/63/19/—/29/15**（`scripts/x1_shortest.py --map v1.2`；旧表存 `x1-shortest-v1.json`） |
 
 改法：`docs/x5-fixtures.md` 坐标表与场景表、`scripts/verify_fixtures_v11.py` / `x7_reset.py` / `verify_day_cycle.py`、`tests/test_w9_map_v2.py`（物品数 / 可达）、`tests/test_w11_*`（用 v1 坐标的 ≈ 20 处 `place()`）全部换成上表；地图 `v1` 文件保留不动（X1–X6 结论复现用），新图目录 `game/maps/v1.2`，`SANDBOX_MAP=v1.2`；mapVersion 变；检查点里旧坐标非法 → 出生点（已有 `_ensure_valid_position`），物品 contents / stock 按 id 回填不受影响。
 

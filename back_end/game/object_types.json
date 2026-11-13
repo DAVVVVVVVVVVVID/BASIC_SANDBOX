@@ -1292,5 +1292,35 @@
       "allow": null
     },
     "cooldown_s": 0
+  },
+  "tree_big": {
+    "prototype": "instant",
+    "name": "大树",
+    "size": [
+      2,
+      2
+    ],
+    "sprite": "tree",
+    "interactable": false,
+    "description": "一棵占两格的大树，树荫下凉快。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。"
+  },
+  "lamp": {
+    "prototype": "instant",
+    "name": "路灯",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "lamp",
+    "interactable": false,
+    "description": "路灯，晚上亮。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。"
   }
 }

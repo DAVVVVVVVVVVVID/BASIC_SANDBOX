@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # W11 ⑤ 冻结日一键重置：停掉该数据目录的实例 → 归档旧数据 → 空目录起新世界（SANDBOX_MAP=<map>）。
 #
-#   scripts/world_reset.sh --map v1 --data run/data/sandbox [--port 8000] [--archive-tag v0] [--no-archive] [-- <run_town.sh 其余参数>]
-#   例：scripts/world_reset.sh --map v1 --data /home/shan-dw/Project/run/data/bench_v1/sandbox --port 8091 -- --no-sync --scenario --env SANDBOX_TOWN=bench_v1
+#   scripts/world_reset.sh --map v1.2 --data run/data/sandbox [--port 8000] [--archive-tag v0] [--no-archive] [-- <run_town.sh 其余参数>]
+#   例：scripts/world_reset.sh --map v1.2 --data /home/shan-dw/Project/run/data/bench_v1/sandbox --port 8091 -- --no-sync --scenario --env SANDBOX_TOWN=bench_v1
 #
 # --map：game/maps/<name>（v1 / m1c / legacy_v0）或目录；--archive-tag：旧数据目录改名为 <data>.<tag>-<时间戳>（默认 v0）；
 # --no-archive：直接删除旧数据（慎用）。主镇 8000 冻结日前不要对它跑。
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MAP="v1"; DATA=""; PORT=8000; TAG="v0"; ARCHIVE=1; REST=()
+MAP="v1.2"; DATA=""; PORT=8000; TAG="v0"; ARCHIVE=1; REST=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --map) MAP="$2"; shift 2;;

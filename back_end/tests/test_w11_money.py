@@ -6,7 +6,7 @@ import pytest
 from game import world_state, ticker, economy, rent, qq, commissions
 from game.time_state import GAME_TZ
 from tests.conftest import action, place
-from tests.test_w9_map_v2 import v1  # noqa: F401
+from tests.test_w9_map_v2 import v12  # noqa: F401
 
 
 def _agent(client, aid, name=None):
@@ -21,14 +21,14 @@ def _tick(fake_clock, s=1.0):
     ticker.tick_once(checkpoint=False); fake_clock.advance(s); ticker.tick_once(checkpoint=False)
 
 
-def test_offline_accounts_wages_and_sales(client, v1, fake_clock):
+def test_offline_accounts_wages_and_sales(client, v12, fake_clock):
     _at(fake_clock, 2026, 11, 10, 10, 0)
     whale = _agent(client, "whale"); grocer = _agent(client, "npc_grocer"); fisher = _agent(client, "npc_fisher")
     assert economy.balance("npc_grocer") == 3000 and economy.accounts_view()["npc_fisher"] == 3000
     # 老板娘下线（被清理）→ 账户还在；鲸仔买面包的钱照进她账户；22:00 日薪照发
     world_state.remove_player(grocer)
     assert grocer not in world_state._players and economy.balance("npc_grocer") == 3000
-    place(whale, 55, 36, "up")
+    place(whale, 27, 22, "right")
     r = action(client, whale, "buy", {"item": "bread", "qty": 2})
     assert r["success"] and economy.balance("npc_grocer") == 3010
     rows = [x for x in economy_rows() if x["account"] == "npc_grocer"]
@@ -43,7 +43,7 @@ def test_offline_accounts_wages_and_sales(client, v1, fake_clock):
     assert all(x["account"] != "npc_rest_owner" for x in economy_rows())
 
 
-def test_xiaoqian_wage_debt_when_grocer_broke(client, v1, fake_clock):
+def test_xiaoqian_wage_debt_when_grocer_broke(client, v12, fake_clock):
     _at(fake_clock, 2026, 11, 10, 12, 0)                           # 周二
     xq = _agent(client, "npc_xiaoqian"); grocer = _agent(client, "npc_grocer")
     world_state._players[grocer]["gold"] = 5; economy.on_leave(world_state._players[grocer])
@@ -61,7 +61,7 @@ def economy_rows():
     return [json.loads(l) for l in fp.read_text(encoding="utf-8").splitlines()] if fp.exists() else []
 
 
-def test_rent_cycle_due_overdue_qq_clear_and_notice(client, v1, fake_clock):
+def test_rent_cycle_due_overdue_qq_clear_and_notice(client, v12, fake_clock):
     _at(fake_clock, 2026, 11, 10, 10, 0)
     whale = _agent(client, "whale"); owner = _agent(client, "npc_rest_owner")
     p = world_state._players[whale]
@@ -113,7 +113,7 @@ def test_rent_cycle_due_overdue_qq_clear_and_notice(client, v1, fake_clock):
     assert client.get(f"/player/{h}").json()["rent"] is None
 
 
-def test_commission_expires_after_3_days(client, v1, fake_clock):
+def test_commission_expires_after_3_days(client, v12, fake_clock):
     _at(fake_clock, 2026, 11, 10, 10, 0)
     _agent(client, "whale")
     cm = client.post("/admin/commission", json={"client": "餐厅老板", "title": "店歌", "fee": 150}).json()["commission"]

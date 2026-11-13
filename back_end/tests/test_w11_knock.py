@@ -6,7 +6,7 @@ from game import world_state, ticker, doors, persistence
 from game.action_log import read_log
 from game.time_state import GAME_TZ
 from tests.conftest import action, place, walk_done
-from tests.test_w9_map_v2 import v1  # noqa: F401
+from tests.test_w9_map_v2 import v12  # noqa: F401
 
 
 def _agent(client, aid, name=None):
@@ -26,15 +26,15 @@ def _arena(pid):
     return world_state.get_zone_at(p["x"], p["y"])["arena"]
 
 
-def test_knock_answer_open_door_enter_and_relock(client, v1, fake_clock):
+def test_knock_answer_open_door_enter_and_relock(client, v12, fake_clock):
     _at(fake_clock, 10, 0)
     xq = _agent(client, "npc_xiaoqian", "小千"); whale = _agent(client, "whale", "鲸仔")
-    place(whale, 12, 26, "down"); place(xq, 12, 35, "up")
+    place(whale, 9, 13, "down"); place(xq, 9, 19, "up")
     assert action(client, xq, "go_to", {"target": "living_room"})["reason"] == "no_path"
     r = action(client, xq, "knock", {"door_id": "door_home"})
     assert r["success"], r
     req = r["result"]["request"]; rid = req["id"]
-    assert req["status"] == "pending" and req["notified"] == [whale] and req["door"]["inside"] == {"x": 12, "y": 33}
+    assert req["status"] == "pending" and req["notified"] == [whale] and req["door"]["inside"] == {"x": 9, "y": 17}
     assert client.get(f"/player/{whale}").json()["pendingMessage"] == "小千 在敲门。"
     assert client.get("/agent/perceive", params={"entity_id": whale}).json()["knocks"][0]["visitor_name"] == "小千"
     # 主人隔门喊一句
@@ -45,8 +45,8 @@ def test_knock_answer_open_door_enter_and_relock(client, v1, fake_clock):
     assert pv["pendingMessage"] == "鲸仔：等一下" and pv["door_request"]["status"] == "answered"
     # 开门：不在门内侧 → not_inside_door；走到门内侧 (12,33) 开门
     r3 = action(client, whale, "open_door", {"door_id": "door_home"})
-    assert r3["success"] is False and r3["reason"] == "not_inside_door" and r3["result"]["inside"] == {"x": 12, "y": 33}
-    assert action(client, whale, "move", {"targetTile": {"x": 12, "y": 32}})["success"]
+    assert r3["success"] is False and r3["reason"] == "not_inside_door" and r3["result"]["inside"] == {"x": 9, "y": 17}
+    assert action(client, whale, "move", {"targetTile": {"x": 9, "y": 16}})["success"]
     walk_done(whale, fake_clock)
     r3 = action(client, whale, "open_door", {"door_id": "door_home"})
     assert r3["success"] and r3["result"]["open_s"] == 60 and r3["result"]["door_id"] == "door_home"
@@ -69,12 +69,12 @@ def test_knock_answer_open_door_enter_and_relock(client, v1, fake_clock):
     assert sum(1 for a in read_log(entity=xq) if a["type"] == "knock" and a["success"]) == 1
 
 
-def test_no_answer_decline_and_insider_without_key_can_open(client, v1, fake_clock):
+def test_no_answer_decline_and_insider_without_key_can_open(client, v12, fake_clock):
     _at(fake_clock, 2, 0)
     fisher = _agent(client, "npc_fisher", "老渔夫"); whale = _agent(client, "whale", "鲸仔"); xq = _agent(client, "npc_xiaoqian", "小千")
-    place(whale, 4, 24, "down"); world_state._players[whale]["tags"].append("sleeping")
-    place(fisher, 12, 35, "up")
-    r = action(client, fisher, "knock", {"target_tile": {"x": 12, "y": 33}})
+    place(whale, 4, 13, "down"); world_state._players[whale]["tags"].append("sleeping")
+    place(fisher, 9, 19, "up")
+    r = action(client, fisher, "knock", {"target_tile": {"x": 9, "y": 17}})
     assert r["success"] and r["result"]["notified"] == []
     for _ in range(95):
         _tick(fake_clock, 1.0)
@@ -88,37 +88,37 @@ def test_no_answer_decline_and_insider_without_key_can_open(client, v1, fake_clo
     assert client.post("/door/respond", json={"request_id": rid, "entity_id": whale, "text": "x"}).json()["reason"] == "not_pending:declined"
     assert client.post("/door/respond", json={"request_id": rid, "entity_id": fisher, "text": "x"}).json()["reason"] == "not_inside"
     # 商店不走敲门；有钥匙的人不用敲
-    place(xq, 51, 32, "up")
+    place(xq, 36, 19, "up")
     assert action(client, xq, "knock", {"door_id": "door_restaurant"})["reason"] == "not_a_home"
-    place(whale, 12, 35, "up")
+    place(whale, 9, 19, "up")
     assert action(client, whale, "knock", {"door_id": "door_home"})["reason"] == "has_key"
     # 屋里没钥匙的访客（小千被放进来了）能从内侧开门、也能出去
-    place(xq, 12, 33, "down")
+    place(xq, 9, 17, "down")
     assert action(client, xq, "open_door", {"door_id": "door_home"})["success"]
     assert action(client, xq, "move", {"direction": "down"})["success"]                               # 出门（本来就永远放行）
     # 商店门：打烊后店主钥匙直接过，外人 closed
     _at(fake_clock, 23, 0)
     owner = _agent(client, "npc_rest_owner")
-    place(owner, 51, 31, "up"); assert action(client, owner, "move", {"direction": "up"})["success"]
+    place(owner, 36, 18, "up"); assert action(client, owner, "move", {"direction": "up"})["success"]
     walk_done(owner, fake_clock)
-    place(fisher, 51, 31, "up"); r = action(client, fisher, "move", {"direction": "up"})
+    place(fisher, 36, 18, "up"); r = action(client, fisher, "move", {"direction": "up"})
     assert r["reason"] == "no_path" and r["result"]["blocked_reason"] == "closed" and r["result"]["opens_at"] == "11:00"
     # 店主在店里：开自家门 → 不在门内侧 → 拒
     assert action(client, owner, "open_door", {"door_id": "door_owners"})["reason"] == "not_inside_door"
     # §3.41 补：屋内任何人（人类演阿蝉站在客厅）都能被通知、能应门
     from tests.conftest import join
     h = join(client, "主播")
-    place(h, 12, 26, "down"); place(fisher, 12, 35, "up"); world_state._players[whale]["position"].update({"x": 40, "y": 25})
+    place(h, 9, 13, "down"); place(fisher, 9, 19, "up"); world_state._players[whale]["position"].update({"x": 28, "y": 13})
     r = action(client, fisher, "knock", {"door_id": "door_home"})
     assert r["success"] and r["result"]["notified"] == [h]
     assert client.post("/door/respond", json={"request_id": r["result"]["request_id"], "entity_id": h, "text": "来了来了"}).json()["success"]
     assert client.get(f"/player/{fisher}").json()["pendingMessage"] == "主播：来了来了"
 
 
-def test_doors_state_survives_checkpoint(client, v1, fake_clock):
+def test_doors_state_survives_checkpoint(client, v12, fake_clock):
     _at(fake_clock, 10, 0)
     whale = _agent(client, "whale"); xq = _agent(client, "npc_xiaoqian")
-    place(whale, 12, 33, "down"); place(xq, 12, 35, "up")
+    place(whale, 9, 17, "down"); place(xq, 9, 19, "up")
     rid = action(client, xq, "knock", {"door_id": "door_home"})["result"]["request_id"]
     assert action(client, whale, "open_door", {"door_id": "door_home"})["success"]
     persistence.save_checkpoint()

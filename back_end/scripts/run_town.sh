@@ -5,7 +5,7 @@
 #                       [--cors http://localhost:5183] [--host 127.0.0.1] [--tz Asia/Shanghai] [--seed 2]
 #                       [--env K=V ...] [--no-sync] [--scenario] [--fg]
 #   --scenario：开 SANDBOX_SCENARIO=1（行为验收夹具 POST /admin/scenario，只给 bench 镇）
-#   --map DIR|NAME：地图目录（SANDBOX_MAP_DIR），如 game/maps/v1，或名字 v1 / m1c / legacy_v0；不给则按 SANDBOX_MAP 环境变量（W11 冻结开关，默认 v0）
+#   --map DIR|NAME：地图目录（SANDBOX_MAP_DIR），如 game/maps/v1.2，或名字 v1.2 / v1 / m1c / legacy_v0；不给则按 SANDBOX_MAP 环境变量（W11 冻结开关，默认 v0）
 #
 # 与总控 townctl.py 的 start() 对齐：townctl 传 SANDBOX_DATA_DIR / SELF_URL / SANDBOX_TZ 与 towns.yaml 的 sandbox_env
 # （SANDBOX_SEED、SELF_SYNC），这里分别对应 --data / --self-url / --tz / --seed / --env；日志由 --log（townctl 自己重定向）。

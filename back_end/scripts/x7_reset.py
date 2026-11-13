@@ -28,7 +28,7 @@ def main():
         print("wiped", d)
     r = http(B, "POST", "/admin/scenario", {"steps": [
         {"op": "reset"}, {"op": "set_time", "date": a.date, "time": "04:00"},
-        {"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 3, "y": 24, "facing": "up"},
+        {"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 3, "y": 13, "facing": "up"},
     ]})
     assert r["ok"], json.dumps(r, ensure_ascii=False)[:400]
     w = r["steps"][-1]["detail"]["id"]

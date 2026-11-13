@@ -78,7 +78,7 @@
 
 **最短路（W11 维护，X1 实验给 A 算步数比）：** `GET /admin/path?from=x,y&to=x,y | to_object=<id> | to_arena=<id>[&ignore_locks=true][&mover=<agent_id 或 player id>]`（所有实例都开，只读）→ `{from, goals, ignore_locks, mover, game_time, mapVersion, reachable, length, path[]}`。BFS 走 `map.edges`（楼梯算一步），按**当前游戏时刻**的营业时间与门禁；`to_object` 的目标 = 它的 `usePos`（不可走的床类退到相邻可走格），`to_arena` = 该 arena 全部可走格；`mover` 不在线也能按身份算门禁；起点不可走 400，目标集合为空 404。离线整表：`cd back_end && uv run python scripts/path_table.py --map v1 --at 11:30 --as whale --points 客厅=12,26 --objects fridge_home --arenas dining [--pairs 客厅:fridge_home] [--format md|csv|json]`。
 
-**地图开关（W11 ⑤，冻结用）：** 环境变量 `SANDBOX_MAP=v1`（或 `m1c` / `legacy_v0`）让 `game/maps/<name>` 成为默认图；`SANDBOX_MAP_DIR`（目录）优先级更高；两者都没有 = v0。`scripts/run_town.sh --map v1` 同义；`scripts/world_reset.sh --map v1 --data <dir> --port <p> [-- run_town 其余参数]` 一键停实例 → 归档旧数据目录（`<dir>.v0-<时间戳>`）→ 空目录起新世界。
+**地图开关（W11 ⑤，冻结用）：** 环境变量 `SANDBOX_MAP=v1.2`（world-v1.2 起；或 `v1` / `m1c` / `legacy_v0`）让 `game/maps/<name>` 成为默认图；`SANDBOX_MAP_DIR`（目录）优先级更高；两者都没有 = v0。`scripts/run_town.sh --map v1` 同义；`scripts/world_reset.sh --map v1 --data <dir> --port <p> [-- run_town 其余参数]` 一键停实例 → 归档旧数据目录（`<dir>.v0-<时间戳>`）→ 空目录起新世界。
 
 **瘦身（W5 E③）：** `GET /world?fields=players,objects,worldState` 只回这些顶层键（可选值：`tiles` / `objects` / `worldState` / `players` / `tiled`），形状与全量相同（同一响应模型）；全量约 300 KB，`players,objects,worldState` 约 10 KB。`tiled`（**E⑤**）现在非空：`{tilesets: [Sunnyside 信息], layers: [ground, structures]}`，gid 映射为假设值，见 `scripts/gen_map.py` 的 `TILE_GIDS`（可用 `game/maps/tile_gids.json` 覆盖）。
 
@@ -1569,6 +1569,13 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 - **`SANDBOX_SOLO=1`**（towns.yaml `sandbox_env`；`GET /admin/metrics.solo`）：NPC 身体不 spawn。本来就不依赖 NPC 在场的事照常：买 / 卖 / 餐厅 `eat meal` / 配钥匙的钱进店主**账户**（离线入账）、商店与餐厅按营业时间开、QQ 发给没来的人照常入信箱（没人回）、没开户的 NPC 不发日薪不收租。**委托交付**改为 `deliver {item?="cd", commission_id?, client?}`：站到委托人的 **drop point**（`economy.commissions.drop_points`：餐厅老板 `door_restaurant` / `bar`、店主 `door_grocery` / `counter`、渔夫 `door_fisher` / `fish_stall`、小千 `door_xiaoqian`）2 格内即算交付（酬金入账，委托 `via: "drop"`；委托人不在线不记亲密度）。失败 `not_solo`（非 solo 仍当面 `give`）/ `no_open_commission` / `not_at_drop_point {drop_points}` / `no_item`。
 - **每日复位** `cd back_end && uv run python scripts/x7_reset.py --base <镇> --date <YYYY-MM-DD> [--wipe-data <sandbox 数据目录>]`：`reset` → `set_time <date> 04:00` → spawn 鲸仔（账户 3,000）→ `occupy bed_whale`，并断言：冰箱 6 饭 + 4 食材、NPC 家 4 饭、商店满货、无委托、在床上 `sleeping`、背包只有钥匙、房租未欠、只有她在场。
+
+### 12.11 world-v1.2 紧凑地图（主播 11-14 定；`SANDBOX_MAP=v1.2`，tag `world-v1.2`）
+
+- `game/maps/v1.2`（50×37，`scripts/gen_map_v12.py`；平面图与占地表 `docs/map-v1.2-draft.md`）：每栋楼占地缩小，**楼名 / sector / arena / 门 id / 物品 id 与 v1 完全一致**，60 件物品（去掉草坪装饰树 / 池塘 / 晾衣绳 / 花坛，`decor` 为空；新增 2 棵 `tree_big` 2×2、3 盏 `lamp` 1×1）。家门→餐厅门 27 步（v1 71）。v1 图文件保留（X1–X6 复现），默认测试图切到 v1.2；bench / 主镇由 towns.yaml `SANDBOX_MAP=v1.2`。mapVersion 变；旧检查点里坐标非法的玩家回出生点，物品 contents / stock 按 id 回填。
+- `/world.map` 多 **`buildings[]`**：`{id, sector, floor, footprint {x, y, w, h}（外墙含）, doors [{door_id, cell {x, y}（室内侧格）, kind}]}`——给 E 的整栋贴图（校园围墙不记，三栋教学楼 / 图书馆 / 音乐楼各一条；2F 阿蝉房 `home_2f` floor 2，门是 `stairs_home`）。
+- 关键坐标（夹具 / 跑手用，全表见 `docs/x5-fixtures.md` 坐标段）：出生点 (4,13)；床边 (3,13) up；直播台 pc_whale 站 (5,12) up；冰箱 fridge_home 站 (5,16) up；灶台 (3,16) up；餐桌 table_home 站 (7,12) up；客厅 (9,13)；广场 (28,14)；街道 (30,9)；餐厅门外 (36,18)、桌 table_rest_1 站 (34,12) up；杂货店门外 (21,22)（南北街，门朝西）、柜台站 (27,22) right；琴房电脑站 (24,3) up；码头 (43,5)、钓位 1 站 (45,3) up；渔夫家门外 (37,7)、小千家门外 (16,26)、店主家门外 (36,26)。
+- `docs/x1-shortest.json` 重出（`scripts/x1_shortest.py --map v1.2`）：S01 7 / S02 41 / S03 56 / N1 63 / N2 19 / N3 null / N4 29 / N5 15；旧表 `docs/x1-shortest-v1.json`。
 
 ### 12.7 地图 v1
 

@@ -45,6 +45,14 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5w. world-v1.2 紧凑地图（主播 11-14 点头后实现；tag `world-v1.2`）—— 完成
+
+- `scripts/gen_map_v12.py` → `game/maps/v1.2`（50×37，v1 为 64×48）：楼名 / sector / arena / 门 id / 物品 id 与 v1 **完全一致**，60 件物品一个不少（去掉草坪装饰树 / 池塘 / 晾衣绳 / 花坛，`decor` 空；新类型 `tree_big` 2×2 ×2、`lamp` ×3）；杂货店按主播定门朝西 (22,22) 直接开到南北街；校门南墙正中、南北街穿校园；2F 阿蝉房仍另一画布 + 楼梯传送。家门→餐厅门 27 步（v1 71）、→校门 21、→琴房 29、→码头 44、→杂货店 16。草案 / 校验脚本 `scripts/draft_map_v12.py`，文档 `docs/map-v1.2-draft.md`（含坐标迁移表）。
+- **`/world.map.buildings[]`**（E 的整栋贴图）：`{id, sector, floor, footprint{x,y,w,h}, doors[{door_id, cell, kind}]}`，10 条（校园按三栋楼、围墙不记；`home_2f` floor 2）。
+- 坐标迁移：测试夹具改为加载 v1.2（`v12`；`v1` 夹具保留给一条旧图回归），16 个测试文件 ≈ 90 处 `place()` / 路径参数 / 断言换坐标，杂货店门朝西与 decor 空两处断言跟着改；`verify_fixtures_v11.py` / `x7_reset.py` 换坐标；`path_table.py` / `world_reset.sh` 默认 v1.2；`docs/x5-fixtures.md` 坐标段重写 + 场景行换坐标、`docs/x1-fixtures.md` 步骤与坐标表重写；**`docs/x1-shortest.json` 重出**（新脚本 `scripts/x1_shortest.py --map v1.2`：S01 7 / S02 41 / S03 56 / N1 63 / N2 19 / N4 29 / N5 15；旧表存 `x1-shortest-v1.json`；用它回算 v1 与旧表一致，只有 N5 旧表 17 → 21 是当年手算差）。
+- 顺手修：`reset` 现在把夹具 `set_supply` 改过的 `daily_supply` 回配置（x7_reset「商店满货」依赖）。
+- **338 passed**；8091 已切 v1.2（新检查点）：`verify_fixtures_v11` 五项 PASS、`x7_reset` 十项 PASS、日志无错。api-spec §12.11。E 问的三点：`buildings[]` 已加、大学按三栋给、新类型物品 `tiles[]` 照旧。
+
 ## 5v. X7 B 侧：「只有她」模式 + 每日复位脚本 —— 完成
 
 - `SANDBOX_SOLO=1`（`world_state.SOLO`，`/admin/metrics.solo`）：核过买 / 配钥匙 / 餐厅点餐 / QQ / 日薪在无 NPC 下的行为（本就按账户与营业时间走），加 checklist 单测 `tests/test_w11_solo.py`。委托交付：总控选「保留每日出单、CD 放到委托人家门口 / 餐厅柜台即交付」→ 新动作 `deliver`（`economy.commissions.drop_points`，门 id 或物品 id 2 格内），`commissions.deliver` 改为接受账号字符串（委托人不在不记亲密度，`via: drop`）；非 solo 回 `not_solo`。

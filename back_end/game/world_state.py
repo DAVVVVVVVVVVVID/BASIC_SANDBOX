@@ -1281,7 +1281,8 @@ def door_states() -> list[dict]:
 
 def map_graph_summary() -> dict:
     """GET /world 的 v2 附加信息。"""
-    return {"format": MAP_FORMAT, "edges": _EDGES, "floors": _FLOORS, "access": _ACCESS, "doors": door_states()}   # §3.41：门此刻开 / 锁
+    return {"format": MAP_FORMAT, "edges": _EDGES, "floors": _FLOORS, "access": _ACCESS, "doors": door_states(),   # §3.41：门此刻开 / 锁
+            "buildings": _MAP_DATA.get("buildings", [])}   # world-v1.2：整栋楼 {id, sector, floor, footprint{x,y,w,h}, doors[{door_id, cell, kind}]}（E 的整栋贴图）
 
 
 def update_player_facing(player_id: str, facing: str) -> None:
@@ -1970,8 +1971,11 @@ def _reset_for_tests() -> None:
         food._reset_for_tests(); social._reset_for_tests(); needs_cfg.reload()
         from game.buff_tick import reload_rates
         reload_rates()
+        from game.economy import daily_supply as _ds
         for o in _OBJECTS:
             o["stock"] = _initial_stock(o["type"])
+            if o.get("daily_supply") is not None:
+                o["daily_supply"] = _ds(o["type"])             # 夹具 set_supply 改过的当日上新量回配置
             if o.get("contents") is not None:
                 food.init_contents(o, game_now_ts())
         refresh_shop_views()

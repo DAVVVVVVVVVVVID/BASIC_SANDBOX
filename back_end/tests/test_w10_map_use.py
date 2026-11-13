@@ -1,29 +1,32 @@
 """W10 ①②：v1 地图南面进门 + 装饰层；物品 usePos / useFacing（/world 带出、perceive 不带；use 挪到站位，leave 回原地）。"""
 from game import world_state
 from tests.conftest import BED_ID, BED_STAND, DESK_ID, DESK_STAND, join, action, place
-from tests.test_w9_map_v2 import v1  # noqa: F401  复用 v1 地图 fixture
+from tests.test_w9_map_v2 import v12  # noqa: F401  复用 v1 地图 fixture
 
 SOUTH_DOORS = ("door_home", "door_restaurant", "door_grocery", "door_xiaoqian", "door_owners")
 
 
-def test_v1_buildings_enter_from_south(client, v1):
+def test_v1_buildings_enter_from_south(client, v12):
     edges = {e["id"]: e for e in client.get("/world", params={"fields": "map"}).json()["map"]["edges"]}
     for eid in SOUTH_DOORS:
         a, b = edges[eid]["a"], edges[eid]["b"]
+        if eid == "door_grocery":                                                  # world-v1.2：主播定杂货店门朝西直接开到南北街
+            assert a["y"] == b["y"] and a["x"] == b["x"] - 1 and a["arena"] == "street", eid
+            continue
         assert a["x"] == b["x"] and a["y"] == b["y"] + 1, eid                      # a 在 b 正南一格（a 外 b 内）
         assert a["arena"] == "lane", eid                                           # 门外是小巷
         assert b["arena"] != "lane" and world_state.get_zone_at(b["x"], b["y"])["arena"] == b["arena"], eid
         assert world_state.is_tile_walkable(a["x"], a["y"]) and world_state.is_tile_walkable(b["x"], b["y"]), eid
         assert world_state.is_tile_walkable(b["x"], b["y"] - 1), eid               # 门内一格是室内地板，不是墙
     # 渔夫屋与校园三栋不动
-    assert (edges["door_fisher"]["a"]["x"], edges["door_fisher"]["a"]["y"]) == (52, 8)
-    assert (edges["door_classroom"]["b"]["x"], edges["door_classroom"]["b"]["y"]) == (9, 6)
+    assert (edges["door_fisher"]["a"]["x"], edges["door_fisher"]["a"]["y"]) == (37, 7)
+    assert (edges["door_classroom"]["b"]["x"], edges["door_classroom"]["b"]["y"]) == (6, 5)
 
 
-def test_v1_decor_layer_exposed_and_non_interactive(client, v1):
+def test_v1_decor_layer_exposed_and_non_interactive(client, v12):
     w = client.get("/world", params={"fields": "decor,objects"}).json()
     kinds = {d["kind"] for d in w["decor"]}
-    assert {"path", "pond", "clothesline", "flowerbed"} <= kinds
+    assert kinds == set()                                                            # world-v1.2：装饰层清空（外观走整栋贴图；主播定）；字段仍在
     for d in w["decor"]:
         assert d["id"] and d["tiles"] and all({"x", "y"} <= set(t) for t in d["tiles"])
     assert not any(d["id"] in {o["id"] for o in w["objects"]} for d in w["decor"])   # 装饰不是物品
@@ -31,7 +34,7 @@ def test_v1_decor_layer_exposed_and_non_interactive(client, v1):
         for t in d["tiles"]:
             walk = world_state.is_tile_walkable(t["x"], t["y"])
             assert walk if d["kind"] == "path" else (not walk if d["kind"] == "pond" else True)
-    assert len([o for o in w["objects"] if o["type"] == "tree"]) >= 9
+    assert len([o for o in w["objects"] if o["type"] in ("tree", "tree_big")]) == 4      # v1.2：公园 2 大树 + 2 小树
     assert client.get("/world").json()["decor"] == w["decor"]                       # 默认字段集也带
 
 

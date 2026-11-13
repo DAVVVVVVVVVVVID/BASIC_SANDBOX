@@ -1,14 +1,14 @@
 """§3.41 补：加载旧检查点（玩家没经过 join 领钥匙）后补发自家钥匙，幂等；scenario spawn 的鲸仔也拿到 door_home 钥匙（X1 S02）。"""
 from game import world_state, doors, persistence, inventory
 from tests.conftest import join
-from tests.test_w9_map_v2 import v1  # noqa: F401
+from tests.test_w9_map_v2 import v12  # noqa: F401
 
 
 def _agent(client, aid, name=None):
     return client.post("/player/join", json={"name": name or aid, "controller": "agent", "profile": {"agent_id": aid}}).json()["playerId"]
 
 
-def test_checkpoint_without_keys_gets_migrated_once(client, v1):
+def test_checkpoint_without_keys_gets_migrated_once(client, v12):
     whale = _agent(client, "whale"); achan = _agent(client, "achan"); fisher = _agent(client, "npc_fisher"); h = join(client, "主播")
     # 模拟「钥匙前」的检查点：清掉背包里的钥匙与发放记录
     for pid in (whale, achan, fisher, h):
@@ -32,7 +32,7 @@ def test_checkpoint_without_keys_gets_migrated_once(client, v1):
     assert [k["door_id"] for k in doors.keys_of(world_state._players[h2])] == ["door_home"]
 
 
-def test_scenario_spawn_gives_whale_her_key(client, v1, monkeypatch):
+def test_scenario_spawn_gives_whale_her_key(client, v12, monkeypatch):
     monkeypatch.setenv("SANDBOX_SCENARIO", "1")
     r = client.post("/admin/scenario", json={"steps": [{"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 45, "y": 19}]}).json()
     pid = r["steps"][0]["detail"]["id"]

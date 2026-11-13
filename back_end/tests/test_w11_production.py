@@ -11,7 +11,7 @@ from game import world_state, ticker, economy, inventory, production, commission
 from game.paths import data_dir
 from game.time_state import GAME_TZ
 from tests.conftest import join, action, place, STREAM_STAND, STREAM_ID
-from tests.test_w9_map_v2 import v1  # noqa: F401
+from tests.test_w9_map_v2 import v12  # noqa: F401
 from tests.test_external_effects import fake_self  # noqa: F401
 
 
@@ -38,10 +38,10 @@ def _external():
 
 
 # ── ① 钓位 ──
-def test_fishing_rolls_every_interval_and_bait(client, v1, fake_clock, monkeypatch):
+def test_fishing_rolls_every_interval_and_bait(client, v12, fake_clock, monkeypatch):
     _at(fake_clock, 10, 0)
     whale = _agent(client, "whale")
-    place(whale, 57, 12, "up")
+    place(whale, 45, 3, "up")
     cfg = economy.cfg()["production"]["fishing"]
     monkeypatch.setitem(cfg, "p", 1.0); monkeypatch.setitem(cfg, "p_bait", 1.0)
     assert action(client, whale, "use")["success"]
@@ -64,11 +64,11 @@ def test_fishing_rolls_every_interval_and_bait(client, v1, fake_clock, monkeypat
 
 
 # ── ① 灶台 ──
-def test_stove_consumes_ingredients_and_produces_bento_after_30min(client, v1, fake_clock):
+def test_stove_consumes_ingredients_and_produces_bento_after_30min(client, v12, fake_clock):
     """world-v1.1 §1.1：灶台按份——use {item, qty} 立即扣 n 份，20 + 10×(n−1) 分钟后产 n 份家常菜（带保质期 3 天）；中途走白费；吃要到餐桌。"""
     _at(fake_clock, 10, 0)
     whale = _agent(client, "whale")
-    place(whale, 8, 30, "up")
+    place(whale, 3, 16, "up")
     r = action(client, whale, "use")
     assert r["success"] is False and r["reason"] == "no_ingredients" and r["result"]["have"] == 0    # 没食材不开火
     p = world_state._players[whale]
@@ -89,13 +89,13 @@ def test_stove_consumes_ingredients_and_produces_bento_after_30min(client, v1, f
     action(client, whale, "leave")
     assert "working" not in p["tags"]
     # 提前走：食材耗了、没菜（ws cook_cancelled）
-    place(whale, 8, 30, "up")
+    place(whale, 3, 16, "up")
     assert action(client, whale, "use")["success"] and inventory.count(p, "ingredients") == 0   # 无冷却
     fake_clock.advance(5 * 60); _tick(fake_clock, 1)
     assert action(client, whale, "leave")["success"] and inventory.count(p, "home_meal") == 2
     # 吃：不在餐桌不行；到合租房餐桌 15 分钟 +40
     assert action(client, whale, "eat", {"item": "home_meal"})["reason"] == "not_at_table"
-    place(whale, 11, 24, "up"); assert action(client, whale, "use")["success"]
+    place(whale, 7, 12, "up"); assert action(client, whale, "use")["success"]
     p["fullness"] = 30.0
     r = action(client, whale, "eat", {"item": "home_meal"})
     assert r["success"] and r["result"]["duration_s"] == 900 and inventory.count(p, "home_meal") == 1
@@ -107,11 +107,11 @@ def test_stove_consumes_ingredients_and_produces_bento_after_30min(client, v1, f
 
 
 # ── ① compose / make_video / 委托 ──
-def test_compose_requires_pc_music_and_time_then_deliver_commission(client, v1, fake_clock, monkeypatch):
+def test_compose_requires_pc_music_and_time_then_deliver_commission(client, v12, fake_clock, monkeypatch):
     monkeypatch.setitem(economy.cfg()["commissions"], "daily_p", 0.0)                    # 这里不要自动出单
     _at(fake_clock, 10, 0)
     whale = _agent(client, "whale", "鲸仔"); owner = _agent(client, "npc_rest_owner", "餐厅老板")
-    place(whale, 34, 3, "up")
+    place(whale, 24, 3, "up")
     assert action(client, whale, "compose", {"title": "夜航"})["reason"] == "need_object"
     assert action(client, whale, "use")["success"]
     r = action(client, whale, "compose", {"title": "夜航"})
@@ -132,11 +132,11 @@ def test_compose_requires_pc_music_and_time_then_deliver_commission(client, v1, 
     fake_clock.advance(601); _tick(fake_clock, 1)
     assert inventory.count(p, "cd") == 2 and client.get(f"/player/{whale}").json()["busy"] is None and "burning" not in p["tags"]
     # 公告栏读到委托
-    action(client, whale, "leave"); place(whale, 28, 18, "up")
+    action(client, whale, "leave"); place(whale, 19, 11, "up")
     nb = action(client, whale, "use")
     assert nb["success"] and nb["result"]["commissions"][0]["id"] == cm["id"] and "委托" in nb["result"]["message"]
     # 交付：give 给委托人 → 酬金 + 亲密度 +15
-    place(whale, 10, 10, "up"); place(owner, 11, 10, "left")
+    place(whale, 3, 19, "up"); place(owner, 4, 19, "left")
     gold0 = p["gold"]
     r = action(client, whale, "give", {"target": owner, "item": "cd"})
     assert r["success"] and r["result"]["commission"]["status"] == "delivered" and r["result"]["gold_delta"] == 200
@@ -149,11 +149,11 @@ def test_compose_requires_pc_music_and_time_then_deliver_commission(client, v1, 
     assert r["success"] and "commission" not in r["result"] and inventory.count(p, "cd") == 0
 
 
-def test_make_video_on_pc_and_daily_commission_refresh(client, v1, fake_clock, monkeypatch):
+def test_make_video_on_pc_and_daily_commission_refresh(client, v12, fake_clock, monkeypatch):
     monkeypatch.setitem(economy.cfg()["commissions"], "daily_p", 1.0)
     _at(fake_clock, 7, 50)
     achan = _agent(client, "achan")
-    place(achan, 8, 38, "up")                                                             # pc_achan（pc_desk）
+    place(achan, 6, 31, "up")                                                             # pc_achan（pc_desk）
     assert action(client, achan, "use")["success"]
     r = action(client, achan, "make_video", {"title": "周报"})
     assert r["reason"] == "not_ready" and r["result"]["ready_in_min"] == 60

@@ -1,4 +1,4 @@
-"""W9：地图格式 v2（edges / floors / access）+ v1.0 草图。用 load_map 切到 game/maps/v1，测完切回默认图。"""
+"""W9：地图格式 v2（edges / floors / access）。world-v1.2 起测试图切到 game/maps/v1.2（紧凑版，id 与 v1 一致）；v1 草图文件保留给 X1–X6 复现。"""
 import json
 from datetime import datetime
 from pathlib import Path
@@ -11,16 +11,28 @@ from routers import actions as actions_mod
 from tests.conftest import join, action, place, walk_done
 
 V1 = Path(world_state.__file__).parent / "maps" / "v1"
+V12 = Path(world_state.__file__).parent / "maps" / "v1.2"
 DEFAULT = Path(world_state.__file__).parent / "maps"
 
 
-@pytest.fixture
-def v1(monkeypatch, fake_clock):
-    world_state.load_map(V1)
+def _load(monkeypatch, fake_clock, path):
+    world_state.load_map(path)
     monkeypatch.setattr(actions_mod, "BASE_MOVE_INTERVAL", 0.0)
     fake_clock.t = datetime(2026, 11, 10, 12, 0, tzinfo=GAME_TZ).timestamp()
     yield
     world_state.load_map(DEFAULT)
+
+
+@pytest.fixture
+def v12(monkeypatch, fake_clock):
+    """world-v1.2 紧凑图（测试默认）。"""
+    yield from _load(monkeypatch, fake_clock, V12)
+
+
+@pytest.fixture
+def v1(monkeypatch, fake_clock):
+    """v1.0 草图（保留，X1–X6 复现 / 旧图回归）。"""
+    yield from _load(monkeypatch, fake_clock, V1)
 
 
 def _at(fake_clock, h, m=0):
@@ -31,9 +43,13 @@ def _agent(client, aid, name=None):
     return client.post("/player/join", json={"name": name or aid, "controller": "agent", "profile": {"agent_id": aid}}).json()["playerId"]
 
 
-def test_v1_map_loads_format2_and_world_exposes_graph(client, v1):
-    assert world_state.MAP_FORMAT == 2 and world_state.MAP_W == 64 and world_state.MAP_H == 48
-    assert len(world_state._OBJECTS) == 68 and len(world_state._EDGES) == 12   # W10：+9 棵装饰树；world-v1.1：NPC 家 / 后厨 +4 灶台 +3 餐桌
+def test_v1_map_still_loads(client, v1):
+    assert world_state.MAP_FORMAT == 2 and world_state.MAP_W == 64 and world_state.MAP_H == 48 and len(world_state._OBJECTS) == 68 and len(world_state._EDGES) == 12
+
+
+def test_v1_map_loads_format2_and_world_exposes_graph(client, v12):
+    assert world_state.MAP_FORMAT == 2 and world_state.MAP_W == 50 and world_state.MAP_H == 37
+    assert len(world_state._OBJECTS) == 60 and len(world_state._EDGES) == 12   # world-v1.2：去掉草坪装饰树，+2 大树 +3 路灯
     w = client.get("/world", params={"fields": "map,zone_names,worldState"}).json()
     assert w["map"]["format"] == 2 and w["map"]["floors"] == {"achan_room": 2}
     assert {e["kind"] for e in w["map"]["edges"]} == {"door", "gate", "stairs"}
@@ -45,7 +61,7 @@ def test_v1_map_loads_format2_and_world_exposes_graph(client, v1):
     assert {s["id"] for s in tree["sectors"]} == {"outside", "university", "fisher_house", "home", "restaurant", "grocery", "xiaoqian_house", "owners_house"}
 
 
-def test_spawn_points_follow_bible(client, v1):
+def test_spawn_points_follow_bible(client, v12):
     for aid, arena in (("whale", "whale_room"), ("achan", "achan_room"), ("npc_fisher", "fisher_bedroom"),
                        ("npc_xiaoqian", "xiaoqian_room"), ("npc_rest_owner", "owner_rest_room"), ("npc_grocer", "owner_grocer_room")):
         p = client.post("/player/join", json={"name": aid, "controller": "agent", "profile": {"agent_id": aid}}).json()["player"]
@@ -54,7 +70,7 @@ def test_spawn_points_follow_bible(client, v1):
     assert world_state.get_zone_at(h["position"]["x"], h["position"]["y"])["arena"] == "whale_room"      # 2.5：鲸仔房间出生
 
 
-def test_all_objects_reachable_including_2f(client, v1):
+def test_all_objects_reachable_including_2f(client, v12):
     """忽略锁（当 owner）从鲸仔房间出发，52 个物品全部有相邻可达格——含 2F 阿蝉房（经楼梯边）。"""
     start = (world_state._META["player_start"]["x"], world_state._META["player_start"]["y"])
     reach = {start}
@@ -71,16 +87,16 @@ def test_all_objects_reachable_including_2f(client, v1):
         assert adj & reach, o["id"]
 
 
-def test_achan_room_locked_0900_1830_for_whale_open_after(client, v1, fake_clock):
+def test_achan_room_locked_0900_1830_for_whale_open_after(client, v12, fake_clock):
     whale = _agent(client, "whale"); achan = _agent(client, "achan")
     _at(fake_clock, 10, 0)
     res = action(client, whale, "move_to_area", {"area_type": "arena", "area_id": "achan_room"})
     assert res["success"] is False and res["reason"] == "no_path"                                   # §3.36：无路统一 no_path，首个阻塞在 result
-    assert res["result"]["blocked_reason"] == "locked" and res["result"]["opens_at"] == "18:30" and res["result"]["blocked_at"] == {"x": 3, "y": 37}
+    assert res["result"]["blocked_reason"] == "locked" and res["result"]["opens_at"] == "18:30" and res["result"]["blocked_at"] == {"x": 3, "y": 30}
     res = action(client, whale, "go_to", {"target": "achan_room"})                                # 别名
     assert res["type"] == "go_to" and res["reason"] == "no_path" and res["result"]["blocked_reason"] == "locked" and res["result"]["opens_at"] == "18:30"
-    # 阿蝉本人（owner）锁定时段也能进，且路径经过楼梯边（1F (14,32) → 2F (3,37)）
-    place(achan, 12, 25, "down")
+    # 阿蝉本人（owner）锁定时段也能进，且路径经过楼梯边（1F (10,16) → 2F (3,30)）
+    place(achan, 9, 12, "down")
     res = action(client, achan, "move_to_area", {"area_type": "arena", "area_id": "achan_room"})
     assert res["success"], res
     walk_done(achan, fake_clock)
@@ -93,7 +109,7 @@ def test_achan_room_locked_0900_1830_for_whale_open_after(client, v1, fake_clock
     walk_done(whale, fake_clock)
     pos = world_state._players[whale]["position"]
     assert world_state.get_zone_at(pos["x"], pos["y"])["arena"] == "achan_room" and world_state.arena_floor("achan_room") == 2
-    # 单步 move 跨楼梯：站在 (14,32) 不能靠相邻走上去（非相邻），BFS 才走楼梯；下楼 move_to_area 回客厅
+    # 单步 move 跨楼梯：站在 (10,16) 不能靠相邻走上去（非相邻），BFS 才走楼梯；下楼 move_to_area 回客厅
     res = action(client, whale, "move_to_area", {"area_type": "arena", "area_id": "living_room"})
     assert res["success"]
     walk_done(whale, fake_clock)
@@ -101,31 +117,31 @@ def test_achan_room_locked_0900_1830_for_whale_open_after(client, v1, fake_clock
     assert world_state.get_zone_at(pos["x"], pos["y"])["arena"] == "living_room"
 
 
-def test_single_step_into_locked_room_is_locked(client, v1, fake_clock):
+def test_single_step_into_locked_room_is_locked(client, v12, fake_clock):
     whale = _agent(client, "whale")
     _at(fake_clock, 10, 0)
-    place(whale, 14, 32, "down")
-    # 楼梯是非相邻边，单步 move 走不上去；用 move_to_area 得 locked。换一个相邻锁门：渔夫家门 (52,8)→(52,7)
-    place(whale, 52, 8, "up")
+    place(whale, 10, 16, "down")
+    # 楼梯是非相邻边，单步 move 走不上去；用 move_to_area 得 locked。换一个相邻锁门：渔夫家门 (37,7)→(37,6)
+    place(whale, 37, 7, "up")
     res = action(client, whale, "move", {"direction": "up"})
-    assert res["success"] is False and res["reason"] == "no_path" and res["result"]["blocked_reason"] == "locked" and res["result"]["blocked_at"] == {"x": 52, "y": 7}
+    assert res["success"] is False and res["reason"] == "no_path" and res["result"]["blocked_reason"] == "locked" and res["result"]["blocked_at"] == {"x": 37, "y": 6}
     fisher = _agent(client, "npc_fisher")
-    place(fisher, 52, 8, "up")
+    place(fisher, 37, 7, "up")
     res = action(client, fisher, "move", {"direction": "up"})                                         # owner 可进（agent 单格也排队，1 格）
     assert res["success"] and res["result"]["state"] == "walking" and res["result"]["path_len"] == 1
     walk_done(fisher, fake_clock)
-    assert world_state._players[fisher]["position"] == {"x": 52, "y": 7}
+    assert world_state._players[fisher]["position"] == {"x": 37, "y": 6}
     res = action(client, whale, "move_to_area", {"area_type": "arena", "area_id": "fisher_bedroom"})
     assert res["reason"] == "no_path" and res["result"]["blocked_reason"] == "locked" and res["result"]["opens_at"] is None   # 常锁，无开门时间
 
 
-def test_school_gate_and_building_hours(client, v1, fake_clock):
+def test_school_gate_and_building_hours(client, v12, fake_clock):
     whale = _agent(client, "whale")
-    place(whale, 30, 10, "up")
+    place(whale, 20, 9, "up")
     _at(fake_clock, 23, 30)
-    res = action(client, whale, "move", {"direction": "up"})                                        # (30,9)
+    res = action(client, whale, "move", {"direction": "up"})                                        # (20,8) 主街
     assert res["success"]; walk_done(whale, fake_clock)
-    res = action(client, whale, "move", {"direction": "up"})                                        # (30,8) 校门，23:00 关
+    res = action(client, whale, "move", {"direction": "up"})                                        # (20,7) 校门，23:00 关
     assert res["success"] is False and res["reason"] == "no_path" and res["result"]["blocked_reason"] == "closed" and res["result"]["opens_at"] == "06:00"
     res = action(client, whale, "move_to_area", {"area_type": "arena", "area_id": "library"})
     assert res["reason"] == "no_path" and res["result"]["blocked_reason"] == "closed" and res["result"]["opens_at"] == "06:00"
@@ -141,9 +157,9 @@ def test_school_gate_and_building_hours(client, v1, fake_clock):
     assert world_state.get_zone_at(pos["x"], pos["y"])["arena"] == "library"
 
 
-def test_restaurant_door_hours_and_no_path(client, v1, fake_clock):
+def test_restaurant_door_hours_and_no_path(client, v12, fake_clock):
     whale = _agent(client, "whale")
-    place(whale, 40, 25, "right")
+    place(whale, 28, 13, "right")
     _at(fake_clock, 15, 0)
     res = action(client, whale, "move_to_area", {"area_type": "arena", "area_id": "dining"})
     assert res["reason"] == "no_path" and res["result"]["blocked_reason"] == "closed" and res["result"]["opens_at"] == "17:00"

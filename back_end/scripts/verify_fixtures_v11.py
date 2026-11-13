@@ -32,7 +32,7 @@ def player(base, pid):
 
 
 def spawn(base, **vars_):
-    sc(base, [{"op": "reset"}, {"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 5, "y": 25, "facing": "down", "vars": vars_}])
+    sc(base, [{"op": "reset"}, {"op": "spawn", "name": "鲸仔", "controller": "agent", "agent_id": "whale", "x": 4, "y": 13, "facing": "down", "vars": vars_}])
     return whale_id(base)
 
 
@@ -41,7 +41,7 @@ def main():
     results = {}
     # S01 三步版
     w = spawn(B, fullness=15)
-    sc(B, [{"op": "set_time", "time": "11:30"}, {"op": "teleport", "player": w, "x": 41, "y": 26, "facing": "up"},
+    sc(B, [{"op": "set_time", "time": "11:30"}, {"op": "teleport", "player": w, "x": 28, "y": 14, "facing": "up"},
            {"op": "set_fridge", "id": "fridge_home", "qty": 0}, {"op": "set_fridge", "id": "fridge_home", "item": "home_meal", "qty": 2},
            {"op": "set_stock", "shop": "counter", "item": "bread", "qty": 8}])
     o = objs(B); p = player(B, w)
@@ -49,13 +49,13 @@ def main():
                       and o["table_home"]["dining"] is True and abs(p["fullness"] - 15) < 0.5 and p["inventory"] == [i for i in p["inventory"] if i["type"] == "key"])
     # R1 资源不可得
     w = spawn(B, fullness=18)
-    sc(B, [{"op": "set_time", "time": "22:30"}, {"op": "teleport", "player": w, "x": 41, "y": 26, "facing": "right"}, {"op": "set_fridge", "id": "fridge_home", "qty": 0}])
+    sc(B, [{"op": "set_time", "time": "22:30"}, {"op": "teleport", "player": w, "x": 28, "y": 14, "facing": "right"}, {"op": "set_fridge", "id": "fridge_home", "qty": 0}])
     o = objs(B)
     results["R1"] = (o["fridge_home"]["stock"] == {} and o["fridge_home"]["contents"] == [] and o["table_rest_1"]["open"] is False and o["counter"]["open"] is False
                      and http(B, "GET", "/admin/metrics")["economy"]["default"] in (True, False))
     # S11 两头空 → 去餐厅（A judge：contents 空 + 杂货店食物 stock 0 + 餐厅开 + 饱腹 ≤ 15）
     w = spawn(B, fullness=15)
-    sc(B, [{"op": "set_time", "time": "12:10"}, {"op": "teleport", "player": w, "x": 12, "y": 26, "facing": "up"}, {"op": "set_fridge", "id": "fridge_home", "qty": 0},
+    sc(B, [{"op": "set_time", "time": "12:10"}, {"op": "teleport", "player": w, "x": 9, "y": 13, "facing": "up"}, {"op": "set_fridge", "id": "fridge_home", "qty": 0},
            {"op": "set_stock", "shop": "counter", "item": "ingredients", "qty": 0}, {"op": "set_stock", "shop": "counter", "item": "bread", "qty": 0},
            {"op": "set_stock", "shop": "counter", "item": "sweets", "qty": 0}, {"op": "set_gold", "player": w, "gold": 300},
            {"op": "set_supply", "shop": "counter", "item": "ingredients", "qty": 0}, {"op": "set_supply", "shop": "counter", "item": "bread", "qty": 0},
@@ -70,7 +70,7 @@ def main():
     today = date.fromisoformat(http(B, "GET", "/world?fields=worldState")["worldState"]["date"])
     first_next = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
     d = (first_next - timedelta(days=1)).isoformat()
-    sc(B, [{"op": "set_time", "date": d, "time": "14:00"}, {"op": "teleport", "player": w, "x": 5, "y": 25, "facing": "down"},
+    sc(B, [{"op": "set_time", "date": d, "time": "14:00"}, {"op": "teleport", "player": w, "x": 4, "y": 13, "facing": "down"},
            {"op": "set_fridge", "id": "fridge_home", "item": "home_meal", "qty": 2}, {"op": "set_gold", "player": w, "gold": 120}])
     http(B, "POST", "/admin/commission", {"client": "餐厅老板", "title": "店歌", "fee": 150})
     p = player(B, w)

@@ -63,7 +63,7 @@ obj("fish_stall", "fish_stall", 42, 1); obj("fishing_spot_1", "fishing_spot", 45
 # ── 街道：主街 y8–9（x0–45）；南北街 x20–21（y8–26）；北巷 y18（x2–45，各家门前）；南巷 y26（x12–33）──
 fill(0, 8, 45, 9, "F", "=")
 fill(20, 0, 21, 26, "F", "|")
-fill(2, 18, 45, 18, "F", "-"); fill(12, 26, 33, 26, "F", "-")
+fill(2, 18, 45, 18, "F", "-"); fill(12, 26, 41, 26, "F", "-")
 obj("notice_board_street", "notice_board", 19, 10); obj("lamp_1", "lamp", 22, 10); obj("lamp_2", "lamp", 12, 19)
 # ── 鲸鱼大学 campus x2–30,y0–7（外墙；校门 (20,7)(21,7) 接南北街）──
 house(2, 0, 30, 7, "U", doors=[(20, 7), (21, 7)]); fill(3, 1, 29, 6, "F", "u")
@@ -105,21 +105,21 @@ wall(39, 11, 39, 16, door=(39, 13))                               # 大堂 x34�
 obj("table_rest_1", "restaurant_table", 34, 11); obj("table_rest_2", "restaurant_table", 34, 14); obj("bar", "bar", 37, 11)
 obj("fridge_rest", "fridge", 41, 11); obj("stove_rest", "stove", 40, 15)       # 后厨门 (39,13) 对着 (40,13) 要留空
 edge("door_restaurant", (36, 18), (36, 17))
-# ── 杂货店 x35–42,y20–24（8×5；门 (38,20) 开在北面接北巷 y19？不行——门朝南统一：门 (38,24) 接短巷 y25，短巷 x34 竖接北巷 ──
-house(35, 20, 42, 24, "G", doors=[(38, 24)]); fill(34, 19, 34, 25, "F", "-"); fill(34, 25, 42, 25, "F", "-")
-obj("counter", "shop_counter", 41, 22); obj("shelf_1", "shelf", 36, 21); obj("shelf_2", "shelf", 36, 23); obj("shelf_3", "shelf", 41, 21)
-edge("door_grocery", (38, 25), (38, 24))
+# ── 杂货店 x22–29,y20–24（8×5；主播定：门朝西 (22,22) 直接开到南北街 (21,22)）──
+house(22, 20, 29, 24, "G", doors=[(22, 22)])
+obj("counter", "shop_counter", 28, 22); obj("shelf_1", "shelf", 23, 21); obj("shelf_2", "shelf", 23, 23); obj("shelf_3", "shelf", 28, 21)
+edge("door_grocery", (21, 22), (22, 22))
 # ── 小千家 x13–20,y20–25（8×6；门 (16,25) 接南巷 y26）──
 house(13, 20, 20, 25, "X", doors=[(16, 25)])
 wall(17, 21, 17, 24, door=(17, 23))                               # 房间 x14–16 | 厨房 x18–19
 obj("bed_xiaoqian", "bed", 14, 21); obj("table_xiaoqian", "dining_table", 14, 23); obj("stove_xiaoqian", "stove", 18, 21); obj("fridge_xiaoqian", "fridge", 19, 21)
 edge("door_xiaoqian", (16, 26), (16, 25))
-# ── 店主们的家 x22–32,y20–25（11×6；门 (27,25) 接南巷 y26）──
-house(22, 20, 32, 25, "O", doors=[(27, 25)])
-wall(25, 21, 25, 24, door=(25, 23)); wall(29, 21, 29, 24, door=(29, 22))   # 餐厅老板房 x23–24 | 厨房 x26–28 | 店主房 x30–31（(29,23) 对着餐桌，门开 (29,22)）
-obj("bed_owner_rest", "bed_21", 23, 21); obj("stove_owners", "stove", 26, 21); obj("fridge_owners", "fridge", 28, 21); obj("table_owners", "dining_table", 27, 23)
-obj("bed_owner_grocer", "bed_21", 30, 21)
-edge("door_owners", (27, 26), (27, 25))
+# ── 店主们的家 x31–41,y20–25（11×6；门 (36,25) 接南巷 y26）──
+house(31, 20, 41, 25, "O", doors=[(36, 25)])
+wall(34, 21, 34, 24, door=(34, 23)); wall(38, 21, 38, 24, door=(38, 22))   # 餐厅老板房 x32–33 | 厨房 x35–37 | 店主房 x39–40（(38,23) 对着餐桌，门开 (38,22)）
+obj("bed_owner_rest", "bed_21", 32, 21); obj("stove_owners", "stove", 35, 21); obj("fridge_owners", "fridge", 37, 21); obj("table_owners", "dining_table", 36, 23)
+obj("bed_owner_grocer", "bed_21", 39, 21)
+edge("door_owners", (36, 26), (36, 25))
 PLAYER_START = (4, 13)
 
 # ── 校验 ──
@@ -183,7 +183,7 @@ if __name__ == "__main__":
         print(f"{y:3d} {row}")
     print("\n图例：# 墙  o 物品  · 铺地(街/广场/码头)  小写字母 室内地板（c 教学楼 l 图书馆 m 音乐楼 f 渔夫家 h 合租房 a 阿蝉房(2F) r 餐厅 g 杂货店 x 小千家 o 店主家）  ~ 河  空白 草地")
     print("\n物品 %d 件；边 %d 条；校验：%s" % (len(objects), len(edges), "全部通过" if not problems else problems))
-    home_door, rest_door, groc_door, gate, dock, music = (9, 18), (36, 18), (38, 25), (20, 8), (43, 8), (26, 6)
+    home_door, rest_door, groc_door, gate, dock, music = (9, 18), (36, 18), (21, 22), (20, 8), (43, 8), (26, 6)
     for name, a, b in [("家门→餐厅门", home_door, rest_door), ("家门→杂货店门", home_door, groc_door), ("家门→校门", home_door, gate), ("家门→码头", home_door, dock),
                        ("家门→琴房门", home_door, music), ("餐厅门→杂货店门", rest_door, groc_door), ("鲸仔床边→餐厅门", PLAYER_START, rest_door)]:
         print(f"  {name}: {dist(a, b)} 步（×1 速 = 秒）")

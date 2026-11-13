@@ -2,7 +2,7 @@
 """
 v1 图最短路表（W11 维护，X1 实验给 A 算「步数 / 最短路」）：任意两格 / 物品站位 / arena 的 BFS 长度，走 edges，按给定游戏时刻的门禁。
 
-  cd back_end && uv run python scripts/path_table.py --map v1 [--at 11:30] [--ignore-locks] [--as whale] \\
+  cd back_end && uv run python scripts/path_table.py --map v1.2 [--at 11:30] [--ignore-locks] [--as whale] \\
       --points 客厅=12,26 街道=45,19 码头=55,13 --objects fridge_home bed_whale fishing_spot_1 table_rest_1 counter --arenas whale_room dining \\
       [--pairs 客厅:fridge_home 码头:whale_room] [--format md|csv|json]
 
@@ -22,7 +22,7 @@ HERE = Path(__file__).resolve().parent.parent
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--map", default="v1", help="game/maps/<name> 或目录")
+    ap.add_argument("--map", default="v1.2", help="game/maps/<name> 或目录（world-v1.2 起默认 v1.2）")
     ap.add_argument("--at", default=None, help="游戏时刻 HH:MM（营业时间 / 锁门按它算；缺省 12:00）")
     ap.add_argument("--ignore-locks", action="store_true")
     ap.add_argument("--as", dest="mover", default=None, help="按谁的门禁算（agent_id，如 whale / npc_xiaoqian）")

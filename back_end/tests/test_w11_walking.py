@@ -6,7 +6,7 @@ from game import world_state, ticker, chat_state
 from game.action_log import read_log
 from game.time_state import GAME_TZ
 from tests.conftest import join, action, place, walk_done, BED_STAND, BED_ID
-from tests.test_w9_map_v2 import v1  # noqa: F401
+from tests.test_w9_map_v2 import v12  # noqa: F401
 
 
 def _agent(client, aid, name=None):
@@ -67,21 +67,21 @@ def test_walk_speed_env_and_human_direction_immediate(client, fake_clock, monkey
     assert r["success"] and r["result"]["state"] == "walking" and r["result"]["path_len"] == 1
 
 
-def test_no_path_and_locked_blocked_detail(client, v1, fake_clock):
+def test_no_path_and_locked_blocked_detail(client, v12, fake_clock):
     whale = _agent(client, "whale")
     _at(fake_clock, 10, 0)
-    place(whale, 12, 26, "down")
-    r = action(client, whale, "move", {"targetTile": {"x": 5, "y": 38}})                         # 阿蝉房（2F，09–18:30 锁）
+    place(whale, 9, 13, "down")
+    r = action(client, whale, "move", {"targetTile": {"x": 4, "y": 31}})                         # 阿蝉房（2F，09–18:30 锁）
     assert r["success"] is False and r["reason"] == "no_path"
-    assert r["result"]["blocked_reason"] == "locked" and r["result"]["blocked_at"] == {"x": 3, "y": 37} and r["result"]["opens_at"] == "18:30"
+    assert r["result"]["blocked_reason"] == "locked" and r["result"]["blocked_at"] == {"x": 3, "y": 30} and r["result"]["opens_at"] == "18:30"
     assert world_state._players[whale]["state"] == "idle" and whale not in world_state._walks
-    r = action(client, whale, "move", {"targetTile": {"x": 60, "y": 5}})                         # 河里：不可走
+    r = action(client, whale, "move", {"targetTile": {"x": 47, "y": 5}})                         # 河里：不可走
     assert r["reason"] == "tile_not_walkable"
     r = action(client, whale, "move_to_area", {"area_type": "arena", "area_id": "fisher_bedroom"})  # 常锁
     assert r["reason"] == "no_path" and r["result"]["blocked_reason"] == "locked" and r["result"]["opens_at"] is None
     # 走着走着门关了 → blocked：10:59 出发去校园图书馆……（用餐厅：13:58 出发，门 14:00 关）
     _at(fake_clock, 13, 59); fake_clock.advance(50)                                                 # 13:59:50 出发，门 14:00 关，16 格走不完
-    place(whale, 41, 26, "right")
+    place(whale, 28, 14, "right")
     r = action(client, whale, "move_to_area", {"area_type": "arena", "area_id": "dining"})
     assert r["success"] and r["result"]["path_len"] > 10
     _tick(fake_clock, 1.0)
