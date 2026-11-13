@@ -139,3 +139,24 @@ export function arenaBBox(tiles: Tile[], sector: string | null, arena?: string |
   return n ? { x0, y0, x1, y1, n } : null
 }
 export const isIndoor = (t: Pick<Tile, 'sector'> | null | undefined) => !!t?.sector && t.sector !== 'outside'
+
+
+/** 快照 map.buildings[]（v1.2+）宽容解析：缺字段 / 旧地图 → []。sector=university 的三栋以 id（= arena）作屋顶键 */
+export function mapBuildings(map: unknown): import('../../types').MapBuilding[] {
+  const arr = (map as { buildings?: unknown } | null | undefined)?.buildings
+  if (!Array.isArray(arr)) return []
+  const out: import('../../types').MapBuilding[] = []
+  for (const b of arr as Record<string, unknown>[]) {
+    const fp = b?.footprint as Record<string, unknown> | undefined
+    if (!b || typeof b.id !== 'string' || !fp || typeof fp.x !== 'number' || typeof fp.y !== 'number' || typeof fp.w !== 'number' || typeof fp.h !== 'number') continue
+    const doors = Array.isArray(b.doors) ? (b.doors as Record<string, unknown>[]).filter(d => d && typeof d.door_id === 'string' && d.cell && typeof (d.cell as { x?: unknown }).x === 'number')
+      .map(d => ({ door_id: d.door_id as string, cell: { x: (d.cell as { x: number }).x, y: (d.cell as { y: number }).y }, kind: typeof d.kind === 'string' ? d.kind : undefined })) : []
+    out.push({ id: b.id, sector: typeof b.sector === 'string' ? b.sector : b.id, floor: typeof b.floor === 'number' ? b.floor : 1, footprint: { x: fp.x, y: fp.y, w: fp.w, h: fp.h }, doors })
+  }
+  return out
+}
+
+/** 屋顶 / 外观键：大学三栋按 id（教学楼 / 图书馆 / 音乐楼各自掀），其余按 sector；`<键>|<楼层>` */
+export function buildingRoofKey(b: import('../../types').MapBuilding): string {
+  return `${b.sector === 'university' ? b.id : b.sector}|${b.floor}`
+}

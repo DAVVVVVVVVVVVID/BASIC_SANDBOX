@@ -315,4 +315,6 @@ export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ | W
 /** 屋内人视角的待回应敲门（GET /player.pending_knocks[]） */
 export interface PendingKnock { id: string; visitor?: string; visitor_name?: string; home?: string; home_name?: string; door?: DoorRef | null; status?: string; expires_at?: string }
 /** GET /world.map.doors[]：带 owner 的家门（x,y = 外侧格） */
+/** world-v1.2 起快照 map.buildings[]：整栋楼占地（外墙含）与门格（室内侧），Godot 外观贴图与网页回落屋顶都按它 */
+export interface MapBuilding { id: string; sector: string; floor: number; footprint: { x: number; y: number; w: number; h: number }; doors: { door_id: string; cell: { x: number; y: number }; kind?: string }[] }
 export interface MapDoor { door_id: string; name?: string; x: number; y: number; open?: boolean; open_until?: string | null; keys?: number; owners?: string[] }

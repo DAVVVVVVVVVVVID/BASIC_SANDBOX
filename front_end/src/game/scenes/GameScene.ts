@@ -13,8 +13,8 @@ import type { SpectateParams } from '../../spectate/params'
 import { preloadGenAssets, createGenAnimations, charKeyFor, objTextureKey } from '../assets'
 import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
-import { preloadAiAssets, getAiManifest, aiBackdropKey, aiObjectKey, aiEnabled, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
-import { arenaBBox, isIndoor } from '../map/mapv2'
+import { preloadAiAssets, getAiManifest, aiBackdropKey, aiObjectKey, aiEnabled, aiHasObject, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
+import { arenaBBox, isIndoor, mapBuildings, buildingRoofKey } from '../map/mapv2'
 
 /** 自由镜头命令（React 控件 / 小地图 / 画布点击 → 场景） */
 export type FreeCmd = { cmd: 'free' } | { cmd: 'world' } | { cmd: 'follow'; id: string } | { cmd: 'jump'; x: number; y: number } | { cmd: 'enter'; sector: string; floor: number } | { cmd: 'exit' }
@@ -71,7 +71,7 @@ export default class GameScene extends Phaser.Scene {
   private objectSprites: GameObjectSprite[] = []
   private objectTiles: Position[] = []
   /** W8 底图：name → image；roofed sectors = 有 exterior 底图的 sector */
-  private backdrops: { name: string; meta: AiBackdrop; img: Phaser.GameObjects.Image; shadow?: Phaser.GameObjects.Graphics }[] = []
+  private backdrops: { name: string; meta: AiBackdrop; img: Phaser.GameObjects.Image | Phaser.GameObjects.Graphics; shadow?: Phaser.GameObjects.Graphics }[] = []
   private debugWalls: Phaser.GameObjects.Graphics | null = null   // W9 0c：&debug=walls 叠层
   /** §3.40 敲门：门口气泡（按 request_id 键；敲门 90 游戏秒，回应 6 s） */
   private doorBubbles = new Map<string, { bg: Phaser.GameObjects.Graphics; text: Phaser.GameObjects.Text; until: number }>()
@@ -132,7 +132,7 @@ export default class GameScene extends Phaser.Scene {
     preloadAiAssets(this)
     preloadTileAssets(this, this.worldData.tiled)
     for (const obj of this.worldData.objects) {
-      if (obj.sprite && !this.textures.exists(`obj_${obj.sprite}`)) {
+      if (obj.sprite && !this.textures.exists(`obj_${obj.sprite}`) && !aiHasObject(obj.type)) {
         this.load.image(`obj_${obj.sprite}`, `assets/sprites/${obj.sprite}.png`)
       }
     }
@@ -494,6 +494,35 @@ export default class GameScene extends Phaser.Scene {
     this.debugWalls = g
   }
 
+  /** 回落屋顶（总控 11-13）：AI 外观底图因地图改版被跳过的楼（world-v1.2+ 带 map.buildings[]），按占地画一块简易屋顶色块 + 门格标记，
+   *  取景 / 自己进楼时掀开（走 applyView 同一套：登记为伪 exterior backdrop，roofedSectors 用键 <sector 或大学楼 id>|<楼层>）。Godot 已是主呈现，网页只要「能看清在哪、能点」 */
+  private placeFallbackRoofs(world: WorldData) {
+    const extras = useGameStore.getState().mapExtras
+    const buildings = mapBuildings(world.map ?? extras.map)
+    if (buildings.length === 0) return
+    const COLORS: Record<string, number> = { home: 0x6f82c8, university: 0x7d8aa8, fisher_house: 0x6b8f5a, restaurant: 0xc2663f, grocery: 0x3f8f5e, xiaoqian_house: 0xd98c8c, owners_house: 0x8b6b4e }
+    let n = 0
+    for (const b of buildings) {
+      const key = buildingRoofKey(b)
+      if (this.roofedSectors.has(key)) continue                // 这栋有真外观底图
+      const { x, y, w, h } = b.footprint
+      const color = COLORS[b.sector] ?? 0x8d8d9e
+      const g = this.add.graphics().setDepth(0.6)
+      g.fillStyle(color, 1).fillRoundedRect(x * TILE_SIZE + 2, y * TILE_SIZE + 2, w * TILE_SIZE - 4, h * TILE_SIZE - 4, 10)
+      g.lineStyle(4, Phaser.Display.Color.ValueToColor(color).darken(25).color, 1).strokeRoundedRect(x * TILE_SIZE + 2, y * TILE_SIZE + 2, w * TILE_SIZE - 4, h * TILE_SIZE - 4, 10)
+      // 屋脊：一条浅色横线，让色块像屋顶而不是色卡
+      g.lineStyle(3, Phaser.Display.Color.ValueToColor(color).lighten(18).color, 0.9).lineBetween(x * TILE_SIZE + 14, (y + h * 0.5) * TILE_SIZE, (x + w) * TILE_SIZE - 14, (y + h * 0.5) * TILE_SIZE)
+      for (const d of b.doors) {                                // 门格：深色小门，知道从哪进
+        const dc = Phaser.Display.Color.ValueToColor(color).darken(45).color
+        g.fillStyle(dc, 1).fillRoundedRect(d.cell.x * TILE_SIZE + TILE_SIZE * 0.25, d.cell.y * TILE_SIZE + TILE_SIZE * 0.15, TILE_SIZE * 0.5, TILE_SIZE * 0.8, 6)
+      }
+      const [sector, floorStr] = key.split('|')
+      this.backdrops.push({ name: `roof_${b.id}`, meta: { sector, floor: Number(floorStr) || 1, view: 'exterior', x0: x, y0: y, w, h, px: 32, tile_px: 32, margin: 0 }, img: g })
+      this.roofedSectors.add(key); n++
+    }
+    if (n > 0) { console.debug('[roof] fallback roofs:', n); this.applyView(this.insideSector, true) }
+  }
+
   /** 底图是照 8091 草图镇某一版地图画的：当前地图里该 sector / arena 同层的包围盒必须与 manifest 一致才贴（主镇 / 改图后自动跳过，不会贴错位） */
   private backdropFits(meta: AiBackdrop): boolean {
     const mg = meta.margin ?? 1
@@ -569,7 +598,7 @@ export default class GameScene extends Phaser.Scene {
   private rebuildMap() {
     const world = this.worldData
     const missing = (world.tiled?.tilesets ?? []).filter(ts => !this.textures.exists(ts.imageSource))
-    const missingObj = world.objects.filter(o => o.sprite && !this.textures.exists(`obj_${o.sprite}`))
+    const missingObj = world.objects.filter(o => o.sprite && !this.textures.exists(`obj_${o.sprite}`) && !aiHasObject(o.type))
     if (missing.length === 0 && missingObj.length === 0) { this.buildMap(world); return }
     preloadTileAssets(this, world.tiled)
     for (const o of missingObj) this.load.image(`obj_${o.sprite}`, `assets/sprites/${o.sprite}.png`)
@@ -598,6 +627,7 @@ export default class GameScene extends Phaser.Scene {
     this.mapPx = { w: w * TILE_SIZE, h: h * TILE_SIZE }
     for (const obj of world.objects) { this.objectSprites.push(new GameObjectSprite(this, obj)); this.objectTiles.push({ ...obj.position }) }
     this.placeBackdrops()
+    this.placeFallbackRoofs(world)
     this.drawDebugWalls()
     this.syncMapDoors(world)
 
