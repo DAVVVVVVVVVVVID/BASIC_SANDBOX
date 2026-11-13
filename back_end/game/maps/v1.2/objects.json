@@ -251,7 +251,7 @@
     "id": "tree_2",
     "type": "tree_big",
     "position": {
-      "x": 18,
+      "x": 17,
       "y": 16
     }
   },
@@ -267,7 +267,7 @@
     "id": "tree_4",
     "type": "tree",
     "position": {
-      "x": 18,
+      "x": 15,
       "y": 11
     }
   },

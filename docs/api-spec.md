@@ -1574,6 +1574,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 ### 12.11 world-v1.2 紧凑地图（主播 11-14 定；`SANDBOX_MAP=v1.2`，tag `world-v1.2`）
 
 > **v1.2.1（tag `world-v1.2.1`）门格跟外观图走**：按 E 的量表挪 7 栋楼的门格（楼 / 门 id / 物品不变；图书馆、合租房、校门不动）：教学楼 (5,5)、音乐楼 (24,5)、渔夫家 (36,6)（巷格 (36,7)）、餐厅 (35,17)、杂货店改南门 (23,24)（门外短巷 y25，x22–29）、小千家 (15,25)、店主家 (34,25)（门内 (34,24) 过道）。`buildings[].doors[].cell` 随之变；下面关键坐标已按 v1.2.1。
+>
+> **v1.2.2（tag `world-v1.2.2`）只改装饰**：公园 tree_4 (18,11)→(15,11)、tree_2 (18,16)→(17,16)，让告示牌 (19,10) / (22,17) 不被树冠盖住（fantasy 预设树图 4–5 格宽、5–8 格高，按 y 排序画在告示牌之后）；物品 id / 其余坐标不变，mapVersion 变。
 
 - `game/maps/v1.2`（50×37，`scripts/gen_map_v12.py`；平面图与占地表 `docs/map-v1.2-draft.md`）：每栋楼占地缩小，**楼名 / sector / arena / 门 id / 物品 id 与 v1 完全一致**，60 件物品（去掉草坪装饰树 / 池塘 / 晾衣绳 / 花坛，`decor` 为空；新增 2 棵 `tree_big` 2×2、3 盏 `lamp` 1×1）。家门→餐厅门 27 步（v1 71）。v1 图文件保留（X1–X6 复现），默认测试图切到 v1.2；bench / 主镇由 towns.yaml `SANDBOX_MAP=v1.2`。mapVersion 变；旧检查点里坐标非法的玩家回出生点，物品 contents / stock 按 id 回填。
 - `/world.map` 多 **`buildings[]`**：`{id, sector, floor, footprint {x, y, w, h}（外墙含）, doors [{door_id, cell {x, y}（室内侧格）, kind}]}`——给 E 的整栋贴图（校园围墙不记，三栋教学楼 / 图书馆 / 音乐楼各一条；2F 阿蝉房 `home_2f` floor 2，门是 `stairs_home`）。

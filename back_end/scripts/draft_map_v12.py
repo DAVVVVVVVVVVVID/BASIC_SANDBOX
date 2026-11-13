@@ -93,7 +93,7 @@ house(2, 29, 7, 33, "A"); obj("bed_achan", "bed_21", 3, 32); obj("pc_achan", "pc
 edge("stairs_home", (10, 16), (3, 30))
 # ── 公园 x13–19,y10–17 ──
 fill(13, 10, 19, 17, "#", "p"); fill(13, 13, 19, 13, "F", "p"); fill(16, 10, 16, 17, "F", "p")
-obj("tree_1", "tree_big", 13, 10); obj("tree_2", "tree_big", 18, 16); obj("tree_3", "tree", 14, 16); obj("tree_4", "tree", 18, 11)
+obj("tree_1", "tree_big", 13, 10); obj("tree_2", "tree_big", 17, 16); obj("tree_3", "tree", 14, 16); obj("tree_4", "tree", 15, 11)   # v1.2.2：树冠别盖告示牌——tree_4 离开 (18,11)（画在 (19,10) 之后会盖住），tree_2 左挪一格离广场告示牌 (22,17)
 obj("bench_park_1", "bench", 14, 12); obj("bench_park_2", "bench", 17, 14)
 # ── 广场 x22–31,y10–17 ──
 fill(22, 10, 31, 17, "F", "q")
