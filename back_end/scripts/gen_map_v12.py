@@ -165,7 +165,7 @@ access["achan_room"] = {"owner": ["achan"], "locked": [["09:00", "18:30"]], "all
 fill(13, 10, 19, 17, "#", "outside", "park")
 fill(13, 13, 19, 13, "F", "outside", "park"); fill(16, 10, 16, 17, "F", "outside", "park")
 obj("tree_1", "tree_big", 13, 10); obj("tree_2", "tree_big", 17, 16); obj("tree_3", "tree", 14, 16); obj("tree_4", "tree", 15, 11)   # v1.2.2：树冠别盖告示牌——tree_4 离开 (18,11)（画在 (19,10) 之后会盖住），tree_2 左挪一格离广场告示牌 (22,17)
-obj("bench_park_1", "bench", 14, 12); obj("bench_park_2", "bench", 17, 14)
+# v1.2.5：公园两张长椅 bench_park_1 (14,12) / bench_park_2 (17,14) 按主播删掉（广场三张够用）；公园一侧不再有简餐处
 # v1.2.3 室外装饰（E 新类型，interactable false；不堵巷 / 不占站位）：公园 2 灌木 1 花坛、广场垃圾桶 + 邮筒、码头侧向长椅、六家门前各 1 灌木
 obj("bush_park_1", "bush_round", 13, 17); obj("bush_park_2", "bush_flower", 19, 17); obj("flowerbed_park", "flowerbed", 18, 12)
 obj("trash_can_square", "trash_can", 31, 17); obj("mailbox_square", "mailbox", 22, 11)

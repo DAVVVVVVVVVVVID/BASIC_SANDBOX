@@ -272,22 +272,6 @@
     }
   },
   {
-    "id": "bench_park_1",
-    "type": "bench",
-    "position": {
-      "x": 14,
-      "y": 12
-    }
-  },
-  {
-    "id": "bench_park_2",
-    "type": "bench",
-    "position": {
-      "x": 17,
-      "y": 14
-    }
-  },
-  {
     "id": "bush_park_1",
     "type": "bush_round",
     "position": {

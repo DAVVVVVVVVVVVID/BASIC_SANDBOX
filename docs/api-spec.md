@@ -1580,6 +1580,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 > **v1.2.3（tag `world-v1.2.3`）室外装饰 +12 件（72 件）**，全部 `interactable: false`、占格阻挡、不堵 1 格宽的巷子 / 不占站位：公园 `bush_park_1` (13,17)、`bush_park_2` (19,17)、`flowerbed_park` (18,12)；广场 `trash_can_square` (31,17)、`mailbox_square` (22,11)；码头 `bench_dock_side` (42,4)-(42,5)；门前灌木 `bush_fisher` (37,7)、`bush_home` (10,19)、`bush_restaurant` (36,19)、`bush_grocery` (24,25)、`bush_xiaoqian` (14,27)、`bush_owners` (35,27)。门 / 夹具坐标 / x1-shortest 不变。
 >
 > **v1.2.4（tag `world-v1.2.4`）装饰船下水**：`boat`（2×1，interactable false）从码头沙滩 (43,9)-(44,9) 挪到水上 (46,8)-(47,8)，贴码头木板 (45,8) 东侧；两格 arena 仍是 `water`，tiles 导出为 object（与其他物品占格一样），原 (43,9)(44,9) 变回可走的码头铺地。码头侧向长椅 `bench_dock_side` (42,4)-(42,5) 在码头靠陆一侧，座面朝东看河、靠背朝西。
+>
+> **v1.2.5（tag `world-v1.2.5`）删公园两张长椅**（主播：广场三张够了）：`bench_park_1` (14,12)、`bench_park_2` (17,14) 不再存在，物品 70 件；长椅是室外唯一 `dining` 类型，所以**公园一侧不再有简餐处**，室外吃东西只剩广场 `bench_square_1` (23,11) / `_2` (29,11) / `_3` (26,16)。无夹具 / 测试 / C map_coords 引用；门 / 其余坐标 / x1-shortest 不变。
 
 - `game/maps/v1.2`（50×37，`scripts/gen_map_v12.py`；平面图与占地表 `docs/map-v1.2-draft.md`）：每栋楼占地缩小，**楼名 / sector / arena / 门 id / 物品 id 与 v1 完全一致**，60 件物品（去掉草坪装饰树 / 池塘 / 晾衣绳 / 花坛，`decor` 为空；新增 2 棵 `tree_big` 2×2、3 盏 `lamp` 1×1）。家门→餐厅门 27 步（v1 71）。v1 图文件保留（X1–X6 复现），默认测试图切到 v1.2；bench / 主镇由 towns.yaml `SANDBOX_MAP=v1.2`。mapVersion 变；旧检查点里坐标非法的玩家回出生点，物品 contents / stock 按 id 回填。
 - `/world.map` 多 **`buildings[]`**：`{id, sector, floor, footprint {x, y, w, h}（外墙含）, doors [{door_id, cell {x, y}（室内侧格）, kind}]}`——给 E 的整栋贴图（校园围墙不记，三栋教学楼 / 图书馆 / 音乐楼各一条；2F 阿蝉房 `home_2f` floor 2，门是 `stairs_home`）。
