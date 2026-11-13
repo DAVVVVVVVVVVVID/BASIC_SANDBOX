@@ -10,17 +10,14 @@ def test_v1_buildings_enter_from_south(client, v12):
     edges = {e["id"]: e for e in client.get("/world", params={"fields": "map"}).json()["map"]["edges"]}
     for eid in SOUTH_DOORS:
         a, b = edges[eid]["a"], edges[eid]["b"]
-        if eid == "door_grocery":                                                  # world-v1.2：主播定杂货店门朝西直接开到南北街
-            assert a["y"] == b["y"] and a["x"] == b["x"] - 1 and a["arena"] == "street", eid
-            continue
         assert a["x"] == b["x"] and a["y"] == b["y"] + 1, eid                      # a 在 b 正南一格（a 外 b 内）
         assert a["arena"] == "lane", eid                                           # 门外是小巷
         assert b["arena"] != "lane" and world_state.get_zone_at(b["x"], b["y"])["arena"] == b["arena"], eid
         assert world_state.is_tile_walkable(a["x"], a["y"]) and world_state.is_tile_walkable(b["x"], b["y"]), eid
         assert world_state.is_tile_walkable(b["x"], b["y"] - 1), eid               # 门内一格是室内地板，不是墙
-    # 渔夫屋与校园三栋不动
-    assert (edges["door_fisher"]["a"]["x"], edges["door_fisher"]["a"]["y"]) == (37, 7)
-    assert (edges["door_classroom"]["b"]["x"], edges["door_classroom"]["b"]["y"]) == (6, 5)
+    # v1.2.1：门格跟外观图（渔夫家 (36,6)、教学楼 (5,5)）
+    assert (edges["door_fisher"]["a"]["x"], edges["door_fisher"]["a"]["y"]) == (36, 7)
+    assert (edges["door_classroom"]["b"]["x"], edges["door_classroom"]["b"]["y"]) == (5, 5)
 
 
 def test_v1_decor_layer_exposed_and_non_interactive(client, v12):

@@ -34,7 +34,7 @@ def test_solo_checklist_and_drop_delivery(client, v12, fake_clock, monkeypatch):
     place(whale, 9, 13, "up")
     r = action(client, whale, "deliver", {})
     assert r["success"] is False and r["reason"] == "not_at_drop_point" and r["result"]["drop_points"]["npc_rest_owner"] == ["door_restaurant", "bar"]
-    place(whale, 36, 18, "up")                                                             # 餐厅门外格（door_restaurant a=(36,18)）
+    place(whale, 35, 18, "up")                                                             # 餐厅门外格（door_restaurant a=(35,18)）
     g0 = p["gold"]
     r = action(client, whale, "deliver", {})
     assert r["success"] and r["result"]["commission"]["status"] == "delivered" and r["result"]["commission"]["via"] == "drop" and r["result"]["gold_delta"] == 150

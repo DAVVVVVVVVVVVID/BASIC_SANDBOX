@@ -1573,6 +1573,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 ### 12.11 world-v1.2 紧凑地图（主播 11-14 定；`SANDBOX_MAP=v1.2`，tag `world-v1.2`）
 
+> **v1.2.1（tag `world-v1.2.1`）门格跟外观图走**：按 E 的量表挪 7 栋楼的门格（楼 / 门 id / 物品不变；图书馆、合租房、校门不动）：教学楼 (5,5)、音乐楼 (24,5)、渔夫家 (36,6)（巷格 (36,7)）、餐厅 (35,17)、杂货店改南门 (23,24)（门外短巷 y25，x22–29）、小千家 (15,25)、店主家 (34,25)（门内 (34,24) 过道）。`buildings[].doors[].cell` 随之变；下面关键坐标已按 v1.2.1。
+
 - `game/maps/v1.2`（50×37，`scripts/gen_map_v12.py`；平面图与占地表 `docs/map-v1.2-draft.md`）：每栋楼占地缩小，**楼名 / sector / arena / 门 id / 物品 id 与 v1 完全一致**，60 件物品（去掉草坪装饰树 / 池塘 / 晾衣绳 / 花坛，`decor` 为空；新增 2 棵 `tree_big` 2×2、3 盏 `lamp` 1×1）。家门→餐厅门 27 步（v1 71）。v1 图文件保留（X1–X6 复现），默认测试图切到 v1.2；bench / 主镇由 towns.yaml `SANDBOX_MAP=v1.2`。mapVersion 变；旧检查点里坐标非法的玩家回出生点，物品 contents / stock 按 id 回填。
 - `/world.map` 多 **`buildings[]`**：`{id, sector, floor, footprint {x, y, w, h}（外墙含）, doors [{door_id, cell {x, y}（室内侧格）, kind}]}`——给 E 的整栋贴图（校园围墙不记，三栋教学楼 / 图书馆 / 音乐楼各一条；2F 阿蝉房 `home_2f` floor 2，门是 `stairs_home`）。
 
@@ -1580,8 +1582,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 { "id": "home", "sector": "home", "floor": 1, "footprint": { "x": 2, "y": 10, "w": 10, "h": 8 },
   "doors": [ { "door_id": "door_home", "cell": { "x": 9, "y": 17 }, "kind": "door" } ] }
 ```
-10 条：`classroom` (3,1,7,5) / `library` (11,1,7,5) / `music_room` (23,1,7,5)（sector `university`）、`fisher_house` (33,1,9,6)、`home` (2,10,10,8)、`home_2f` (2,29,6,5) floor 2（门 `stairs_home` cell (3,30)）、`restaurant` (33,10,10,8)、`grocery` (22,20,8,5)（门 `door_grocery` cell (22,22) 朝西）、`xiaoqian_house` (13,20,8,6)、`owners_house` (31,20,11,6)。只在 format 2 且地图带 `buildings` 时非空（v1 / v0 为 `[]`）。
-- 关键坐标（夹具 / 跑手用，全表见 `docs/x5-fixtures.md` 坐标段）：出生点 (4,13)；床边 (3,13) up；直播台 pc_whale 站 (5,12) up；冰箱 fridge_home 站 (5,16) up；灶台 (3,16) up；餐桌 table_home 站 (7,12) up；客厅 (9,13)；广场 (28,14)；街道 (30,9)；餐厅门外 (36,18)、桌 table_rest_1 站 (34,12) up；杂货店门外 (21,22)（南北街，门朝西）、柜台站 (27,22) right；琴房电脑站 (24,3) up；码头 (43,5)、钓位 1 站 (45,3) up；渔夫家门外 (37,7)、小千家门外 (16,26)、店主家门外 (36,26)。
+10 条：`classroom` (3,1,7,5) / `library` (11,1,7,5) / `music_room` (23,1,7,5)（sector `university`）、`fisher_house` (33,1,9,6)、`home` (2,10,10,8)、`home_2f` (2,29,6,5) floor 2（门 `stairs_home` cell (3,30)）、`restaurant` (33,10,10,8)、`grocery` (22,20,8,5)（门 `door_grocery` cell (23,24) 朝南）、`xiaoqian_house` (13,20,8,6)、`owners_house` (31,20,11,6)。只在 format 2 且地图带 `buildings` 时非空（v1 / v0 为 `[]`）。
+- 关键坐标（夹具 / 跑手用，全表见 `docs/x5-fixtures.md` 坐标段）：出生点 (4,13)；床边 (3,13) up；直播台 pc_whale 站 (5,12) up；冰箱 fridge_home 站 (5,16) up；灶台 (3,16) up；餐桌 table_home 站 (7,12) up；客厅 (9,13)；广场 (28,14)；街道 (30,9)；餐厅门外 (35,18)、桌 table_rest_1 站 (34,12) up；杂货店门外 (23,25)（短巷 y25，门朝南）、柜台站 (27,22) right；琴房电脑站 (24,3) up；码头 (43,5)、钓位 1 站 (45,3) up；渔夫家门外 (36,7)、小千家门外 (15,26)、店主家门外 (34,26)；教学楼 / 音乐楼门外 (5,6) / (24,6)。
 - `docs/x1-shortest.json` 重出（`scripts/x1_shortest.py --map v1.2`）：S01 7 / S02 41 / S03 56 / N1 63 / N2 19 / N3 null / N4 29 / N5 15；旧表 `docs/x1-shortest-v1.json`。
 
 ### 12.7 地图 v1

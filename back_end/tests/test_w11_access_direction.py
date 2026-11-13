@@ -31,15 +31,15 @@ def test_owner_can_go_home_after_closing_and_guest_can_leave_but_not_enter(clien
     res = action(client, owner, "move_to_area", {"area_type": "arena", "area_id": "dining"})
     assert res["success"], res
     # 客人：在店里能出去
-    place(guest, 36, 17, "down")
-    res = action(client, guest, "move", {"direction": "down"})                              # (51,30) 内 → (51,31) 外
+    place(guest, 35, 17, "down")
+    res = action(client, guest, "move", {"direction": "down"})                              # (35,17) 内 → (35,18) 外
     assert res["success"] and res["result"]["state"] == "walking", res
     walk_done(guest, fake_clock)
-    assert world_state._players[guest]["position"] == {"x": 36, "y": 18}
+    assert world_state._players[guest]["position"] == {"x": 35, "y": 18}
     # 客人：打烊后进不来
     res = action(client, guest, "move", {"direction": "up"})
     assert res["success"] is False and res["reason"] == "no_path" and res["result"]["blocked_reason"] == "closed" and res["result"]["opens_at"] == "11:00"
-    assert client.get("/admin/path", params={"from": "36,18", "to_arena": "dining", "mover": "whale"}).json()["reachable"] is False
+    assert client.get("/admin/path", params={"from": "35,18", "to_arena": "dining", "mover": "whale"}).json()["reachable"] is False
     # 从店里深处出发也能走到街上（整条路只有「出」）
     place(guest, 34, 12, "up")
     res = action(client, guest, "move_to_area", {"area_type": "arena", "area_id": "square"})
@@ -50,22 +50,22 @@ def test_locked_home_guest_can_exit_and_grocer_owner_both_ways(client, v12, fake
     _at(fake_clock, 12, 0)
     whale = _agent(client, "whale"); grocer = _agent(client, "npc_grocer")
     # 小千家常锁（allow owner）：外人被带进去后也能出来
-    place(whale, 16, 25, "down")                                                               # 小千家门内侧
+    place(whale, 15, 25, "down")                                                               # 小千家门内侧
     res = action(client, whale, "move", {"direction": "down"})
     assert res["success"], res
     walk_done(whale, fake_clock)
-    assert world_state._players[whale]["position"] == {"x": 16, "y": 26}
+    assert world_state._players[whale]["position"] == {"x": 15, "y": 26}
     res = action(client, whale, "move", {"direction": "up"})                                   # 进不去
     assert res["reason"] == "no_path" and res["result"]["blocked_reason"] == "locked"
     # 杂货店 20:00 关门后老板娘仍可进出
     _at(fake_clock, 22, 0)
-    place(grocer, 21, 22, "right")
-    assert action(client, grocer, "move", {"direction": "right"})["success"]                    # v1.2：杂货店门朝西，从南北街向右进
+    place(grocer, 23, 25, "up")
+    assert action(client, grocer, "move", {"direction": "up"})["success"]                       # v1.2.1：杂货店门朝南 (23,24)，从短巷 (23,25) 向上进
     walk_done(grocer, fake_clock)
-    assert world_state._players[grocer]["position"] == {"x": 22, "y": 22}
-    assert action(client, grocer, "move", {"direction": "left"})["success"]
-    place(whale, 21, 22, "right")
-    assert action(client, whale, "move", {"direction": "right"})["result"]["blocked_reason"] == "closed"
+    assert world_state._players[grocer]["position"] == {"x": 23, "y": 24}
+    assert action(client, grocer, "move", {"direction": "down"})["success"]
+    place(whale, 23, 25, "up")
+    assert action(client, whale, "move", {"direction": "up"})["result"]["blocked_reason"] == "closed"
     # 边上的 owner 字段进了地图
     edges = {e["id"]: e for e in client.get("/world", params={"fields": "map"}).json()["map"]["edges"]}
     assert edges["door_restaurant"]["owner"] == ["npc_rest_owner"] and edges["door_grocery"]["owner"] == ["npc_grocer"]

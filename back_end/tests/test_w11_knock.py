@@ -88,7 +88,7 @@ def test_no_answer_decline_and_insider_without_key_can_open(client, v12, fake_cl
     assert client.post("/door/respond", json={"request_id": rid, "entity_id": whale, "text": "x"}).json()["reason"] == "not_pending:declined"
     assert client.post("/door/respond", json={"request_id": rid, "entity_id": fisher, "text": "x"}).json()["reason"] == "not_inside"
     # 商店不走敲门；有钥匙的人不用敲
-    place(xq, 36, 19, "up")
+    place(xq, 35, 19, "up")
     assert action(client, xq, "knock", {"door_id": "door_restaurant"})["reason"] == "not_a_home"
     place(whale, 9, 19, "up")
     assert action(client, whale, "knock", {"door_id": "door_home"})["reason"] == "has_key"
@@ -99,9 +99,9 @@ def test_no_answer_decline_and_insider_without_key_can_open(client, v12, fake_cl
     # 商店门：打烊后店主钥匙直接过，外人 closed
     _at(fake_clock, 23, 0)
     owner = _agent(client, "npc_rest_owner")
-    place(owner, 36, 18, "up"); assert action(client, owner, "move", {"direction": "up"})["success"]
+    place(owner, 35, 18, "up"); assert action(client, owner, "move", {"direction": "up"})["success"]
     walk_done(owner, fake_clock)
-    place(fisher, 36, 18, "up"); r = action(client, fisher, "move", {"direction": "up"})
+    place(fisher, 35, 18, "up"); r = action(client, fisher, "move", {"direction": "up"})
     assert r["reason"] == "no_path" and r["result"]["blocked_reason"] == "closed" and r["result"]["opens_at"] == "11:00"
     # 店主在店里：开自家门 → 不在门内侧 → 拒
     assert action(client, owner, "open_door", {"door_id": "door_owners"})["reason"] == "not_inside_door"

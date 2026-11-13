@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-world-v1.2 紧凑地图 **草案**（主播 11-14 定：每栋楼占地缩小、外观整栋贴图、室内仍瓦片拼；楼名 / sector / arena / 门 id 全部不改）。
+world-v1.2 紧凑地图 **草案**（v1.2.1 门格已跟外观图同步）（主播 11-14 定：每栋楼占地缩小、外观整栋贴图、室内仍瓦片拼；楼名 / sector / arena / 门 id 全部不改）。
 只打印 ASCII 平面图 + 校验（每件物品的站位格可走、从出生点 BFS 全部物品可达、家 ↔ 餐厅等步数），**不写任何地图文件**。
 主播点头后把这里的布局搬进 gen_map_v12.py。
 
@@ -67,19 +67,19 @@ fill(2, 18, 45, 18, "F", "-"); fill(12, 26, 41, 26, "F", "-")
 obj("notice_board_street", "notice_board", 19, 10); obj("lamp_1", "lamp", 22, 10); obj("lamp_2", "lamp", 12, 19)
 # ── 鲸鱼大学 campus x2–30,y0–7（外墙；校门 (20,7)(21,7) 接南北街）──
 house(2, 0, 30, 7, "U", doors=[(20, 7), (21, 7)]); fill(3, 1, 29, 6, "F", "u")
-house(3, 1, 9, 5, "C", doors=[(6, 5)])                           # 教学楼 7×5：interior x4–8,y2–4；门 (6,5) 开到校园过道 y6
+house(3, 1, 9, 5, "C", doors=[(5, 5)])                           # 教学楼 7×5：interior x4–8,y2–4；门 (6,5) 开到校园过道 y6
 obj("classroom_desk_1", "classroom_desk", 4, 2); obj("classroom_desk_2", "classroom_desk", 6, 2); obj("pc_lab", "pc_desk", 8, 2)
 house(11, 1, 17, 5, "L", doors=[(14, 5)])                        # 图书馆 7×5：interior x12–16,y2–4
 obj("reading_desk_1", "reading_desk", 12, 2); obj("reading_desk_2", "reading_desk", 14, 2); obj("shelf_lib_1", "shelf", 16, 2); obj("shelf_lib_2", "shelf", 16, 4)
-house(23, 1, 29, 5, "M", doors=[(26, 5)])                        # 音乐楼 7×5：interior x24–28,y2–4
+house(23, 1, 29, 5, "M", doors=[(24, 5)])                        # 音乐楼 7×5：interior x24–28,y2–4
 obj("pc_music", "pc_music", 24, 2); obj("piano", "piano", 28, 2)
 edge("school_gate_w", (20, 8), (20, 7)); edge("school_gate_e", (21, 8), (21, 7))
-edge("door_classroom", (6, 6), (6, 5)); edge("door_library", (14, 6), (14, 5)); edge("door_music", (26, 6), (26, 5))
+edge("door_classroom", (5, 6), (5, 5)); edge("door_library", (14, 6), (14, 5)); edge("door_music", (24, 6), (24, 5))
 # ── 老渔夫家 x33–41,y1–6（9×6，门 (37,6) 接小巷 x37,y7 → 主街）──
-house(33, 1, 41, 6, "F", doors=[(37, 6)]); fill(37, 7, 37, 7, "F", "-")
+house(33, 1, 41, 6, "F", doors=[(36, 6)]); fill(36, 7, 36, 7, "F", "-")
 wall(37, 2, 37, 4)                                                # 卧室 x34–36,y2–5 | 厨房 x38–40,y2–5；(37,5) 门内过道兼内门
 obj("bed_fisher", "bed", 34, 2); obj("stove_fisher", "stove", 38, 2); obj("fridge_fisher", "fridge", 40, 2); obj("table_fisher", "dining_table", 38, 4)
-edge("door_fisher", (37, 7), (37, 6))
+edge("door_fisher", (36, 7), (36, 6))
 # ── 合租房 1F x2–11,y11–18 → 门 (9,18) 直接开在北巷 y18？不行：改 x2–11,y10–17，门 (9,17) 接北巷 y18 ──
 house(2, 10, 11, 17, "H", doors=[(9, 17)])
 wall(6, 11, 6, 16, door=(6, 12)); tiles[16][6] = "f"             # 鲸仔房 x3–5,y11–13 | 客厅 x7–10,y11–16；厨房 x3–5,y15–16
@@ -100,26 +100,26 @@ fill(22, 10, 31, 17, "F", "q")
 obj("fountain", "fountain", 26, 12); obj("bench_square_1", "bench", 23, 11); obj("bench_square_2", "bench", 29, 11); obj("bench_square_3", "bench", 26, 16)
 obj("notice_board_square", "notice_board", 22, 17); obj("lamp_3", "lamp", 31, 10)
 # ── 餐厅 x33–42,y10–17（10×8；门 (36,17) 接北巷 y18）──
-house(33, 10, 42, 17, "R", doors=[(36, 17)])
+house(33, 10, 42, 17, "R", doors=[(35, 17)])
 wall(39, 11, 39, 16, door=(39, 13))                               # 大堂 x34–38,y11–16 | 后厨 x40–41
 obj("table_rest_1", "restaurant_table", 34, 11); obj("table_rest_2", "restaurant_table", 34, 14); obj("bar", "bar", 37, 11)
 obj("fridge_rest", "fridge", 41, 11); obj("stove_rest", "stove", 40, 15)       # 后厨门 (39,13) 对着 (40,13) 要留空
-edge("door_restaurant", (36, 18), (36, 17))
+edge("door_restaurant", (35, 18), (35, 17))
 # ── 杂货店 x22–29,y20–24（8×5；主播定：门朝西 (22,22) 直接开到南北街 (21,22)）──
-house(22, 20, 29, 24, "G", doors=[(22, 22)])
-obj("counter", "shop_counter", 28, 22); obj("shelf_1", "shelf", 23, 21); obj("shelf_2", "shelf", 23, 23); obj("shelf_3", "shelf", 28, 21)
-edge("door_grocery", (21, 22), (22, 22))
+house(22, 20, 29, 24, "G", doors=[(23, 24)]); fill(22, 25, 29, 25, "F", "-")
+obj("counter", "shop_counter", 28, 22); obj("shelf_1", "shelf", 23, 21); obj("shelf_2", "shelf", 24, 23); obj("shelf_3", "shelf", 28, 21)
+edge("door_grocery", (23, 25), (23, 24))
 # ── 小千家 x13–20,y20–25（8×6；门 (16,25) 接南巷 y26）──
-house(13, 20, 20, 25, "X", doors=[(16, 25)])
+house(13, 20, 20, 25, "X", doors=[(15, 25)])
 wall(17, 21, 17, 24, door=(17, 23))                               # 房间 x14–16 | 厨房 x18–19
 obj("bed_xiaoqian", "bed", 14, 21); obj("table_xiaoqian", "dining_table", 14, 23); obj("stove_xiaoqian", "stove", 18, 21); obj("fridge_xiaoqian", "fridge", 19, 21)
-edge("door_xiaoqian", (16, 26), (16, 25))
+edge("door_xiaoqian", (15, 26), (15, 25))
 # ── 店主们的家 x31–41,y20–25（11×6；门 (36,25) 接南巷 y26）──
-house(31, 20, 41, 25, "O", doors=[(36, 25)])
-wall(34, 21, 34, 24, door=(34, 23)); wall(38, 21, 38, 24, door=(38, 22))   # 餐厅老板房 x32–33 | 厨房 x35–37 | 店主房 x39–40（(38,23) 对着餐桌，门开 (38,22)）
+house(31, 20, 41, 25, "O", doors=[(34, 25)])
+wall(34, 21, 34, 24, door=(34, 23)); tiles[24][34] = "f"; wall(38, 21, 38, 24, door=(38, 22))   # 餐厅老板房 x32–33 | 厨房 x35–37 | 店主房 x39–40（(38,23) 对着餐桌，门开 (38,22)）
 obj("bed_owner_rest", "bed_21", 32, 21); obj("stove_owners", "stove", 35, 21); obj("fridge_owners", "fridge", 37, 21); obj("table_owners", "dining_table", 36, 23)
 obj("bed_owner_grocer", "bed_21", 39, 21)
-edge("door_owners", (36, 26), (36, 25))
+edge("door_owners", (34, 26), (34, 25))
 PLAYER_START = (4, 13)
 
 # ── 校验 ──
@@ -183,7 +183,7 @@ if __name__ == "__main__":
         print(f"{y:3d} {row}")
     print("\n图例：# 墙  o 物品  · 铺地(街/广场/码头)  小写字母 室内地板（c 教学楼 l 图书馆 m 音乐楼 f 渔夫家 h 合租房 a 阿蝉房(2F) r 餐厅 g 杂货店 x 小千家 o 店主家）  ~ 河  空白 草地")
     print("\n物品 %d 件；边 %d 条；校验：%s" % (len(objects), len(edges), "全部通过" if not problems else problems))
-    home_door, rest_door, groc_door, gate, dock, music = (9, 18), (36, 18), (21, 22), (20, 8), (43, 8), (26, 6)
+    home_door, rest_door, groc_door, gate, dock, music = (9, 18), (35, 18), (23, 25), (20, 8), (43, 8), (24, 6)
     for name, a, b in [("家门→餐厅门", home_door, rest_door), ("家门→杂货店门", home_door, groc_door), ("家门→校门", home_door, gate), ("家门→码头", home_door, dock),
                        ("家门→琴房门", home_door, music), ("餐厅门→杂货店门", rest_door, groc_door), ("鲸仔床边→餐厅门", PLAYER_START, rest_door)]:
         print(f"  {name}: {dist(a, b)} 步（×1 速 = 秒）")

@@ -121,16 +121,16 @@ def test_single_step_into_locked_room_is_locked(client, v12, fake_clock):
     whale = _agent(client, "whale")
     _at(fake_clock, 10, 0)
     place(whale, 10, 16, "down")
-    # 楼梯是非相邻边，单步 move 走不上去；用 move_to_area 得 locked。换一个相邻锁门：渔夫家门 (37,7)→(37,6)
-    place(whale, 37, 7, "up")
+    # 楼梯是非相邻边，单步 move 走不上去；用 move_to_area 得 locked。换一个相邻锁门：渔夫家门 (36,7)→(36,6)
+    place(whale, 36, 7, "up")
     res = action(client, whale, "move", {"direction": "up"})
-    assert res["success"] is False and res["reason"] == "no_path" and res["result"]["blocked_reason"] == "locked" and res["result"]["blocked_at"] == {"x": 37, "y": 6}
+    assert res["success"] is False and res["reason"] == "no_path" and res["result"]["blocked_reason"] == "locked" and res["result"]["blocked_at"] == {"x": 36, "y": 6}
     fisher = _agent(client, "npc_fisher")
-    place(fisher, 37, 7, "up")
+    place(fisher, 36, 7, "up")
     res = action(client, fisher, "move", {"direction": "up"})                                         # owner 可进（agent 单格也排队，1 格）
     assert res["success"] and res["result"]["state"] == "walking" and res["result"]["path_len"] == 1
     walk_done(fisher, fake_clock)
-    assert world_state._players[fisher]["position"] == {"x": 37, "y": 6}
+    assert world_state._players[fisher]["position"] == {"x": 36, "y": 6}
     res = action(client, whale, "move_to_area", {"area_type": "arena", "area_id": "fisher_bedroom"})
     assert res["reason"] == "no_path" and res["result"]["blocked_reason"] == "locked" and res["result"]["opens_at"] is None   # 常锁，无开门时间
 

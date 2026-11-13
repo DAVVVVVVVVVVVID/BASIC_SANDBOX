@@ -51,7 +51,7 @@ def test_set_fridge_set_stock_force_closed(client, v12, bench_env, fake_clock):
     assert next(o for o in client.get("/world", params={"fields": "objects"}).json()["objects"] if o["id"] == "table_rest_1")["open"] is False
     # 整个 arena / 门
     r = _run(client, [{"op": "force_closed", "arena": "dining", "until": None}])
-    place(whale, 36, 18, "up")
+    place(whale, 35, 18, "up")
     res = action(client, whale, "move", {"direction": "up"})
     assert res["reason"] == "no_path" and res["result"]["blocked_reason"] == "closed" and res["result"]["opens_at"] is None
     assert client.get("/admin/path", params={"from": "28,14", "to_arena": "dining", "mover": "whale"}).json()["reachable"] is False
