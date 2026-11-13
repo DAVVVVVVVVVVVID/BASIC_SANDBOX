@@ -1126,7 +1126,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `fishing_spot` | continuous，`max_users` 1 | **W4** fun +18/h、mood +4/h；energy −3/h、fullness −2/h；tag `fishing` | fun 35、mood 15 | 2 h |
 | `shop_counter` / `fish_stall` | instant（商店） | **审核 11-10 ②**：无即时需求效果（原 fullness +15 / social +6 / energy −1 已去掉），`use` 只回一句「买东西用 buy」；交易走 `buy` / `sell` | fullness 25、social 15（作「来这里能买到吃的」的规划提示保留） | — |
 | `dining_table` | continuous，`max_users` 4 | **审核 11-10 ①** 家用餐桌（合租房 `table_home`，原误用 `restaurant_table` → 收 20 金币且只在营业时段）：免费、全天；social +8/h、`no_move`、tag `dining`；吃东西用 `eat` | social 15 | 1 h |
-| `tree_big` / `lamp` / `tree` / `shelf` / `boat` / `fountain` / `piano` | instant，`interactable: false`（装饰物，`use` → `not_interactable`） | **world-v1.2** 新增 `tree_big` 大树 2×2（`size [2,2]`，公园 tree_1 / tree_2）、`lamp` 路灯 1×1（3 盏）；其余不变：`tree` 1×1、`shelf` 1×1、`boat` 2×1、`fountain` 2×2、`piano` 1×1。`/world.objects[].tiles[]` 列全部占格（E 按包围盒画、图幅向上长） | — | — |
+| `tree_big` / `lamp` / `tree` / `shelf` / `boat` / `fountain` / `piano` / `bench_side` / `bush_round` / `bush_flower` / `flowerbed` / `trash_can` / `mailbox` | instant，`interactable: false`（装饰物，`use` → `not_interactable`） | **world-v1.2.3** 新增室外装饰 6 类（E 的新图）：`bench_side` 侧向长椅 1×2（竖放，size [1,2]）、`bush_round` / `bush_flower` 灌木、`flowerbed` 花坛、`trash_can` 垃圾桶、`mailbox` 邮筒（均 1×1），共 12 件；**world-v1.2** 新增 `tree_big` 大树 2×2（`size [2,2]`，公园 tree_1 / tree_2）、`lamp` 路灯 1×1（3 盏）；其余不变：`tree` 1×1、`shelf` 1×1、`boat` 2×1、`fountain` 2×2、`piano` 1×1。`/world.objects[].tiles[]` 列全部占格（E 按包围盒画、图幅向上长） | — | — |
 | `game_console` | continuous，`max_users` 1 | **B18（W6）** `external: game`；fun +30/h、mood +4/h；energy −6/h、social −2/h；`no_move`、tag `gaming`；`stateLabel`「{entity} 玩游戏中」 | fun 85、mood 20 | 2 h（假设） |
 
 所有 continuous 类型都带 `max_users`（`GET /world` 的 `maxUsers`）；社交物品靠多人同用产生「在同一处」的 `players_in_view`。
@@ -1576,6 +1576,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 > **v1.2.1（tag `world-v1.2.1`）门格跟外观图走**：按 E 的量表挪 7 栋楼的门格（楼 / 门 id / 物品不变；图书馆、合租房、校门不动）：教学楼 (5,5)、音乐楼 (24,5)、渔夫家 (36,6)（巷格 (36,7)）、餐厅 (35,17)、杂货店改南门 (23,24)（门外短巷 y25，x22–29）、小千家 (15,25)、店主家 (34,25)（门内 (34,24) 过道）。`buildings[].doors[].cell` 随之变；下面关键坐标已按 v1.2.1。
 >
 > **v1.2.2（tag `world-v1.2.2`）只改装饰**：公园 tree_4 (18,11)→(15,11)、tree_2 (18,16)→(17,16)，让告示牌 (19,10) / (22,17) 不被树冠盖住（fantasy 预设树图 4–5 格宽、5–8 格高，按 y 排序画在告示牌之后）；物品 id / 其余坐标不变，mapVersion 变。
+>
+> **v1.2.3（tag `world-v1.2.3`）室外装饰 +12 件（72 件）**，全部 `interactable: false`、占格阻挡、不堵 1 格宽的巷子 / 不占站位：公园 `bush_park_1` (13,17)、`bush_park_2` (19,17)、`flowerbed_park` (18,12)；广场 `trash_can_square` (31,17)、`mailbox_square` (22,11)；码头 `bench_dock_side` (42,4)-(42,5)；门前灌木 `bush_fisher` (37,7)、`bush_home` (10,19)、`bush_restaurant` (36,19)、`bush_grocery` (24,25)、`bush_xiaoqian` (14,27)、`bush_owners` (35,27)。门 / 夹具坐标 / x1-shortest 不变。
 
 - `game/maps/v1.2`（50×37，`scripts/gen_map_v12.py`；平面图与占地表 `docs/map-v1.2-draft.md`）：每栋楼占地缩小，**楼名 / sector / arena / 门 id / 物品 id 与 v1 完全一致**，60 件物品（去掉草坪装饰树 / 池塘 / 晾衣绳 / 花坛，`decor` 为空；新增 2 棵 `tree_big` 2×2、3 盏 `lamp` 1×1）。家门→餐厅门 27 步（v1 71）。v1 图文件保留（X1–X6 复现），默认测试图切到 v1.2；bench / 主镇由 towns.yaml `SANDBOX_MAP=v1.2`。mapVersion 变；旧检查点里坐标非法的玩家回出生点，物品 contents / stock 按 id 回填。
 - `/world.map` 多 **`buildings[]`**：`{id, sector, floor, footprint {x, y, w, h}（外墙含）, doors [{door_id, cell {x, y}（室内侧格）, kind}]}`——给 E 的整栋贴图（校园围墙不记，三栋教学楼 / 图书馆 / 音乐楼各一条；2F 阿蝉房 `home_2f` floor 2，门是 `stairs_home`）。

@@ -1322,5 +1322,95 @@
     "advertise": {},
     "success_message": "",
     "failure_message": "这不能用。"
+  },
+  "bench_side": {
+    "prototype": "instant",
+    "name": "侧向长椅",
+    "size": [
+      1,
+      2
+    ],
+    "sprite": "bench_side",
+    "interactable": false,
+    "description": "侧着放的木长椅（装饰，不能坐）。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。"
+  },
+  "bush_round": {
+    "prototype": "instant",
+    "name": "灌木",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "bush_round",
+    "interactable": false,
+    "description": "修成圆球的灌木。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。"
+  },
+  "bush_flower": {
+    "prototype": "instant",
+    "name": "花灌木",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "bush_flower",
+    "interactable": false,
+    "description": "开着小花的灌木。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。"
+  },
+  "flowerbed": {
+    "prototype": "instant",
+    "name": "花坛",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "flowerbed",
+    "interactable": false,
+    "description": "一小方花坛。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。"
+  },
+  "trash_can": {
+    "prototype": "instant",
+    "name": "垃圾桶",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "trash_can",
+    "interactable": false,
+    "description": "街边垃圾桶。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。"
+  },
+  "mailbox": {
+    "prototype": "instant",
+    "name": "邮筒",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "mailbox",
+    "interactable": false,
+    "description": "绿色的邮筒。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "",
+    "failure_message": "这不能用。"
   }
 }

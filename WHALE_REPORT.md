@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5z. world-v1.2.3：室外装饰 12 件（总控补派，E 新类型；tag `world-v1.2.3`）—— 完成，8091 待切
+
+- `object_types.json` 加 6 类装饰（instant、`interactable: false`，`use` → `not_interactable`）：`bench_side` 侧向长椅 1×2（竖放）、`bush_round` / `bush_flower`、`flowerbed`、`trash_can`、`mailbox`（1×1）。
+- 落位 12 件（**不堵巷、不占站位、不挡门**；巷子都只 1 格宽，门前灌木放门旁多余格或巷子斜对面草地）：公园 bush_park_1 (13,17)、bush_park_2 (19,17)、flowerbed_park (18,12)；广场 trash_can_square (31,17)、mailbox_square (22,11)；码头 bench_dock_side (42,4)-(42,5)；门前 bush_fisher (37,7)（旧巷格，门已挪到 36）、bush_home (10,19)、bush_restaurant (36,19)（(35,19) 敲门夹具站位留空）、bush_grocery (24,25)（门右一格，(22,25) 接街口留空）、bush_xiaoqian (14,27)、bush_owners (35,27)。
+- 校验：72 件物品自出生点全可达，夹具关键格（(3,19)(4,19) 交接草地、各门外格、钓位站位、告示牌旁）仍可走；x1-shortest 不变；`gen_map_v12` / `draft_map_v12` 同步；物品数断言 60→72；**338 passed**。tag 另起 `world-v1.2.3`（v1.2.2 已推出去不改）。8091 仍待总控叫切。
+
 ## 5y. world-v1.2.2：公园树挪开告示牌（主播反馈；tag `world-v1.2.2`）—— 完成，8091 待切
 
 - 几何核对（E 的 fantasy 预设 24 px/格、物品图底边贴占地底边水平居中、按 y 排序）：盖住公园告示牌 `notice_board_street` (19,10) 的其实是旁边 1×1 的 `tree_4` (18,11)——它用的 tree_4.png 96×186 px = 4 格宽 7.75 格高，y 比告示牌大一行所以画在上面，树冠 x16.6–20.5 把告示牌（88 px ≈ 3.7 格宽，x17.7–21.3）整个盖住；2×2 的 `tree_1` (13,10) 树冠到 x16.65，不碰。另 2×2 `tree_2` (18,16) 树冠 x16.35–21.65 与广场告示牌 (22,17) x21.7 只差 0.05 格。

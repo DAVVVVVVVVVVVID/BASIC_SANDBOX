@@ -16,7 +16,8 @@ edges: list[tuple] = []
 SIZES = {"dining_table": (2, 1), "bed": (1, 2), "bed_21": (2, 1), "fridge": (1, 1), "book": (1, 1), "pc": (1, 1), "pc_desk": (1, 1),
          "stove": (1, 1), "sofa_tv": (2, 1), "restaurant_table": (2, 1), "bar": (2, 1), "bench": (2, 1), "fishing_spot": (1, 1),
          "shop_counter": (1, 1), "fish_stall": (1, 1), "notice_board": (1, 1), "pc_music": (1, 1), "reading_desk": (1, 1),
-         "classroom_desk": (1, 1), "tree": (1, 1), "tree_big": (2, 2), "shelf": (1, 1), "boat": (2, 1), "fountain": (2, 2), "piano": (1, 1), "lamp": (1, 1)}
+         "classroom_desk": (1, 1), "tree": (1, 1), "tree_big": (2, 2), "shelf": (1, 1), "boat": (2, 1), "fountain": (2, 2), "piano": (1, 1), "lamp": (1, 1),
+         "bench_side": (1, 2), "bush_round": (1, 1), "bush_flower": (1, 1), "flowerbed": (1, 1), "trash_can": (1, 1), "mailbox": (1, 1)}
 USE_POS = {"bed": [(0, 0)], "bed_21": [(0, 0)], "pc": [(0, 1)], "pc_desk": [(0, 1)], "stove": [(0, 1)], "pc_music": [(0, 1)], "classroom_desk": [(0, 1)],
            "reading_desk": [(0, 1), (1, 0)], "bar": [(0, 1), (1, 1)], "dining_table": [(0, 1), (1, 1), (0, -1), (1, -1)],
            "restaurant_table": [(0, 1), (1, 1), (0, -1), (1, -1)], "bench": [(0, 0), (1, 0)], "sofa_tv": [(0, 0), (1, 0)]}
@@ -95,6 +96,12 @@ edge("stairs_home", (10, 16), (3, 30))
 fill(13, 10, 19, 17, "#", "p"); fill(13, 13, 19, 13, "F", "p"); fill(16, 10, 16, 17, "F", "p")
 obj("tree_1", "tree_big", 13, 10); obj("tree_2", "tree_big", 17, 16); obj("tree_3", "tree", 14, 16); obj("tree_4", "tree", 15, 11)   # v1.2.2：树冠别盖告示牌——tree_4 离开 (18,11)（画在 (19,10) 之后会盖住），tree_2 左挪一格离广场告示牌 (22,17)
 obj("bench_park_1", "bench", 14, 12); obj("bench_park_2", "bench", 17, 14)
+# v1.2.3 室外装饰（E 新类型，interactable false）
+obj("bush_park_1", "bush_round", 13, 17); obj("bush_park_2", "bush_flower", 19, 17); obj("flowerbed_park", "flowerbed", 18, 12)
+obj("trash_can_square", "trash_can", 31, 17); obj("mailbox_square", "mailbox", 22, 11)
+obj("bench_dock_side", "bench_side", 42, 4)
+obj("bush_fisher", "bush_round", 37, 7); obj("bush_home", "bush_flower", 10, 19); obj("bush_restaurant", "bush_round", 36, 19)
+obj("bush_grocery", "bush_flower", 24, 25); obj("bush_xiaoqian", "bush_flower", 14, 27); obj("bush_owners", "bush_round", 35, 27)
 # ── 广场 x22–31,y10–17 ──
 fill(22, 10, 31, 17, "F", "q")
 obj("fountain", "fountain", 26, 12); obj("bench_square_1", "bench", 23, 11); obj("bench_square_2", "bench", 29, 11); obj("bench_square_3", "bench", 26, 16)

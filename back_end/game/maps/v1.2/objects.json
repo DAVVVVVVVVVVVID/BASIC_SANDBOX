@@ -288,6 +288,102 @@
     }
   },
   {
+    "id": "bush_park_1",
+    "type": "bush_round",
+    "position": {
+      "x": 13,
+      "y": 17
+    }
+  },
+  {
+    "id": "bush_park_2",
+    "type": "bush_flower",
+    "position": {
+      "x": 19,
+      "y": 17
+    }
+  },
+  {
+    "id": "flowerbed_park",
+    "type": "flowerbed",
+    "position": {
+      "x": 18,
+      "y": 12
+    }
+  },
+  {
+    "id": "trash_can_square",
+    "type": "trash_can",
+    "position": {
+      "x": 31,
+      "y": 17
+    }
+  },
+  {
+    "id": "mailbox_square",
+    "type": "mailbox",
+    "position": {
+      "x": 22,
+      "y": 11
+    }
+  },
+  {
+    "id": "bench_dock_side",
+    "type": "bench_side",
+    "position": {
+      "x": 42,
+      "y": 4
+    }
+  },
+  {
+    "id": "bush_fisher",
+    "type": "bush_round",
+    "position": {
+      "x": 37,
+      "y": 7
+    }
+  },
+  {
+    "id": "bush_home",
+    "type": "bush_flower",
+    "position": {
+      "x": 10,
+      "y": 19
+    }
+  },
+  {
+    "id": "bush_restaurant",
+    "type": "bush_round",
+    "position": {
+      "x": 36,
+      "y": 19
+    }
+  },
+  {
+    "id": "bush_grocery",
+    "type": "bush_flower",
+    "position": {
+      "x": 24,
+      "y": 25
+    }
+  },
+  {
+    "id": "bush_xiaoqian",
+    "type": "bush_flower",
+    "position": {
+      "x": 14,
+      "y": 27
+    }
+  },
+  {
+    "id": "bush_owners",
+    "type": "bush_round",
+    "position": {
+      "x": 35,
+      "y": 27
+    }
+  },
+  {
     "id": "fountain",
     "type": "fountain",
     "position": {
