@@ -1126,6 +1126,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `fishing_spot` | continuous，`max_users` 1 | **W4** fun +18/h、mood +4/h；energy −3/h、fullness −2/h；tag `fishing` | fun 35、mood 15 | 2 h |
 | `shop_counter` / `fish_stall` | instant（商店） | **审核 11-10 ②**：无即时需求效果（原 fullness +15 / social +6 / energy −1 已去掉），`use` 只回一句「买东西用 buy」；交易走 `buy` / `sell` | fullness 25、social 15（作「来这里能买到吃的」的规划提示保留） | — |
 | `dining_table` | continuous，`max_users` 4 | **审核 11-10 ①** 家用餐桌（合租房 `table_home`，原误用 `restaurant_table` → 收 20 金币且只在营业时段）：免费、全天；social +8/h、`no_move`、tag `dining`；吃东西用 `eat` | social 15 | 1 h |
+| `tree_big` / `lamp` / `tree` / `shelf` / `boat` / `fountain` / `piano` | instant，`interactable: false`（装饰物，`use` → `not_interactable`） | **world-v1.2** 新增 `tree_big` 大树 2×2（`size [2,2]`，公园 tree_1 / tree_2）、`lamp` 路灯 1×1（3 盏）；其余不变：`tree` 1×1、`shelf` 1×1、`boat` 2×1、`fountain` 2×2、`piano` 1×1。`/world.objects[].tiles[]` 列全部占格（E 按包围盒画、图幅向上长） | — | — |
 | `game_console` | continuous，`max_users` 1 | **B18（W6）** `external: game`；fun +30/h、mood +4/h；energy −6/h、social −2/h；`no_move`、tag `gaming`；`stateLabel`「{entity} 玩游戏中」 | fun 85、mood 20 | 2 h（假设） |
 
 所有 continuous 类型都带 `max_users`（`GET /world` 的 `maxUsers`）；社交物品靠多人同用产生「在同一处」的 `players_in_view`。
@@ -1574,6 +1575,12 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 - `game/maps/v1.2`（50×37，`scripts/gen_map_v12.py`；平面图与占地表 `docs/map-v1.2-draft.md`）：每栋楼占地缩小，**楼名 / sector / arena / 门 id / 物品 id 与 v1 完全一致**，60 件物品（去掉草坪装饰树 / 池塘 / 晾衣绳 / 花坛，`decor` 为空；新增 2 棵 `tree_big` 2×2、3 盏 `lamp` 1×1）。家门→餐厅门 27 步（v1 71）。v1 图文件保留（X1–X6 复现），默认测试图切到 v1.2；bench / 主镇由 towns.yaml `SANDBOX_MAP=v1.2`。mapVersion 变；旧检查点里坐标非法的玩家回出生点，物品 contents / stock 按 id 回填。
 - `/world.map` 多 **`buildings[]`**：`{id, sector, floor, footprint {x, y, w, h}（外墙含）, doors [{door_id, cell {x, y}（室内侧格）, kind}]}`——给 E 的整栋贴图（校园围墙不记，三栋教学楼 / 图书馆 / 音乐楼各一条；2F 阿蝉房 `home_2f` floor 2，门是 `stairs_home`）。
+
+```json
+{ "id": "home", "sector": "home", "floor": 1, "footprint": { "x": 2, "y": 10, "w": 10, "h": 8 },
+  "doors": [ { "door_id": "door_home", "cell": { "x": 9, "y": 17 }, "kind": "door" } ] }
+```
+10 条：`classroom` (3,1,7,5) / `library` (11,1,7,5) / `music_room` (23,1,7,5)（sector `university`）、`fisher_house` (33,1,9,6)、`home` (2,10,10,8)、`home_2f` (2,29,6,5) floor 2（门 `stairs_home` cell (3,30)）、`restaurant` (33,10,10,8)、`grocery` (22,20,8,5)（门 `door_grocery` cell (22,22) 朝西）、`xiaoqian_house` (13,20,8,6)、`owners_house` (31,20,11,6)。只在 format 2 且地图带 `buildings` 时非空（v1 / v0 为 `[]`）。
 - 关键坐标（夹具 / 跑手用，全表见 `docs/x5-fixtures.md` 坐标段）：出生点 (4,13)；床边 (3,13) up；直播台 pc_whale 站 (5,12) up；冰箱 fridge_home 站 (5,16) up；灶台 (3,16) up；餐桌 table_home 站 (7,12) up；客厅 (9,13)；广场 (28,14)；街道 (30,9)；餐厅门外 (36,18)、桌 table_rest_1 站 (34,12) up；杂货店门外 (21,22)（南北街，门朝西）、柜台站 (27,22) right；琴房电脑站 (24,3) up；码头 (43,5)、钓位 1 站 (45,3) up；渔夫家门外 (37,7)、小千家门外 (16,26)、店主家门外 (36,26)。
 - `docs/x1-shortest.json` 重出（`scripts/x1_shortest.py --map v1.2`）：S01 7 / S02 41 / S03 56 / N1 63 / N2 19 / N3 null / N4 29 / N5 15；旧表 `docs/x1-shortest-v1.json`。
 
