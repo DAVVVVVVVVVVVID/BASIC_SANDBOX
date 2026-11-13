@@ -1,0 +1,135 @@
+# world-v1.2 紧凑地图 · 草案（主播 2026-11-14 定方向；B 出稿，待主播点头后实现）
+
+> 原则（总控转达）：每栋楼**占地缩小**，外观由 Godot 侧**一张整栋贴图**（按占地尺寸画、底边锁格 Y 排序），室内仍瓦片拼；**楼名 / sector / arena / 门 id / 物品 id 全部不改**（agent 导航、日程锚点、夹具、A 的 judge 都按 id 走）；现有物品一个不少；室外物品占地按根部；整体缩到「家到餐厅 ≤ 1 分钟（×1 速 = 1 格 / 秒）」。
+> 生成 / 校验脚本：`cd back_end && uv run python scripts/draft_map_v12.py`（只打印，不写地图；主播点头后搬进 `gen_map_v12.py`）。
+
+## 1. 平面图（50 × 37，v1 为 64 × 48；x 右 y 下）
+
+```
+world-v1.2 草案 50x37（v1 为 64x48）
+    0         1         2         3         4         
+    01234567890123456789012345678901234567890123456789
+  0   #############################               ~~~~
+  1   ########u#######uuuuu########  #########oddd~~~~
+  2   ##ococo#u#ololo#uuuuu#ommmo##  #off#ofo#dddo~~~~
+  3   ##ccccc#u#lllll#uuuuu#mmmmm##  #off#fff#dddd~~~~
+  4   ##ccccc#u#llllo#uuuuu#mmmmm##  #fff#oof#dddd~~~~
+  5   ####c###u###l###uuuuu###m####  #fffffff#dddd~~~~
+  6   #uuuuuuuuuuuuuuuuuuuuuuuuuuu#  ####f####dddo~~~~
+  7   ##################uu#########      -    dddd~~~~
+  8 ====================||========================~~~~
+  9 ====================||========================~~~~
+ 10   ########## oo ·   ||qqqqqqqqqo ##########   ~~~~
+ 11   #oho#oohh# oo · o ||qooqqqqooq #ooroo#ro#   ~~~~
+ 12   #ohhhhhhh#  oo·   ||qqqqooqqqq #rrrrr#rr#   ~~~~
+ 13   #hho#hhhh# ·······||qqqqooqqqq #rrrrrrrr#   ~~~~
+ 14   #####hhhh#    ·oo ||qqqqqqqqqq #oorrr#rr#   ~~~~
+ 15   #oho#oohh#    ·   ||qqqqqqqqqq #rrrrr#or#   ~~~~
+ 16   #hhhhhhhh#  o · oo||qqqqooqqqq #rrrrr#rr#   ~~~~
+ 17   #######h##    · oo||oqqqqqqqqq ###r######   ~~~~
+ 18   --------------------------------------------~~~~
+ 19             o       ||            -           ~~~~
+ 20              ########|########### -########   ~~~~
+ 21              #oxx#oo#|#oo#ooo#oo# -#oggggo#   ~~~~
+ 22              #oxx#xx#|#oo#oooooo# -#gggggo#   ~~~~
+ 23              #ooxxxx#|#oooooo#oo# -#oggggg#   ~~~~
+ 24              #xxx#xx#|#oo#ooo#oo# -###g####   ~~~~
+ 25              ###x####|#####o##### ---------   ~~~~
+ 26             ----------------------            ~~~~
+ 27                                               ~~~~
+ 28                                               ~~~~
+ 29   ######                                      ~~~~
+ 30   #aaao#                                      ~~~~
+ 31   #aaaa#                                      ~~~~
+ 32   #ooao#                                      ~~~~
+ 33   ######                                      ~~~~
+ 34                                               ~~~~
+ 35                                               ~~~~
+ 36                                               ~~~~
+
+```
+
+图例：# 墙  o 物品  · 铺地(街/广场/码头)  小写字母 室内地板（c 教学楼 l 图书馆 m 音乐楼 f 渔夫家 h 合租房 a 阿蝉房(2F) r 餐厅 g 杂货店 x 小千家 o 店主家）  ~ 河  空白 草地
+
+**步数（×1 速 = 秒）**：
+```
+家门→餐厅门: 27 步（×1 速 = 秒）
+  家门→杂货店门: 36 步（×1 速 = 秒）
+  家门→校门: 21 步（×1 速 = 秒）
+  家门→码头: 44 步（×1 速 = 秒）
+  家门→琴房门: 29 步（×1 速 = 秒）
+  餐厅门→杂货店门: 13 步（×1 速 = 秒）
+  鲸仔床边→餐厅门: 39 步（×1 速 = 秒）
+```
+对比 v1：家门 → 餐厅门 71 步 → **27**；家门 → 校门 ≈ 40 → **21**；家门 → 码头 ≈ 85 → **44**。全部 ≤ 1 分钟。
+
+## 2. 每栋楼：新占地（外墙含）、门格、室内（物品一个不少）
+
+| 楼（sector） | v1 占地 | **v1.2 占地** | 门格（室内侧 → 室外侧，door id 不变） | 室内房间（arena）与物品（id 不变） |
+|---|---|---|---|---|
+| 鲸鱼大学 `university` | x2–45,y0–8（44×9） | **x2–30,y0–7（29×8）**，校园过道 y6，校门 (20,7)(21,7) 接南北街 | `school_gate_w` (20,7)→(20,8)、`school_gate_e` (21,7)→(21,8) | 校园 `campus` 过道；教学楼 `classroom` 7×5（x3–9,y1–5；门 `door_classroom` (6,5)→(6,6)）：classroom_desk_1 (4,2)、classroom_desk_2 (6,2)、pc_lab (8,2)；图书馆 `library` 7×5（x11–17；门 `door_library` (14,5)→(14,6)）：reading_desk_1 (12,2)、reading_desk_2 (14,2)、shelf_lib_1 (16,2)、shelf_lib_2 (16,4)；音乐楼 `music_room` 7×5（x23–29；门 `door_music` (26,5)→(26,6)）：pc_music (24,2)、piano (28,2) |
+| 老渔夫家 `fisher_house` | x47–57,y1–7（11×7） | **x33–41,y1–6（9×6）**，门 (37,6) 接小巷 (37,7) → 主街 | `door_fisher` (37,6)→(37,7) | 卧室 `fisher_bedroom` x34–36,y2–5：bed_fisher (34,2)；厨房 `fisher_kitchen` x38–40,y2–5：stove_fisher (38,2)、fridge_fisher (40,2)、table_fisher (38,4)（座位 N 两格）；内门 (37,5) |
+| 合租房 1F `home` | x2–15,y21–33（14×13） | **x2–11,y10–17（10×8）**，门 (9,17) 接北巷 y18 | `door_home` (9,17)→(9,18)；`stairs_home` (10,16)↔(3,30) | 鲸仔房 `whale_room` x3–5,y11–13：bed_whale (3,11)、pc_whale (5,11)（站 (5,12)）、shelf_whale (5,13)；客厅 `living_room` x7–10,y11–16：table_home (7,11)（座位 S (7,12)(8,12)）、sofa_tv (7,15)、楼梯格 (10,16)；厨房 `kitchen` x3–5,y15–16：stove (3,15)（站 (3,16)）、fridge_home (5,15)；内门 (6,12) 鲸仔房↔客厅、(6,16) 厨房↔客厅 |
+| 合租房 2F `achan_room` | x2–9,y36–41 | **x2–7,y29–33（6×5，画布另一处）** | 楼梯边到 (3,30) | bed_achan (3,32)、pc_achan (6,30)、shelf_achan (6,32)；`locked 09:00–18:30` 不变 |
+| 餐厅 `restaurant` | x46–56,y22–30（11×9） | **x33–42,y10–17（10×8）**，门 (36,17) 接北巷 y18 | `door_restaurant` (36,17)→(36,18) | 大堂 `dining` x34–38,y11–16：table_rest_1 (34,11)（座位 S 两格）、table_rest_2 (34,14)（座位 N+S 四格）、bar (37,11)（座位 (37,12)(38,12)）；后厨 `rest_kitchen` x40–41,y11–16：fridge_rest (41,11)、stove_rest (40,15)；内门 (39,13) |
+| 杂货店 `grocery` | x46–56,y32–38（11×7） | **x35–42,y20–24（8×5）**，门 (38,24) 接短巷 y25（x34–42）→ 竖巷 x34 → 北巷 | `door_grocery` (38,24)→(38,25) | `grocery_shop` x36–41,y21–23：counter (41,22)（站 (40,22) 朝 right）、shelf_1 (36,21)、shelf_2 (36,23)、shelf_3 (41,21) |
+| 小千家 `xiaoqian_house` | x12–20,y36–41（9×6） | **x13–20,y20–25（8×6）**，门 (16,25) 接南巷 y26 | `door_xiaoqian` (16,25)→(16,26) | 房间 `xiaoqian_room` x14–16,y21–24：bed_xiaoqian (14,21)、table_xiaoqian (14,23)（座位 3 格）；厨房 `xiaoqian_kitchen` x18–19,y21–24：stove_xiaoqian (18,21)、fridge_xiaoqian (19,21)；内门 (17,23) |
+| 店主们的家 `owners_house` | x22–29,y36–46（8×11） | **x22–32,y20–25（11×6）**，门 (27,25) 接南巷 y26 | `door_owners` (27,25)→(27,26) | 餐厅老板房 `owner_rest_room` x23–24：bed_owner_rest (23,21)；厨房 `owners_kitchen` x26–28：stove_owners (26,21)、fridge_owners (28,21)、table_owners (27,23)（座位 N+S 四格）；杂货店老板房 `owner_grocer_room` x30–31：bed_owner_grocer (30,21)；内门 (25,23)、(29,22) |
+
+室外：码头 `dock` x42–45,y1–9 贴河（河 x46–49）：fish_stall (42,1)、fishing_spot_1 (45,2)、fishing_spot_2 (45,6)、boat (43,9)；公园 `park` x13–19,y10–17（十字小路）：tree_1 **大树** (13,10)、tree_2 **大树** (18,16)、tree_3 (14,16)、tree_4 (18,11)、bench_park_1 (14,12)、bench_park_2 (17,14)；广场 `square` x22–31,y10–17：fountain (26,12)、bench_square_1 (23,11)、bench_square_2 (29,11)、bench_square_3 (26,16)、notice_board_square (22,17)；街边 notice_board_street (19,10)。主街 `street` y8–9 + 南北街 x20–21（y8–26）；北巷 `lane` y18（x2–45，各家 / 餐厅门前）、南巷 y26（x12–33）、杂货店短巷。v1 的 9 棵草坪装饰树（tree_w*/tree_e*）、两处池塘、小径、晾衣绳、花坛**去掉**（镇子缩了，草坪只剩校园↔街道之间一条和河边）；要留几棵可加回 lane 边。
+
+## 3. 室外物品占地表（给 E：贴图按根部占地画，底边锁格 Y 排序）
+
+| 类型 | 占地 W×H | 可交互 | 备注 |
+|---|---|---|---|
+| `tree_big` 大树（新类型） | 2×2 | 否 | tree_1 / tree_2；sprite 新画 |
+| `tree` 小树 | 1×1 | 否 | tree_3 / tree_4 |
+| `fountain` 喷泉 | 2×2 | 否 | 广场中心 |
+| `bench` 长椅 | 2×1 | 坐（2 座，坐在物品格上） | 公园 2、广场 3；v1.1 简餐处 |
+| `notice_board` 公告栏 | 1×1 | 是（看委托） | 街边 1、广场 1 |
+| `lamp` 路灯（新类型，装饰） | 1×1 | 否 | 3 盏：(22,10)(12,19)(31,10)；可改进 decor 层 |
+| `fish_stall` 鱼摊 | 1×1 | 是（buy / sell） | 码头 |
+| `fishing_spot` 钓位 | 1×1 | 是 | 码头 2 |
+| `boat` 渔船 | 2×1 | 否 | 码头 |
+| 整栋楼 | 见 §2 占地 | 门格可走 | 贴图尺寸 = 占地 × 格；底边 = 占地最下一行 |
+
+室内物品尺寸不变（床 1×2、双人床 2×1、餐桌 / 餐馆桌 / 吧台 / 沙发 2×1，其余 1×1）；站位规则不变（`use_pos`）。
+
+## 4. 受影响的坐标（夹具 / 脚本 / 测试）与改法
+
+| 用处 | v1 坐标 | **v1.2** |
+|---|---|---|
+| 鲸仔出生点 `player_start` | (5,25) | **(4,13)**（鲸仔房） |
+| 床边站位（S02 / D1 / R4 / x7_reset） | (3,24) up | **(3,13) up** |
+| 直播台 pc_whale（S07 / R3） | 站 (8,23) up | 站 **(5,12) up** |
+| 冰箱 fridge_home（S01 / R1 / S11 / verify） | 站 (3,30) up | 站 **(5,16) up**（或 (4,15) right） |
+| 灶台 stove | 站 (8,30) up | 站 **(3,16) up** |
+| 合租房餐桌 table_home | 站 (11,24) up | 站 **(7,12) up** |
+| 客厅（S11 起点） | (12,26) | **(9,13)** |
+| 广场（S01 / R1 / S08 起点） | (41,26) | **(26,14)**（喷泉旁） |
+| 街道（S02 起点） | (45,19) | **(30,9)** |
+| 餐厅桌 table_rest_1 | 站 (48,24) up | 站 **(34,12) up** |
+| 餐厅门外（S11 deliver drop point） | (51,31) | **(36,18)** |
+| 杂货店柜台 counter（copy_key / S11） | 站 (55,36) up | 站 **(40,22) right** |
+| 杂货店门外 | (51,39) | **(38,25)** |
+| 琴房电脑 pc_music（每日上限测试） | 站 (34,3) up | 站 **(24,3) up** |
+| 长椅 bench_square_1 | 站 (33,24) up | 坐 **(23,11)**（走到 (23,12) 朝 up） |
+| 渔夫家门外 / 小千家门外（deliver） | (52,8) / (16,42) | **(37,7) / (16,26)** |
+| X1 夹具 S01…N5 坐标与 `docs/x1-shortest.json` | v1 | **随新图重出**（`scripts/path_table.py --map v1.2`；A 的 judge `--shortest` 读） |
+
+改法：`docs/x5-fixtures.md` 坐标表与场景表、`scripts/verify_fixtures_v11.py` / `x7_reset.py` / `verify_day_cycle.py`、`tests/test_w9_map_v2.py`（物品数 / 可达）、`tests/test_w11_*`（用 v1 坐标的 ≈ 20 处 `place()`）全部换成上表；地图 `v1` 文件保留不动（X1–X6 结论复现用），新图目录 `game/maps/v1.2`，`SANDBOX_MAP=v1.2`；mapVersion 变；检查点里旧坐标非法 → 出生点（已有 `_ensure_valid_position`），物品 contents / stock 按 id 回填不受影响。
+
+## 5. 实现估工与顺序（主播点头后）
+
+1. `gen_map_v12.py`（从 draft 搬，加 zone_names / decor / homes / access，与 v1 同格式）+ `object_types` 加 `tree_big` / `lamp`（0.3 d）
+2. 坐标迁移：夹具文档 / 三个脚本 / 测试（0.4 d）
+3. `x1-shortest.json` v1.2 版 + `verify_fixtures_v11` / `x7_reset` 在 8091 过（0.1 d）
+4. tag `world-v1.2`，E 的整栋贴图按 §2 占地画（并行）
+合计 **≈ 1 d**；若超两天先按 v1.1.1 恢复主镇、地图后补。
+
+## 6. 请主播定的点
+
+1. 校园缩成一条（三栋 7×5 并排 + 过道），**图书馆与音乐楼之间留出南北街穿过校园**（校门在校园南墙正中）——可以吗？还是校门改在校园右下角？
+2. 餐厅 10×8、杂货店 8×5、合租房 10×8 的比例感觉如何；杂货店门朝南（接短巷）还是朝西直接开到南北街？
+3. 公园保留十字小路 + 2 大树 2 小树 2 长椅；草坪装饰树 / 池塘 / 晾衣绳 / 花坛是否全部去掉。
+4. 2F 阿蝉房仍画在画布另一处（楼梯边传送），还是 E 侧改成同位置换层显示？（后者对沙盒无影响，只是贴图方案）
