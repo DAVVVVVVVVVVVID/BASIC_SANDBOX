@@ -110,7 +110,7 @@ def edge(eid, kind, a, b, name=None, open_hours=None, allow=None, owner=None, ke
 # ── 河与码头（右上，贴河）─────────────────────────────────────────────────────
 fill(46, 0, 49, H - 1, "b", "outside", "water")
 fill(42, 1, 45, 9, "F", "outside", "dock")
-obj("fish_stall", "fish_stall", 42, 1); obj("fishing_spot_1", "fishing_spot", 45, 2); obj("fishing_spot_2", "fishing_spot", 45, 6); obj("boat", "boat", 43, 9)
+obj("fish_stall", "fish_stall", 42, 1); obj("fishing_spot_1", "fishing_spot", 45, 2); obj("fishing_spot_2", "fishing_spot", 45, 6); obj("boat", "boat", 46, 8)   # v1.2.4：装饰船下水，贴码头木板 (45,8) 东侧（水格不可走，占水格无妨）
 
 # ── 街道 ─────────────────────────────────────────────────────────────────────
 fill(0, 8, 45, 9, "F", "outside", "street")             # 东西主街

@@ -60,7 +60,7 @@ def edge(eid, a, b):
 # ── 河 / 码头（右上）──
 fill(46, 0, 49, H - 1, "b", "~")
 fill(42, 1, 45, 9, "F", "d")                                   # dock x42–45,y1–9（贴河）
-obj("fish_stall", "fish_stall", 42, 1); obj("fishing_spot_1", "fishing_spot", 45, 2); obj("fishing_spot_2", "fishing_spot", 45, 6); obj("boat", "boat", 43, 9)
+obj("fish_stall", "fish_stall", 42, 1); obj("fishing_spot_1", "fishing_spot", 45, 2); obj("fishing_spot_2", "fishing_spot", 45, 6); obj("boat", "boat", 46, 8)
 # ── 街道：主街 y8–9（x0–45）；南北街 x20–21（y8–26）；北巷 y18（x2–45，各家门前）；南巷 y26（x12–33）──
 fill(0, 8, 45, 9, "F", "=")
 fill(20, 0, 21, 26, "F", "|")

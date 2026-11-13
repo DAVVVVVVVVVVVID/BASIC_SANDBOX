@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5aa. world-v1.2.4：渔船下水（总控 whale-5e 转主播截图反馈；tag `world-v1.2.4`）—— 完成，8091 待切
+
+- `boat` 是纯装饰（object_types `interactable: false`，没有上船 / 钓鱼交互），所以按建议下水：(43,9)-(44,9) 沙滩 → **(46,8)-(47,8)** 水格，贴码头木板 (45,8) 东侧。水格本来不可走，占了无妨；两格 arena 仍 `water`，tiles 导出 object（同其他物品）；原 (43,9)(44,9) 变回可走码头铺地。校验全过，72 件全可达，**338 passed**。
+- 码头侧向长椅 `bench_dock_side` (42,4)-(42,5)：定为座面朝东（看河）、靠背朝西（贴陆地）——E 原按朝西出图，已告总控改成朝东。
+
 ## 5z. world-v1.2.3：室外装饰 12 件（总控补派，E 新类型；tag `world-v1.2.3`）—— 完成，8091 待切
 
 - `object_types.json` 加 6 类装饰（instant、`interactable: false`，`use` → `not_interactable`）：`bench_side` 侧向长椅 1×2（竖放）、`bush_round` / `bush_flower`、`flowerbed`、`trash_can`、`mailbox`（1×1）。
