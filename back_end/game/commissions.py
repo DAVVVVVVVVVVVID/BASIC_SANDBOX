@@ -55,13 +55,18 @@ def all_items() -> list[dict]:
     return [dict(c) for c in _items.values()]
 
 
-def deliver(giver: dict, target: dict, meta: dict | None) -> dict | None:
-    """give song 时调用（调用方持 STATE_LOCK）。对上委托 → 入账 + 亲密度；返回委托或 None。"""
+def deliver(giver: dict, target: dict | str, meta: dict | None, via: str = "give") -> dict | None:
+    """give cd 时调用（调用方持 STATE_LOCK）。target 可以是在场的委托人 player，或（solo 门口 / 柜台交付）委托人账号字符串。
+    对上委托 → 酬金入账 + 委托人亲密度（委托人在线才记）；返回委托或 None。"""
     from game.qq import account_of
     from game.buff_tick import add_closeness
     from game import economy, external_log
     from game.time_state import game_now_iso
-    acc = account_of(target)
+    acc = target if isinstance(target, str) else account_of(target)
+    target_p = None if isinstance(target, str) else target
+    if target_p is None:
+        from game.world_state import _players
+        target_p = next((q for q in _players.values() if account_of(q) == acc), None)
     cm = None
     cid = (meta or {}).get("commission_id")
     if cid and cid in _items and _items[cid]["status"] == "open" and _items[cid]["client"] == acc:
@@ -71,11 +76,12 @@ def deliver(giver: dict, target: dict, meta: dict | None) -> dict | None:
         cm = min(opens, key=lambda c: c["created_at"]) if opens else None
     if cm is None:
         return None
-    cm["status"] = "delivered"; cm["delivered_at"] = game_now_iso(); cm["deliverer"] = account_of(giver)
-    economy.ledger("income", giver, int(cm["fee"]), source="song_fee", commission=cm["id"], peer=target["id"], label=cm["title"])
+    cm["status"] = "delivered"; cm["delivered_at"] = game_now_iso(); cm["deliverer"] = account_of(giver); cm["via"] = via
+    economy.ledger("income", giver, int(cm["fee"]), source="song_fee", commission=cm["id"], peer=target_p["id"] if target_p else acc, label=cm["title"], via=via)
     bonus = float(cfg().get("closeness_bonus", 15))
-    add_closeness(target, giver["id"], bonus)
-    external_log.log("commission", giver["id"], action="deliver", id=cm["id"], client=cm["client"], fee=cm["fee"])
+    if target_p is not None:
+        add_closeness(target_p, giver["id"], bonus)
+    external_log.log("commission", giver["id"], action="deliver", id=cm["id"], client=cm["client"], fee=cm["fee"], via=via)
     try:
         from routers.ws import hub
         hub.push_event({"type": "commission", "event": "deliver", **cm})

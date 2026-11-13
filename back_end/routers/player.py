@@ -159,6 +159,7 @@ def admin_metrics():
         "economy": __import__("game.economy", fromlist=["x"]).info(),   # X5：economy.json 路径与 sha256（按镇覆盖，manifest 记）
         "accounts": __import__("game.economy", fromlist=["x"]).accounts_view(),   # v1.1 §3：所有已知账号余额（含离线）
         "rent_enabled": bool((__import__("game.economy", fromlist=["x"]).cfg().get("rent") or {}).get("enabled", False)),
+        "solo": __import__("game.world_state", fromlist=["x"]).SOLO,   # X7 A1「只有她」模式（SANDBOX_SOLO=1）
         "players": len(_players),
         "ws_clients": ws_clients,
         "rss_mb": round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0, 1),

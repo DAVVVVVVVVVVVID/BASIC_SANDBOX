@@ -566,6 +566,7 @@ _HANDLERS = {
     "take":         economy_actions.handle_take,
     "discard":      economy_actions.handle_discard,
     "copy_key":     economy_actions.handle_copy_key,
+    "deliver":      economy_actions.handle_deliver,
     "burn_cd":      economy_actions.handle_burn_cd,
     "knock":        handle_knock,                 # §3.40
     "open_door":    handle_open_door,             # §3.41

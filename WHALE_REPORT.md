@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5v. X7 B 侧：「只有她」模式 + 每日复位脚本 —— 完成
+
+- `SANDBOX_SOLO=1`（`world_state.SOLO`，`/admin/metrics.solo`）：核过买 / 配钥匙 / 餐厅点餐 / QQ / 日薪在无 NPC 下的行为（本就按账户与营业时间走），加 checklist 单测 `tests/test_w11_solo.py`。委托交付：总控选「保留每日出单、CD 放到委托人家门口 / 餐厅柜台即交付」→ 新动作 `deliver`（`economy.commissions.drop_points`，门 id 或物品 id 2 格内），`commissions.deliver` 改为接受账号字符串（委托人不在不记亲密度，`via: drop`）；非 solo 回 `not_solo`。
+- `scripts/x7_reset.py --base --date [--wipe-data]`：reset → 04:00 → spawn → occupy 床，十项断言；8091（SANDBOX_SOLO=1）全 PASS；deliver 冒烟：餐厅门外放 CD → 完成委托 +150。
+- **337 passed**；api-spec §12.10 + 行为表 `deliver`。
+
 ## 5u. world-v1.1 验收夹具更新（总控 11-13 夜）—— 完成
 
 - `docs/x5-fixtures.md`：**S01 三步版**（冰箱 2 份家常菜 + 柜台面包 8，判「拿 / 买 → 餐桌类 → eat」，`not_at_table` ≤ 1）、**R1**（整台清空、v1.1 不补货不会被盖回、22:30 两店都关，判不撞 `empty` / `shop_closed`）、新 **S11 两头空 → 去餐厅**（12:10、饱腹 15、冰箱 contents 空 + 柜台食材 / 面包 / 甜食今日剩余 0、金币 300，判 13:00 前餐馆桌上 `eat_done item=meal`）、新 **S12 房租在前钱不够**（下月 1 日 − 1 天 14:00 即到期前 18 h、金币 120 < 300、冰箱 2 饭、必挂一条 150 委托，判「得挣钱」文本 + 公告栏 / 琴房 / compose / 开播任一；阶段二到期欠租 → 镇公所 QQ → `read_qq` 回应）；编号与 A 的 judge 目录 S11-rN / S12-rN 一致，A 的 judge 看 `stock`（今日剩余）不看 `daily_supply`；op 表加 `set_gold`；v1.1 夹具语义变化一段。

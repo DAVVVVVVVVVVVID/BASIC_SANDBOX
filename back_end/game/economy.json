@@ -183,7 +183,25 @@
       "cd",
       "song"
     ],
-    "expire_days": 3
+    "expire_days": 3,
+    "drop_points": {
+      "_doc": "X7 A1「只有她」模式（SANDBOX_SOLO=1）：委托人身体不在时，把 CD 放到这些地点（门 id 或物品 id）2 格内即算交付（deliver 动作）；非 solo 仍当面 give",
+      "npc_rest_owner": [
+        "door_restaurant",
+        "bar"
+      ],
+      "npc_grocer": [
+        "door_grocery",
+        "counter"
+      ],
+      "npc_fisher": [
+        "door_fisher",
+        "fish_stall"
+      ],
+      "npc_xiaoqian": [
+        "door_xiaoqian"
+      ]
+    }
   },
   "live_income": {
     "_doc": "v1.1 M-2：amount = viewers_total × per_viewer(0.005) + gifts_rmb × gift_rate(1.0)，观众量 = 当场累计观看人次（直播侧回传 viewers_total / gifts_rmb；旧 viewers_avg / gifts 仍收，同公式）；synthetic=true 时下播按 synthetic_viewers / synthetic_gifts 随机合成并标 synthetic:true。",

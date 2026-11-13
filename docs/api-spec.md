@@ -460,6 +460,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 | `discard` | **world-v1.1 §12** 丢掉背包里的东西（任何物品；钥匙不许丢 `not_discardable`） | `{ item, qty?=1 }` | agent / E |
 | `copy_key` | **world-v1.1 §12.8** 面向杂货店柜台给自己的门配一把钥匙（15 金币，仅门主） | `{ door_id, object_id? }` | agent / E |
 | `burn_cd` | **world-v1.1 §12.8** 在琴房电脑上把背包里的某张 CD 再刻一张（10 分钟，busy `burning`） | `{ title? }` | agent |
+| `deliver` | **X7 §12.10** `SANDBOX_SOLO=1` 下把 CD 放到委托人家门口 / 柜台（drop point 2 格内）即算交付 | `{ item?="cd", commission_id?, client? }` | agent |
 | `knock` | **§3.41** 在上锁的家门外敲门（见「门禁」一节） | `{ door_id }` 或 `{ target_tile {x,y} }` 或 `{ home: <sector> }` | agent / E |
 | `open_door` | **§3.41** 站在门内侧相邻格开门（不需钥匙），敞开 60 游戏秒 | `{ door_id }` | agent / E |
 | `say` | **Q6（实验 X4）靠近即可说**：曼哈顿 ≤ 2 格、同 sector 的在场玩家在**下一次 perceive** 的 `nearby_speech[]` 看到 `{from, from_name, text, ts}`（读过即清，队列 ≤ 20）；不开房间、不走邀请。`result {message, heard_by[], heard_count, range, position}`；失败 `empty_text` / `text_too_long`（> 200）。聊天 JSONL 多一种行 `kind: "say"`（`from, from_name, to: heard_by[], text, controller, position`，`room_id: null`）；ws `{type:"say", from, from_name, text, position, heard_by}`；动作日志照常 | `{ text }` | agent |
@@ -1563,6 +1564,11 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - **委托（M-6）**：`daily_p` 0.15、`song_fee` 100–200、`max_open` 2、`expire_days` 3（`expires_at`，到期 `status: expired` + ws `commission expire` + external）；酬金仍是外部入账、**不扣委托人（v1.1 定）**。
 - **直播收入（M-2）**：`POST /admin/income source=stream` 接 `viewers_total`（当场累计观看人次）/ `gifts_rmb`（旧 `viewers_avg` / `gifts` 仍收，同公式）：`amount = viewers_total × 0.005 + gifts_rmb × 1.0`；未接直播侧前下播合成 `viewers_total 1000–3000、gifts_rmb 0–20`（≈ 5–35 金币）标 `synthetic: true`。
 - **流水 kind** 新增：`wage_paid` / `wage_debt` / `rent`；`income` 多 `offline` 字段（离线入账）。
+
+### 12.10 X7「只有她」模式（`SANDBOX_SOLO=1`）与每日复位
+
+- **`SANDBOX_SOLO=1`**（towns.yaml `sandbox_env`；`GET /admin/metrics.solo`）：NPC 身体不 spawn。本来就不依赖 NPC 在场的事照常：买 / 卖 / 餐厅 `eat meal` / 配钥匙的钱进店主**账户**（离线入账）、商店与餐厅按营业时间开、QQ 发给没来的人照常入信箱（没人回）、没开户的 NPC 不发日薪不收租。**委托交付**改为 `deliver {item?="cd", commission_id?, client?}`：站到委托人的 **drop point**（`economy.commissions.drop_points`：餐厅老板 `door_restaurant` / `bar`、店主 `door_grocery` / `counter`、渔夫 `door_fisher` / `fish_stall`、小千 `door_xiaoqian`）2 格内即算交付（酬金入账，委托 `via: "drop"`；委托人不在线不记亲密度）。失败 `not_solo`（非 solo 仍当面 `give`）/ `no_open_commission` / `not_at_drop_point {drop_points}` / `no_item`。
+- **每日复位** `cd back_end && uv run python scripts/x7_reset.py --base <镇> --date <YYYY-MM-DD> [--wipe-data <sandbox 数据目录>]`：`reset` → `set_time <date> 04:00` → spawn 鲸仔（账户 3,000）→ `occupy bed_whale`，并断言：冰箱 6 饭 + 4 食材、NPC 家 4 饭、商店满货、无委托、在床上 `sleeping`、背包只有钥匙、房租未欠、只有她在场。
 
 ### 12.7 地图 v1
 

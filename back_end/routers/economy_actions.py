@@ -337,6 +337,57 @@ def handle_copy_key(entity_id: str, payload: dict) -> ActionResponse:
                                                                      "qty": 1, "price": price, "gold_delta": -price, "gold": p["gold"], "objectId": obj["id"], "inventory": inventory.view(p)})
 
 
+def _near_drop_point(p: dict, ref: str) -> bool:
+    """ref = 门 id（取门外侧格 a）或物品 id；玩家在其 2 格内。"""
+    from game import doors
+    px, py = p["position"]["x"], p["position"]["y"]
+    e = doors.door(ref)
+    if e is not None:
+        return max(abs(px - e["a"]["x"]), abs(py - e["a"]["y"])) <= 2 or max(abs(px - e["b"]["x"]), abs(py - e["b"]["y"])) <= 2
+    obj = get_object_by_id(ref)
+    if obj is None:
+        return False
+    return any(max(abs(px - t["x"]), abs(py - t["y"])) <= 2 for t in obj["tiles"])
+
+
+def handle_deliver(entity_id: str, payload: dict) -> ActionResponse:
+    """X7 A1「只有她」模式（SANDBOX_SOLO=1）：把 CD 放到委托人家门口 / 柜台（economy.commissions.drop_points）2 格内即算交付 {item?="cd", commission_id?, client?}。
+    非 solo → not_solo（当面 give）。"""
+    from game import commissions, world_state as ws
+    from game.inventory import find, remove_entry
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="deliver", reason="player_not_found")
+        if not ws.SOLO:
+            return ActionResponse(success=False, type="deliver", reason="not_solo", result={"message": "委托人在镇上，当面 give 给他。"})
+        item = _item(payload) or "cd"
+        opens = commissions.open_items()
+        cid = payload.get("commission_id")
+        if cid:
+            opens = [c for c in opens if c["id"] == cid]
+        if payload.get("client"):
+            from game.qq import resolve_account
+            acc = resolve_account(payload["client"]) or payload["client"]
+            opens = [c for c in opens if c["client"] == acc]
+        if not opens:
+            return ActionResponse(success=False, type="deliver", reason="no_open_commission", result={"item": item, "commission_id": cid})
+        points = economy.cfg().get("commissions", {}).get("drop_points") or {}
+        here = [c for c in opens if any(_near_drop_point(p, r) for r in (points.get(c["client"]) or []))]
+        if not here:
+            return ActionResponse(success=False, type="deliver", reason="not_at_drop_point",
+                                  result={"message": "得走到委托人家门口或他的柜台边。", "drop_points": {c["client"]: points.get(c["client"]) for c in opens}})
+        cm = min(here, key=lambda c: c["created_at"])
+        entry = find(p, item, commission_id=cm["id"]) or next((e for e in inventory.ensure(p) if e.get("type") == item), None)
+        if entry is None:
+            return ActionResponse(success=False, type="deliver", reason="no_item", result=_item_fields(item, 1))
+        remove_entry(p, entry, 1)
+        done = commissions.deliver(p, cm["client"], {"commission_id": cm["id"]}, via="drop")
+        mark_input(entity_id)
+        return ActionResponse(success=True, type="deliver", result={"message": f"把《{(entry.get('meta') or {}).get('title', '')}》放在了{cm['client_name']}那儿，完成委托《{cm['title']}》，收到 {cm['fee']} 金币。",
+                                                                    **_item_fields(item, 1), "commission": done, "gold_delta": cm["fee"], "gold": p["gold"], "inventory": inventory.view(p)})
+
+
 def handle_burn_cd(entity_id: str, payload: dict) -> ActionResponse:
     """world-v1.1 Q-5：再刻一张 {title?}。须正在用琴房电脑且背包里有同名 CD；10 分钟后 +1 张（busy kind burning）；不耗钱。"""
     from game import production

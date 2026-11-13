@@ -440,6 +440,7 @@ _last_used:   dict[str, dict[str, float]]        = {}   # entity -> {obj_id: gam
 _daily_use:   dict[str, dict[str, dict]]         = {}   # world-v1.1 I-1：entity -> {obj_type: {"day": "YYYY-MM-DD"(04:00 为界), "used_s": float}}
 DAILY_RESET_HM = "04:00"
 _use_history: dict[str, list[tuple[float, str]]] = {}   # entity -> [(game_ts, obj_id), ...]
+SOLO = os.environ.get("SANDBOX_SOLO", "0") == "1"   # X7 A1「只有她」：NPC 身体不 spawn；店照常售货 / 出菜（按账户入账）；委托可放门口 / 柜台交付
 OBJECT_COOLDOWN_S  = 30 * 60.0       # 同一物品 30 游戏分钟冷却（类型可用 cooldown_s 覆盖；床类为 0，W8 Q0e）
 AWAY_AFTER_S       = 120.0           # W8 Q0e：人类玩家 120 s 无输入标 away（agent 永不 away）
 _last_input: dict[str, float] = {}   # entity -> 最近一次「输入」（动作 / 心跳 / 聊天）的墙钟
