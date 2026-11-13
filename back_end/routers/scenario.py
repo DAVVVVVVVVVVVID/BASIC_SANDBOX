@@ -13,7 +13,7 @@ op 一览（player 字段可填 id 或唯一的 name）：
   teleport       {player, x, y, facing?}             必须是可走格
   set_vars       {player, vars:{fullness,energy,social,fun,mood}, mood_base?, scene?, closeness?}  七变量直写
   effects        {player, effects:[...], scene?}     与 /effects 同格式（source="scenario"）
-  occupy         {player, object, sticky?:false}     让玩家占住某物品（跳过距离 / 冷却 / 营业时间 / 外部调用；不记冷却，解除后可立刻再用）；sticky=true 关掉 max_duration 自动离开
+  occupy         {player, object, sticky?:false}     让玩家占住某物品（跳过距离 / 冷却 / 营业时间 / 外部调用；不记冷却，解除后可立刻再用）；sticky=true 关掉 max_duration 自动离开；注意只跳过进入时检查，打烊物品下一 tick 仍被 ticker 请走
   release        {player}                            离开正在用的物品
   invite         {from, to:[...], greeting}          代某玩家发邀请（跳过冷却）→ 返回 request_id
   respond        {player, request_id, accept, message}

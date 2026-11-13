@@ -1273,7 +1273,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `teleport` | `player`, `x`, `y`, `facing?` | 必须可走格；正在用物品先离开；`pos_seq` +1 |
 | `set_vars` | `player`, `vars{…}`, `mood_base?`, `scene?`, `closeness?` | 七变量直写（clamp，`hp` 视为 fullness），**不进自我层 vars_delta** |
 | `effects` | `player`, `effects[]`, `scene?`, `event?` | 同 `POST /player/{id}/effects`，`source="scenario"` |
-| `occupy` | `player`, `object`, `sticky?` | 让玩家占住 continuous 物品：跳过距离 / 冷却 / 营业时间 / 外部调用（直播台只本地切 live）；站到相邻可走格并面向它；`sticky=true` 关掉 max_duration 自动离开（S05「占着不走」）。满员 → 错。**夹具占用不算「用过」**：不记物品冷却 / 使用史，并清掉该物品已有冷却——`release` 或她自己离开后可立刻 `use` 回来续上（X5 pilot ②） |
+| `occupy` | `player`, `object`, `sticky?` | 让玩家占住 continuous 物品：跳过距离 / 冷却 / 营业时间 / 外部调用（直播台只本地切 live）；站到相邻可走格并面向它；`sticky=true` 关掉 max_duration 自动离开（S05「占着不走」）。满员 → 错。**夹具占用不算「用过」**：不记物品冷却 / 使用史，并清掉该物品已有冷却——`release` 或她自己离开后可立刻 `use` 回来续上（X5 pilot ②）。**只跳过进入时的检查**：带 `open_hours` 的物品打烊期间（含 `force_closed`）ticker 每 tick 仍会把所有使用者请走（不分 human / agent，`sticky` 也不豁免，与正常营业结束一致），所以打烊时段 `occupy` 餐桌下一 tick 即 idle、`eat` 报 `not_at_table`——要在营业时间内 `set_time` 后再 occupy（E 11-14 实测） |
 | `release` | `player` | 离开正在用的物品 |
 | `invite` | `from`, `to[]`, `greeting` | 代某玩家发邀请，**跳过冷却**，返回 `request_id` |
 | `respond` | `player`, `request_id`, `accept`, `message`, `tick?=true` | 代某玩家响应；默认立刻推进一次状态机（相邻则建房），返回 `status_now` / `chat_room_id` |
