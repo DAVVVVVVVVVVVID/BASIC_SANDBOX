@@ -45,6 +45,14 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5ac. world-v1.2.6：满员提示文字（总控定现在修；tag `world-v1.2.6`）—— 完成，bench 验收后再切
+
+- 起因：核 C 的 S05（01:55 床被占 sticky）时实测，`use` 被占的床返回 `reason: object_full`，但 `message` 借的是床的类型失败语「还不是睡觉的时候」，凌晨读到会误导。
+- 修法：`routers/actions.py` 的 object_full 分支改成「<物品名>有人在用（已满 n/max）。」，返回结构不变。全查了 20 类 continuous：床 / 双人床 / 浴缸 / 书桌 ×2 / pc_desk / pc_music / reading_desk / classroom_desk 这 9 类的失败语都与满员无关，其余（餐桌 / 餐馆桌 / 吧台 / 长椅 / 沙发 / 钓位等）本来就说「坐满了」，现在统一成一种说法。几个老类型 `name` 还是英文（bed / bath / fridge / desk / book），只在这句提示里换中文，`/world` 输出不动。
+- 没动：`object_cooldown` 分支也借用类型失败语（床类冷却 0、多数类型 v1.1 已设 0，影响小），留待后续。
+- 测试：S05 断言补文字；新 `tests/test_w12_full_message.py`（长椅 2/2、床 1/1 中文名）；**340 passed**。api-spec 失败码表 + 示例同步。
+- 切换：总控定**验收中途不切 bench**；13 场验收和 S04 / S09 重跑完后，bench 两台和主镇一起换 v1.2.6，X8 从 v1.2.6 起。
+
 ## 5ab. world-v1.2.5：删公园两张长椅（主播看广场截图定；tag `world-v1.2.5`）—— 完成，8091 待切
 
 - 删 `bench_park_1` (14,12)（公园最西）与 `bench_park_2` (17,14)（两棵大树之间）。核三件事：① 测试 / x5 / x1 夹具文档 / 脚本 / C 的 `AGENT_V2-x8/tools/map_coords.py` 都没引用（C 的 `bench_square_stand` 用广场 `bench_square_1` (23,11) 站 (23,12)），eval 文档也没有；② 长椅是室外唯一 `dining` 类型，删后**公园一侧没有简餐处**，鲸仔在室外吃面包只能去广场三张 (23,11)/(29,11)/(26,16)——已告总控问主播；③ 门 / 坐标表 / x1-shortest 不变。

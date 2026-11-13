@@ -736,7 +736,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
   "type": "use",
   "reason": "object_full",
   "result": {
-    "message": "床上已经有人了。",
+    "message": "床有人在用（已满 1/1）。",
     "currentUsers": 1,
     "maxUsers": 1
   }
@@ -757,7 +757,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 |--------|------|
 | `no_object_in_front` | 正前方没有对象 |
 | `not_interactable` | 对象不可交互，`result.message` 为对象的 `failureMessage` |
-| `object_full` | 对象已满（仅 continuous），`result.message` 为对象的 `failureMessage` |
+| `object_full` | 对象已满（仅 continuous），`result {message, currentUsers, maxUsers}`。**world-v1.2.6 起** `message` 固定为「<物品名>有人在用（已满 n/max）。」（如「长椅有人在用（已满 2/2）。」），不再借用类型的 `failureMessage`（床的是「还不是睡觉的时候」，满员时误导）；老类型英文名在这句里换中文（bed→床、bath→浴缸、fridge→冰箱、desk→书桌、book→书架），`/world` 的 `name` 不变。判满员请按 `reason` |
 | `object_cooldown` | **B5** 同一实体对同一物品 30 游戏分钟内再次 use（从上次 use 成功算起，instant 与 continuous 都算）。`result` 含 `objectId`、`cooldownRemaining`（剩余游戏秒）、`message`。**W8 Q0e：床类（`bed` / `bed_21`）无冷却**（类型级 `cooldown_s: 0`）；**world-v1.1：冰箱 / 灶台 / 柜台 / 鱼摊也无冷却**（存储 / 加工 / 交易处，每日上限放在商品供应上）；工作 / 娱乐类的冷却在 -b 批改为每日时长上限 |
 | `feed_unavailable` | **B10** 手机（`external: feed`）拉自我层 `GET /self/feed` 失败（不可达 / 超时 3 s）。`result.message` 为「手机没信号…」，`result.phone.status = "no_signal"`；物品仍算使用过（有冷却），其余 instant 效果已结算 |
 | `live_unavailable` | **B11** 直播台（`external: live`）向自我层 `POST /self/live/start` 失败，**或使用者是人类玩家（没有 `agent_id`，§3.11 B4：阿蝉不能替她开播）**。不进入物品、不计冷却，`result.error` 为错误摘要 |

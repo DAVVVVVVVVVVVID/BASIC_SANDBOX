@@ -278,7 +278,7 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
             type="use",
             reason="object_full",
             result={
-                "message":      obj.get("failureMessage"),
+                "message":      f"{_FULL_NAME_CN.get(obj['name'], obj['name'])}有人在用（已满 {obj['currentUsers']}/{obj['maxUsers']}）。",   # v1.2.6：不再借用类型通用失败语（床的是「还不是睡觉的时候」，满员时误导）
                 "currentUsers": obj["currentUsers"],
                 "maxUsers":     obj["maxUsers"],
             },
@@ -575,6 +575,9 @@ _HANDLERS = {
     "make_video":   economy_actions.handle_make_video,
 }
 
+
+# v1.2.6：满员提示用的中文名——几个老类型的 object_types name 还是英文（/world 输出的 name 不动，只在这句提示里换）
+_FULL_NAME_CN = {"bed": "床", "bath": "浴缸", "fridge": "冰箱", "desk": "书桌", "book": "书架"}
 
 @router.post("/action", response_model=ActionResponse)
 async def dispatch(body: ActionRequest):

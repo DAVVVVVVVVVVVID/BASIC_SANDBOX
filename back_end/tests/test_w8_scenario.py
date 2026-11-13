@@ -88,6 +88,7 @@ def test_occupy_sticky_blocks_other_and_survives_max_duration(client, bench, fak
     place(me, 3, 5, "up")
     res = action(client, me, "use")
     assert res["success"] is False and res["reason"] == "object_full"   # S05：目标被占
+    assert res["result"]["message"] == "床有人在用（已满 1/1）。" and "睡觉" not in res["result"]["message"]   # v1.2.6：满员提示不借通用失败语
     # 跳过营业时间 / 冷却：22:30 占餐桌也行
     _run(client, [{"op": "set_time", "time": "22:30"}])
     r = _run(client, [{"op": "occupy", "player": me, "object": "table_rest_1"}])
