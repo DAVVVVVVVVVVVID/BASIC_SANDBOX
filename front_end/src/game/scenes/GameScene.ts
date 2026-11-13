@@ -330,6 +330,7 @@ export default class GameScene extends Phaser.Scene {
       zoom: () => this.cameras.main.zoom,
       state: () => ({ camMode: this.camMode, focus: this.params?.focus ?? null, follow: this.params?.follow ?? null, keyboard: !!this.input.keyboard }),
       setFocus: (sector: string | null, floor = 1) => { if (this.params) this.params.focus = sector ? { sector, floor } : null },   // W9 任务 4 录屏：运行时切取景
+      view: () => ({ inside: this.insideSector, roofed: [...this.roofedSectors], backdrops: this.backdrops.map(b => ({ name: b.name, view: b.meta.view, key: `${b.meta.sector}|${b.meta.floor}`, visible: b.img.visible })) }),
       emit: (evt: string, payload: unknown) => EventBus.emit(evt, payload),   // 调试：模拟 ws 事件（knock-event / door-event …）
       others: () => [...this.others.entries()].map(([id, s]) => ({ id, px: s.getPixelPosition(), tile: s.getTile(), moving: s.isMoving(), ...s.debugPose() })),
     }
