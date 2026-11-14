@@ -52,16 +52,18 @@ export default function QQPanel({ playerId, readOnly, compact = false, style }: 
     return () => { stop = true; window.clearInterval(id); EventBus.off('qq-event', onWs) }
   }, [playerId, setQQContacts, mergeQQMessages])
 
+  /** 是我发的：优先后端 direction；老数据没有就退回按 entity id 比 */
+  const isMine = (m: QQMessage) => m.direction ? m.direction === 'out' : m.from === playerId
   const nameOf = (id: string) => qq.contacts.find(c => c.id === id)?.name ?? players.find(p => p.id === id)?.name ?? id
   const contacts: QQContact[] = useMemo(() => {
     // 联系人表为空时从消息里推出来
     if (qq.contacts.length) return qq.contacts
     const ids = new Map<string, QQContact>()
     for (const m of qq.messages) {
-      const k = m.group ?? (m.from === playerId ? (m.to ?? '') : m.from)
+      const k = m.group ?? (isMine(m) ? (m.to ?? '') : m.from)
       if (!k) continue
       const c = ids.get(k) ?? { id: k, name: nameOf(k), group: !!m.group, unread: 0 }
-      if (m.from !== playerId && !m.readAt) c.unread++
+      if (!isMine(m) && !m.readAt) c.unread++
       ids.set(k, c)
     }
     return [...ids.values()]
@@ -70,8 +72,9 @@ export default function QQPanel({ playerId, readOnly, compact = false, style }: 
   const thread = useMemo(() => {
     if (!peer) return [] as QQMessage[]
     const c = contacts.find(x => x.id === peer)
-    return qq.messages.filter(m => c?.group ? m.group === peer : (!m.group && ((m.from === peer && (m.to === playerId || !m.to)) || (m.from === playerId && m.to === peer))))
-  }, [qq.messages, peer, contacts, playerId])
+    // from / to 是 QQ 账号（achan / whale）而不是 entity id（阿蝉_97b6d8）——按 direction 判「我发的 / 发给我的」（11-15 主播：5 条未读点开看不到就是这里按 playerId 比错了）
+    return qq.messages.filter(m => c?.group ? m.group === peer : (!m.group && ((!isMine(m) && m.from === peer) || (isMine(m) && m.to === peer))))
+  }, [qq.messages, peer, contacts, playerId]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { listRef.current?.scrollTo({ top: 1e9 }) }, [thread.length, open])
   useEffect(() => { if (!peer && contacts.length) setPeer(contacts[0].id) }, [contacts, peer])
   // 切换联系人：立刻按 peer 拉它的会话（首次不带 since，取最近 500 条）

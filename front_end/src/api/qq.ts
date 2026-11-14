@@ -12,6 +12,8 @@ export interface QQMessage {
   to?: string | null; group?: string | null
   kind: 'text' | 'file'; text?: string; file?: { ref?: string; name?: string; type?: string } | null
   readAt?: string | null
+  /** 后端给的方向：in = 发给我，out = 我发的。from / to 是 QQ 账号（achan / whale），不是 entity id，会话过滤靠它 */
+  direction?: 'in' | 'out'
 }
 
 const str = (v: unknown, d = '') => (v === null || v === undefined ? d : String(v))
@@ -33,6 +35,7 @@ export function normalizeMessage(raw: unknown): QQMessage | null {
     text: typeof inner.text === 'string' ? inner.text : typeof inner.content === 'string' ? inner.content : undefined,
     file: file ? (typeof file === 'string' ? { ref: file } : { ref: str(obj(file).ref ?? obj(file).id ?? obj(file).file_ref), name: str(obj(file).name, ''), type: str(obj(file).type ?? obj(file).item_type, '') }) : null,
     readAt: inner.read_at !== undefined ? (inner.read_at === null ? null : str(inner.read_at)) : inner.readAt !== undefined ? str(inner.readAt) : undefined,
+    direction: inner.direction === 'in' || inner.direction === 'out' ? inner.direction : undefined,
   }
 }
 
