@@ -396,6 +396,11 @@ export default function ChatPanel() {
               title={nearby.some(p => p.entity_id === whale.id) ? '' : '要在同一个区域里才能邀请'}>
               邀请她聊天
             </button>
+            {/* 总控 11-14：阿蝉找别人（小克 / NPC）聊的入口——打开选人面板；通用按钮因鲸仔常在场从不出现 */}
+            <button onClick={() => setMode('selecting')} disabled={sending} style={btn('#553c9a')} data-testid="chat-others"
+              title="同一区域里的其他人（/chat/nearby）">
+              找别人聊{(() => { const n = nearby.filter(p => p.entity_id !== whale.id).length; return n > 0 ? ` (${n})` : '' })()}
+            </button>
           </div>
           <input value={greeting} onChange={e => setGreeting(e.target.value)} placeholder="开场白（可空：鲸仔，有空聊两句吗？）" style={INPUT} />
         </div>
@@ -435,7 +440,8 @@ export default function ChatPanel() {
               <>
                 {nearby.length === 0 ? (
                   <div style={{ color: '#718096', textAlign: 'center', padding: '8px 0' }}>
-                    附近没有其他玩家
+                    附近没有其他玩家<br />
+                    <span style={{ fontSize: 11 }}>要先走到和对方同一个区域</span>
                   </div>
                 ) : (
                   nearby.map(p => (
