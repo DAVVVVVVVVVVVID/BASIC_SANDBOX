@@ -4,6 +4,8 @@ import { tileCenter, TILE_SIZE } from '../map/TileMap'
 import { CharKey, charTextureKey, resolveCharKey, aiAnimPrefix } from '../assets'
 import { aiEnabled, aiCharKey, aiCharBase, getAiManifest, AI_CHAR_FRAME } from '../aiAssets'
 import { CHAR_FRAME } from '../assets'
+import { godotCharKeyFor, godotPoseFor, GODOT_TILE_PX, type GodotCharManifest } from '../godotChars'
+import { godotCharReady, godotCharManifest, godotCharTex, godotCharAnim } from '../godotCharsLoad'
 
 export interface PoseAnchor { x: number; y: number; angle: number; facing?: Facing; depth: number }
 export interface PoseAnchors { sleep: PoseAnchor | null; sit: PoseAnchor | null }
@@ -50,6 +52,9 @@ export interface ActorOptions {
   charKey: CharKey
   isSelf?: boolean
   showArrow?: boolean
+  /** 11-14 Godot 同步：按 agent_id / 控制者选六角色外观（同 Actor.gd key_for） */
+  controller?: string | null
+  agentId?: string | null
 }
 
 /**
@@ -95,6 +100,10 @@ export default class ActorSprite {
   /** 睡觉 / 坐下时贴到物品上（床中心 / 椅子位）：像素位置 + 旋转角 + 可选朝向 + 深度；null = 站在自己格上 */
   private poseAnchors: PoseAnchors = { sleep: null, sit: null }
   private anchor: PoseAnchor | null = null
+  /** 11-14：Godot 六角色条带（h128，四向共用正面不镜像，脚底锚点；清单见 godotChars.ts）；null = 旧表 */
+  private godot: { key: string; m: GodotCharManifest; scale: number } | null = null
+  /** 坐 / 睡 / 吃且在用物品时的排序钉（Godot _update_pin：只改排序，不挪精灵） */
+  private pinDepth: number | null = null
 
   constructor(scene: Phaser.Scene, position: Position, facing: Facing, opts: ActorOptions) {
     this.scene  = scene
@@ -103,21 +112,27 @@ export default class ActorSprite {
     this.name   = opts.name
     this.isSelf = !!opts.isSelf
     this.charKey = resolveCharKey(opts.charKey)
+    const gkey = godotCharKeyFor(opts.name, opts.controller, opts.agentId)
+    const gm = godotCharReady(scene, gkey) ? godotCharManifest(gkey) : null
     const aiBase = aiCharBase(this.charKey)
     const aiTex = aiCharKey(aiBase)
-    const useAi = aiEnabled() && !!getAiManifest()?.chars.includes(aiBase) && scene.textures.exists(aiTex)
-    this.hasGen = useAi || scene.textures.exists(charTextureKey(this.charKey))
-    this.animKey = useAi ? aiAnimPrefix(aiBase) : this.charKey
+    const useAi = !gm && aiEnabled() && !!getAiManifest()?.chars.includes(aiBase) && scene.textures.exists(aiTex)
+    this.hasGen = !!gm || useAi || scene.textures.exists(charTextureKey(this.charKey))
+    this.animKey = gm ? `gchar_${gkey}` : useAi ? aiAnimPrefix(aiBase) : this.charKey
     const afh = (getAiManifest()?.char_frame ?? [AI_CHAR_FRAME.w, AI_CHAR_FRAME.h])[1]
     const afw = (getAiManifest()?.char_frame ?? [AI_CHAR_FRAME.w, AI_CHAR_FRAME.h])[0]
-    const scale = useAi ? AI_DISPLAY_W / afw : SCALE          // AI 表：不管帧多大，显示成一格宽（96 px）
+    // Godot 条带：Godot 48 px/格 × scale → 这里 96 px/格，同比 ×2（h128 ×0.5 → 1:1，约 1.3 格高，与 Godot 画面一致）
+    const scale = gm ? gm.scale * (TILE_SIZE / GODOT_TILE_PX) : useAi ? AI_DISPLAY_W / afw : SCALE          // AI 表：不管帧多大，显示成一格宽（96 px）
     this.labelMul = useAi ? (afh * scale) / (CHAR_FRAME.h * SCALE) : 1
+    if (gm) this.godot = { key: gkey, m: gm, scale }
 
     const { x, y } = tileCenter(position.x, position.y)
-    this.sprite = scene.add.sprite(x, y, useAi ? aiTex : this.hasGen ? charTextureKey(this.charKey) : 'player_idle')
+    this.sprite = scene.add.sprite(x, y, gm ? godotCharTex(gkey, 'idle') : useAi ? aiTex : this.hasGen ? charTextureKey(this.charKey) : 'player_idle')
       .setScale(scale)
       .setOrigin(0.5, 0.5)
       .setDepth(y)
+    // Godot：节点在格底 −4（(y+1)·T − 4），精灵以脚底锚点挂上去；这里精灵逻辑位置仍是格中心，用 origin 把脚底放到格底 −4
+    if (gm) this.sprite.setOrigin(gm.anchor[0] / gm.frame_w, (gm.anchor[1] - (TILE_SIZE / 2 - 4) / scale) / gm.frame_h)
     this.playAnim(false)
 
     if (opts.showArrow) {
@@ -209,6 +224,17 @@ export default class ActorSprite {
 
   /** 自制四向表：<key>_walk_<dir> / <key>_idle_<dir>；没有自制表时退回旧的 walk / idle + 翻转 */
   private playAnim(moving: boolean) {
+    if (this.godot) {
+      // 同 Actor.gd _refresh_anim：走 → walk；停 → 按状态文字挑姿态（睡 / 吃 / 手机 / 聊 / 坐），否则 idle；四向共用正面不镜像
+      const g = this.godot
+      const has = (a: string) => this.scene.anims.exists(godotCharAnim(g.key, a))
+      const posed = !moving && !this.serverWalking
+      const pose = posed ? godotPoseFor(this.stateLabel, has) : null
+      const anim = moving ? (has('walk') ? 'walk' : 'idle') : pose ?? 'idle'
+      this.sprite.setFlipX(false)
+      this.sprite.play(godotCharAnim(g.key, anim), true)
+      return
+    }
     if (this.hasGen) {
       this.sprite.setFlipX(false)
       const posed = !moving && !this.serverWalking   // 总控 11-08：服务器说在走（两步之间精灵可能短暂静止）就不摆睡 / 坐姿
@@ -277,6 +303,21 @@ export default class ActorSprite {
 
   private layout() {
     const x = this.sprite.x, y = this.sprite.y
+    if (this.godot) {
+      // Godot 口径：排序 y = 脚底（格底 −4）；坐 / 睡 / 吃且在用物品 → 钉到物品底边 +1（椅背别盖住人）
+      const foot = y + TILE_SIZE / 2 - 4
+      const head = foot - this.godot.m.anchor[1] * this.godot.scale
+      const d = this.pinDepth ?? foot
+      this.sprite.setDepth(d)
+      if (this.arrow) { this.arrow.setDepth(d + 1); this.redrawArrow() }
+      const u = this.uiScale
+      this.nameText.setPosition(x, head - 10 * u).setDepth(d + 2)
+      this.stateText.setPosition(x, head + 4 * u).setDepth(d + 2)
+      if (this.bubble) this.bubble.setPosition(x, head - 34 * u).setDepth(d + 3)
+      if (this.bar) this.bar.setPosition(x - BAR_W / 2 * u, foot - 14 * u).setDepth(d + 2)
+      if (this.progressBar) this.progressBar.setPosition(x - 28 * u, head + 20 * u).setDepth(d + 2).setScale(u)
+      return
+    }
     // 深度按脚底 y 与物品（底边 y）排序：站在高物件后面会被挡住；贴在床 / 椅上时用物品底边 + 1，保证画在物品之上
     const d = this.anchored && this.anchor ? this.anchor.depth : y + this.sprite.displayHeight / 2 - 4
     this.sprite.setDepth(d)
@@ -334,6 +375,7 @@ export default class ActorSprite {
     else this.stateText.setVisible(false)
     const pose: typeof this.pose = !label ? 'stand' : /睡|sleep|躺/.test(label) ? 'sleep' : /坐|休息|玩游戏|看书|读|吃|用餐|钓|工作|直播|刷手机|sit|rest|gam/.test(label) ? 'sit' : 'stand'
     if (pose !== this.pose) { this.pose = pose; if (!this.moving) this.playAnim(false); this.applyPoseAnchor() }
+    else if (this.godot && !this.moving) this.playAnim(false)   // 同档不同姿（聊 → 刷手机）也要换条带
   }
 
   /** W8：睡觉 / 坐下时把人画到物品上（后端把使用者放在物品旁一格；AI 形象物品和人是两张图，不贴会像睡在地板上 / 坐在空地）。只对 AI 表生效：像素表的睡觉帧自带床 */
@@ -347,6 +389,12 @@ export default class ActorSprite {
   private anchored = false
   private applyPoseAnchor() {
     const a = this.pose === 'sleep' ? this.poseAnchors.sleep : this.pose === 'sit' ? this.poseAnchors.sit : null
+    if (this.godot) {
+      // Godot 口径：人不挪到物品上，只把排序 y 钉到所用物品底边 +1（_update_pin）
+      const pin = a && !this.moving && !this.serverWalking ? a.depth : null
+      if (pin !== this.pinDepth) { this.pinDepth = pin; this.layout() }
+      return
+    }
     const want = !!a && !this.moving && !this.serverWalking && this.animKey.startsWith('ai_')
     if (want && a) {
       this.anchor = a

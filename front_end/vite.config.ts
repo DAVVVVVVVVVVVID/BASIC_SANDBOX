@@ -98,6 +98,7 @@ function readOnlyDir(prefix: string, root: string): Plugin {
 //   VITE_SANDBOX_DATA_DIR  主镇沙盒数据目录（行动 / 聊天 JSONL，只读），默认 /home/shan-dw/Project/run/data/sandbox → /sandboxdata/
 //   VITE_GAME_RUNS_DIR D 的 runs 目录（游戏机小窗读回放 GIF，只读），默认 /home/shan-dw/Project/whale-game/runs → /gameruns/
 //   VITE_SELF_DAYS_DIR A 的日摘要目录（Q1 回顾视频字幕，只读），默认 /home/shan-dw/Project/whale-self/data/self/whale/memory/days → /selfdays/
+//   VITE_ART_DIR       Godot 呈现层素材根（whale-godot/assets/ext，只读），默认按仓库相对路径 → /art/
 //   VITE_SELF_MEMORY_DIR 她的记忆目录（/brain 页点开记忆全文，只读 .md），默认 /home/shan-dw/Project/whale-self/data/self/whale/memory → /selfmem/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -136,6 +137,7 @@ export default defineConfig(({ mode }) => {
       readOnlyDir('/sandboxdata', env.VITE_SANDBOX_DATA_DIR || '/home/shan-dw/Project/run/data/sandbox'),
       readOnlyDir('/gameruns', env.VITE_GAME_RUNS_DIR || '/home/shan-dw/Project/whale-game/runs'),
       readOnlyDir('/selfdays', env.VITE_SELF_DAYS_DIR || '/home/shan-dw/Project/whale-self/data/self/whale/memory/days'),
+      readOnlyDir('/art', env.VITE_ART_DIR || path.resolve(__dirname, '../../whale-godot/assets/ext')),   // 11-14：Godot 呈现层同一份素材源（角色条带 / 地砖 / 道具 / 外观 / 室内），不复制进仓库
       readOnlyDir('/selfmem', env.VITE_SELF_MEMORY_DIR || '/home/shan-dw/Project/whale-self/data/self/whale/memory'),
     ],
     server: {

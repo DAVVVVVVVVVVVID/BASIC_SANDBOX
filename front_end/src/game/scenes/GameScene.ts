@@ -13,6 +13,7 @@ import type { SpectateParams } from '../../spectate/params'
 import { preloadGenAssets, createGenAnimations, charKeyFor, objTextureKey } from '../assets'
 import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
+import { preloadGodotChars, createGodotCharAnimations } from '../godotCharsLoad'
 import { preloadAiAssets, getAiManifest, aiBackdropKey, aiObjectKey, aiEnabled, aiHasObject, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
 import { arenaBBox, isIndoor, mapBuildings, buildingRoofKey } from '../map/mapv2'
 
@@ -130,6 +131,7 @@ export default class GameScene extends Phaser.Scene {
   preload() {
     preloadGenAssets(this)
     preloadAiAssets(this)
+    preloadGodotChars(this)   // 11-14：Godot 六角色条带（/art → whale-godot/assets/ext）
     preloadTileAssets(this, this.worldData.tiled)
     for (const obj of this.worldData.objects) {
       if (obj.sprite && !this.textures.exists(`obj_${obj.sprite}`) && !aiHasObject(obj.type)) {
@@ -141,6 +143,7 @@ export default class GameScene extends Phaser.Scene {
   create() {
     setAiTexturesLinear(this)
     createGenAnimations(this)
+    createGodotCharAnimations(this)
     this.buildMap(this.worldData)
 
     const cam = this.cameras.main
@@ -650,7 +653,8 @@ export default class GameScene extends Phaser.Scene {
 
   private createSelf(player: Player) {
     const selfName = this.playerName ?? player.profile?.name ?? player.id
-    this.self = new PlayerSprite(this, player.position, player.facing, selfName, charKeyFor(selfName, 'human'))
+    const agentId = useGameStore.getState().identity ?? (player as { agent_id?: string | null }).agent_id ?? null
+    this.self = new PlayerSprite(this, player.position, player.facing, selfName, charKeyFor(selfName, 'human'), { controller: 'human', agentId })
     this.inputSystem = new InputSystem(
       this,
       player.id,
@@ -690,7 +694,7 @@ export default class GameScene extends Phaser.Scene {
       seen.add(op.id)
       let s = this.others.get(op.id)
       if (!s) {
-        s = new OtherPlayerSprite(this, op.position, op.facing, op.name, charKeyFor(op.name, op.controller))
+        s = new OtherPlayerSprite(this, op.position, op.facing, op.name, charKeyFor(op.name, op.controller), { controller: op.controller, agentId: op.agent_id })
         this.others.set(op.id, s)
       } else {
         const end = s.getPathEnd()
