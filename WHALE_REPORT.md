@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5au. world-v1.3.14：QQ 收件箱截断修正 + /admin/qq/purge（总控报两件）—— 完成，待主镇重启后清 227 条
+
+- ① g_live 227 条：全部 `from achan → g_live`，墙钟 11-14 17:14–19:40（游戏时 16:14–18:40），每 ~35 s 一条，正文是弹幕摘要（「有人问你喜欢什么颜色…」），qq 日志行没有 player id（已补 `entity` 字段）。G 确认 = DEEPSEEK life 插件干跑实例继承 SANDBOX_URL=8000 写进主镇；路径 `POST /qq/send`（entity_id = 当时在线的人类阿蝉 player）。只读查 db：**现主镇 db 里 achan→g_live 只有这 227 条（11-14）**——11-12 / 11-13 的在 11-14 11:05 world_reset 时随旧世界归档到 `sandbox.v1.0-20261114-110524`，不在现世界、也不会被现镇 export 出去；11-07 真场同理在归档里。
+- ② `/qq/inbox` 旧版 `rows[-limit:]` 之前先按升序过滤、再切尾——其实切的是尾部，问题出在**未读不在最后 100 条内时被截**；改为最新 N ∪ 全部未读，响应加 total / truncated。
+- 清法：加 `POST /admin/qq/purge`（缺省预览；真清进检查点、export 过滤、jsonl 保留、记 interventions data_edit）。主镇现跑 76e5231 没有这个口、在跑进程里的消息也不能靠改 db 清（下次检查点会覆盖）→ 需要一次重启到 v1.3.14 再清；db 只读快照已留 /tmp/pw/sandbox.db.ro-*.bak。测试 +2，**362 passed**；api-spec §12.18。
+
 ## 5at. world-v1.3.13：玩家视图加 `chat_room_id`（C 要；只增）—— 完成，未上镇
 
 - `chat_state.room_of(entity)`；GET /player、/state、players[]、ws upsert、Player / OtherPlayer 模型 +1 字段；ws 字段集断言 +1；测试 +1，**360 passed**；api-spec §12.17。

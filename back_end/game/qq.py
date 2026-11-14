@@ -31,6 +31,7 @@ _SEQ = 0
 _PENALTY = dict(_CFG.get("unread_penalty") or {})
 READ_REPLY_BONUS = float(_CFG.get("read_reply_bonus", 0.0))
 _penalty_day: dict[str, float] = {}     # "<from>:<to>:<day>" -> 已扣总量
+_purged_ids: set[str] = set()           # v1.3.14：被管理口清掉的消息 id（进检查点；/admin/export 的 qq 行按它过滤，本机 jsonl 原样保留）
 
 
 def system_send(from_acc: str, to_acc: str, text: str) -> dict:
@@ -215,7 +216,7 @@ def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: 
         from game.time_state import game_now_ts as _gnt
         _social.qq_credit(_gnt(), p, 1)                              # world-v1.1 §4.1：每条 +1，每小时 ≤ 12
         world_state.mark_input(entity_id)
-        _log({**{k: v for k, v in msg.items() if k not in ("read_by", "kind")}, "msg_kind": msg["kind"], "kind": "message"})
+        _log({**{k: v for k, v in msg.items() if k not in ("read_by", "kind")}, "msg_kind": msg["kind"], "kind": "message", "entity": p["id"], "controller": p.get("controller")})   # v1.3.14：记发送者 player id
         try:
             from game import interventions
             if interventions.is_streamer(p):                                  # 闭测 §5.2：阿蝉发的 QQ 只记长度
@@ -326,9 +327,13 @@ def inbox(entity_id: str, *, since: str | None = None, peer: str | None = None, 
                 continue
             if unread_only and not _unread_of(m, me):
                 continue
-            rows.append(_public(m, me))
-        rows = rows[-limit:]
-        return {"account": me, "messages": rows, "unread": unread_summary(me), "unread_total": sum(unread_summary(me).values())}
+            rows.append((m, _public(m, me)))
+        # v1.3.14：取**最新** limit 条（历史 > limit 时旧版把最新的截掉了），再并上我的全部未读（不受 limit 截），按时间升序返回
+        latest = rows[-limit:] if limit and limit > 0 else rows
+        keep_ids = {m["id"] for m, _ in latest} | {m["id"] for m, _ in rows if _unread_of(m, me)}
+        out = [pub for m, pub in rows if m["id"] in keep_ids]
+        return {"account": me, "messages": out, "unread": unread_summary(me), "unread_total": sum(unread_summary(me).values()),
+                "total": len(rows), "truncated": len(out) < len(rows)}
 
 
 def unread_summary(account: str) -> dict[str, int]:
@@ -428,10 +433,34 @@ def contacts(entity_id: str) -> dict | None:
 
 
 # ── 持久化 ──
+def purge(*, sender: str | None = None, to: str | None = None, group: str | None = None, since: str | None = None, until: str | None = None,
+          text_prefix: str | None = None, dry_run: bool = False) -> dict:
+    """v1.3.14 管理口：按条件从内存里清消息（进检查点即生效）；本机 qq/<日>.jsonl 不动，/admin/export 的 qq 行按 _purged_ids 过滤。
+    since / until：ISO 墙钟 ts（含）。至少给一个条件。返回 {matched, ids(≤50), removed}。"""
+    if not any([sender, to, group, since, until, text_prefix]):
+        raise ValueError("at least one filter required")
+    with _LOCK:
+        hit = [m for m in _messages
+               if (sender is None or m.get("from") == sender) and (to is None or m.get("to") == to) and (group is None or m.get("group") == group)
+               and (since is None or m["ts"] >= since) and (until is None or m["ts"] <= until)
+               and (text_prefix is None or (m.get("text") or "").startswith(text_prefix))]
+        ids = [m["id"] for m in hit]
+        if not dry_run:
+            _purged_ids.update(ids)
+            _messages[:] = [m for m in _messages if m["id"] not in set(ids)]
+        return {"matched": len(ids), "ids": ids[:50], "removed": 0 if dry_run else len(ids), "dry_run": dry_run,
+                "range": [hit[0]["ts"], hit[-1]["ts"]] if hit else None}
+
+
+def is_purged(msg_id: str) -> bool:
+    return msg_id in _purged_ids
+
+
 def export_state() -> dict:
     with _LOCK:
         return {"messages": [dict(m) for m in _messages], "groups": {k: dict(v) for k, v in _groups.items()},
-                "contacts": {k: sorted(v) for k, v in _contacts.items()}, "seq": _SEQ, "penalty_day": dict(_penalty_day)}
+                "contacts": {k: sorted(v) for k, v in _contacts.items()}, "seq": _SEQ, "penalty_day": dict(_penalty_day),
+                "purged_ids": sorted(_purged_ids)}
 
 
 def import_state(data: dict) -> None:
@@ -448,10 +477,13 @@ def import_state(data: dict) -> None:
             _contacts.setdefault(a, set()).update(lst)
         _SEQ = max(int(data.get("seq") or 0), len(_messages))
         _penalty_day.clear(); _penalty_day.update(data.get("penalty_day") or {})
+        _purged_ids.clear(); _purged_ids.update(data.get("purged_ids") or [])
+        if _purged_ids:
+            _messages[:] = [m for m in _messages if m["id"] not in _purged_ids]
 
 
 def _reset_for_tests() -> None:
     global _SEQ
     with _LOCK:
-        _messages.clear(); _groups.clear(); _contacts.clear(); _penalty_day.clear(); _SEQ = 0
+        _messages.clear(); _groups.clear(); _contacts.clear(); _penalty_day.clear(); _purged_ids.clear(); _SEQ = 0
         _init_defaults()

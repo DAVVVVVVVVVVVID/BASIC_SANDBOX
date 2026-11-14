@@ -1649,6 +1649,12 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 `GET /player/{id}`、`GET /player/{id}/state`、`/world.players[]`、ws upsert 多 `chat_room_id`：当前 active 聊天房 id，不在房 `null`。agent 遇 `chat_active` 可直接 `GET /chat/room/{id}` 读房 / `POST /chat/exit`，不必靠 pending 推断；「成房即醒」可直接认房 id。
 
+### 12.18 QQ 收件箱截断修正 + 管理口清消息（tag `world-v1.3.14`）
+
+- `GET /qq/inbox`：历史 > `limit`（缺省 100）时旧版按升序取前 N 条、把**最新**的截掉（主播看不到鲸仔新未读）。现在取**最新 N 条**并并上**我的全部未读**（不受 limit 截），仍按时间升序返回；响应多 `total`（过滤后总数）与 `truncated`。`since` / `peer` / `unread_only` 语义不变。
+- qq 日志行（`qq/<日>.jsonl` kind message）多 `entity`（发送者 player id）与 `controller`，便于追来源。
+- **`POST /admin/qq/purge`**（不受 SANDBOX_SCENARIO 门控）：`{sender?, to?, group?, since?, until?（ISO 墙钟 ts，含）, text_prefix?, dry_run=true, actor="controller", reason?}`，至少一个条件。缺省只预览 `{matched, ids(≤50), range}`；`dry_run: false` 真清：内存消失、`purged_ids` 进检查点（重启回填时再过滤一次）、**本机 jsonl 原样保留**、`/admin/export` 的 qq 行按 `purged_ids` 过滤（manifest.purged.qq 给条数）；记 external `qq_purge` 与 interventions `data_edit`。用途：11-14 DEEPSEEK life 插件干跑实例把弹幕摘要以 achan 身份每 60 s 写进主镇 g_live（227 条）。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

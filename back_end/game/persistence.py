@@ -119,7 +119,7 @@ def save_checkpoint(path: Path | None = None) -> dict:
             conn.executemany(
                 "INSERT OR REPLACE INTO meta VALUES (?,?)",
                 [("last_tick_ts", repr(now)), ("saved_at", repr(now)),
-                 ("qq_contacts", json.dumps({"contacts": qqs["contacts"], "seq": qqs["seq"]})),
+                 ("qq_contacts", json.dumps({"contacts": qqs["contacts"], "seq": qqs["seq"], "purged_ids": qqs.get("purged_ids") or []})),   # v1.3.14：清理名单
                  ("economy", json.dumps(__import__("game.economy", fromlist=["x"]).export_state())),
                  ("production", json.dumps(__import__("game.production", fromlist=["x"]).export_state())),
                  ("commissions", json.dumps(__import__("game.commissions", fromlist=["x"]).export_state(), ensure_ascii=False)),
@@ -208,7 +208,7 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         qq.import_state({
             "messages": [json.loads(d) for (d,) in conn.execute("SELECT data FROM qq_messages")],
             "groups":   {gid: json.loads(d) for gid, d in conn.execute("SELECT id, data FROM qq_groups")},
-            "contacts": qc.get("contacts", {}), "seq": qc.get("seq", 0),
+            "contacts": qc.get("contacts", {}), "seq": qc.get("seq", 0), "purged_ids": qc.get("purged_ids", []),
         })
     finally:
         conn.close()

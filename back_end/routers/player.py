@@ -140,6 +140,33 @@ def post_player_effects(player_id: str, body: EffectsRequest):
 
 # ── 管理接口 ──────────────────────────────────────────────────────────────────
 
+class QQPurgeRequest(BaseModel):
+    sender: Optional[str] = None          # 账号（from）
+    to: Optional[str] = None
+    group: Optional[str] = None
+    since: Optional[str] = None           # ISO 墙钟 ts（含）
+    until: Optional[str] = None
+    text_prefix: Optional[str] = None
+    dry_run: bool = True                  # 缺省只预览
+    actor: str = "controller"
+    reason: Optional[str] = None
+
+
+@router.post("/admin/qq/purge")
+def admin_qq_purge(body: QQPurgeRequest):
+    """v1.3.14：清 QQ 消息（测试污染等）。缺省 dry_run 只预览；真清后内存与下次检查点生效，本机 qq/<日>.jsonl 保留原文，/admin/export 的 qq 行按清理名单过滤。记 external + interventions data_edit。"""
+    from game import qq, external_log, interventions
+    try:
+        res = qq.purge(sender=body.sender, to=body.to, group=body.group, since=body.since, until=body.until, text_prefix=body.text_prefix, dry_run=body.dry_run)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if not body.dry_run and res["removed"]:
+        external_log.log("qq_purge", None, actor=body.actor, reason=body.reason, filters=body.model_dump(exclude={"actor", "reason", "dry_run"}), removed=res["removed"])
+        interventions.log("data_edit", body.actor, [body.sender or body.to or "*"], f"清 QQ 消息 {res['removed']} 条（{body.reason or '-'}）",
+                          payload={"filters": body.model_dump(exclude={"actor", "reason", "dry_run"}), "removed": res["removed"], "range": res["range"]})
+    return {"success": True, **res}
+
+
 class ItemEditRequest(BaseModel):
     player: Optional[str] = None          # player id
     account: Optional[str] = None         # 或账号 / agent_id / 显示名（qq.resolve_account）
@@ -298,6 +325,10 @@ def admin_export(date: str, kinds: str = "actions,chat,state,external,qq,economy
         if kind not in want:
             continue
         rows, fp = _read_day(sources[kind], _json.loads)
+        if kind == "qq":                                                        # v1.3.14：管理口清掉的消息不进数据集（本机 jsonl 原样）
+            from game import qq as _qq
+            before = len(rows); rows = [r for r in rows if not (r.get("kind") == "message" and _qq.is_purged(r.get("id", "")))]
+            out["manifest"].setdefault("purged", {})["qq"] = before - len(rows)
         for r in rows:                         # 旧版本写的行缺字段：按规范字段集回填（默认值）并标记（W6 / W9 第 0 项）
             missing = [k for k in EXPORT_FIELDS[kind] if k not in r]
             if missing:

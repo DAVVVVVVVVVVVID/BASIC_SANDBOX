@@ -145,3 +145,42 @@ def test_ws_pushes_qq_events(client):
                     got.append(m)
             assert [g["event"] for g in got] == ["message", "read"]
             assert got[0]["text"] == "ws 来一条" and got[0]["from"] == "achan" and got[1]["count"] == 1
+
+
+def test_inbox_returns_latest_and_all_unread_v1314(client):
+    """v1.3.14：历史 > limit 时返回最新 N 条（升序）并保证我的全部未读都在；不再把最新截掉。"""
+    whale = _agent(client, "whale"); achan = _agent(client, "achan")
+    for i in range(120):
+        assert client.post("/qq/send", json={"entity_id": achan, "to": "whale", "text": f"m{i:03d}"}).json()["success"]
+    r = client.get("/qq/inbox", params={"player": whale}).json()
+    texts = [m["text"] for m in r["messages"]]
+    assert len(texts) == 120 and texts[0] == "m000" and texts[-1] == "m119"            # 全部未读 → 全给
+    assert r["total"] == 120 and r["truncated"] is False
+    client.post("/qq/read", json={"entity_id": whale, "peer": "achan"})
+    for i in range(5):
+        client.post("/qq/send", json={"entity_id": achan, "to": "whale", "text": f"new{i}"})
+    r = client.get("/qq/inbox", params={"player": whale, "limit": 10}).json()
+    texts = [m["text"] for m in r["messages"]]
+    assert texts[-5:] == ["new0", "new1", "new2", "new3", "new4"] and len(texts) == 10 and texts == sorted(texts, key=lambda t: (t.startswith("new"), t))   # 最新 10 条、升序
+    assert r["truncated"] is True and r["total"] == 125
+
+
+def test_admin_qq_purge_and_export_filter(client, tmp_path, monkeypatch):
+    """v1.3.14：/admin/qq/purge 缺省预览；真清后内存消失、进检查点、export 过滤、本机 jsonl 保留。"""
+    from game import qq, persistence
+    whale = _agent(client, "whale"); achan = _agent(client, "achan")
+    for i in range(3):
+        client.post("/qq/send", json={"entity_id": achan, "group": "g_live", "text": f"有人问你喜欢什么颜色 {i}"})
+    client.post("/qq/send", json={"entity_id": achan, "to": "whale", "text": "正常私聊"})
+    pre = client.post("/admin/qq/purge", json={"sender": "achan", "group": "g_live"}).json()
+    assert pre["dry_run"] is True and pre["matched"] == 3 and pre["removed"] == 0 and len(qq._messages) == 4
+    assert client.post("/admin/qq/purge", json={}).status_code == 400
+    r = client.post("/admin/qq/purge", json={"sender": "achan", "group": "g_live", "dry_run": False, "actor": "controller", "reason": "测试污染"}).json()
+    assert r["removed"] == 3 and len(qq._messages) == 1 and qq._messages[0]["text"] == "正常私聊"
+    assert client.get("/qq/inbox", params={"player": whale, "peer": "g_live"}).json()["messages"] == []
+    persistence.save_checkpoint(); qq._reset_for_tests(); persistence.load_checkpoint()
+    assert len(qq._messages) == 1 and len(qq._purged_ids) == 3
+    from datetime import date
+    ex = client.get("/admin/export", params={"date": date.today().isoformat(), "kinds": "qq"}).json()
+    assert all("有人问" not in (row.get("text") or "") for row in ex["qq"]) and ex["manifest"]["purged"]["qq"] >= 3
+    assert any(row.get("entity") == achan for row in ex["qq"] if row.get("kind") == "message")        # 日志行带发送者 player id
