@@ -1268,9 +1268,9 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 |---|---|---|
 | `reset`（X5 起同时归零补货 / 日薪已付记录、产出链、委托、门禁请求 / 敞开窗口 / 钥匙槽位、说话队列） | `running?` | 清空所有玩家 / 对话 / 物品占用 / 冷却 / 待发同步；时间回真实当前 |
 | `set_time` | `time:"HH:MM[:SS]"`, `date?`, `speed?`, `running?` | 游戏时间拨到该时刻（锚点重设，之后照常走）；天气按 seed 重算 |
-| `spawn` | `name`, `agent_id?`, `controller?="agent"`, `x?`, `y?`, `facing?`, `vars?`, `profile?` | 放一个玩家（agent 会照常从自我层种入，之后再按 `vars` 直写）；不传坐标落出生点 / 家 |
+| `spawn` | `name`, `agent_id?`, `controller?="agent"`, `x?`, `y?`, `facing?`, `vars?`, `profile?` | 放一个玩家（agent 会照常从自我层种入，之后再按 `vars` 直写）；不传坐标落出生点 / 家 | **v1.3.3**：可用 `arena` / `sector` 代替 `x,y`（取该区域首个可走且无物品的格，按 y,x 排序，稳定）；也可带 `dnd`。
 | `remove` | `player` | 删玩家（自动退出物品与对话） |
-| `teleport` | `player`, `x`, `y`, `facing?` | 必须可走格；正在用物品先离开；`pos_seq` +1 |
+| `teleport` | `player`, `x`, `y`, `facing?` | 必须可走格；正在用物品先离开；`pos_seq` +1 | **v1.3.3**：`x,y` 或 `arena` / `sector` 三选一，都没有 → 明确报错。
 | `set_vars` | `player`, `vars{…}`, `mood_base?`, `scene?`, `closeness?` | 七变量直写（clamp，`hp` 视为 fullness），**不进自我层 vars_delta** |
 | `effects` | `player`, `effects[]`, `scene?`, `event?` | 同 `POST /player/{id}/effects`，`source="scenario"` |
 | `occupy` | `player`, `object`, `sticky?` | 让玩家占住 continuous 物品：跳过距离 / 冷却 / 营业时间 / 外部调用（直播台只本地切 live）；站到相邻可走格并面向它；`sticky=true` 关掉 max_duration 自动离开（S05「占着不走」）。满员 → 错。**夹具占用不算「用过」**：不记物品冷却 / 使用史，并清掉该物品已有冷却——`release` 或她自己离开后可立刻 `use` 回来续上（X5 pilot ②）。**只跳过进入时的检查**：带 `open_hours` 的物品打烊期间（含 `force_closed`）ticker 每 tick 仍会把所有使用者请走（不分 human / agent，`sticky` 也不豁免，与正常营业结束一致），所以打烊时段 `occupy` 餐桌下一 tick 即 idle、`eat` 报 `not_at_table`——要在营业时间内 `set_time` 后再 occupy（E 11-14 实测） |
@@ -1601,7 +1601,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - 不动：`game/maps/v1`（X1–X6 复现用的旧图，仍是 npc_xiaoqian / xiaoqian_*）、`docs/x2–x6` 历史语料。
 
 **② 阿蝉静态勿扰（`dnd`）**：阿蝉由主播本人以人类玩家操控，主播不在时「没人打扰、不交互」。
-- 身份：人类玩家 join 可带 `profile.agent_id`（如 `achan`），即认领该身份——`agent_id` 字段填上，账号（QQ / 门 owner / HOMES / 钥匙）按它算；**v1.3.2**：金币也按该身份（`initial_gold.achan` 3000，余额留在账户上、再来接着用），但仍不开经济户（不发日薪、不收房租）、不同步自我层。
+- 身份：人类玩家 join 可带 `profile.agent_id`（如 `achan`），即认领该身份——`agent_id` 字段填上，账号（QQ / 门 owner / HOMES / 钥匙）按它算；**v1.3.2**：金币也按该身份（`initial_gold.achan` 3000，余额留在账户上、再来接着用），但仍不开经济户（不发日薪、不收房租）、不同步自我层。 **v1.3.3**：钥匙也按身份发（人类小克拿 `door_claudine`，人类阿蝉拿 `door_home`）；旧「任何人类一把合租房钥匙」只留给没带 `agent_id` 的人类。
 - 旗标：`POST /player/join` 新字段 `dnd?: bool`；缺省 = **人类且身份为 `achan`（或名叫阿蝉）时开**，其余 false。`POST /admin/player/{id}/dnd {on: bool}` 随时开关（主播接管时关、离开时开），返回 `{ok, playerId, dnd, tags}`。夹具 `spawn` 也可带 `dnd`。
 - 开着时：a) 七变量 / 心情回归 / 亲密度自然衰减**全部静止**（人类原本和 agent 一样会衰减，所以这条是新增）；b) 敲他家门 → `knock` 立刻 `reason: busy`（见 §3.40），不等 90 s；c) 他作为 1:1 收件人时，未读不扣发件人亲密度（Q-2 豁免）；d) `GET /player`、`/world.players[]`、ws upsert 带 `dnd: true`，`tags` 多 `dnd`，人在自家房间（HOMES 的 arena）时再多 `working`——C 的感知据此不去找他；e) 心跳超时**不删人**（和 agent 一样只标 `online: false`），位置留在原地，不自动传送；主播下线前自己走回 `achan_room` 即可。
 - `GET /player/{id}/state` 也带 `dnd`。`Player` / `OtherPlayer` 模型加 `dnd`（ws upsert 字段集 +1）。

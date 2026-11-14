@@ -217,3 +217,18 @@ def test_self_events_op_writes_fixture_rows_to_self_layer(client, monkeypatch, f
     assert got[0]["agent"] == "whale" and got[0]["ts"] == "2026-11-03T12:30:00+08:00" and got[0]["keywords"][-2:] == ["fixture", "fx-M3-01"]
     assert got[0]["source"] == "observed" and "## Why" in got[0]["body"] and got[0]["voice"] == "好啊"
     assert got[1]["ts"] == "2026-11-04T12:00:00+08:00" and got[1]["source"] == "inferred" and got[1]["body"].startswith("## What")
+
+
+def test_spawn_and_teleport_accept_arena(client, bench):
+    """v1.3.3：spawn / teleport 可只给 arena / sector → 该区域首个可走空格；teleport 什么都不给 → 明确报错而不是 KeyError。"""
+    from tests.test_w9_map_v2 import v12  # noqa: F401
+    r = _run(client, [{"op": "spawn", "name": "T", "controller": "agent", "arena": "achan_room"},
+                      {"op": "spawn", "name": "U", "controller": "agent", "sector": "restaurant"}])
+    assert r["ok"], r
+    pos = [s["detail"]["position"] for s in r["steps"]]
+    assert world_state.get_zone_at(pos[0]["x"], pos[0]["y"])["arena"] == "achan_room"
+    assert world_state.get_zone_at(pos[1]["x"], pos[1]["y"])["sector"] == "restaurant"
+    r = _run(client, [{"op": "teleport", "player": "T", "arena": "square"}])
+    assert r["ok"] and world_state.get_zone_at(r["steps"][0]["detail"]["position"]["x"], r["steps"][0]["detail"]["position"]["y"])["arena"] == "square"
+    r = _run(client, [{"op": "teleport", "player": "T"}])
+    assert r["ok"] is False and "arena / sector required" in r["error"]

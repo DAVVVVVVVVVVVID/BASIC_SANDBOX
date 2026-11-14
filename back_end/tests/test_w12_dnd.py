@@ -38,6 +38,16 @@ def test_human_achan_defaults_dnd_and_claims_identity(client, v12):
     assert client.get(f"/player/{b}").json()["dnd"] is False
 
 
+def test_human_identity_keys_follow_identity_not_legacy_rule(client, v12):
+    """v1.3.3：带 agent_id 的人类按身份发钥匙；旧「任何人类一把合租房钥匙」只留给没认领身份的人类（C 冒烟发现人类小克拿到合租房钥匙）。"""
+    hc = _human(client, name="克劳蒂娜", agent_id="claudine")
+    assert [k["door_id"] for k in client.get(f"/player/{hc}").json()["keys"]] == ["door_claudine"]
+    ha = _human(client)
+    assert [k["door_id"] for k in client.get(f"/player/{ha}").json()["keys"]] == ["door_home"]
+    anon = _human(client, name="路人", agent_id=None)
+    assert "door_claudine" not in [k["door_id"] for k in client.get(f"/player/{anon}").json()["keys"]]
+
+
 def test_human_identity_uses_identity_gold_and_ledger(client, v12):
     a = _human(client)
     assert world_state._players[a]["gold"] == 3000                                 # achan 的初始金币，不是人类默认 300

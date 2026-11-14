@@ -8,9 +8,9 @@ body: {"label": "S01", "steps": [ {op, ...}, ... ]}，按序执行，遇错即�
 op 一览（player 字段可填 id 或唯一的 name）：
   reset          {}                                   清空所有玩家 / 对话 / 物品占用 / 冷却 / 待发同步，时间回真实当前
   set_time       {time:"11:30", date?:"YYYY-MM-DD", speed?:1, running?:true}   游戏时间拨到（锚点重设，之后照常走）
-  spawn          {name, agent_id?, controller?:"agent", x?, y?, facing?, vars?}  放一个玩家（默认 agent；不传坐标→出生点）
+  spawn          {name, agent_id?, controller?:"agent", x?, y?, arena?|sector?, facing?, vars?, dnd?}  放一个玩家（默认 agent；x,y 或 arena/sector 首个空格；都不传→出生点）
   remove         {player}
-  teleport       {player, x, y, facing?}             必须是可走格
+  teleport       {player, x, y | arena | sector, facing?}   x,y 必须是可走格；给 arena/sector 取其首个可走空格（v1.3.3）
   set_vars       {player, vars:{fullness,energy,social,fun,mood}, mood_base?, scene?, closeness?}  七变量直写
   effects        {player, effects:[...], scene?}     与 /effects 同格式（source="scenario"）
   occupy         {player, object, sticky?:false}     让玩家占住某物品（跳过距离 / 冷却 / 营业时间 / 外部调用；不记冷却，解除后可立刻再用）；sticky=true 关掉 max_duration 自动离开；注意只跳过进入时检查，打烊物品下一 tick 仍被 ticker 请走
@@ -109,6 +109,20 @@ def op_set_time(step: dict) -> dict:
     return time_state.get_time_state()
 
 
+def _xy_from_step(step: dict) -> tuple[int, int] | None:
+    """x,y 优先；否则 arena / sector → 该区域第一个可走且没物品的格（按 y,x 排序，稳定）；都没有 → None。"""
+    if step.get("x") is not None and step.get("y") is not None:
+        return int(step["x"]), int(step["y"])
+    for kind in ("arena", "sector"):
+        if step.get(kind):
+            tiles = [t for t in world_state.get_walkable_tiles_in_area(kind, step[kind]) if world_state.get_object_at(t["x"], t["y"]) is None]
+            if not tiles:
+                raise StepError(f"no walkable tile in {kind} {step[kind]!r}")
+            tiles.sort(key=lambda t: (t["y"], t["x"]))
+            return tiles[0]["x"], tiles[0]["y"]
+    return None
+
+
 def op_spawn(step: dict) -> dict:
     name = step.get("name")
     if not name:
@@ -119,8 +133,9 @@ def op_spawn(step: dict) -> dict:
         profile["agent_id"] = step["agent_id"]
     player = world_state.create_player(name, controller=controller, profile=profile or None, dnd=step.get("dnd"))
     pid = player["id"]
-    if step.get("x") is not None and step.get("y") is not None:
-        op_teleport({"player": pid, "x": step["x"], "y": step["y"], "facing": step.get("facing")})
+    xy = _xy_from_step(step)                                   # v1.3.3：x,y 或 arena / sector（C 跑手原表有 spawn 带 arena）
+    if xy is not None:
+        op_teleport({"player": pid, "x": xy[0], "y": xy[1], "facing": step.get("facing")})
     if step.get("vars"):
         op_set_vars({"player": pid, "vars": step["vars"]})
     from game import self_sync
@@ -137,7 +152,10 @@ def op_remove(step: dict) -> dict:
 
 def op_teleport(step: dict) -> dict:
     p = _player(step.get("player"))
-    x, y = int(step["x"]), int(step["y"])
+    xy = _xy_from_step(step)
+    if xy is None:
+        raise StepError("x,y or arena / sector required")
+    x, y = xy
     if not world_state.is_tile_walkable(x, y):
         raise StepError(f"tile ({x},{y}) not walkable")
     facing = step.get("facing") or p["facing"]

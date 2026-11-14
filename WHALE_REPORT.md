@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5ag. world-v1.3.3：C 冒烟两条（tag `world-v1.3.3`）—— 完成
+
+- C 在 8091 冒烟 20 ✅ 后给的两条：① `/admin/scenario` 的 `spawn` 带 `arena` 被忽略（落 (4,13)），`teleport` 不带 x,y 直接 `KeyError`——现在 spawn / teleport 都接受 `arena` / `sector`（取该区域首个可走且无物品的格，按 y,x 排序），teleport 三者都没有 → 明确 StepError；② 人类小克拿到合租房钥匙——是旧「人类演阿蝉：任何人类一把合租房钥匙」规则撞上 v1.3 的身份认领；现在带 `agent_id` 的人类按身份发钥匙（小克 `door_claudine`、阿蝉 `door_home`），旧规则只留给没认领身份的人类。agent 小克本来就没有合租房钥匙，C 说的 keys 3 = whale / achan / 第三把留给人类阿蝉（或有人 give）。
+- 测试 +2，**349 passed**；api-spec scenario 两行 + §12.12。主镇 8000 已在 6a09c93 长跑，这两条不影响它（无人类小克、不开 scenario），不为此重切；bench 切换目标由总控定（建议直接用 v1.3.3）。
+
 ## 5af. world-v1.3.2：人类认领身份的金币（切主镇前自查发现；tag `world-v1.3.2`）—— 完成，8091 已切
 
 - 8091 账户表里 achan / claudine 显示 300：v1.3 让人类带 `profile.agent_id` 认领身份后，账号键变成了身份 id，但金币仍按人类默认 300 开、也没走 `economy.on_join`——E 用人类身份 spawn 小克截图后离开，300 就留在了 claudine 账户上。修：`_make_player` 的初始金币按身份取；`create_player` 对带 agent_id 的人类也调 `on_join`（余额留在账户上、再来接着用）；`_opened` 仍只记 agent，所以人类照旧无日薪 / 房租、不同步自我层。测试 +1，**347 passed**。

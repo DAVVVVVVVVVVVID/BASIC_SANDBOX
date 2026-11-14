@@ -164,8 +164,8 @@ def issue_default_keys(player: dict, why: str = "default") -> list[str]:
             slot = player["agent_id"]                            # homes 里住这家但不在 owner 名单：按身份占槽（名单外不额外加把数）
             if slot not in owners:
                 slot = None
-        if slot is None and player.get("controller", "human") == "human" and e["id"] == "door_home":
-            slot = f"human:{player['id']}"
+        if slot is None and player.get("controller", "human") == "human" and not player.get("agent_id") and e["id"] == "door_home":
+            slot = f"human:{player['id']}"                      # 旧「人类演阿蝉」规则只留给没认领身份的人类；v1.3.3：带 agent_id 的人类按身份走上面两条
         if slot and issue_key(player, e, slot, why=why):
             got.append(e["id"])
     return got
