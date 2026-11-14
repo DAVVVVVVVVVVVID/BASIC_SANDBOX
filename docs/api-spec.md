@@ -1601,7 +1601,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - 不动：`game/maps/v1`（X1–X6 复现用的旧图，仍是 npc_xiaoqian / xiaoqian_*）、`docs/x2–x6` 历史语料。
 
 **② 阿蝉静态勿扰（`dnd`）**：阿蝉由主播本人以人类玩家操控，主播不在时「没人打扰、不交互」。
-- 身份：人类玩家 join 可带 `profile.agent_id`（如 `achan`），即认领该身份——`agent_id` 字段填上，账号（QQ / 门 owner / HOMES / 钥匙）按它算；人类不开经济户（不发日薪、不收房租）、不同步自我层。
+- 身份：人类玩家 join 可带 `profile.agent_id`（如 `achan`），即认领该身份——`agent_id` 字段填上，账号（QQ / 门 owner / HOMES / 钥匙）按它算；**v1.3.2**：金币也按该身份（`initial_gold.achan` 3000，余额留在账户上、再来接着用），但仍不开经济户（不发日薪、不收房租）、不同步自我层。
 - 旗标：`POST /player/join` 新字段 `dnd?: bool`；缺省 = **人类且身份为 `achan`（或名叫阿蝉）时开**，其余 false。`POST /admin/player/{id}/dnd {on: bool}` 随时开关（主播接管时关、离开时开），返回 `{ok, playerId, dnd, tags}`。夹具 `spawn` 也可带 `dnd`。
 - 开着时：a) 七变量 / 心情回归 / 亲密度自然衰减**全部静止**（人类原本和 agent 一样会衰减，所以这条是新增）；b) 敲他家门 → `knock` 立刻 `reason: busy`（见 §3.40），不等 90 s；c) 他作为 1:1 收件人时，未读不扣发件人亲密度（Q-2 豁免）；d) `GET /player`、`/world.players[]`、ws upsert 带 `dnd: true`，`tags` 多 `dnd`，人在自家房间（HOMES 的 arena）时再多 `working`——C 的感知据此不去找他；e) 心跳超时**不删人**（和 agent 一样只标 `online: false`），位置留在原地，不自动传送；主播下线前自己走回 `achan_room` 即可。
 - `GET /player/{id}/state` 也带 `dnd`。`Player` / `OtherPlayer` 模型加 `dnd`（ws upsert 字段集 +1）。

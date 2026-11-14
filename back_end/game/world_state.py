@@ -610,7 +610,7 @@ def _make_player(
         "last_tick_ts":  _iso_game_now(),
         "pos_seq":       0,
         "inventory":     [],                         # W10 ④：背包 [{item, qty, meta?}]，≤ 10 种
-        "gold":          _initial_gold(_agent_id_for(name, profile) if controller == "agent" else None),   # W10 ④：金币（economy.json）
+        "gold":          _initial_gold(_agent_id_for(name, profile) if controller == "agent" else _human_agent_id(profile)),   # W10 ④：金币（economy.json）；v1.3.2：人类认领身份也按该身份的初始金币
         "usingObjectId": None,
         "buffs":         [dict(DECAY_BUFF)],         # B4：自然衰减元 buff
         "tags":          [],
@@ -671,6 +671,9 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
         _eco.on_join(player)                      # v1.1 §3：账户独立于在线——回来的 NPC 接着用自己的余额
         self_sync.register(player_id, game_now_ts())
         self_sync.seed_player(player, game_now_ts())
+    elif player.get("agent_id"):
+        from game import economy as _eco
+        _eco.on_join(player)                      # v1.3.2：人类认领身份（主播演阿蝉）也接该账户余额；不开经济户（_opened 只记 agent → 无日薪 / 房租）、不同步自我层
     with STATE_LOCK:
         _players[player_id] = player
         from game import doors

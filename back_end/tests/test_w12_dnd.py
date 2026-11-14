@@ -38,6 +38,18 @@ def test_human_achan_defaults_dnd_and_claims_identity(client, v12):
     assert client.get(f"/player/{b}").json()["dnd"] is False
 
 
+def test_human_identity_uses_identity_gold_and_ledger(client, v12):
+    a = _human(client)
+    assert world_state._players[a]["gold"] == 3000                                 # achan 的初始金币，不是人类默认 300
+    assert client.get("/admin/metrics").json()["accounts"]["achan"] == 3000
+    world_state._players[a]["gold"] = 2900
+    client.delete(f"/player/{a}/leave")
+    b = _human(client)
+    assert world_state._players[b]["gold"] == 2900                                 # 余额留在账户上，再来接着用
+    from game import economy
+    assert economy.opened_at("achan") is None                                      # 不开经济户：无日薪 / 房租
+
+
 def test_dnd_static_vars_and_admin_toggle(client, v12, fake_clock):
     a = _human(client)
     _at(fake_clock, 12, 0); _tick(fake_clock, 1)

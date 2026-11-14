@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5af. world-v1.3.2：人类认领身份的金币（切主镇前自查发现；tag `world-v1.3.2`）—— 完成，8091 已切
+
+- 8091 账户表里 achan / claudine 显示 300：v1.3 让人类带 `profile.agent_id` 认领身份后，账号键变成了身份 id，但金币仍按人类默认 300 开、也没走 `economy.on_join`——E 用人类身份 spawn 小克截图后离开，300 就留在了 claudine 账户上。修：`_make_player` 的初始金币按身份取；`create_player` 对带 agent_id 的人类也调 `on_join`（余额留在账户上、再来接着用）；`_opened` 仍只记 agent，所以人类照旧无日薪 / 房租、不同步自我层。测试 +1，**347 passed**。
+- 顺带纠正总控的主镇核查清单：89472de 起 economy.json 因改名已变，sha 前八位是 **df07f765**（不是 78671172）；v1.3.1 起 mapVersion 是 **@31cb99041f4b**（@516c87… 是 v1.3 没手机的图）。核查脚本 /tmp/pw/check_town.sh <port>。
+
 ## 5ae. world-v1.3.1：手机摆回鲸仔房（总控批；tag `world-v1.3.1`）—— 完成，8091 已切
 
 - 答 A「刷手机口径」时发现 v1 / v1.2 图**漏摆 phone**（只 v0 有 phone_whale），而设定里刷手机是定稿机制（v1.1 I-1 每日 2 h、§8 持续使用、设定集 08 手机 = QQ + 直播间动态）。总控批：摆回鲸仔房 (4,11) 桌上一格，站 (4,12) 朝 up，只给鲸仔（房间 owner 机制，物品层没有 owner 字段、也不加）；NPC 仍只用 QQ。
