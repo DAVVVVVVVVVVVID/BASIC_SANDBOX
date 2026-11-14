@@ -202,6 +202,12 @@ export default class GameScene extends Phaser.Scene {
       const n = this.inputSystem?.walkToAdjacent({ x, y }) ?? 0
       EventBus.emit('walk-to-result', { steps: n })
     })
+    // HUD「上楼 / 下楼」：后端寻路走到目标格（跨层）；失败在自己头上冒泡
+    this.on('walk-to-tile', ({ x, y, label }: { x: number; y: number; label?: string }) => {
+      void this.inputSystem?.walkToTile({ x, y }, label ?? `前往 (${x}, ${y})`).then(r => {
+        if (!r.success && this.myPlayerId) useGameStore.getState().pushBubble(this.myPlayerId, r.reason === 'no_path' ? '过不去（没有路）' : `走不了：${r.reason ?? '未知'}`)
+      })
+    })
     this.on('action-event', (msg: import('../../types').WsAction) => {
       if (!msg.entity) return
       const push = (t: string, ms = 4000) => useGameStore.getState().pushBubble(msg.entity, t, ms)
@@ -328,6 +334,7 @@ export default class GameScene extends Phaser.Scene {
       keys: () => this.inputSystem?.debugKeys() ?? null,
       focusLabels: () => this.focus?.debugLabels() ?? [],
       zoom: () => this.cameras.main.zoom,
+      tileToScreen: (x: number, y: number) => { const c = this.cameras.main; return { x: (x * TILE_SIZE + TILE_SIZE / 2 - c.worldView.x) * c.zoom, y: (y * TILE_SIZE + TILE_SIZE / 2 - c.worldView.y) * c.zoom } },   // 自动化：格 → 画布像素（点击用）
       state: () => ({ camMode: this.camMode, focus: this.params?.focus ?? null, follow: this.params?.follow ?? null, keyboard: !!this.input.keyboard }),
       setFocus: (sector: string | null, floor = 1) => { if (this.params) this.params.focus = sector ? { sector, floor } : null },   // W9 任务 4 录屏：运行时切取景
       view: () => ({ inside: this.insideSector, roofed: [...this.roofedSectors], backdrops: this.backdrops.map(b => ({ name: b.name, view: b.meta.view, key: `${b.meta.sector}|${b.meta.floor}`, visible: b.img.visible })) }),

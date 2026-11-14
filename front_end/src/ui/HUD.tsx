@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { setDnd } from '../api/world'
 import { gameNowMs, busyText, dailyUseLines, rentText } from '../game/v11'
@@ -6,6 +6,9 @@ import type { Buff } from '../types'
 import { NEED_KEYS } from '../types'
 import { NEED_LABELS } from '../game/objects/ActorSprite'
 import { zoneLabel as zoneName } from '../game/map/zones'
+import { parseMapV2 } from '../game/map/mapv2'
+import { stairsHop } from '../game/stairs'
+import { EventBus } from '../game/EventBus'
 
 const NEED_CSS: Record<string, string> = {
   fullness: '#f6ad55', energy: '#63b3ed', social: '#b794f4', fun: '#68d391', mood: '#fbd38d',
@@ -40,6 +43,28 @@ function Divider() {
 
 // 本地倒计时 key：source:key，唯一标识一个 instant buff 实例
 function buffKey(b: Buff) { return `${b.source}:${b.key}` }
+
+/** 楼梯换层（主播问「怎么去 1 楼」）：所在楼有楼梯就给一个按钮，目标格 = 楼梯另一端，交后端寻路（见 InputSystem.walkToTile） */
+function StairsRow({ position }: { position: { x: number; y: number } }) {
+  const tiles = useGameStore((s) => s.tiles)
+  const mapExtras = useGameStore((s) => s.mapExtras)
+  const mapVersion = useGameStore((s) => s.mapVersion)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- 地图只随 mapVersion 变
+  const v2 = useMemo(() => parseMapV2({ tiles, ...mapExtras } as unknown as Parameters<typeof parseMapV2>[0]), [mapVersion])
+  const hop = useMemo(() => stairsHop(v2, tiles, position), [v2, tiles, position.x, position.y])   // eslint-disable-line react-hooks/exhaustive-deps
+  if (!hop) return null
+  const go = () => EventBus.emit('walk-to-tile', { x: hop.target.x, y: hop.target.y, label: `走楼梯去 ${hop.toFloor} 楼` })
+  return (
+    <Row label="楼梯" value={
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <button onClick={go} data-testid="stairs-go" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, border: '1px solid #4a5568', background: '#2c5282', color: '#fff', cursor: 'pointer' }}>
+          {hop.toFloor < hop.fromFloor ? '⬇ 下楼' : '⬆ 上楼'}去 {hop.toFloor} 楼
+        </button>
+        <span style={{ color: '#718096', fontSize: 10 }}>或直接点另一层的地板</span>
+      </span>
+    } />
+  )
+}
 
 /** world-v1.3：勿扰开关（主播操控阿蝉）——POST /admin/player/{id}/dnd，回包更新本地 player */
 function DndRow({ playerId, dnd, tags }: { playerId: string; dnd: boolean; tags: string[] }) {
@@ -151,6 +176,7 @@ export default function HUD() {
       <Row label="ID"   value={<span style={{ color: '#718096', fontSize: 11 }}>{player.id}</span>} />
       {typeof player.gold === 'number' && <Row label="金币" value={<span style={{ color: '#ffe9a8', fontWeight: 700 }}>💰 {player.gold}</span>} />}
       {(identity === 'achan' || player.agent_id === 'achan' || typeof player.dnd === 'boolean') && <DndRow playerId={player.id} dnd={!!player.dnd} tags={player.tags ?? []} />}
+      <StairsRow position={position} />
       {(() => { const r = rentText(player.rent); return r ? <Row label="房租" value={<span style={{ color: r.overdue ? '#fc8181' : '#a0aec0', fontSize: 11, fontWeight: r.overdue ? 700 : 400 }}>{r.text.replace(/^🏠 /, '')}</span>} /> : null })()}
       {player.busy && <Row label="正在" value={<span style={{ color: '#9ae6b4', fontSize: 11 }}>{busyText(player.busy, gameNowMs(worldStateForHud))}</span>} />}
       {dailyUseLines(player.daily_use).map(l => <Row key={l.key} label="今日" value={<span style={{ color: l.full ? '#fc8181' : '#a0aec0', fontSize: 11 }}>{l.text}</span>} />)}

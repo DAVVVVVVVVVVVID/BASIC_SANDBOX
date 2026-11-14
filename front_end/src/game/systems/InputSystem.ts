@@ -249,11 +249,37 @@ export default class InputSystem {
       if (!tile) return
       const tiles = useGameStore.getState().tiles
       const path = bfs(tiles, this.predicted(), tile)
-      if (path.length === 0) return
+      if (path.length === 0) {
+        // 客户端四邻 BFS 无路（目标在另一层 / 隔着楼梯）：目标格本身可走就交给后端寻路（后端 BFS 带楼梯边），逐格由 /player 轮询校正
+        if (this.walkable.has(`${tile.x},${tile.y}`)) void this.walkToTile(tile, `点击前往 (${tile.x}, ${tile.y})`)
+        return
+      }
       this.pathQueue = path
       this.pathDestination = tile
       this.isFirstPathStep = true
     })
+  }
+
+  /**
+   * 交给后端寻路走到 tile（`move {targetTile}`，§3.36 排队走 1 格 / 游戏秒；跨层走楼梯）。
+   * 不做本地预测：清空本地路径，位置随 /player 轮询回包校正（applyServerSnapshot）。
+   * 返回后端回包；失败 reason 由调用方提示。
+   */
+  async walkToTile(tile: Position, logLabel: string): Promise<{ success: boolean; reason?: string | null; pathLen?: number }> {
+    this.pathQueue = []
+    this.pathDestination = tile
+    this.isFirstPathStep = false
+    trace('send-target', { to: `${tile.x},${tile.y}` })
+    try {
+      const res = await sendAction(this.playerId, 'move', { targetTile: tile }, { logLabel })
+      const r = res.result as { path_len?: number; facing?: Facing } | undefined
+      if (r?.facing) { this.facing = r.facing; this.cb.onFacing(r.facing) }
+      trace('ack-target', { ok: res.success, reason: res.reason ?? null, pathLen: r?.path_len ?? null })
+      return { success: res.success, reason: res.reason, pathLen: r?.path_len }
+    } catch (err) {
+      console.error('[Move Error]', err)
+      return { success: false, reason: 'network' }
+    }
   }
 
   /** 走到 target 的相邻格（E12「走到她旁边」）：客户端 BFS 规划，逐格 move 由后端裁定。返回路径长度，0 = 已相邻 / 无路 */
