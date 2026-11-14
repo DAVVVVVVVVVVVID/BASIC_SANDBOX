@@ -600,6 +600,14 @@ def import_state(data: dict) -> None:
     _last_pair_end.update({frozenset(k.split("|")): float(v) for k, v in (data.get("last_pair_end") or {}).items()})
 
 
+def room_of(entity_id: str) -> str | None:
+    """v1.3.13：该玩家当前所在的 active 房间 id（GET /player / players[] 的 chat_room_id），不在房 None。"""
+    for room in _chat_rooms.values():
+        if room.get("status") == "active" and entity_id in (room.get("participants") or []):
+            return room["chat_room_id"]
+    return None
+
+
 def close_rooms_on_restart(players: dict) -> dict:
     """v1.3.12：检查点回填后，仍 active 的房间一律关掉（reason restart）、pending / walking_over 的邀请置 expired。
     对面的 agent 进程重启后没有对话上下文，房间却还开着 → 两人身上挂着无主的 chat_active（11-15 主镇老渔夫 / 餐厅老板）。想聊的人自己再邀请。"""

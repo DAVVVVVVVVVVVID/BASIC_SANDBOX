@@ -109,6 +109,7 @@ def _state_view(p: dict) -> dict:
         "controller":   p.get("controller", "human"),
         "online":       p.get("online", True),
         "dnd":          bool(p.get("dnd", False)),       # world-v1.3
+        "chat_room_id": __import__("game.chat_state", fromlist=["x"]).room_of(p["id"]),   # v1.3.13
         "agent_id":     p.get("agent_id"),
         "last_tick_ts": p.get("last_tick_ts"),
         "recent_uses":  get_recent_uses(p["id"]),

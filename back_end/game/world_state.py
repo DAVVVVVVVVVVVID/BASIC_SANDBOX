@@ -910,6 +910,8 @@ def get_player(player_id: str) -> dict | None:
     data["rent"] = _rent_view_safe(player)                    # world-v1.1 §3.3：{amount, items, due_at, due_in_days, overdue, owed, landlord, balance}，人类 null
     data["dnd"] = is_dnd(player)                               # world-v1.3
     data["tags"] = view_tags(player)
+    from game.chat_state import room_of
+    data["chat_room_id"] = room_of(player_id)                  # v1.3.13：在房给 id，否则 null（agent 遇 chat_active 可直接读房 / exit）
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -931,6 +933,7 @@ def get_all_players_snapshot() -> list[dict]:
             "usingObjectId": p.get("usingObjectId"),   # E①
             "tags":          view_tags(p),             # E①；world-v1.3：勿扰者多 dnd（在家再多 working）
             "dnd":           is_dnd(p),                # world-v1.3
+            "chat_room_id":  _room_of_safe(p["id"]),   # v1.3.13
             "pos_seq":       p.get("pos_seq", 0),      # E⑥：位置单调序号
             "gold":          int(p.get("gold", 0)),    # W10 ④
             "inventory":     _inv_view_safe(p),        # W10 ④：[{type, name, class, count}]
@@ -940,6 +943,14 @@ def get_all_players_snapshot() -> list[dict]:
         }
         for p in _players.values()
     ]
+
+
+def _room_of_safe(pid: str) -> str | None:
+    try:
+        from game.chat_state import room_of
+        return room_of(pid)
+    except Exception:
+        return None
 
 
 def _rent_view_safe(p: dict) -> dict | None:

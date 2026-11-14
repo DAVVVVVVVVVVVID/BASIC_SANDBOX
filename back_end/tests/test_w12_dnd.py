@@ -194,3 +194,22 @@ def test_restart_closes_active_chat_rooms_and_clears_chat_active(client, v12, fa
     assert not any(x["key"] == "chat_active" for p in (a, b) for x in world_state._players[p]["buffs"])
     assert world_state._players[a]["state"] == "idle" and world_state._players[a]["canMove"] is True
     assert chat_state._chat_requests[rid2]["status"] == "expired"
+
+
+def test_player_views_carry_chat_room_id(client, v12, fake_clock):
+    """v1.3.13：GET /player、/world.players[]、/state 带 chat_room_id（在房给 id，否则 null）。"""
+    from game import chat_state
+    _at(fake_clock, 15, 0)
+    a = _agent(client, "npc_fisher"); b = _agent(client, "npc_rest_owner")
+    place(a, 28, 14, "right"); place(b, 29, 14, "left")
+    assert client.get(f"/player/{a}").json()["chat_room_id"] is None
+    rid = client.post("/chat/request", json={"from_entity_id": a, "to_entity_ids": [b], "greeting": "嗨"}).json()["request_id"]
+    client.post("/chat/respond", json={"request_id": rid, "entity_id": b, "accept": True, "message": "好"})
+    for _ in range(3):
+        chat_state.tick(time.time() + 100)
+    room = client.get(f"/chat/request/{rid}").json()["chat_room_id"]
+    assert room and client.get(f"/player/{a}").json()["chat_room_id"] == room and client.get(f"/player/{a}/state").json()["chat_room_id"] == room
+    snap = {x["id"]: x for x in client.get("/world", params={"fields": "players"}).json()["players"]}
+    assert snap[a]["chat_room_id"] == room and snap[b]["chat_room_id"] == room
+    client.post("/chat/exit", json={"entity_id": a, "chat_room_id": room})
+    assert client.get(f"/player/{a}").json()["chat_room_id"] is None and client.get(f"/player/{b}").json()["chat_room_id"] == room

@@ -1645,6 +1645,10 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - 检查点回填后，仍 `active` 的聊天房一律关掉（chat 日志 `room_close` reason `restart`，参与者 `chat_active` 摘掉、state 回 idle、记冷却），`pending / walking_over / answered` 的邀请置 `expired`（reason `restart`）。原因：agent 进程重启后没有对话上下文，房间却还开着 → 两人身上挂着无主的 `chat_active`（11-15 主镇老渔夫 / 餐厅老板，agent 侧每 10 s 被唤醒）。想聊的人自己再邀请。
 - 旧行为（W2/W5「重启续聊、seq 接着写」）用环境变量 `SANDBOX_CHAT_RESUME_ON_RESTART=1` 保留。`reconcile_chat_buffs` 仍作兜底。
 
+### 12.17 `chat_room_id` 字段（tag `world-v1.3.13`，只增）
+
+`GET /player/{id}`、`GET /player/{id}/state`、`/world.players[]`、ws upsert 多 `chat_room_id`：当前 active 聊天房 id，不在房 `null`。agent 遇 `chat_active` 可直接 `GET /chat/room/{id}` 读房 / `POST /chat/exit`，不必靠 pending 推断；「成房即醒」可直接认房 id。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

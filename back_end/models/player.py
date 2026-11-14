@@ -39,6 +39,7 @@ class Player(BaseModel):
     scene: Literal["sandbox", "live"] = "sandbox"   # B4：衰减速率按 scene
     agent_id: Optional[str] = None              # 自我层 agent id（controller=agent 时；world-v1.3：人类带 profile.agent_id 也填）
     dnd: bool = False                           # world-v1.3：静态勿扰（主播操控的阿蝉）
+    chat_room_id: Optional[str] = None          # v1.3.13：当前 active 聊天房 id，不在房 null
     last_tick_ts: str = ""                      # 上次 tick 的游戏时刻，ISO 8601（§3.7 裁定 3）
     usingObjectId: Optional[str] = None
     buffs: List[Buff] = []

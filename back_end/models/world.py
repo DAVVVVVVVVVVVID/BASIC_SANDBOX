@@ -105,6 +105,7 @@ class OtherPlayer(BaseModel):
     daily_use: Optional[dict] = None   # world-v1.1 I-1：{obj_type: {used_min, limit_min}}
     rent: Optional[dict] = None        # world-v1.1 §3.3：{amount, items, due_at, due_in_days, overdue, owed, landlord, balance}
     dnd: Optional[bool] = None         # world-v1.3：静态勿扰（tags 里同时有 dnd / working）
+    chat_room_id: Optional[str] = None # v1.3.13：当前 active 聊天房 id，不在房 null
 
 
 class WorldData(BaseModel):
