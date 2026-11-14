@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5ar. 11-15 07:36 主镇热换 76e5231 核查全过 + v1.3.11 剪枝顺序修正（tag `world-v1.3.11`，不为它切）
+
+- 主镇（pid 1137464，保留 db，6 人接续）：六项（sha **8152f40d**）、日志 0 Traceback、8100 同步、阿蝉_97b6d8 dnd_auto 回填 true + 四项钉 100、interventions 多一行 restart、LIVE 环境、/admin/item/edit 路由、鲸仔 daily_use.compose 0/2 全过，已回总控「过」，C 起 .4。
+- 发现：账户表「阿蝉_22cbbe: 300」仍在——v1.3.6 的 `prune_orphan_accounts` 放在 `import_runtime` 里，先于 `economy.import_state` 跑，等于没剪。改到 `persistence.load_checkpoint` 的 economy 回填之后（测试：存一个孤儿账户 → save → load → 消失）。随下次任何重启生效。
+
 ## 5aq. 8091 预检 76e5231 + 核查值纠正（11-14 深夜）
 
 - 8091 已切 world-v1.3.10（源 ~/.env 带 LIVE 变量）：六项、verify 五项、x7 十项、LIVE 环境、interventions（fixture / data_edit 行）、music 全链路（pending compose → `cd_not_final` → `/admin/item/edit` delivered → `edit_item` final → give 成、meta 跟 CD）全过；使用工作站期间 give 先被 `use_disabled` 拦（老规则，预期）。C 在 8091 跑端到端，主镇不做 compose 核。

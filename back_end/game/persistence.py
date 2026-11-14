@@ -188,6 +188,10 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         })
         from game import qq, economy, production, commissions
         economy.import_state(json.loads(meta.get("economy") or "{}"))
+        from game.qq import account_of as _acc
+        pruned = economy.prune_orphan_accounts({_acc(p) for p in world_state._players.values()})   # v1.3.11：剪枝必须在 economy 回填之后（v1.3.6 放在 import_runtime 里跑早了）
+        if pruned:
+            log.info("pruned orphan accounts: %s", pruned)
         production.import_state(json.loads(meta.get("production") or "{}"))
         commissions.import_state(json.loads(meta.get("commissions") or "{}"))
         from game import doors, food, social

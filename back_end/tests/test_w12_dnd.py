@@ -162,3 +162,14 @@ def test_anonymous_human_leaves_no_ledger_row_and_orphans_pruned(client, v12):
     economy._balances["阿蝉_22cbbe"] = 300; economy._balances["claudine"] = 2500
     gone = economy.prune_orphan_accounts(set())
     assert gone == ["阿蝉_22cbbe"] and economy._balances["claudine"] == 2500      # 配置里有名的账号不剪
+
+
+def test_orphan_account_pruned_on_checkpoint_load(client, v12):
+    """v1.3.11：孤儿 id 账户要在 economy 状态回填之后剪（v1.3.6 剪早了，主镇重启后「阿蝉_22cbbe: 300」仍在）。"""
+    from game import economy, persistence
+    _agent(client, "whale")
+    economy._balances["阿蝉_zz9999"] = 300
+    persistence.save_checkpoint()
+    assert "阿蝉_zz9999" in economy._balances
+    persistence.load_checkpoint()
+    assert "阿蝉_zz9999" not in economy._balances and economy._balances.get("whale") is not None
