@@ -34,7 +34,7 @@ def test_human_achan_defaults_dnd_and_claims_identity(client, v12):
     assert _human(client, name="路人", agent_id=None) and client.get("/world", params={"fields": "players"}).json()["players"]
     others = {x["name"]: x for x in client.get("/world", params={"fields": "players"}).json()["players"]}
     assert others["路人"]["dnd"] is False and "dnd" not in others["路人"]["tags"]
-    b = _human(client, name="阿蝉", dnd=False)                                        # join 参数可关
+    b = _human(client, name="阿蝉", agent_id=None, dnd=False)                         # join 参数可关（不带 agent_id，否则 v1.3.4 会接管上面那个）
     assert client.get(f"/player/{b}").json()["dnd"] is False
 
 
@@ -63,13 +63,15 @@ def test_human_identity_uses_identity_gold_and_ledger(client, v12):
 def test_dnd_static_vars_and_admin_toggle(client, v12, fake_clock):
     a = _human(client)
     _at(fake_clock, 12, 0); _tick(fake_clock, 1)
-    before = {k: world_state._players[a][k] for k in ("fullness", "energy", "social", "fun", "mood")}
+    p = world_state._players[a]; p["fullness"] = 40.0; p["social"] = 30.0
+    _tick(fake_clock, 1)
+    assert all(p[k] == 100.0 for k in ("fullness", "energy", "social", "fun"))   # v1.3.4 ①：勿扰 = 四项钉满值
     _tick(fake_clock, 3600)
-    assert {k: world_state._players[a][k] for k in before} == before            # 静态：一小时一点不掉
+    assert all(p[k] == 100.0 for k in ("fullness", "energy", "social", "fun"))
     r = client.post(f"/admin/player/{a}/dnd", json={"on": False}).json()
     assert r["ok"] and r["dnd"] is False and "dnd" not in r["tags"]
     _tick(fake_clock, 3600)
-    assert world_state._players[a]["fullness"] < before["fullness"]              # 关掉就照常衰减
+    assert p["fullness"] < 100.0                                                  # 关掉就照常衰减
     assert client.post(f"/admin/player/{a}/dnd", json={"on": True}).json()["dnd"] is True
     assert client.post("/admin/player/nobody/dnd", json={"on": True}).status_code == 404
 
@@ -114,3 +116,26 @@ def test_dnd_human_survives_heartbeat_timeout(client, v12):
     world_state._cleanup_stale_players()
     assert a in world_state._players and world_state._players[a]["online"] is False and b not in world_state._players
     assert client.post(f"/player/{a}/heartbeat").json()["online"] is True       # 主播回来心跳即在线，位置没动
+
+
+def test_dnd_auto_park_takeover_and_persistent_leave(client, v12, fake_clock):
+    """v1.3.4 ②③：主播离线（心跳超时 / leave）→ 开 dnd 并送回 achan_room；客户端第一个动作 → 关 dnd；同身份再 join = 接管同一玩家。"""
+    _at(fake_clock, 15, 0)
+    a = _human(client)
+    r = client.post("/action", json={"entityId": a, "action": {"type": "turn", "payload": {"direction": "left"}}}).json()
+    assert r["success"] and world_state._players[a]["dnd"] is False                # 第一个动作 = 接管
+    place(a, 9, 13, "down")
+    world_state._last_seen[a] = time.time() - 100
+    world_state._cleanup_stale_players()
+    p = world_state._players[a]
+    assert p["dnd"] is True and p["online"] is False and world_state.get_zone_at(p["position"]["x"], p["position"]["y"])["arena"] == "achan_room"
+    r = client.post("/player/join", json={"name": "阿蝉", "controller": "human", "profile": {"agent_id": "achan"}}).json()
+    assert r["playerId"] == a and r.get("takeover") is True and world_state._players[a]["online"] is True and world_state._players[a]["dnd"] is True
+    assert client.post(f"/player/{a}/heartbeat").json()["ok"] and world_state._players[a]["dnd"] is True   # 心跳不算接管
+    client.post("/action", json={"entityId": a, "action": {"type": "move", "payload": {"direction": "right"}}})
+    assert world_state._players[a]["dnd"] is False
+    r = client.delete(f"/player/{a}/leave").json()
+    assert r["parked"] is True and a in world_state._players and world_state._players[a]["dnd"] is True
+    assert world_state.get_zone_at(r["position"]["x"], r["position"]["y"])["arena"] == "achan_room"
+    anon = _human(client, name="路人", agent_id=None)
+    assert client.delete(f"/player/{anon}/leave").json() == {"ok": True} and anon not in world_state._players

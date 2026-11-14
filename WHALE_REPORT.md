@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5ah. world-v1.3.4：主播补定阿蝉三条（tag `world-v1.3.4`）—— 完成
+
+- ① dnd 时四项需求钉满值 100（decay handler 每 tick `set_var` 100；心情照常回基线；亲密度不衰减）。② `dnd_auto`（身份 achan / 名阿蝉的人类）：心跳超时 → `_park_dnd_locked`（离开物品、停走、传到 `spawn_point_for('achan')` = achan_room 空格、dnd on、online off），不删；`leave` 同样只停不删；`/action` 入口 `takeover_on_action` → 第一个动作关 dnd（心跳不算）。③ 同身份人类再 join → `find_human_by_agent_id` 接管已有玩家（rejoin，`takeover: true`）。
+- 测试：静态改钉满值、新增 park / takeover / leave / 接管一条；**350 passed**。主镇 8000（6a09c93）上已按总控授权 join 阿蝉并走到 achan_room、dnd on（见下条）；6a09c93 没有 ②③ 的归位 / 接管 / leave 保护，主镇是否热切 v1.3.4 由总控定——热切请**只重启不 world_reset**，保留 sandbox.db 才能留住阿蝉。
+
 ## 5ag. world-v1.3.3：C 冒烟两条（tag `world-v1.3.3`）—— 完成
 
 - C 在 8091 冒烟 20 ✅ 后给的两条：① `/admin/scenario` 的 `spawn` 带 `arena` 被忽略（落 (4,13)），`teleport` 不带 x,y 直接 `KeyError`——现在 spawn / teleport 都接受 `arena` / `sector`（取该区域首个可走且无物品的格，按 y,x 排序），teleport 三者都没有 → 明确 StepError；② 人类小克拿到合租房钥匙——是旧「人类演阿蝉：任何人类一把合租房钥匙」规则撞上 v1.3 的身份认领；现在带 `agent_id` 的人类按身份发钥匙（小克 `door_claudine`、阿蝉 `door_home`），旧规则只留给没认领身份的人类。agent 小克本来就没有合租房钥匙，C 说的 keys 3 = whale / achan / 第三把留给人类阿蝉（或有人 give）。

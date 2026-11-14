@@ -175,7 +175,18 @@ _TICK_CTX: dict = {"game_end_ts": None, "skip_vars": frozenset()}
 
 def _handler_decay(player: dict, buff: dict, delta: float) -> None:
     dt = delta / 1000.0
-    if dt <= 0 or player.get("dnd"):                 # world-v1.3：勿扰 = 静态，七变量 / 心情 / 亲密度都不动
+    if dt <= 0:
+        return
+    if player.get("dnd"):                             # v1.3.4 ①：勿扰 = 四项需求钉在满值 100；心情照常回基线；亲密度不衰减
+        for var in ("fullness", "energy", "social", "fun"):
+            if var not in _TICK_CTX["skip_vars"]:
+                set_var(player, var, VAR_MAX, track=False)
+        if "mood" not in _TICK_CTX["skip_vars"]:
+            scene = player.get("scene", "sandbox")
+            base = float(player.get("mood_base", MOOD_BASE_DEFAULT))
+            half = MOOD_HALF_LIFE_S.get(scene, MOOD_HALF_LIFE_S["sandbox"])
+            cur = float(player.get("mood", base))
+            set_var(player, "mood", base + (cur - base) * math.pow(0.5, dt / half), track=False)
         return
     scene = player.get("scene", "sandbox")
     if scene not in DECAY_RATES:

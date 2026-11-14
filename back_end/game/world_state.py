@@ -551,6 +551,54 @@ def set_dnd(player_id: str, on: bool) -> dict | None:
         return p
 
 
+def _park_dnd_locked(player: dict, reason: str) -> None:
+    """v1.3.4 ②：开 dnd 并送回自家房间待机（调用方持 STATE_LOCK）。"""
+    pid = player["id"]
+    if player.get("usingObjectId"):
+        leave_object(pid)
+    stop_walk(pid, "stopped", reason)
+    sp = spawn_point_for(player.get("agent_id"))
+    update_player_position(pid, sp["x"], sp["y"], sp["facing"])
+    if player["state"] in ("walking", "walking_over"):
+        player["state"] = "idle"
+    player["dnd"] = True
+    try:
+        from game import external_log
+        external_log.log("dnd", pid, action="park", reason=reason, position=dict(player["position"]))
+    except Exception:
+        pass
+
+
+def park_dnd(player_id: str, reason: str = "offline") -> dict | None:
+    with STATE_LOCK:
+        p = _players.get(player_id)
+        if p is None:
+            return None
+        _park_dnd_locked(p, reason)
+        return p
+
+
+def takeover_on_action(player_id: str) -> bool:
+    """v1.3.4 ②：主播客户端发出第一个动作 → 自动关 dnd（只对 dnd_auto 的人类）。返回是否发生了接管。"""
+    p = _players.get(player_id)
+    if p is None or not p.get("dnd_auto") or not p.get("dnd") or p.get("controller") != "human":
+        return False
+    p["dnd"] = False
+    try:
+        from game import external_log
+        external_log.log("dnd", player_id, action="takeover")
+    except Exception:
+        pass
+    return True
+
+
+def find_human_by_agent_id(agent_id: str | None) -> dict | None:
+    if not agent_id:
+        return None
+    aid = canonical_id(agent_id)
+    return next((p for p in _players.values() if p.get("controller") == "human" and p.get("agent_id") == aid), None)
+
+
 def view_tags(player: dict) -> list[str]:
     """对外 tags：实际 tags + 勿扰标记（dnd；在自家房间再加 working），C 的感知据此不去找他。"""
     tags = list(player.get("tags", []))
@@ -607,6 +655,7 @@ def _make_player(
         "scene":         "sandbox",                  # B4：衰减速率按 scene 切换（sandbox | live）
         "agent_id":      _agent_id_for(name, profile) if controller == "agent" else _human_agent_id(profile),   # world-v1.3：人类带 profile.agent_id 即认领身份（主播演阿蝉）
         "dnd":           _default_dnd(name, controller, profile),   # world-v1.3：静态勿扰（主播操控的阿蝉默认开）
+        "dnd_auto":      _default_dnd(name, controller, profile),   # world-v1.3.4：离线即 dnd + 归位、首个动作即接管、leave 只停不删（主播的阿蝉）
         "last_tick_ts":  _iso_game_now(),
         "pos_seq":       0,
         "inventory":     [],                         # W10 ④：背包 [{item, qty, meta?}]，≤ 10 种
@@ -799,8 +848,12 @@ def _cleanup_stale_players() -> None:
         stale = [pid for pid, ts in _last_seen.items() if now - ts > _PLAYER_TIMEOUT]
         for pid in stale:
             p = _players.get(pid)
-            if p is not None and (p.get("controller") == "agent" or p.get("dnd")):
-                p["online"] = False          # B6：她的身体留在原地，仍参与 tick；world-v1.3：勿扰的人类（主播演阿蝉）下线也留在原地
+            if p is not None and p.get("dnd_auto"):
+                if not p.get("dnd"):
+                    _park_dnd_locked(p, "heartbeat_timeout")   # v1.3.4 ②：主播离线 → 开 dnd 并送回 achan_room 待机
+                p["online"] = False
+            elif p is not None and (p.get("controller") == "agent" or p.get("dnd")):
+                p["online"] = False          # B6：她的身体留在原地，仍参与 tick；world-v1.3：勿扰的人类下线也留在原地
             else:
                 remove_player(pid)
 

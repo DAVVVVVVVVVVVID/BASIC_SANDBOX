@@ -1606,6 +1606,11 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - 开着时：a) 七变量 / 心情回归 / 亲密度自然衰减**全部静止**（人类原本和 agent 一样会衰减，所以这条是新增）；b) 敲他家门 → `knock` 立刻 `reason: busy`（见 §3.40），不等 90 s；c) 他作为 1:1 收件人时，未读不扣发件人亲密度（Q-2 豁免）；d) `GET /player`、`/world.players[]`、ws upsert 带 `dnd: true`，`tags` 多 `dnd`，人在自家房间（HOMES 的 arena）时再多 `working`——C 的感知据此不去找他；e) 心跳超时**不删人**（和 agent 一样只标 `online: false`），位置留在原地，不自动传送；主播下线前自己走回 `achan_room` 即可。
 - `GET /player/{id}/state` 也带 `dnd`。`Player` / `OtherPlayer` 模型加 `dnd`（ws upsert 字段集 +1）。
 
+**v1.3.4（tag `world-v1.3.4`）主播补定阿蝉三条**（只对 `dnd_auto` 的人类 = 身份 `achan` / 名叫阿蝉，字段随 player 持久化）：
+- ① dnd 时四项需求（fullness / energy / social / fun）**钉在满值 100**（不是停在当前值）；心情照常回基线；亲密度不衰减。
+- ② **离线即 dnd + 归位**：心跳超时 → 自动开 dnd 并送回 `achan_room`（HOMES 的 arena 内空格）待机、`online: false`，不删人；`DELETE /player/{id}/leave` 对他也只停不删（返回 `{ok, parked: true, position}`）。主播客户端连上后**第一个 `POST /action`** → 自动关 dnd（心跳 / GET /player 不算）；再离线再开。`POST /admin/player/{id}/dnd` 仍可手动覆盖。external 日志 `kind: dnd`（park / takeover）。
+- ③ **常驻**：阿蝉以 `achan` 身份在主镇 join 一次后一直存在；人类再次 `POST /player/join` 带同一 `profile.agent_id` → **接管同一玩家**（返回 `takeover: true`、同 `playerId`，不新建）。
+
 **v1.3.1（tag `world-v1.3.1`）手机摆回**：v1 / v1.2 图漏摆了 `phone`（设定：手机 = QQ + 看直播间动态，v1.1 I-1 每日 120 分钟、持续使用）。现在鲸仔房桌上 **`phone_whale` (4,11)**（1×1，站 (4,12) 朝 up `use`，feed 摘要进 `result.phone` / perceive `phone`，fun +15/h，`browsing` tag，每日 2 h）；鲸仔房 owner 只有 whale，别人进不来即「只给鲸仔」；NPC 仍只用 QQ。物品 71 件，坐标表其余不变。
 
 ### 12.7 地图 v1

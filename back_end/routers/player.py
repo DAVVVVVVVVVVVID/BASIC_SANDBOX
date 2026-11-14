@@ -38,8 +38,14 @@ def join(body: JoinRequest):
         raise HTTPException(status_code=400, detail="name cannot be empty")
     if body.controller not in ("human", "agent"):
         raise HTTPException(status_code=400, detail="controller must be 'human' or 'agent'")
+    from game.world_state import view_tags, find_human_by_agent_id, rejoin_player as _rejoin
+    if body.controller == "human":
+        existing = find_human_by_agent_id((body.profile or {}).get("agent_id"))
+        if existing is not None:                                          # v1.3.4 ③：同一身份的人类再 join = 接管已有玩家（主播的阿蝉常驻）
+            player = _rejoin(existing["id"])
+            player["tags"] = view_tags(player)
+            return {"playerId": player["id"], "player": player, "takeover": True}
     player = create_player(body.name.strip(), controller=body.controller, profile=body.profile, dnd=body.dnd)
-    from game.world_state import view_tags
     player["tags"] = view_tags(player)                                   # world-v1.3：响应里的 tags 与 GET /player 一致（dnd / working）
     return {"playerId": player["id"], "player": player}
 
@@ -55,6 +61,12 @@ def rejoin(body: RejoinRequest):
 
 @router.delete("/player/{player_id}/leave")
 def leave(player_id: str):
+    from game.world_state import park_dnd
+    p = _players.get(player_id)
+    if p is not None and p.get("dnd_auto"):                               # v1.3.4 ③：主播的阿蝉常驻——leave 只停（dnd + 回房待机），不删
+        park_dnd(player_id, "leave")
+        p["online"] = False
+        return {"ok": True, "parked": True, "position": dict(p["position"])}
     remove_player(player_id)
     return {"ok": True}
 
