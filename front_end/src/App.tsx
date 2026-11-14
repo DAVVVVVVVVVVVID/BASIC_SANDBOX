@@ -83,7 +83,7 @@ function PlayApp() {
       <Minimap />
       <ChatPanel />
       <ConnectionBadge />
-      <QQPanel playerId={myPlayerId} readOnly={false} compact style={{ top: 120, right: 16 }} />
+      <QQPanel playerId={myPlayerId} readOnly={false} compact phone style={{ top: 120, right: 16 }} />
       <BackpackPanel />
       <KnockPanel />
     </div>
