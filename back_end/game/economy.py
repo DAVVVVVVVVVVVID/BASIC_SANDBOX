@@ -81,7 +81,25 @@ def opened_at(account: str) -> float | None:
 
 def on_leave(player: dict) -> None:
     from game.qq import account_of
+    if not player.get("agent_id"):                        # v1.3.6：没身份的人类（账号 = player id）离开不留账——人走账消，/admin/metrics 不积垃圾行
+        _balances.pop(player["id"], None); _debts.pop(player["id"], None); _opened.pop(player["id"], None)
+        return
     _balances[account_of(player)] = int(player.get("gold", 0))
+
+
+def known_accounts() -> set[str]:
+    """配置里有名字的账号（initial_gold / wages / rent / commissions 客户）。"""
+    return ({k for k in _CFG.get("initial_gold", {}) if k != "default"} | set(_CFG.get("wages", {}))
+            | set((_CFG.get("rent") or {}).get("items") or {}) | set((_CFG.get("commissions") or {}).get("clients") or []))
+
+
+def prune_orphan_accounts(live_accounts: set[str]) -> list[str]:
+    """v1.3.6：剪掉既不在配置、也没有在场玩家的 id 账户（旧检查点里匿名人类留下的）。返回剪掉的键。"""
+    keep = known_accounts() | set(live_accounts)
+    gone = [a for a in list(_balances) if a not in keep]
+    for a in gone:
+        _balances.pop(a, None); _debts.pop(a, None); _opened.pop(a, None); _paid.pop(a, None)
+    return gone
 
 
 def credit_account(account: str, delta: int, kind: str | None = None, **fields) -> dict:

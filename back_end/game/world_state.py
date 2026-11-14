@@ -2047,7 +2047,9 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
                 _daily_use[pid] = {k: dict(v) for k, v in row["daily_use"].items()}
             if player.get("controller") == "agent":
                 self_sync.register(pid, game_now_ts())
-        from game import state_log
+        from game import state_log, economy as _eco
+        from game.qq import account_of as _acc
+        _eco.prune_orphan_accounts({_acc(p) for p in _players.values()})   # v1.3.6：旧检查点里匿名人类留下的 id 账户剪掉
         for p in _players.values():
             state_log.sample_now(p, "restore")        # Q1：回填后立即采样
         for o in _OBJECTS:

@@ -1609,6 +1609,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 **v1.3.4（tag `world-v1.3.4`）主播补定阿蝉三条**（只对 `dnd_auto` 的人类 = 身份 `achan` / 名叫阿蝉，字段随 player 持久化）：
 - ① dnd 时四项需求（fullness / energy / social / fun）**钉在满值 100**（不是停在当前值）；心情照常回基线；亲密度不衰减。
 - ② **离线即 dnd + 归位**：心跳超时 → 自动开 dnd 并送回 `achan_room`（HOMES 的 arena 内空格）待机、`online: false`，不删人；`DELETE /player/{id}/leave` 对他也只停不删（返回 `{ok, parked: true, position}`）。主播客户端连上后**第一个 `POST /action`** → 自动关 dnd（心跳 / GET /player 不算）；再离线再开。`POST /admin/player/{id}/dnd` 仍可手动覆盖。external 日志 `kind: dnd`（park / takeover）。
+- **v1.3.6**：`/admin/metrics.accounts` 不再留匿名人类（无 `agent_id`）的账户行：离开即消，旧检查点里的孤儿 id 账户在重启回填时剪掉；有身份 / 配置内账号不受影响。
 - **v1.3.5**：检查点回填——旧 player 缺 `dnd_auto` / `dnd` 时按身份补，旧 `agent_id` 归新（保留 sandbox.db 热切即可，不必重建阿蝉）。
 - ③ **常驻**：阿蝉以 `achan` 身份在主镇 join 一次后一直存在；人类再次 `POST /player/join` 带同一 `profile.agent_id` → **接管同一玩家**（返回 `takeover: true`、同 `playerId`，不新建）。
 

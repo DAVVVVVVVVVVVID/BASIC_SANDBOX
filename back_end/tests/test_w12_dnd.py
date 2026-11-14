@@ -151,3 +151,14 @@ def test_restore_backfills_dnd_auto_and_legacy_id(client, v12):
         world_state._ensure_player_fields(p)
     assert old_achan["dnd_auto"] is True and old_achan["dnd"] is True
     assert old_xq["agent_id"] == "claudine" and old_xq["dnd_auto"] is False and old_xq["dnd"] is False
+
+
+def test_anonymous_human_leaves_no_ledger_row_and_orphans_pruned(client, v12):
+    """v1.3.6：匿名人类离开不留账户行；旧检查点里的孤儿 id 账户在回填时剪掉；有身份的账户照留。"""
+    from game import economy
+    anon = _human(client, name="路人", agent_id=None)
+    client.delete(f"/player/{anon}/leave")
+    assert anon not in client.get("/admin/metrics").json()["accounts"]
+    economy._balances["阿蝉_22cbbe"] = 300; economy._balances["claudine"] = 2500
+    gone = economy.prune_orphan_accounts(set())
+    assert gone == ["阿蝉_22cbbe"] and economy._balances["claudine"] == 2500      # 配置里有名的账号不剪

@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5ak. world-v1.3.6：账户残迹的判断与顺手清（tag `world-v1.3.6`；不为此切镇）—— 完成
+
+- 判断：「阿蝉_22cbbe: 300」只进 `/admin/metrics.accounts` 展示；房租 / 日薪 / 委托都按配置键遍历，`balance()` 按账号查，没有任何汇总把 `_balances` 全加——**不影响经济统计**。但每个匿名人类（普通加入框）离开都会留一行并进检查点，会越积越多。
+- 清法：`economy.on_leave` 对没身份的人类不再写账（人走账消）；`import_runtime` 回填后 `prune_orphan_accounts`——既不在配置（initial_gold / wages / rent / commissions 客户）也没有在场玩家的 id 账户剪掉。主镇那一行会在下次重启沙盒时自动消失，不必为它切。测试 +1，**352 passed**。
+
 ## 5aj. 主镇阿蝉事故记录（11-14 13:10；不出版）
 
 - 常驻 阿蝉_83f3f5（建于 6a09c93）被删：主播用 5173「以阿蝉身份登录」= rejoin → POST dnd off → 页面断开（sendBeacon 没发出）→ 6a09c93 的心跳清理对非 dnd 人类是删除。6a09c93 没有 v1.3.4/1.3.5 的 dnd_auto 保护，这正是热切要补的口。随后主播又 join 了 阿蝉_22cbbe（普通加入框，无 agent_id）与 阿蝉_97b6d8（agent_id achan）。
