@@ -600,6 +600,28 @@ def import_state(data: dict) -> None:
     _last_pair_end.update({frozenset(k.split("|")): float(v) for k, v in (data.get("last_pair_end") or {}).items()})
 
 
+def close_rooms_on_restart(players: dict) -> dict:
+    """v1.3.12：检查点回填后，仍 active 的房间一律关掉（reason restart）、pending / walking_over 的邀请置 expired。
+    对面的 agent 进程重启后没有对话上下文，房间却还开着 → 两人身上挂着无主的 chat_active（11-15 主镇老渔夫 / 餐厅老板）。想聊的人自己再邀请。"""
+    closed, expired = [], []
+    import os as _os
+    if (_os.environ.get("SANDBOX_CHAT_RESUME_ON_RESTART") or "0") in ("1", "true", "True"):   # 旧行为（W2/W5：重启续聊）可用开关保留
+        return {"rooms_closed": closed, "requests_expired": expired, "skipped": "resume_on_restart"}
+    for room in list(_chat_rooms.values()):
+        if room.get("status") == "active":
+            _close_room(room, players, "restart")
+            closed.append(room["chat_room_id"])
+    for req in _chat_requests.values():
+        if req.get("status") in ("pending", "walking_over", "answered"):
+            req["status"] = "expired"; expired.append(req["request_id"])
+            for eid in (req.get("participants") or []) + [req.get("from_entity_id")]:
+                p = players.get(eid)
+                if p is not None and p.get("state") in ("walking_over", "requesting_talk"):
+                    p["state"] = "idle"
+            chat_log.log_event("request_expired", None, req.get("participants") or [], request_id=req["request_id"], reason="restart")
+    return {"rooms_closed": closed, "requests_expired": expired}
+
+
 def reconcile_chat_buffs(players: dict) -> int:
     """Q0：检查点回填后，player 身上的 chat_active 必须对应一个 active 房间，否则清掉（state 回 idle）。返回修正数。"""
     in_room = {pid for room in _chat_rooms.values() if room["status"] == "active" for pid in room["participants"]}

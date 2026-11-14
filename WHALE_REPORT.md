@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5as. 老渔夫残留 chat_active（C 报）：处置 + world-v1.3.12 重启不续聊 —— 完成，不为它切
+
+- 现象：主镇老渔夫 / 餐厅老板各挂一颗 `chat_active`（source chat_system），/chat/pending 空，agent 侧唤醒判断每 10 s 触发。查因：07:33:00 两人开了房 2886fedfe2b6，07:36 沙盒保留 db 重启，房间以 `active` 回填（W2/W5 设计：重启续聊），而 C 的 agent 重启后没有对话上下文、不会再 exit → buff 不是「无房间」，是「房间还开着没人收尾」。`reconcile_chat_buffs` 只修「有 buff 无房间」，对此无效。
+- 处置（主镇，已记 interventions data_edit actor B）：`POST /chat/exit` 两人退出 → 房间 all_left 关闭，两颗 buff 摘掉，老渔夫继续在钓位（没碰他的钓鱼）。没用 force-reset（会把他请下钓位、清所有 buff）。
+- 修（v1.3.12）：`chat_state.close_rooms_on_restart`——回填后 active 房间关掉（reason restart）、pending / walking_over 邀请过期；`SANDBOX_CHAT_RESUME_ON_RESTART=1` 保留旧行为（两个老测试改用开关测往返保真）。测试 +1，**359 passed**；api-spec §12.16。随下次重启生效。
+
 ## 5ar. 11-15 07:36 主镇热换 76e5231 核查全过 + v1.3.11 剪枝顺序修正（tag `world-v1.3.11`，不为它切）
 
 - 主镇（pid 1137464，保留 db，6 人接续）：六项（sha **8152f40d**）、日志 0 Traceback、8100 同步、阿蝉_97b6d8 dnd_auto 回填 true + 四项钉 100、interventions 多一行 restart、LIVE 环境、/admin/item/edit 路由、鲸仔 daily_use.compose 0/2 全过，已回总控「过」，C 起 .4。

@@ -78,7 +78,8 @@ def test_catch_up_capped_at_8_hours(client, fake_clock):
     assert persistence.catch_up_game_ms(100) == 0.0
 
 
-def test_chat_state_roundtrip(client, fake_clock):
+def test_chat_state_roundtrip(client, fake_clock, monkeypatch):
+    monkeypatch.setenv("SANDBOX_CHAT_RESUME_ON_RESTART", "1")   # v1.3.12 起缺省重启关房；这里测的是往返保真，开旧行为
     a = join(client, "a"); b = join(client, "b")
     r = client.post("/chat/request", json={"from_entity_id": a, "to_entity_ids": [b], "greeting": "hi"})
     rid = r.json()["request_id"]

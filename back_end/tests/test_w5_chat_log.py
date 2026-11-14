@@ -93,7 +93,8 @@ def test_jsonl_matches_ws_chat_stream():
         assert [r["event"] for r in chat_log.read_log(kind="event") if r.get("room_id") == room][:2] == ["room_open", "player_exit"]
 
 
-def test_chat_log_survives_restart(client):
+def test_chat_log_survives_restart(client, monkeypatch):
+    monkeypatch.setenv("SANDBOX_CHAT_RESUME_ON_RESTART", "1")   # v1.3.12 起缺省重启关房；这里测的是往返保真，开旧行为
     a = join(client, "a"); b = join(client, "b")
     room = _room(client, a, b)
     n = len(_lines())

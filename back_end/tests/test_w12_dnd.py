@@ -173,3 +173,24 @@ def test_orphan_account_pruned_on_checkpoint_load(client, v12):
     assert "阿蝉_zz9999" in economy._balances
     persistence.load_checkpoint()
     assert "阿蝉_zz9999" not in economy._balances and economy._balances.get("whale") is not None
+
+
+def test_restart_closes_active_chat_rooms_and_clears_chat_active(client, v12, fake_clock):
+    """v1.3.12：检查点里仍 active 的房间在回填时关掉（reason restart），两人 chat_active 摘掉、state 回 idle；pending 邀请过期。"""
+    from game import chat_state, persistence
+    _at(fake_clock, 15, 0)
+    a = _agent(client, "npc_fisher"); b = _agent(client, "npc_rest_owner"); c = _agent(client, "claudine")
+    place(a, 28, 14, "right"); place(b, 29, 14, "left"); place(c, 28, 13, "down")
+    rid = client.post("/chat/request", json={"from_entity_id": a, "to_entity_ids": [b], "greeting": "嗨"}).json()["request_id"]
+    client.post("/chat/respond", json={"request_id": rid, "entity_id": b, "accept": True, "message": "好"})
+    for _ in range(3):
+        chat_state.tick(time.time() + 100)                                             # 相邻 → 建房
+    room_id = next(r["chat_room_id"] for r in chat_state._chat_rooms.values() if r["status"] == "active")
+    assert all(any(x["key"] == "chat_active" for x in world_state._players[p]["buffs"]) for p in (a, b))
+    rid2 = client.post("/chat/request", json={"from_entity_id": c, "to_entity_ids": [a], "greeting": "在吗"}).json()["request_id"]
+    persistence.save_checkpoint()
+    persistence.load_checkpoint()
+    assert chat_state._chat_rooms[room_id]["status"] == "closed"
+    assert not any(x["key"] == "chat_active" for p in (a, b) for x in world_state._players[p]["buffs"])
+    assert world_state._players[a]["state"] == "idle" and world_state._players[a]["canMove"] is True
+    assert chat_state._chat_requests[rid2]["status"] == "expired"

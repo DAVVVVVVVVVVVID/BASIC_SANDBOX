@@ -1640,6 +1640,11 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - payload：`{event: start|stop, agent, player, object, object_type, town, ts（墙钟 ISO）, game_time, session_id（沙盒生成，start/stop 同一个）, reason（仅 stop：leave / kicked / closed / daily_limit / dnd_park / left_town）}`。回包只看 2xx（G 侧「沙盒联动」开关关着时回 202 ignored，封测 15–19 日默认关）；start 的 `session / stage_url` 暂不存。
 - ws `/ws/world` 同时推 `{type: "live", ...同 payload}`；external 日志 `live` 行多 `session_id`；`/admin/metrics` 暂不含统计（`external_effects.live_stats` 进程内：start_sent / stop_sent / failed / last_error）。`leave_object(entity, reason)` 多了 reason 参数（默认 leave）。
 
+### 12.16 重启不续聊（tag `world-v1.3.12`）
+
+- 检查点回填后，仍 `active` 的聊天房一律关掉（chat 日志 `room_close` reason `restart`，参与者 `chat_active` 摘掉、state 回 idle、记冷却），`pending / walking_over / answered` 的邀请置 `expired`（reason `restart`）。原因：agent 进程重启后没有对话上下文，房间却还开着 → 两人身上挂着无主的 `chat_active`（11-15 主镇老渔夫 / 餐厅老板，agent 侧每 10 s 被唤醒）。想聊的人自己再邀请。
+- 旧行为（W2/W5「重启续聊、seq 接着写」）用环境变量 `SANDBOX_CHAT_RESUME_ON_RESTART=1` 保留。`reconcile_chat_buffs` 仍作兜底。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

@@ -214,7 +214,10 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         conn.close()
 
     with world_state.STATE_LOCK:
-        chat_state.reconcile_chat_buffs(world_state._players)     # Q0：chat_active 与房间状态一致
+        cr = chat_state.close_rooms_on_restart(world_state._players)   # v1.3.12：重启不续聊——active 房间关掉（reason restart）、邀请过期
+        if cr["rooms_closed"] or cr["requests_expired"]:
+            log.info("restart closed chat rooms %s, expired requests %s", cr["rooms_closed"], cr["requests_expired"])
+        chat_state.reconcile_chat_buffs(world_state._players)     # Q0：chat_active 与房间状态一致（兜底）
 
     last_tick_ts = float(meta["last_tick_ts"])
     downtime = max(0.0, time_state.now_real() - last_tick_ts)
