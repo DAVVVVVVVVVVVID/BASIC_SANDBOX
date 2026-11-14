@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5an. 闭测 ⑤：`scripts/econ_reconcile.py` 一周房租 / 日薪结算核对（6b96e00，只读脚本不出 tag）—— 完成
+
+- `uv run python scripts/econ_reconcile.py --data run/data/sandbox --from 2026-11-15 --to 2026-11-21 [--db] [--now] [--json]`：① 期间表（按游戏日期）账号 × kind 汇总 economy 流水；② 期望对照——日薪账号每游戏日 1 行（从检查点 `economy.opened` 的开户日起，且该日 `pay_at` 已到才算）、房租 `due_day` 落在期间且 `due_at` 已到才算、小克时薪只报实际；③ 余额恒等 `initial_gold + Σ全部流水 == 检查点 balances`。不符退出 1。
+- 主镇 11-14 试跑：22 行、六账户余额全部恒等；用 `--now 22:30` 模拟当日收盘能正确报出「三店主日薪缺」（当前 16:24 未到 pay_at 不报）。周二按总控要求跑 11-15→11-21。
+
 ## 5am. world-v1.3.8：interventions.jsonl 沙盒侧自动记录（闭测 §5.2，A 格式 a3d07db；tag `world-v1.3.8`）—— 完成，未上镇
 
 - 新 `game/interventions.py`（路径按 `data/<town>/interventions/<日>.jsonl` 推导；`is_streamer` = human + dnd_auto）。挂点：join / rejoin 接管 / 首个动作接管 / admin dnd 开关 → `achan_login` / `achan_logout`；心跳超时归位、leave → `achan_logout`；`qq.send` → `achan_qq`（只记长度）；`/action` 的 knock / open_door / give 与 `/door/respond` → `achan_knock`；聊天房关闭 → `achan_chat`（turns / minutes）；夹具 `set_time` 与每次 `/admin/scenario` → `set_time` / `fixture`；启动 → `restart`。
