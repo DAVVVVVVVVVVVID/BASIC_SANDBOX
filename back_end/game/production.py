@@ -221,10 +221,13 @@ def craft(entity_id: str, kind: str, payload: dict) -> tuple[dict | None, str | 
         if elapsed_min < need:
             return None, "not_ready", {"objectId": oid, "ready_in_min": math.ceil(need - elapsed_min), "min_minutes": need}
         item = pc["item"]
+        dm = int(pc.get("daily_max") or 0)
+        if dm and world_state.daily_count(entity_id, kind) >= dm:          # 闭测 §6：每日首数上限（重做也计）
+            return None, "daily_limit", {"objectId": oid, "resets_at": world_state.DAILY_RESET_HM, "used_count": world_state.daily_count(entity_id, kind), "limit_count": dm}
         meta = {k: v for k, v in (payload.get("meta") or {}).items()}
         title = payload.get("title") or meta.get("title") or f"{(inventory.item_def(item) or {}).get('name', item)} {game_now_iso()[:16]}"
         meta["title"] = title
-        for k in ("commission_id", "text", "summary", "ref"):
+        for k in ("commission_id", "text", "summary", "ref", "suno_id", "audio_ref", "satisfaction", "redo_count", "lyrics", "style"):   # 闭测 §6：Suno 流程字段透传
             if payload.get(k) is not None:
                 meta[k] = payload[k]
         meta["created_at"] = game_now_iso(); meta["by"] = p.get("agent_id") or p["id"]
@@ -233,8 +236,10 @@ def craft(entity_id: str, kind: str, payload: dict) -> tuple[dict | None, str | 
             return None, err, {"objectId": oid}
         _notify(p, kind, item, 1, object=oid, title=title, commission_id=meta.get("commission_id"))
         world_state.record_object_use(entity_id, oid)
+        used = world_state.daily_count_add(entity_id, kind) if dm else None
         return {"message": f"完成了《{title}》。", "objectId": oid, "item": item, "item_name": (inventory.item_def(item) or {}).get("name", item),
-                "qty": 1, "meta": meta, "inventory": inventory.view(p)}, None, None
+                "qty": 1, "meta": meta, "inventory": inventory.view(p),
+                **({"daily": {"used_count": used, "limit_count": dm, "resets_at": world_state.DAILY_RESET_HM}} if dm else {})}, None, None
 
 
 def export_state() -> dict:

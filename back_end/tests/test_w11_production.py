@@ -296,3 +296,27 @@ def test_sandbox_map_env_resolves_v1(monkeypatch):
     assert world_state._resolve_map_dir() == base
     monkeypatch.setenv("SANDBOX_MAP_DIR", str(base / "m1c"))
     assert world_state._resolve_map_dir() == base / "m1c"                                 # 显式目录优先
+
+
+def test_compose_daily_cap_meta_passthrough_and_reset(client, v12, fake_clock, monkeypatch):
+    """闭测 §6：音乐工作站 = pc_music；每日最多 2 首（重做也计，沙盒管、进检查点、04:00 重置）；Suno 字段透传进 CD meta。"""
+    monkeypatch.setitem(economy.cfg()["commissions"], "daily_p", 0.0)
+    _at(fake_clock, 10, 0)
+    whale = _agent(client, "whale", "鲸仔")
+    place(whale, 24, 3, "up"); assert action(client, whale, "use")["success"]
+    fake_clock.advance(31 * 60); _tick(fake_clock, 1)
+    r = action(client, whale, "compose", {"title": "夜航", "suno_id": "s1", "audio_ref": "suno://s1", "satisfaction": 4, "redo_count": 0, "style": "citypop", "lyrics": "..."})
+    assert r["success"] and r["result"]["daily"] == {"used_count": 1, "limit_count": 2, "resets_at": "04:00"}
+    m = r["result"]["meta"]
+    assert m["suno_id"] == "s1" and m["audio_ref"] == "suno://s1" and m["satisfaction"] == 4 and m["redo_count"] == 0 and m["style"] == "citypop" and m["lyrics"] == "..."
+    assert client.get(f"/player/{whale}").json()["daily_use"]["compose"] == {"used_count": 1, "limit_count": 2, "resets_at": "04:00"}
+    assert action(client, whale, "compose", {"title": "夜航", "redo_count": 1})["success"]                  # 重做也计
+    r = action(client, whale, "compose", {"title": "第三首"})
+    assert r["success"] is False and r["reason"] == "daily_limit" and r["result"]["used_count"] == 2 and r["result"]["limit_count"] == 2 and r["result"]["resets_at"] == "04:00"
+    # 进检查点
+    rt = world_state.export_runtime()
+    assert rt["players"][whale]["daily_use"]["compose"]["count"] == 2
+    # 04:00 重置
+    _at(fake_clock, 4, 1); fake_clock.t += 86400; _tick(fake_clock, 1)
+    assert client.get(f"/player/{whale}").json()["daily_use"]["compose"]["used_count"] == 0
+    assert client.get("/world", params={"fields": "objects"}).json()["objects"] and next(o for o in client.get("/world", params={"fields": "objects"}).json()["objects"] if o["id"] == "pc_music")["name"] == "音乐工作站"

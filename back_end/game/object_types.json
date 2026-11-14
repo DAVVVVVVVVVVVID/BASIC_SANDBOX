@@ -986,9 +986,9 @@
   },
   "pc_music": {
     "prototype": "continuous",
-    "name": "琴房电脑",
+    "name": "音乐工作站",
     "interactable": true,
-    "description": "琴房里的电脑与钢琴，写歌的地方。",
+    "description": "鲸仔写歌的音乐工作站（琴房）。用满 30 分钟才能 compose 出一张 CD；每天最多两首。",
     "size": [
       1,
       1

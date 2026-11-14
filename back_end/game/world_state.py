@@ -1112,6 +1112,25 @@ def daily_limit_check(entity_id: str, obj: dict, gts: float | None = None) -> di
     return None
 
 
+def daily_count(entity_id: str, key: str, gts: float | None = None) -> int:
+    """闭测 §6：每日计数类上限（如 compose 每日 2 首），与时长类同用 _daily_use（04:00 重置、进检查点）。"""
+    gts = game_now_ts() if gts is None else gts
+    rec = _daily_use.get(entity_id, {}).get(key)
+    if not rec or rec.get("day") != daily_key(gts):
+        return 0
+    return int(rec.get("count", 0))
+
+
+def daily_count_add(entity_id: str, key: str, n: int = 1, gts: float | None = None) -> int:
+    gts = game_now_ts() if gts is None else gts
+    day = daily_key(gts)
+    rec = _daily_use.setdefault(entity_id, {}).get(key)
+    if not rec or rec.get("day") != day:
+        rec = {"day": day, "count": 0}; _daily_use[entity_id][key] = rec
+    rec["count"] = int(rec.get("count", 0)) + n
+    return rec["count"]
+
+
 def _daily_use_tick(delta_ms: float, gts: float) -> None:
     """使用中的玩家按 game 秒累计；到上限自动离开（ws daily_limit）。调用方持 STATE_LOCK。"""
     if delta_ms <= 0:
@@ -1152,6 +1171,10 @@ def daily_use_view(entity_id: str, gts: float | None = None) -> dict:
     for t, d in OBJECT_TYPES.items():
         if d.get("daily_limit_min"):
             out[t] = {"used_min": round(daily_used_s(entity_id, t, gts) / 60.0, 1), "limit_min": float(d["daily_limit_min"])}
+    from game.production import cfg as _pcfg
+    dm = (_pcfg().get("compose") or {}).get("daily_max")
+    if dm:                                                   # 闭测 §6：每日写歌首数（计数类，与上面的分钟类并列）
+        out["compose"] = {"used_count": daily_count(entity_id, "compose", gts), "limit_count": int(dm), "resets_at": DAILY_RESET_HM}
     return out
 
 

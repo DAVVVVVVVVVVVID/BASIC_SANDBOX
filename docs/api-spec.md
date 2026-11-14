@@ -464,7 +464,7 @@ agent（C）发出移动后轮询 `GET /player/{id}` 至 `state != "walking"`（
 | `knock` | **§3.41** 在上锁的家门外敲门（见「门禁」一节） | `{ door_id }` 或 `{ target_tile {x,y} }` 或 `{ home: <sector> }` | agent / E |
 | `open_door` | **§3.41** 站在门内侧相邻格开门（不需钥匙），敞开 60 游戏秒 | `{ door_id }` | agent / E |
 | `say` | **Q6（实验 X4）靠近即可说**：曼哈顿 ≤ 2 格、同 sector 的在场玩家在**下一次 perceive** 的 `nearby_speech[]` 看到 `{from, from_name, text, ts}`（读过即清，队列 ≤ 20）；不开房间、不走邀请。`result {message, heard_by[], heard_count, range, position}`；失败 `empty_text` / `text_too_long`（> 200）。聊天 JSONL 多一种行 `kind: "say"`（`from, from_name, to: heard_by[], text, controller, position`，`room_id: null`）；ws `{type:"say", from, from_name, text, position, heard_by}`；动作日志照常 | `{ text }` | agent |
-| `compose` | **W11 ① / v1.1 Q-5** 在琴房电脑（`pc_music`）上用满 `min_minutes`（30）后产一张 **CD**（`cd`，实体，`meta.title / commission_id / text…` 由 C 填） | `{ title?, commission_id?, text?, meta? }` | agent |
+| `compose` | **W11 ① / v1.1 Q-5** 在琴房电脑（`pc_music`）上用满 `min_minutes`（30）后产一张 **CD**（`cd`，实体，`meta.title / commission_id / text…` 由 C 填） | `{ title?, commission_id?, text?, meta? }` | agent | **闭测 §6（world-v1.3.7）**：`pc_music` 显示名「音乐工作站」；每人每日最多 `production.compose.daily_max`（2）首，**重做也计**，超了 `reason: daily_limit`、`result {resets_at: "04:00", used_count, limit_count, objectId}`，04:00 重置、进检查点；成功 `result.daily {used_count, limit_count, resets_at}`；payload 透传进 CD `meta`：`title / suno_id / audio_ref / satisfaction / redo_count / lyrics / style / commission_id / text / summary / ref`（另自动 `created_at / by`）。`GET /player` 的 `daily_use` 多一键 `compose {used_count, limit_count, resets_at}`（计数类，与分钟类并列）。
 | `make_video` | **W11 ① / v1.1 Q-5** 在电脑（`pc` / `pc_desk` / `stream_desk`）上用满 60 分钟后产一份「稿子」（`script`，实体） | `{ title?, text?, meta? }` | agent |
 
 ### buy / sell / eat / give（W10 ④）
@@ -1614,6 +1614,12 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - ③ **常驻**：阿蝉以 `achan` 身份在主镇 join 一次后一直存在；人类再次 `POST /player/join` 带同一 `profile.agent_id` → **接管同一玩家**（返回 `takeover: true`、同 `playerId`，不新建）。
 
 **v1.3.1（tag `world-v1.3.1`）手机摆回**：v1 / v1.2 图漏摆了 `phone`（设定：手机 = QQ + 看直播间动态，v1.1 I-1 每日 120 分钟、持续使用）。现在鲸仔房桌上 **`phone_whale` (4,11)**（1×1，站 (4,12) 朝 up `use`，feed 摘要进 `result.phone` / perceive `phone`，fun +15/h，`browsing` tag，每日 2 h）；鲸仔房 owner 只有 whale，别人进不来即「只给鲸仔」；NPC 仍只用 QQ。物品 71 件，坐标表其余不变。
+
+### 12.13 闭测周 §6：音乐工作站（tag `world-v1.3.7`）
+
+- 对象沿用琴房 `pc_music`（显示名改「音乐工作站」，id / 坐标 / 站位 (24,3) up 不变）：`work` 类、use 时 tag `composing`、每日使用时长上限 240 min 照旧。
+- 流程（C 实现，沙盒只管门槛 / 上限 / 产物）：`use` 占满 `production.compose.min_minutes`（30）→ `compose` 产 1 张 `cd` 入背包；**每日 `daily_max` 2 首（重做也计）**由沙盒管：`daily_count` 与分钟类共用 `_daily_use`（04:00 重置、进检查点），超了 `daily_limit`；`GET /player.daily_use.compose {used_count, limit_count, resets_at}`。
+- CD `meta` 透传字段：`title / suno_id / audio_ref / satisfaction（1–5） / redo_count / lyrics / style / commission_id / text / summary / ref`，自动加 `created_at / by`；满意度 < 3「想重做」的判断与计数在 C 侧，沙盒只记 `redo_count`。`burn_cd`（再刻 10 分钟）与委托交付不变。
 
 ### 12.7 地图 v1
 

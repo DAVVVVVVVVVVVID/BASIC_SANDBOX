@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5al. world-v1.3.7：闭测 §6 音乐工作站（总控照准：沿用 pc_music；tag `world-v1.3.7`）—— 完成，未上镇
+
+- `pc_music` 显示名「音乐工作站」；`production.compose.daily_max` 2（重做也计）由沙盒管：新 `daily_count / daily_count_add` 与分钟类共用 `_daily_use`（04:00 重置、进检查点）；`compose` 超限 `daily_limit`（used_count / limit_count / resets_at），成功带 `result.daily`；`GET /player.daily_use.compose`。CD meta 透传 `suno_id / audio_ref / satisfaction / redo_count / lyrics / style`（原 `title / commission_id / text / summary / ref` 不变）。测试 +1，**353 passed**；api-spec compose 行 + §12.13。payload 契约已发 C。
+- 接下来按总控顺序：④ 导演指令通道（等 C 今晚设计）+ interventions 日志（A 的 a3d07db 格式）→ ③ LIVE_URL webhook（对 G）→ ⑤ econ_reconcile（周二）。
+
 ## 5ak. world-v1.3.6：账户残迹的判断与顺手清（tag `world-v1.3.6`；不为此切镇）—— 完成
 
 - 判断：「阿蝉_22cbbe: 300」只进 `/admin/metrics.accounts` 展示；房租 / 日薪 / 委托都按配置键遍历，`balance()` 按账号查，没有任何汇总把 `_balances` 全加——**不影响经济统计**。但每个匿名人类（普通加入框）离开都会留一行并进检查点，会越积越多。

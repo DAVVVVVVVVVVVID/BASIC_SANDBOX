@@ -144,7 +144,9 @@
         "pc_music"
       ],
       "min_minutes": 30,
-      "item": "cd"
+      "item": "cd",
+      "daily_max": 2,
+      "_doc": "闭测 §6：音乐工作站 = pc_music；用满 min_minutes 后 compose 产 cd；每人每日最多 daily_max 首（重做也计，04:00 重置，进检查点）→ 超了 reason daily_limit；meta 透传 title / suno_id / audio_ref / satisfaction / redo_count / lyrics / style / commission_id / text / summary / ref"
     },
     "make_video": {
       "objects": [
