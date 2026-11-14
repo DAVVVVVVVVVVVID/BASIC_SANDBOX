@@ -695,6 +695,12 @@ def _ensure_player_fields(player: dict) -> None:
     if not any(b.get("key") == "decay" for b in player.get("buffs", [])):
         player.setdefault("buffs", []).insert(0, dict(DECAY_BUFF))
     player["hp"] = player["fullness"]
+    # v1.3.5：旧检查点回填——旧 agent_id 归新；dnd / dnd_auto 按身份补（主镇阿蝉是在 v1.3.2 上建的，没有 dnd_auto）
+    if player.get("agent_id"):
+        player["agent_id"] = canonical_id(player["agent_id"])
+    auto = player.get("controller", "human") == "human" and (player.get("agent_id") in DND_DEFAULT_IDS or player.get("name") in DND_DEFAULT_NAMES)
+    player.setdefault("dnd_auto", auto)
+    player.setdefault("dnd", auto)
 
 
 # ── 玩家生命周期 ──────────────────────────────────────────────────────────────

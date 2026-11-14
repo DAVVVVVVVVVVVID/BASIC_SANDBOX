@@ -139,3 +139,15 @@ def test_dnd_auto_park_takeover_and_persistent_leave(client, v12, fake_clock):
     assert world_state.get_zone_at(r["position"]["x"], r["position"]["y"])["arena"] == "achan_room"
     anon = _human(client, name="路人", agent_id=None)
     assert client.delete(f"/player/{anon}/leave").json() == {"ok": True} and anon not in world_state._players
+
+
+def test_restore_backfills_dnd_auto_and_legacy_id(client, v12):
+    """v1.3.5：v1.3.2 检查点里的人类阿蝉没有 dnd_auto（主镇 8000 的 阿蝉_83f3f5）→ 回填后离线归位 / leave 保护 / 接管都生效；旧 agent_id 归新。"""
+    old_achan = {"id": "阿蝉_old", "name": "阿蝉", "controller": "human", "agent_id": "achan", "position": {"x": 4, "y": 30}, "facing": "right",
+                 "state": "idle", "fullness": 70.0, "energy": 90.0, "tags": [], "buffs": [], "dnd": True}
+    old_xq = {"id": "xq_old", "name": "小千", "controller": "agent", "agent_id": "npc_xiaoqian", "position": {"x": 15, "y": 21}, "facing": "down",
+              "state": "idle", "tags": [], "buffs": []}
+    for p in (old_achan, old_xq):
+        world_state._ensure_player_fields(p)
+    assert old_achan["dnd_auto"] is True and old_achan["dnd"] is True
+    assert old_xq["agent_id"] == "claudine" and old_xq["dnd_auto"] is False and old_xq["dnd"] is False
