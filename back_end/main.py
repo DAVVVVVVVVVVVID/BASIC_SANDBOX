@@ -24,6 +24,18 @@ async def lifespan(app: FastAPI):
     else:
         time_state.reset_time()   # 首次启动：游戏时间 = 真实当前时间
         log.info("no checkpoint; fresh world at %s", time_state.game_now_iso())
+    try:
+        from game import interventions
+        import os as _os, subprocess as _sp
+        commit = None
+        try:
+            commit = _sp.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=3).stdout.strip() or None
+        except Exception:
+            pass
+        interventions.log("restart", "system", ["*"], f"沙盒启动（{'回填检查点' if info else '空世界'}）",
+                          payload={"pid": _os.getpid(), "commit": commit, "players": info["players"] if info else 0, "downtime_s": round(info["downtime_s"], 1) if info else None})
+    except Exception:
+        pass
     ticker.start()
     self_sync.start()             # 自我层 delta 同步线程（SELF_SYNC=0 关闭）
     ws.hub.start()                # B17：/ws/world 推送

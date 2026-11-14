@@ -98,6 +98,9 @@ def op_set_time(step: dict) -> dict:
     while len(parts) < 3:
         parts.append(0)
     target = datetime(*[int(x) for x in date.split("-")], parts[0], parts[1], parts[2], tzinfo=time_state.GAME_TZ)
+    from game import interventions
+    interventions.log("set_time", "system", ["*"], f"夹具拨钟 {now.isoformat(timespec='seconds')} → {target.isoformat(timespec='seconds')}",
+                      payload={"from": now.isoformat(timespec="seconds"), "to": target.isoformat(timespec="seconds"), "speed": step.get("speed")}, reversible=True)
     with world_state.STATE_LOCK:
         time_state._state["anchor_real"] = time_state.now_real()
         time_state._state["anchor_game"] = target.timestamp()
@@ -581,6 +584,9 @@ def admin_scenario(body: ScenarioRequest):
         if op in _SAMPLE_OPS and entity in world_state._players:
             state_log.sample_now(world_state._players[entity], "scenario")
         results.append({"op": op, "ok": True, "detail": detail})
+    from game import interventions
+    ops = [s.get("op") for s in body.steps]
+    interventions.log("fixture", "system", ["*"], f"夹具 {body.label or '-'}：{' / '.join(ops)[:90]}", payload={"ops": ops}, ref={"scenario": body.label})
     return {
         "ok": True, "label": body.label, "steps": results,
         "world": {"time": time_state.get_time_state(), "players": [_brief(p) for p in world_state._players.values()]},

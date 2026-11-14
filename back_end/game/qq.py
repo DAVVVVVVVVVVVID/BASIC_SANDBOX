@@ -216,6 +216,12 @@ def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: 
         _social.qq_credit(_gnt(), p, 1)                              # world-v1.1 §4.1：每条 +1，每小时 ≤ 12
         world_state.mark_input(entity_id)
         _log({**{k: v for k, v in msg.items() if k not in ("read_by", "kind")}, "msg_kind": msg["kind"], "kind": "message"})
+        try:
+            from game import interventions
+            if interventions.is_streamer(p):                                  # 闭测 §5.2：阿蝉发的 QQ 只记长度
+                interventions.achan_qq(p, group or to or "", len(text or ""), bool(group))
+        except Exception:
+            pass
         _push({"event": "message", **{k: v for k, v in msg.items() if k not in ("read_by",)}})
         return _public(msg, me), None
 

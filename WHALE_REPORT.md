@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5am. world-v1.3.8：interventions.jsonl 沙盒侧自动记录（闭测 §5.2，A 格式 a3d07db；tag `world-v1.3.8`）—— 完成，未上镇
+
+- 新 `game/interventions.py`（路径按 `data/<town>/interventions/<日>.jsonl` 推导；`is_streamer` = human + dnd_auto）。挂点：join / rejoin 接管 / 首个动作接管 / admin dnd 开关 → `achan_login` / `achan_logout`；心跳超时归位、leave → `achan_logout`；`qq.send` → `achan_qq`（只记长度）；`/action` 的 knock / open_door / give 与 `/door/respond` → `achan_knock`；聊天房关闭 → `achan_chat`（turns / minutes）；夹具 `set_time` 与每次 `/admin/scenario` → `set_time` / `fixture`；启动 → `restart`。
+- ④ 导演指令：C 定为 agent 侧文件收件箱（direct.py 写 directives + 调 A 的 log_intervention.py），**沙盒不加 /admin/instruct**，④ 的沙盒侧即本条。测试 +2，**355 passed**；api-spec §12.14。
+
 ## 5al. world-v1.3.7：闭测 §6 音乐工作站（总控照准：沿用 pc_music；tag `world-v1.3.7`）—— 完成，未上镇
 
 - `pc_music` 显示名「音乐工作站」；`production.compose.daily_max` 2（重做也计）由沙盒管：新 `daily_count / daily_count_add` 与分钟类共用 `_daily_use`（04:00 重置、进检查点）；`compose` 超限 `daily_limit`（used_count / limit_count / resets_at），成功带 `result.daily`；`GET /player.daily_use.compose`。CD meta 透传 `suno_id / audio_ref / satisfaction / redo_count / lyrics / style`（原 `title / commission_id / text / summary / ref` 不变）。测试 +1，**353 passed**；api-spec compose 行 + §12.13。payload 契约已发 C。

@@ -1621,6 +1621,12 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - 流程（C 实现，沙盒只管门槛 / 上限 / 产物）：`use` 占满 `production.compose.min_minutes`（30）→ `compose` 产 1 张 `cd` 入背包；**每日 `daily_max` 2 首（重做也计）**由沙盒管：`daily_count` 与分钟类共用 `_daily_use`（04:00 重置、进检查点），超了 `daily_limit`；`GET /player.daily_use.compose {used_count, limit_count, resets_at}`。
 - CD `meta` 透传字段：`title / suno_id / audio_ref / satisfaction（1–5） / redo_count / lyrics / style / commission_id / text / summary / ref`，自动加 `created_at / by`；满意度 < 3「想重做」的判断与计数在 C 侧，沙盒只记 `redo_count`。`burn_cd`（再刻 10 分钟）与委托交付不变。
 
+### 12.14 闭测周 §5.2：interventions.jsonl 沙盒侧自动记录（tag `world-v1.3.8`；格式 = A 的 whale `docs/interventions-format.md` v1）
+
+- 位置：`run/data/<town>/interventions/<YYYY-MM-DD>.jsonl`（墙钟日期；由 `SANDBOX_DATA_DIR` 向上找到 `data` 目录再接 `<SANDBOX_TOWN>`：主镇 `run/data/main/`、bench `run/data/bench/`；`SANDBOX_INTERVENTIONS_DIR` 可覆盖）。每行：`id`（iv-日期-6 位）/ `ts`（带时区）/ `game_time` / `town` / `kind` / `actor` / `targets` / `summary`（≤ 120 字）/ `source: sandbox` / `schema_version: 1`，另按需 `payload / ref / duration_s / reversible`。
+- 沙盒写的 kind：`achan_login`（人类以 achan 身份 join / rejoin 接管 / 首个动作接管 / admin 关 dnd；payload.via）、`achan_logout`（心跳超时归位 / leave / admin 开 dnd；payload.reason / position）、`achan_chat`（阿蝉参与的房间开→关一行：turns / minutes / room_id，targets = 对方 agent）、`achan_qq`（阿蝉发的每条：peer / chars / group，**不记原文**）、`achan_knock`（敲门 / 开门 / 给物 / 应门：action / door / home / item / 应门 chars，targets = 门主或对方）、`set_time`（夹具拨钟：from / to / speed，reversible）、`fixture`（每次 `/admin/scenario` 一行：label / ops）、`restart`（沙盒启动：pid / commit / 回填人数 / 停机秒）。actor：阿蝉类 `streamer`，夹具 / 启动 `system`。
+- 不记：弹幕 / 评论原文、uid / 昵称、凭证；阿蝉说的话只记长度（原文在 chat / qq 日志）。导演指令（`director_directive`）由 C 的 direct.py 写同一目录，沙盒不加 `/admin/instruct`。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

@@ -472,6 +472,15 @@ def _close_room(room: dict, players: dict, reason: str) -> None:
     _record_chat_end(participants)
     room["participants"] = []
     room["status"] = "closed"; room["closed_at"] = time.time()
+    try:
+        from game import interventions
+        ps = [players.get(e) for e in participants]
+        st = next((p for p in ps if interventions.is_streamer(p)), None)
+        if st is not None:                                                    # 闭测 §5.2：阿蝉参与的一段当面对话 = 一行
+            interventions.achan_chat(st, [p for p in ps if p is not None and p is not st], len(room.get("messages") or []),
+                                     (room["closed_at"] - float(room.get("created_at") or room["closed_at"])) / 60.0, room["chat_room_id"])
+    except Exception:
+        pass
     chat_log.log_event(reason, room["chat_room_id"], participants)
     if reason != "room_close":
         chat_log.log_event("room_close", room["chat_room_id"], participants, reason=reason)

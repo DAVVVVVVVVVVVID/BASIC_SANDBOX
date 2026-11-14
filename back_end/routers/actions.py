@@ -611,6 +611,12 @@ async def dispatch(body: ActionRequest):
             if k in res:
                 extra[k] = res[k]
         hub.push_action(body.entityId, body.action.type, result.success, obj=res.get("objectId"), reason=result.reason, extra=extra or None)
+        from game import interventions
+        if body.action.type in ("knock", "open_door", "give") and interventions.is_streamer(_players.get(body.entityId)):   # 闭测 §5.2
+            what = {"knock": "敲门", "open_door": "开门", "give": "给物"}[body.action.type]
+            tg = [x for x in [res.get("target"), *(res.get("owners") or [])] if isinstance(x, str)] or ["*"]
+            interventions.achan_knock(_players[body.entityId], what, tg, action=body.action.type, success=result.success, reason=result.reason,
+                                      door=(res.get("door") or {}).get("id") if isinstance(res.get("door"), dict) else res.get("door_id"), home=res.get("home"), item=res.get("item"))
     except Exception:
         pass
 

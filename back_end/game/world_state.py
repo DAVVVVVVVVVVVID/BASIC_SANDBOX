@@ -563,8 +563,10 @@ def _park_dnd_locked(player: dict, reason: str) -> None:
         player["state"] = "idle"
     player["dnd"] = True
     try:
-        from game import external_log
+        from game import external_log, interventions
         external_log.log("dnd", pid, action="park", reason=reason, position=dict(player["position"]))
+        if reason != "leave":                                                 # leave 由路由记（带 reason leave）
+            interventions.achan_logout(player, reason)
     except Exception:
         pass
 
@@ -585,8 +587,9 @@ def takeover_on_action(player_id: str) -> bool:
         return False
     p["dnd"] = False
     try:
-        from game import external_log
+        from game import external_log, interventions
         external_log.log("dnd", player_id, action="takeover")
+        interventions.achan_login(p, "first_action")
     except Exception:
         pass
     return True

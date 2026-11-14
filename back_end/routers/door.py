@@ -28,6 +28,11 @@ def door_respond(body: RespondBody):
         raise HTTPException(status_code=404, detail=f"request not found: {body.request_id}")
     if reason:
         return {"success": False, "reason": reason, "request": None}
+    from game import interventions, world_state as _ws
+    p = _ws._players.get(body.entity_id)
+    if interventions.is_streamer(p):                                          # 闭测 §5.2：阿蝉应门
+        interventions.achan_knock(p, "应门" + ("（拒绝）" if body.decline else ""), [r.get("visitor_account") or r.get("visitor") or "*"], action="door_respond",
+                                  decline=bool(body.decline), chars=len(body.text or ""), request_id=body.request_id)
     return {"success": True, "reason": None, "request": r}
 
 

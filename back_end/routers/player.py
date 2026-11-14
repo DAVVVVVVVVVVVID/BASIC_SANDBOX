@@ -44,8 +44,14 @@ def join(body: JoinRequest):
         if existing is not None:                                          # v1.3.4 ③：同一身份的人类再 join = 接管已有玩家（主播的阿蝉常驻）
             player = _rejoin(existing["id"])
             player["tags"] = view_tags(player)
+            from game import interventions
+            if interventions.is_streamer(existing):
+                interventions.achan_login(existing, "rejoin", takeover=True)
             return {"playerId": player["id"], "player": player, "takeover": True}
     player = create_player(body.name.strip(), controller=body.controller, profile=body.profile, dnd=body.dnd)
+    from game import interventions
+    if interventions.is_streamer(player):
+        interventions.achan_login(player, "join", takeover=False)
     player["tags"] = view_tags(player)                                   # world-v1.3：响应里的 tags 与 GET /player 一致（dnd / working）
     return {"playerId": player["id"], "player": player}
 
@@ -66,6 +72,8 @@ def leave(player_id: str):
     if p is not None and p.get("dnd_auto"):                               # v1.3.4 ③：主播的阿蝉常驻——leave 只停（dnd + 回房待机），不删
         park_dnd(player_id, "leave")
         p["online"] = False
+        from game import interventions
+        interventions.achan_logout(p, "leave")
         return {"ok": True, "parked": True, "position": dict(p["position"])}
     remove_player(player_id)
     return {"ok": True}
@@ -136,9 +144,13 @@ def set_player_dnd(player_id: str, body: DndRequest):
     """world-v1.3：静态勿扰开关（主播接管阿蝉时关，离开时开）。开 = 七变量不衰减、敲门即 busy、QQ 未读不扣发件人亲密度、
     tags 带 dnd（在自家房间再带 working）、心跳超时不删人（位置留在原地，不自动传送）。"""
     from game.world_state import set_dnd
+    before = bool((_players.get(player_id) or {}).get("dnd"))
     p = set_dnd(player_id, body.on)
     if p is None:
         raise HTTPException(status_code=404, detail=f"player not found: {player_id}")
+    from game import interventions
+    if interventions.is_streamer(p) and before != bool(body.on):             # 闭测 §5.2：dnd 开关变化记 achan_login / logout
+        (interventions.achan_logout(p, "admin_dnd_on") if body.on else interventions.achan_login(p, "admin_dnd_off"))
     return {"ok": True, "playerId": player_id, "dnd": bool(p["dnd"]), "tags": __import__("game.world_state", fromlist=["x"]).view_tags(p)}
 
 
