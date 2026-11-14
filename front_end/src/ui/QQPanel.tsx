@@ -22,23 +22,27 @@ export default function QQPanel({ playerId, readOnly, compact = false, style }: 
   const [open, setOpen] = useState(!compact)
   const [text, setText] = useState('')
   const [err, setErr] = useState<string | null>(null)
-  const sinceRef = useRef<string | null>(null)
+  /** 每个联系人各自的增量游标（按 peer 取，历史多也不会被 limit 截掉） */
+  const sinceByPeer = useRef(new Map<string, string>())
+  const peerRef = useRef<string | null>(null)
+  peerRef.current = peer
   const listRef = useRef<HTMLDivElement>(null)
 
-  // 轮询 + ws
+  // 轮询 + ws：联系人 / 未读数用 /qq/contacts；正文按当前选中的 peer 取（peer= + limit=500 + 各自 since）
   useEffect(() => {
     let stop = false
-    const tick = async () => {
+    const tick = async (forPeer: string | null = peerRef.current) => {
       try {
-        const [c, m] = await Promise.all([fetchContacts(playerId), fetchInbox(playerId, sinceRef.current)])
+        const since = forPeer ? sinceByPeer.current.get(forPeer) ?? null : null
+        const [c, m] = await Promise.all([fetchContacts(playerId), fetchInbox(playerId, since, { peer: forPeer, limit: 500 })])
         if (stop) return
         setQQContacts(c)
-        if (m) { mergeQQMessages(m); if (m.length) sinceRef.current = m[m.length - 1].ts || sinceRef.current }
+        if (m) { mergeQQMessages(m); if (m.length && forPeer) { const last = m[m.length - 1].ts; if (last) sinceByPeer.current.set(forPeer, last) } }
         else if (c === null) setQQContacts(null)
       } catch { /* 网络抖动：下次再试 */ }
     }
     tick()
-    const id = window.setInterval(tick, POLL_MS)
+    const id = window.setInterval(() => tick(), POLL_MS)
     const onWs = (msg: unknown) => {
       const ev = (msg as { event?: string }).event
       if (ev === 'read') { tick(); return }               // B：平铺 {type:'qq', event:'message'|'read', …}；read 只刷一次状态
@@ -70,6 +74,17 @@ export default function QQPanel({ playerId, readOnly, compact = false, style }: 
   }, [qq.messages, peer, contacts, playerId])
   useEffect(() => { listRef.current?.scrollTo({ top: 1e9 }) }, [thread.length, open])
   useEffect(() => { if (!peer && contacts.length) setPeer(contacts[0].id) }, [contacts, peer])
+  // 切换联系人：立刻按 peer 拉它的会话（首次不带 since，取最近 500 条）
+  useEffect(() => {
+    if (!peer) return
+    let stop = false
+    fetchInbox(playerId, sinceByPeer.current.get(peer) ?? null, { peer, limit: 500 }).then(m => {
+      if (stop || !m) return
+      mergeQQMessages(m)
+      if (m.length) { const last = m[m.length - 1].ts; if (last) sinceByPeer.current.set(peer, last) }
+    }).catch(() => { /* 下次轮询再试 */ })
+    return () => { stop = true }
+  }, [peer, playerId, mergeQQMessages])
 
   const peerC = contacts.find(c => c.id === peer)
 

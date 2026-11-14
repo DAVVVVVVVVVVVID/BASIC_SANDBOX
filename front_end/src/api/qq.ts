@@ -57,9 +57,14 @@ export async function fetchContacts(playerId: string): Promise<QQContact[] | nul
   catch (e) { if (e instanceof ApiError && (e.status === 404 || e.status === 405)) return null; throw e }
 }
 
-export async function fetchInbox(playerId: string, since?: string | null): Promise<QQMessage[] | null> {
+/** 收件箱。后端默认 limit=100 且按时间升序——历史 > 100 条时新消息会被截掉（11-15 主播：5 条未读点开看不到），所以按 peer 取 + 放大 limit */
+export async function fetchInbox(playerId: string, since?: string | null, opts: { peer?: string | null; limit?: number } = {}): Promise<QQMessage[] | null> {
   try {
-    const raw = await apiGet<unknown>(`/qq/inbox?player=${encodeURIComponent(playerId)}${since ? `&since=${encodeURIComponent(since)}` : ''}`)
+    const q = [`player=${encodeURIComponent(playerId)}`]
+    if (since) q.push(`since=${encodeURIComponent(since)}`)
+    if (opts.peer) q.push(`peer=${encodeURIComponent(opts.peer)}`)
+    q.push(`limit=${opts.limit ?? 500}`)
+    const raw = await apiGet<unknown>(`/qq/inbox?${q.join('&')}`)
     const r = obj(raw)
     const list = Array.isArray(raw) ? raw : Array.isArray(r.messages) ? r.messages : Array.isArray(r.inbox) ? r.inbox : []
     return list.map(normalizeMessage).filter((m): m is QQMessage => !!m)
