@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../store/gameStore'
+import { setDnd } from '../api/world'
 import { gameNowMs, busyText, dailyUseLines, rentText } from '../game/v11'
 import type { Buff } from '../types'
 import { NEED_KEYS } from '../types'
@@ -40,8 +41,34 @@ function Divider() {
 // 本地倒计时 key：source:key，唯一标识一个 instant buff 实例
 function buffKey(b: Buff) { return `${b.source}:${b.key}` }
 
+/** world-v1.3：勿扰开关（主播操控阿蝉）——POST /admin/player/{id}/dnd，回包更新本地 player */
+function DndRow({ playerId, dnd, tags }: { playerId: string; dnd: boolean; tags: string[] }) {
+  const [busy, setBusy] = useState(false)
+  const toggle = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const r = await setDnd(playerId, !dnd)
+      const cur = useGameStore.getState().player
+      if (cur && cur.id === playerId) useGameStore.getState().setPlayer({ ...cur, dnd: r.dnd, tags: r.tags ?? cur.tags })
+    } catch { /* 保持原状 */ } finally { setBusy(false) }
+  }
+  const working = tags.includes('working')
+  return (
+    <Row label="勿扰" value={
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ color: dnd ? '#f6ad55' : '#68d391', fontSize: 11 }}>{dnd ? (working ? '开 · 工作中' : '开') : '关'}</span>
+        <button onClick={toggle} disabled={busy} data-testid="dnd-toggle" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, border: '1px solid #4a5568', background: dnd ? '#744210' : '#22543d', color: '#fff', cursor: 'pointer' }}>
+          {busy ? '…' : (dnd ? '关闭勿扰' : '开启勿扰')}
+        </button>
+      </span>
+    } />
+  )
+}
+
 export default function HUD() {
   const player  = useGameStore((s) => s.player)
+  const identity = useGameStore((s) => s.identity)
   const speed   = useGameStore((s) => s.worldState?.speed ?? 1)
   const running = useGameStore((s) => s.worldState?.running ?? false)
   const tiles   = useGameStore((s) => s.tiles)
@@ -123,6 +150,7 @@ export default function HUD() {
       <Row label="年龄" value={profile?.age ?? '—'} />
       <Row label="ID"   value={<span style={{ color: '#718096', fontSize: 11 }}>{player.id}</span>} />
       {typeof player.gold === 'number' && <Row label="金币" value={<span style={{ color: '#ffe9a8', fontWeight: 700 }}>💰 {player.gold}</span>} />}
+      {(identity === 'achan' || player.agent_id === 'achan' || typeof player.dnd === 'boolean') && <DndRow playerId={player.id} dnd={!!player.dnd} tags={player.tags ?? []} />}
       {(() => { const r = rentText(player.rent); return r ? <Row label="房租" value={<span style={{ color: r.overdue ? '#fc8181' : '#a0aec0', fontSize: 11, fontWeight: r.overdue ? 700 : 400 }}>{r.text.replace(/^🏠 /, '')}</span>} /> : null })()}
       {player.busy && <Row label="正在" value={<span style={{ color: '#9ae6b4', fontSize: 11 }}>{busyText(player.busy, gameNowMs(worldStateForHud))}</span>} />}
       {dailyUseLines(player.daily_use).map(l => <Row key={l.key} label="今日" value={<span style={{ color: l.full ? '#fc8181' : '#a0aec0', fontSize: 11 }}>{l.text}</span>} />)}

@@ -29,6 +29,8 @@ interface GameStore {
   mapSig: string
   objects: GameObject[]
   myPlayerId: string | null
+  /** 以某身份登录（world-v1.3：achan = 主播接管阿蝉；离开时不删人、勿扰归位） */
+  identity: string | null
   /** 所有 player（含自己）；GameScene 自行过滤 */
   players: OtherPlayer[]
   /** 旁观目标等需要七变量的人：id → /player/{id}/state */
@@ -44,6 +46,7 @@ interface GameStore {
 
   setMode: (m: AppMode) => void
   setPlayer: (p: Player | null) => void
+  setIdentity: (id: string | null) => void
   setWorldState: (ws: WorldState) => void
   setActionLog: (log: ActionLogEntry[]) => void
   setTiles: (tiles: Tile[]) => void
@@ -84,6 +87,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   mapSig: '',
   objects: [],
   myPlayerId: null,
+  identity: null,
   players: [],
   playerVars: {},
   bubbles: [],
@@ -94,6 +98,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setMode: (mode) => set({ mode }),
   setPlayer: (player) => set({ player }),
+  setIdentity: (identity) => set({ identity }),
   setWorldState: (worldState) => set({ worldState }),
   setActionLog: (actionLog) => set({ actionLog }),
   setTiles: (tiles) => set({ tiles }),

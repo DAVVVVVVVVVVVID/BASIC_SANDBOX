@@ -105,6 +105,8 @@ export interface OtherPlayer {
   /** W9：金币与背包（假设 players[] 也带） */
   gold?: number
   inventory?: unknown[]
+  /** world-v1.3：勿扰 */
+  dnd?: boolean
 }
 
 export interface TiledTilesetInfo {
@@ -216,6 +218,8 @@ export interface Player extends Partial<NeedVars> {
   scene?: 'sandbox' | 'live'
   agent_id?: string | null
   mood_base?: number
+  /** world-v1.3：静态勿扰（主播操控的阿蝉）；tags 里同时有 dnd / working */
+  dnd?: boolean
 }
 
 /** GET /player/{id}/state（B13，只读，不刷心跳） */
@@ -229,6 +233,8 @@ export interface PlayerStateVars {
   controller: Controller
   online: boolean
   agent_id: string | null
+  /** world-v1.3：静态勿扰（主播操控的阿蝉）；tags 里同时有 dnd / working */
+  dnd?: boolean
   last_tick_ts: string
   recent_uses: Record<string, number>
   /** B18（W6）：她在用游戏机时 brain 的局内指标 */

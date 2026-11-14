@@ -33,7 +33,7 @@ export async function loadAiManifest(): Promise<AiManifest | null> {
 }
 
 /** 物品类型别名：没有专属 AI 图的类型借同类图（bed_21 借 bed 并旋转 90°，见 GameObjectSprite） */
-export const AI_OBJECT_ALIAS: Record<string, string> = { pc_desk: 'pc', book: 'shelf', sofa: 'sofa_tv', cook: 'stove', desk: 'classroom_desk', bed_21: 'bed', desk_12: 'reading_desk', game_console: 'pc', dining_table: 'restaurant_table', tree_big: 'tree' }   // tree_big：v1.2 大树 2×2，正式图待主播，先用小树图（按 tiles 包围盒底边对齐）   // dining_table：B f4d42ba 合租房家用餐桌（2×1），沿用餐馆桌子图
+export const AI_OBJECT_ALIAS: Record<string, string> = { pc_desk: 'pc', book: 'shelf', sofa: 'sofa_tv', cook: 'stove', desk: 'classroom_desk', bed_21: 'bed', desk_12: 'reading_desk', game_console: 'pc', dining_table: 'restaurant_table', tree_big: 'tree', bench_side: 'bench_side_e' }   // bench_side：v1.2.3 码头侧向长椅（B 定座面朝东 → 镜像版 _e）   // tree_big：v1.2 大树 2×2，正式图待主播，先用小树图（按 tiles 包围盒底边对齐）   // dining_table：B f4d42ba 合租房家用餐桌（2×1），沿用餐馆桌子图
 export function aiObjectTypeFor(type: string): string { return AI_OBJECT_ALIAS[type] ?? type.replace(/_\d+$/, '') }
 /** 该类型有 AI 物品图（manifest.objects 里）→ 不必再去拉像素 sprite（v1.2 的 lamp 没有像素图，拉了只会报 404） */
 export function aiHasObject(type: string): boolean { return !!manifest && aiEnabled() && manifest.objects.includes(aiObjectTypeFor(type)) }

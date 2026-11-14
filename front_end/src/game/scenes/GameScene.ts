@@ -700,7 +700,7 @@ export default class GameScene extends Phaser.Scene {
         s.setStepMs(op.controller === 'human' ? 300 : 1000 / speed)
         s.setServerWalking(op.state === 'walking' || op.state === 'walking_over')
       }
-      s.setDimmed(op.online === false)
+      s.setDimmed(op.online === false && !(op.dnd === true || (op.tags ?? []).includes('dnd')))   // v1.3：勿扰的常驻阿蝉离线也照常画（B 11-14）
       if (op.busy) this.busyById.set(op.id, op.busy); else if (this.busyById.delete(op.id)) s.setProgress(null)
       s.setStateLabel(deriveStateLabel(op, objects))
       s.setPoseAnchors(poseAnchorsFor(op, objects))

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { fetchWorld, fetchEvents, leavePlayer } from './api/world'
+import { fetchWorld, fetchEvents, leavePlayer, setDndOnUnload } from './api/world'
 import { initGame } from './game/PhaserGame'
 import { startTickSystem } from './game/systems/TickSystem'
 import { useGameStore } from './store/gameStore'
@@ -30,12 +30,13 @@ function PlayApp() {
   const initialized = useRef(false)
   const myPlayerId = useGameStore((s) => s.myPlayerId)
 
-  const handleJoined = async (playerId: string, player: Player, name: string) => {
+  const handleJoined = async (playerId: string, player: Player, name: string, identity?: string) => {
     if (initialized.current) return
     initialized.current = true
-    const { setPlayer, setWorldState, setMap, setObjects, setMyPlayerId, setPlayers, setMode } = useGameStore.getState()
+    const { setPlayer, setWorldState, setMap, setObjects, setMyPlayerId, setPlayers, setMode, setIdentity } = useGameStore.getState()
     setMode('play')
     setMyPlayerId(playerId)
+    setIdentity(identity ?? null)
     setPlayer(player)
     try {
       const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents(), loadAiManifest()])
@@ -55,11 +56,16 @@ function PlayApp() {
 
   useEffect(() => {
     const onUnload = () => {
-      const id = useGameStore.getState().myPlayerId
-      if (id) leavePlayer(id)
+      const { myPlayerId: id, identity } = useGameStore.getState()
+      if (!id) return
+      if (identity === 'achan') { setDndOnUnload(id, true); return }   // 主播离开：阿蝉留在镇上、勿扰归位，不删人（§12.12）
+      leavePlayer(id)
     }
-    window.addEventListener('beforeunload', onUnload)
-    return () => window.removeEventListener('beforeunload', onUnload)
+    let fired = false
+    const once = () => { if (fired) return; fired = true; onUnload() }
+    window.addEventListener('beforeunload', once)
+    window.addEventListener('pagehide', once)   // 移动端 / 后台关闭不触发 beforeunload，pagehide 兜底
+    return () => { window.removeEventListener('beforeunload', once); window.removeEventListener('pagehide', once) }
   }, [])
 
   if (!myPlayerId) {

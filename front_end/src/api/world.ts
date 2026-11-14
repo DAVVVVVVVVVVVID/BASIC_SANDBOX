@@ -11,6 +11,30 @@ export function joinPlayer(name: string) {
   return apiPost<{ playerId: string; player: Player }>('/player/join', { name, controller: 'human' })
 }
 
+/** world-v1.3 §12.12：以某个身份（agent_id）加入——账号 / 钥匙 / 家 / QQ 按该身份算；阿蝉缺省 dnd 开，接管时显式关 */
+export function joinAs(name: string, agentId: string, dnd?: boolean) {
+  return apiPost<{ playerId: string; player: Player }>('/player/join', { name, controller: 'human', profile: { agent_id: agentId }, ...(dnd === undefined ? {} : { dnd }) })
+}
+
+/** 只拉 players[]（找常驻的阿蝉用） */
+export const fetchPlayersLite = () => apiGet<{ players?: Player[] }>('/world?fields=players')
+
+/** world-v1.3：勿扰开关（主播接管时关、离开时开） */
+export function setDnd(playerId: string, on: boolean) {
+  return apiPost<{ ok: boolean; playerId: string; dnd: boolean; tags: string[] }>(`/admin/player/${encodeURIComponent(playerId)}/dnd`, { on })
+}
+
+/** 页面关闭时发（keepalive，不等响应）：主播离开 → 阿蝉勿扰归位；不删人 */
+export function setDndOnUnload(playerId: string, on: boolean) {
+  const base = (import.meta.env.VITE_API_BASE as string | undefined) || '/api'
+  const url = `${base}/admin/player/${encodeURIComponent(playerId)}/dnd`
+  const body = JSON.stringify({ on })
+  try {
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon && navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }))) return
+  } catch { /* fall through */ }
+  try { void fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }) } catch { /* ignore */ }
+}
+
 export function rejoinPlayer(playerId: string) {
   return apiPost<{ playerId: string; player: Player }>('/player/rejoin', { playerId })
 }
