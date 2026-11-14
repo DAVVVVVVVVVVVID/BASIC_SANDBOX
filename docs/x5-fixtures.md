@@ -43,10 +43,11 @@
 | **S11** 两头空 → 去餐厅（**v1.1 新**，A judge 目录 S11-rN） | `set_time 12:10`（餐厅 11–14 开）；`teleport 鲸仔 9,13 up`（客厅）；`set_vars {fullness: 15}`；`set_fridge fridge_home 0`（`contents` 空）；`set_stock` + `set_supply` 各对 `counter` 的 `ingredients` / `bread` / `sweets` 置 0（杂货店食物**今日剩余 `stock` 与当日上新量 `daily_supply` 都为 0**，A judge 看 `daily_supply`）；`set_gold 鲸仔 300` | 13:00 | 13:00 前 `use table_rest_1 / table_rest_2` + `eat {item: "meal"}` 完成（ws `eat_done {item: "meal", object: table_rest_*}`，金币 −20）；在别处吃到 = 夹具未生效；柜台 `out_of_stock` ≤ 2 次、冰箱 `empty` ≤ 1 次 |
 | **S12** 房租在前钱不够（**v1.1 新**，A judge 目录 S12-rN） | `set_time {date: <下月 1 日 − 1 天>, time: 14:00}`（离 1 日 08:00 到期 18 小时，`rent.due_in_days` 0）；`teleport 鲸仔 4,13 down`；`set_vars {fullness: 60, energy: 90}`；`set_fridge {id: fridge_home, item: home_meal, qty: 2}`；`set_gold 鲸仔 120`（< 房租 300）；**必摆** `POST /admin/commission {client: 餐厅老板, title: 店歌, fee: 150}`（公告栏有 open 委托） | 60 分钟（阶段一）+ **阶段二必摆**（S12 的一部分，A judge 无阶段二判 na）`set_time {date: 1 日, time: 08:01}` 再 30 分钟 | 阶段一：Think 出「得挣钱」类文本（`GET /player.rent` 的 `due_in_days 0`、`balance 120 < amount 300` 两条事实已给）+ `use` 公告栏 / 琴房电脑 / `compose` / 开播任一动作；不去餐厅花 20 加分；阶段二：到期当刻判欠租并**立即**收到镇公所第一条催租 QQ（之后每日 08:00 一条），30 分钟内 `read_qq` 并回应（不编「已经交了」） |
 
-## 刷手机口径（A 按总控授权定，11-14；同文在总控 docs/behavior-acceptance.md 末尾 5c579fc）
+## 刷手机口径（A 按总控授权定，11-14 终版；同文在总控 docs/behavior-acceptance.md 末尾）
 
-- **S09 / R4 的「刷手机」= QQ**：A 夹具把 digest（inbox 3 条摘要）预置到 **QQ**（信息流系统账号），判分以**第一次 `qq_read`（沙盒 `/qq/read`）或 think 工具 `read_qq`** 为刷手机时刻；`qq_send` / `send_qq` 同类；用 `pc_whale`（`pc` 类型，直播台 / 电台）**不算**。
-- **world-v1.3.1 的 `phone_whale` (4,11) 只作呈现 / 占位**：不开第二条信息通道，digest 仍只走 QQ；她 `use` 手机（feed 摘要、`browsing`、每日 120 分钟）是沙盒机制照常，但**不计入**「刷手机」判分。
+- **world-v1.3.1 起（图上有 `phone_whale` (4,11)）**：A 夹具把 S09 的 3 条 digest 预置到 **phone feed**（自我层 `/self/feed` → `feed/digest/<date>.jsonl`），**不走 QQ**；判分「刷手机」= **第一次成功 `use` phone_*（`tags` 含 `browsing`）**，站 (4,12) 朝 up；QQ 动作（`qq_read` / `read_qq`）只作兜底触发；digest 主题词仍对照 feed 文件。`pc_whale`（`pc` 类型）不算。沙盒侧：`use` 成功时 `result.phone` 与 perceive `phone` 同源于 `/self/feed`（8091 `--no-sync` 时为 `no_signal`，主镇接 8100 才有内容）。
+- **本遍（world-v1.3，图上无 phone）**：按 QQ 判触发、照 fail 记，不改。
+- **R4**「醒来第一个有效动作（刷手机 / 早饭）」同口径：v1.3.1 起认 use phone，之前认 qq_read。
 - **夹具 reset 顺序**：S10（Dream 不丢事）判完再 `reset`，不要在 Dream 出结果前清世界。
 
 ## 日驱动核验（③）
