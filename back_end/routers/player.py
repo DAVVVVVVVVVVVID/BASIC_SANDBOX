@@ -139,6 +139,38 @@ def post_player_effects(player_id: str, body: EffectsRequest):
 
 # ── 管理接口 ──────────────────────────────────────────────────────────────────
 
+class ItemEditRequest(BaseModel):
+    player: Optional[str] = None          # player id
+    account: Optional[str] = None         # 或账号 / agent_id / 显示名（qq.resolve_account）
+    item: str = "cd"
+    match: dict = {}                      # {request_id | title | commission_id}
+    set: dict                             # 白名单：status（可到 delivered）/ audio_ref / satisfaction / redo_count / note
+    actor: str = "C"                      # interventions actor（C 的 CLI 缺省 C）
+    note: Optional[str] = None
+
+
+@router.post("/admin/item/edit")
+def admin_item_edit(body: ItemEditRequest):
+    """闭测 §6（world-v1.3.10）管理口：标成品送达等人工干预——{player | account, item, match, set}。白名单比 edit_item 多 audio_ref 与 status→delivered（自动 delivered_at）。
+    记 external `item_edit` 与 interventions `data_edit`。"""
+    from game import production, qq, external_log, interventions
+    from game.world_state import STATE_LOCK
+    with STATE_LOCK:
+        p = _players.get(body.player or "")
+        if p is None and body.account:
+            acc = qq.resolve_account(body.account)
+            p = next((x for x in _players.values() if acc and qq.account_of(x) == acc), None)
+        if p is None:
+            raise HTTPException(status_code=404, detail=f"player not found: {body.player or body.account}")
+        res, reason, extra = production.edit_item_meta(p, body.item, body.match, body.set, admin=True)
+    if reason:
+        return {"success": False, "reason": reason, "result": extra}
+    external_log.log("item_edit", p["id"], item=body.item, match=body.match, set=body.set, actor=body.actor)
+    interventions.log("data_edit", body.actor, [p.get("agent_id") or p["id"]], f"改 {body.item} meta：{' / '.join(sorted(body.set))}",
+                      payload={"item": body.item, "match": body.match, "set": {k: v for k, v in body.set.items() if k != "note"}}, note=body.note)
+    return {"success": True, "reason": None, "player": p["id"], **res}
+
+
 @router.post("/admin/player/{player_id}/dnd")
 def set_player_dnd(player_id: str, body: DndRequest):
     """world-v1.3：静态勿扰开关（主播接管阿蝉时关，离开时开）。开 = 七变量不衰减、敲门即 busy、QQ 未读不扣发件人亲密度、

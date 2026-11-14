@@ -45,6 +45,13 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5ap. world-v1.3.10：CD meta 契约（主播代做版，C 提案照收；tag `world-v1.3.10`）—— 完成，明早 10:00 随沙盒合窗上主镇
+
+- compose 透传加 `request_id / status / duration_hint / vocal / note`（带 status 的 CD 补 redo_count 0；不带 status 的旧 CD 视为 final 兼容）。状态机 pending → delivered → final | redo（`production.CD_AGENT_TRANSITIONS`）。
+- 新动作 `edit_item`（白名单 status / satisfaction / redo_count / note，四种失败码）；管理口 `POST /admin/item/edit`（多放 audio_ref、status→delivered + delivered_at；记 external `item_edit` + interventions `data_edit`，actor 缺省 C）。
+- `give` / 委托交付 / solo `deliver` 只认 final（`cd_not_final`）；`give` CD 改为按张转交、meta 跟着走（可按 request_id / title / commission_id 指定），委托交付的 commission_id 也从转走那张的 meta 取。曾想默认把新 CD 标 pending，会让不带 status 的旧流程无法交付（现有测试即此），改为只在传了 status 时记。
+- 测试 +1，**357 passed**；api-spec §12.13 v1.3.10 段。契约回 C「行」。
+
 ## 5ao. world-v1.3.9：直播机 → whale-live webhook（闭测 §2，G 已上线对端 2448d59 / 400dc50；tag `world-v1.3.9`）—— 完成，未上镇
 
 - `external_effects`：`LIVE_URL` / `LIVE_TOKEN`（已写进 ~/.env，token 由我生成、G 侧读同名变量）；`live_webhook_start`（同步 3 s，失败只记 `live_stats.failed`，不阻塞 use）、`live_webhook_stop`（后台线程，带 reason）、`session_id` start/stop 同一个、ws `live` 事件；`live_start / live_stop` 签名加 obj / reason，`leave_object` 加 reason 并在 7 个调用点标明（kicked / closed / daily_limit / dnd_park / left_town / leave）。两个旧测试的 live stub 放宽参数。

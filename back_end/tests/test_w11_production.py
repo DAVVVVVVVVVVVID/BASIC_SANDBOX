@@ -320,3 +320,43 @@ def test_compose_daily_cap_meta_passthrough_and_reset(client, v12, fake_clock, m
     _at(fake_clock, 4, 1); fake_clock.t += 86400; _tick(fake_clock, 1)
     assert client.get(f"/player/{whale}").json()["daily_use"]["compose"]["used_count"] == 0
     assert client.get("/world", params={"fields": "objects"}).json()["objects"] and next(o for o in client.get("/world", params={"fields": "objects"}).json()["objects"] if o["id"] == "pc_music")["name"] == "音乐工作站"
+
+
+def test_cd_meta_contract_pending_edit_item_admin_edit_and_final_gate(client, v12, fake_clock, monkeypatch):
+    """闭测 §6 主播代做版（world-v1.3.10）：compose 透传 request_id/status pending → give/deliver 只认 final（cd_not_final）→ 管理口标 delivered+audio_ref → 她 edit_item final → 可交付；白名单 / 状态机 / 只增。"""
+    monkeypatch.setitem(economy.cfg()["commissions"], "daily_p", 0.0)
+    _at(fake_clock, 10, 0)
+    whale = _agent(client, "whale", "鲸仔"); owner = _agent(client, "npc_rest_owner", "餐厅老板")
+    place(whale, 24, 3, "up"); assert action(client, whale, "use")["success"]
+    fake_clock.advance(31 * 60); _tick(fake_clock, 1)
+    cm = client.post("/admin/commission", json={"client": "餐厅老板", "title": "店歌", "fee": 150}).json()["commission"]
+    r = action(client, whale, "compose", {"title": "夜航", "request_id": "mr-20261115-ab12cd", "status": "pending", "lyrics": "...", "style": "citypop", "commission_id": cm["id"], "vocal": "female"})
+    assert r["success"] and r["result"]["meta"]["status"] == "pending" and r["result"]["meta"]["request_id"] == "mr-20261115-ab12cd" and r["result"]["meta"]["redo_count"] == 0 and r["result"]["meta"]["vocal"] == "female"
+    action(client, whale, "leave"); place(whale, 3, 19, "up"); place(owner, 4, 19, "left")
+    p = world_state._players[whale]
+    r = action(client, whale, "give", {"target": owner, "item": "cd"})
+    assert r["success"] is False and r["reason"] == "cd_not_final" and r["result"]["status"] == "pending" and r["result"]["request_id"] == "mr-20261115-ab12cd"
+    assert inventory.count(p, "cd") == 1
+    # 她自己：白名单 / 状态机 / 只增
+    assert action(client, whale, "edit_item", {"match": {"request_id": "mr-20261115-ab12cd"}, "set": {"title": "改名"}})["reason"] == "meta_key_not_allowed"
+    assert action(client, whale, "edit_item", {"match": {"request_id": "nope"}, "set": {"note": "x"}})["reason"] == "no_such_item"
+    assert action(client, whale, "edit_item", {"match": {"request_id": "mr-20261115-ab12cd"}, "set": {"status": "delivered"}})["reason"] == "bad_status_transition"
+    assert action(client, whale, "edit_item", {"match": {"request_id": "mr-20261115-ab12cd"}, "set": {"satisfaction": 7}})["reason"] == "invalid_value"
+    # 管理口：成品送达
+    ad = client.post("/admin/item/edit", json={"account": "whale", "match": {"request_id": "mr-20261115-ab12cd"}, "set": {"status": "delivered", "audio_ref": "run/data/music/results/mr-20261115-ab12cd/a.mp3"}}).json()
+    assert ad["success"] and ad["meta"]["status"] == "delivered" and ad["meta"]["audio_ref"].endswith("a.mp3") and ad["meta"]["delivered_at"]
+    assert action(client, whale, "give", {"target": owner, "item": "cd"})["reason"] == "cd_not_final"              # delivered 仍不能交
+    # 她评价：满意 4 → final
+    r = action(client, whale, "edit_item", {"match": {"request_id": "mr-20261115-ab12cd"}, "set": {"status": "final", "satisfaction": 4, "note": "挺好"}})
+    assert r["success"] and r["result"]["meta"]["status"] == "final" and r["result"]["meta"]["satisfaction"] == 4 and r["result"]["meta"]["finalized_at"] and r["result"]["changed"] == ["note", "satisfaction", "status"]
+    assert action(client, whale, "edit_item", {"match": {"request_id": "mr-20261115-ab12cd"}, "set": {"redo_count": -1}})["reason"] == "invalid_value"
+    gold0 = p["gold"]
+    r = action(client, whale, "give", {"target": owner, "item": "cd"})
+    assert r["success"] and r["result"]["commission"]["status"] == "delivered" and p["gold"] == gold0 + 150
+    tgt = next(e for e in inventory.ensure(world_state._players[owner]) if e["type"] == "cd")
+    assert tgt["meta"]["request_id"] == "mr-20261115-ab12cd" and tgt["meta"]["status"] == "final"                # meta 跟着 CD 走
+    # 旧流程（不带 status）的 CD 视为 final 可直接交
+    place(whale, 24, 3, "up"); assert action(client, whale, "use")["success"]; fake_clock.advance(31 * 60); _tick(fake_clock, 1)
+    assert action(client, whale, "compose", {"title": "旧歌"})["result"]["meta"].get("status") is None
+    action(client, whale, "leave"); place(whale, 3, 19, "up")
+    assert action(client, whale, "give", {"target": owner, "item": "cd"})["success"]

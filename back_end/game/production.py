@@ -227,9 +227,12 @@ def craft(entity_id: str, kind: str, payload: dict) -> tuple[dict | None, str | 
         meta = {k: v for k, v in (payload.get("meta") or {}).items()}
         title = payload.get("title") or meta.get("title") or f"{(inventory.item_def(item) or {}).get('name', item)} {game_now_iso()[:16]}"
         meta["title"] = title
-        for k in ("commission_id", "text", "summary", "ref", "suno_id", "audio_ref", "satisfaction", "redo_count", "lyrics", "style"):   # 闭测 §6：Suno 流程字段透传
+        for k in ("commission_id", "text", "summary", "ref", "suno_id", "audio_ref", "satisfaction", "redo_count", "lyrics", "style",
+                  "request_id", "status", "duration_hint", "vocal", "note"):   # 闭测 §6（主播代做版）：字段透传进 CD meta
             if payload.get(k) is not None:
                 meta[k] = payload[k]
+        if item == "cd" and "status" in meta:
+            meta.setdefault("redo_count", 0)                      # 带 status 的新流程 CD；不带 status 的旧流程 CD 视为 final（兼容）
         meta["created_at"] = game_now_iso(); meta["by"] = p.get("agent_id") or p["id"]
         err = inventory.add(p, item, 1, meta=meta, expires_at=None)
         if err:
@@ -240,6 +243,76 @@ def craft(entity_id: str, kind: str, payload: dict) -> tuple[dict | None, str | 
         return {"message": f"完成了《{title}》。", "objectId": oid, "item": item, "item_name": (inventory.item_def(item) or {}).get("name", item),
                 "qty": 1, "meta": meta, "inventory": inventory.view(p),
                 **({"daily": {"used_count": used, "limit_count": dm, "resets_at": world_state.DAILY_RESET_HM}} if dm else {})}, None, None
+
+
+# ── 闭测 §6（主播代做版，world-v1.3.10）：CD meta 状态机与编辑 ──
+CD_STATUS = ("pending", "delivered", "final", "redo")
+CD_AGENT_TRANSITIONS = {("pending", "final"), ("pending", "redo"), ("delivered", "final"), ("delivered", "redo")}
+CD_AGENT_KEYS = ("status", "satisfaction", "redo_count", "note")
+CD_ADMIN_KEYS = CD_AGENT_KEYS + ("audio_ref",)
+
+
+def cd_is_final(entry: dict) -> bool:
+    """give / 委托交付只认 final；没有 status 的旧 CD（v1.3.10 前）视为 final。"""
+    st = (entry.get("meta") or {}).get("status")
+    return st is None or st == "final"
+
+
+def find_cd(player: dict, match: dict | None, item: str = "cd") -> dict | None:
+    from game import inventory
+    match = match or {}
+    cands = [e for e in inventory.ensure(player) if e.get("type") == item]
+    for k in ("request_id", "title", "commission_id"):
+        if match.get(k) is not None:
+            cands = [e for e in cands if (e.get("meta") or {}).get(k) == match[k]]
+    return cands[0] if cands else None
+
+
+def edit_item_meta(player: dict, item: str, match: dict | None, changes: dict, *, admin: bool = False) -> tuple[dict | None, str | None, dict | None]:
+    """返回 (result, reason, extra)。agent 白名单 status（pending→final|redo、delivered→final|redo）/ satisfaction（1–5 整数）/ redo_count（只增）/ note（≤200 字）；
+    管理口再放 audio_ref 与 status→delivered（自动填 delivered_at）。"""
+    from game.time_state import game_now_iso
+    entry = find_cd(player, match, item)
+    if entry is None:
+        return None, "no_such_item", {"item": item, "match": match or {}}
+    meta = dict(entry.get("meta") or {})
+    allowed = CD_ADMIN_KEYS if admin else CD_AGENT_KEYS
+    for k in changes:
+        if k not in allowed:
+            return None, "meta_key_not_allowed", {"key": k, "allowed": list(allowed)}
+    new = dict(meta)
+    for k, v in changes.items():
+        if k == "status":
+            cur = meta.get("status") or "pending"
+            if v not in CD_STATUS:
+                return None, "invalid_value", {"key": k, "value": v, "allowed": list(CD_STATUS)}
+            ok = (admin and v == "delivered") or (cur, v) in CD_AGENT_TRANSITIONS
+            if not ok:
+                return None, "bad_status_transition", {"from": cur, "to": v}
+            new["status"] = v
+            if v == "delivered":
+                new["delivered_at"] = game_now_iso()
+            if v == "final":
+                new["finalized_at"] = game_now_iso()
+        elif k == "satisfaction":
+            if not isinstance(v, int) or isinstance(v, bool) or not 1 <= v <= 5:
+                return None, "invalid_value", {"key": k, "value": v, "allowed": "1–5 整数"}
+            new[k] = v
+        elif k == "redo_count":
+            if not isinstance(v, int) or isinstance(v, bool) or v < int(meta.get("redo_count") or 0):
+                return None, "invalid_value", {"key": k, "value": v, "allowed": f"≥ {int(meta.get('redo_count') or 0)} 的整数（只增）"}
+            new[k] = v
+        elif k == "note":
+            if not isinstance(v, str) or len(v) > 200:
+                return None, "invalid_value", {"key": k, "allowed": "≤ 200 字"}
+            new[k] = v
+        elif k == "audio_ref":
+            if not isinstance(v, str) or not v:
+                return None, "invalid_value", {"key": k, "allowed": "非空字串"}
+            new[k] = v
+    new["updated_at"] = game_now_iso()
+    entry["meta"] = new
+    return {"item": item, "meta": new, "changed": sorted(changes)}, None, None
 
 
 def export_state() -> dict:

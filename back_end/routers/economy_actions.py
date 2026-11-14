@@ -266,15 +266,32 @@ def handle_give(entity_id: str, payload: dict) -> ActionResponse:
                                                                     "door_id": door_id, "qty": 1, "target": t["id"], "target_name": t.get("name"), "inventory": inventory.view(p)})
         if inventory.count(p, item) < qty:
             return ActionResponse(success=False, type="give", reason="no_item", result={**_item_fields(item, qty), "have": inventory.count(p, item)})
-        ierr = inventory.add(t, item, qty)
-        if ierr:
-            return ActionResponse(success=False, type="give", reason=ierr, result={**_item_fields(item, qty), "target": t["id"], "target_name": t.get("name")})
-        inventory.remove(p, item, qty)
+        moved_meta = None
+        if item in (economy.cfg().get("commissions", {}).get("deliver_items") or ["cd", "song"]):   # v1.3.10：CD 按张转交、meta 跟着走，只认 final
+            from game import production
+            match = {k: payload[k] for k in ("request_id", "title", "commission_id") if payload.get(k) is not None}
+            entry = production.find_cd(p, match, item) if match else next((e for e in inventory.ensure(p) if e.get("type") == item and production.cd_is_final(e)), None) \
+                or production.find_cd(p, {}, item)
+            if entry is None:
+                return ActionResponse(success=False, type="give", reason="no_item", result={**_item_fields(item, qty), "match": match})
+            if not production.cd_is_final(entry):
+                return ActionResponse(success=False, type="give", reason="cd_not_final", result={**_item_fields(item, 1), "status": (entry.get("meta") or {}).get("status"),
+                                                                                                  "request_id": (entry.get("meta") or {}).get("request_id"), "title": (entry.get("meta") or {}).get("title")})
+            qty = 1; moved_meta = dict(entry.get("meta") or {})
+            ierr = inventory.add(t, item, 1, meta=moved_meta or None, expires_at=None)
+            if ierr:
+                return ActionResponse(success=False, type="give", reason=ierr, result={**_item_fields(item, qty), "target": t["id"], "target_name": t.get("name")})
+            inventory.remove_entry(p, entry, 1)
+        else:
+            ierr = inventory.add(t, item, qty)
+            if ierr:
+                return ActionResponse(success=False, type="give", reason=ierr, result={**_item_fields(item, qty), "target": t["id"], "target_name": t.get("name")})
+            inventory.remove(p, item, qty)
         effects = {}
         commission = None
         if item in (economy.cfg().get("commissions", {}).get("deliver_items") or ["cd", "song"]):   # W11 ① / v1.1 Q-5：给委托人 CD（旧 song）= 交付委托
             from game import commissions
-            meta = {"commission_id": payload["commission_id"]} if payload.get("commission_id") else _song_meta(payload, p, t, item)
+            meta = {"commission_id": payload["commission_id"]} if payload.get("commission_id") else (moved_meta or _song_meta(payload, p, t, item))
             commission = commissions.deliver(p, t, meta)
         if d.get("give"):                                          # 小礼物：对方亲密度 +8、心情 +5（items.json）
             for k, v in d["give"].items():
@@ -379,6 +396,9 @@ def handle_deliver(entity_id: str, payload: dict) -> ActionResponse:
                                   result={"message": "得走到委托人家门口或他的柜台边。", "drop_points": {c["client"]: points.get(c["client"]) for c in opens}})
         cm = min(here, key=lambda c: c["created_at"])
         entry = find(p, item, commission_id=cm["id"]) or next((e for e in inventory.ensure(p) if e.get("type") == item), None)
+        from game import production as _prod
+        if entry is not None and not _prod.cd_is_final(entry):
+            return ActionResponse(success=False, type="deliver", reason="cd_not_final", result={"item": item, "status": (entry.get("meta") or {}).get("status"), "request_id": (entry.get("meta") or {}).get("request_id")})
         if entry is None:
             return ActionResponse(success=False, type="deliver", reason="no_item", result=_item_fields(item, 1))
         remove_entry(p, entry, 1)
@@ -519,6 +539,25 @@ def handle_discard(entity_id: str, payload: dict) -> ActionResponse:
 
 def handle_compose(entity_id: str, payload: dict) -> ActionResponse:
     return _craft("compose", entity_id, payload)
+
+
+def handle_edit_item(entity_id: str, payload: dict) -> ActionResponse:
+    """闭测 §6（world-v1.3.10）：持有者改自己背包里 CD 的 meta {item?="cd", match: {request_id | title | commission_id}, set: {...}}。
+    白名单 status / satisfaction / redo_count / note；别的键 meta_key_not_allowed；找不到 no_such_item。"""
+    from game import production
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="edit_item", reason="player_not_found")
+        item = _item(payload) or "cd"
+        changes = payload.get("set") or payload.get("meta") or {}
+        if not isinstance(changes, dict) or not changes:
+            return ActionResponse(success=False, type="edit_item", reason="missing_set", result={"item": item})
+        res, reason, extra = production.edit_item_meta(p, item, payload.get("match") or {}, changes, admin=False)
+    if reason:
+        return ActionResponse(success=False, type="edit_item", reason=reason, result=extra)
+    mark_input(entity_id)
+    return ActionResponse(success=True, type="edit_item", result={"message": f"更新了《{res['meta'].get('title', '')}》的记录。", **res, "inventory": inventory.view(p)})
 
 
 def handle_make_video(entity_id: str, payload: dict) -> ActionResponse:

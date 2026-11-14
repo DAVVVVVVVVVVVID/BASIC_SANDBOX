@@ -572,6 +572,7 @@ _HANDLERS = {
     "open_door":    handle_open_door,             # §3.41
     "say":          handle_say,                   # Q6 靠近即可说
     "compose":      economy_actions.handle_compose,
+    "edit_item":    economy_actions.handle_edit_item,
     "make_video":   economy_actions.handle_make_video,
 }
 
