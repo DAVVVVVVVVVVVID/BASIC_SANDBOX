@@ -74,7 +74,7 @@
 
 **家门与钥匙（§3.41，主播 11-08，替换 §3.39 白名单）：** 带 `owner` 的门默认锁，持该门钥匙（物品 `key`）或门敞开窗口内才能进，出门永远放行；家内房间不再单独锁；`map.edges[].keys` = 钥匙总数，`map.access[*].owner` 只用于「谁是这家的主人」（发钥匙 / 记账）。详见「11. 门禁：钥匙、开门、敲门」。
 
-**v1.0 草图**（`game/maps/v1/`，`scripts/gen_map_v1.py`，按 `docs/world-bible/02-map.md`）：64×48，8 个 sector（小镇 / 鲸鱼大学 / 老渔夫家 / 合租房 / 餐厅 / 杂货店 / 小千家 / 店主们的家）、26 个 arena、52 个物品、12 条边、8 条访问规则（阿蝉房 09:00–18:30 锁、四户 NPC 家常锁 owner-only）。物品按 `03-objects.md` 3.1 位置摆，类型沿用旧表或占位类型（`placeholder: true`，数值不改）。`run_town.sh --map game/maps/v1` 起；旧图在 `game/maps/legacy_v0/`（默认目录仍是 v0，主镇不切）。`tiled` 的 tileset 现为 E 交付的自制 CC0 地砖 `gen/tiles.png`（`game/maps/tile_gids.json` 覆盖 gid 与 `_tileset`）。
+**v1.0 草图**（`game/maps/v1/`，`scripts/gen_map_v1.py`，按 `docs/world-bible/02-map.md`）：64×48，8 个 sector（小镇 / 鲸鱼大学 / 老渔夫家 / 合租房 / 餐厅 / 杂货店 / 克劳蒂娜家 / 店主们的家）、26 个 arena、52 个物品、12 条边、8 条访问规则（阿蝉房 09:00–18:30 锁、四户 NPC 家常锁 owner-only）。物品按 `03-objects.md` 3.1 位置摆，类型沿用旧表或占位类型（`placeholder: true`，数值不改）。`run_town.sh --map game/maps/v1` 起；旧图在 `game/maps/legacy_v0/`（默认目录仍是 v0，主镇不切）。`tiled` 的 tileset 现为 E 交付的自制 CC0 地砖 `gen/tiles.png`（`game/maps/tile_gids.json` 覆盖 gid 与 `_tileset`）。
 
 **最短路（W11 维护，X1 实验给 A 算步数比）：** `GET /admin/path?from=x,y&to=x,y | to_object=<id> | to_arena=<id>[&ignore_locks=true][&mover=<agent_id 或 player id>]`（所有实例都开，只读）→ `{from, goals, ignore_locks, mover, game_time, mapVersion, reachable, length, path[]}`。BFS 走 `map.edges`（楼梯算一步），按**当前游戏时刻**的营业时间与门禁；`to_object` 的目标 = 它的 `usePos`（不可走的床类退到相邻可走格），`to_arena` = 该 arena 全部可走格；`mover` 不在线也能按身份算门禁；起点不可走 400，目标集合为空 404。离线整表：`cd back_end && uv run python scripts/path_table.py --map v1 --at 11:30 --as whale --points 客厅=12,26 --objects fridge_home --arenas dining [--pairs 客厅:fridge_home] [--format md|csv|json]`。
 
@@ -1277,7 +1277,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 | `release` | `player` | 离开正在用的物品 |
 | `invite` | `from`, `to[]`, `greeting` | 代某玩家发邀请，**跳过冷却**，返回 `request_id` |
 | `respond` | `player`, `request_id`, `accept`, `message`, `tick?=true` | 代某玩家响应；默认立刻推进一次状态机（相邻则建房），返回 `status_now` / `chat_room_id` |
-| `say` | `player`, `text`, `room?` | 代某玩家发言：有 `room` 走房间 `POST /chat/message`；**没有 `room` 走 Q6「靠近即可说」**（X4 say / GA 变体的脚本小千），返回 `{heard_by, …}` |
+| `say` | `player`, `text`, `room?` | 代某玩家发言：有 `room` 走房间 `POST /chat/message`；**没有 `room` 走 Q6「靠近即可说」**（X4 say / GA 变体的脚本克劳蒂娜），返回 `{heard_by, …}` |
 | `qq_send` | `from`, `to` \| `group`, `text`, `kind?`, `file_ref?` | **X4 C-QQ** 代脚本角色发 QQ（同 `POST /qq/send`），失败原因同其 `reason` |
 | `set_fridge` | `id?="fridge_home"`, `qty` | **X5** 直接写冰箱食材库存（含 0）。若当前游戏时刻已过冰箱 `restock_at`，同时把**今天的补货记为已做**（detail `restock_pinned` = 钉住的 key；`restock_state` = `pinned` / `already_restocked_today`（今天已补过，夹具值同样保持，`restock_pinned` 为 null）/ `before_restock_at`（到点会照常补）），夹具值保持到次日补货或下一次 `set_fridge`——否则 `reset` 清过补货记录后下一 tick 会补 +2 把 0 盖掉（X5 pilot ①）。`set_stock` 同理 |
 | `set_stock` | `shop`（物品 id）, `item`, `qty` | **X5** 写商店库存，`/world.objects[].shop[].stock` 同步 |
@@ -1376,8 +1376,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 | 概念 | 说明 |
 |---|---|
-| 账号 | agent 玩家 = `agent_id`（`whale` / `achan` / `npc_xiaoqian` / `npc_rest_owner` / `npc_grocer` / `npc_fisher`），人类玩家 = player id。账号在人不在线时也存在：发给不在线的阿蝉，消息存着等他上线来读。接口里凡是「账号」的地方也接受 player id / 显示名（「阿蝉」） |
-| 通讯录 | 初始：鲸仔 = 阿蝉、小千、餐厅老板、杂货店老板；群「鲸仔直播组」（`g_live`）= 鲸仔 + 阿蝉；其他 NPC 按 `qq_config.json`。互相可见；给谁发过就互加。人类玩家的通讯录 = 所有已知账号 |
+| 账号 | agent 玩家 = `agent_id`（`whale` / `achan` / `claudine` / `npc_rest_owner` / `npc_grocer` / `npc_fisher`），人类玩家 = player id。账号在人不在线时也存在：发给不在线的阿蝉，消息存着等他上线来读。接口里凡是「账号」的地方也接受 player id / 显示名（「阿蝉」） |
+| 通讯录 | 初始：鲸仔 = 阿蝉、克劳蒂娜、餐厅老板、杂货店老板；群「鲸仔直播组」（`g_live`）= 鲸仔 + 阿蝉；其他 NPC 按 `qq_config.json`。互相可见；给谁发过就互加。人类玩家的通讯录 = 所有已知账号 |
 | 约束 | `sleeping` / `streaming` 标签中或 `scene = live` 时不能发也不能读 → `phone_unavailable`。读完 1 游戏分钟内 `canMove` / `canUse` 为 false、`tags` 带 `reading`（timed buff `reading`，`source: "qq"`），到期自动摘 |
 | 社交 | 每条消息给发送者 / 阅读者 `social +2`（`social_per_message`，可改） |
 | 亲密度（**W11 ③**） | 1:1 消息未读超过 `unread_penalty.after_hours`（2）游戏小时后，**发件人对收件人**的亲密度每小时 −`per_hour`（1），每对每游戏日最多 −`daily_cap`（5）；收件人 `read` 到它 → 发件人对收件人 +`read_reply_bonus`（1，每次读每个发件人一次）；收件人回一条 1:1 → 对方对他 +1。群消息不计。发件人不在线时没处记，跳过。配置在 `qq_config.json` |
@@ -1441,7 +1441,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 ### 钥匙（物品 `key`）
 
 - `items.json` 新物品 `key`（class `key`），背包条目 `{type: "key", count: 1, meta: {door_id, name}}`（如「合租房大门钥匙」）；`GET /player/{id}` 另给 `keys: [{door_id, name}]`。
-- **总数固定**：每扇带 `owner` 的门 `map.edges[].keys` 把（缺省 = owner 数）。v1：`door_home` 3 把（鲸仔 1、阿蝉 1、人类控制者进场自带 1）；`door_fisher` / `door_xiaoqian` 各 1；`door_owners` 2（两位店主）；`door_restaurant` / `door_grocery` 各 1 归店主。
+- **总数固定**：每扇带 `owner` 的门 `map.edges[].keys` 把（缺省 = owner 数）。v1：`door_home` 3 把（鲸仔 1、阿蝉 1、人类控制者进场自带 1）；`door_fisher` / `door_claudine` 各 1；`door_owners` 2（两位店主）；`door_restaurant` / `door_grocery` 各 1 归店主。
 - **发放**：`POST /player/join` / 夹具 `spawn` 时按 `owner`（或 `homes` 住在该家）发自家门钥匙，每个身份槽只发一次（同一 agent_id 再 join 不重发）；人类控制者领 `door_home` 余下的把数（第一位人类拿到，之后的人类没有）。持钥匙的玩家被删除 → 钥匙回池。动作日志 `key_issued {door_id, name, slot, why: default | migrate}`。**启动迁移**：加载检查点后对每个 agent 玩家按同一规则补发（旧检查点的人没经过 join），幂等；人类控制者下次 join 时领。
 - **转交**：只能当面 `give {target, item: "key", door_id?}`（只有一把时可省 `door_id`；多把 → `door_id_required`；对方已有同门钥匙 → `already_has_key`）；日志 `give` 的 payload 带 `item: key` 与 `door_id`。QQ 不可传（`not_transferable`）。
 
@@ -1457,7 +1457,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 ### POST /action `knock`
 
-访客在**家门外侧**（离门外格 `a` 或所指的格 ≤ 2、不在这家里）：`{door_id}` / `{target_tile {x,y}}` / `{home: <sector>}`。家 = 带 owner 且没有 open_hours 的门所在的 sector（合租房 / 渔夫家 / 小千家 / 店主家）；商店 `not_a_home`。
+访客在**家门外侧**（离门外格 `a` 或所指的格 ≤ 2、不在这家里）：`{door_id}` / `{target_tile {x,y}}` / `{home: <sector>}`。家 = 带 owner 且没有 open_hours 的门所在的 sector（合租房 / 渔夫家 / 克劳蒂娜家 / 店主家）；商店 `not_a_home`。
 
 成功 `result {message: "咚咚咚。", request_id, expires_at(+90 游戏秒), home, door{id, name, x, y, inside{x,y}}, notified: [屋内清醒者 id], request}`；**notified = 这家 sector 内所有清醒（无 `sleeping`、`scene ≠ live`、在场）的玩家，不限 owner**（人类演阿蝉站在客厅就能收到）；他们 `pendingMessage`「X 在敲门。」、`GET /player` `pending_knocks[]`、perceive `knocks[]`。ws `{type:"knock", request_id, visitor, visitor_name, home, home_name, door, owners, expires_at, notified}`。日志 `knock`。
 
@@ -1559,25 +1559,25 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 ### 12.9 world-v1.1 批 ③：货币 / 房租（§3，M-1…M-6；tag `world-v1.1`）
 
-- **账户独立于在线（M-3 / M-5）**：余额按账号（agent_id；人类 = player id）记在 `economy._balances`，第一次 join / spawn 开户（`initial_gold`：**全员 3000，人类 300**）；在线时 `player.gold` 与账户同步，下线 / 被清理后账户留着，回来接着用。日薪、销售 / 餐费 / 配钥匙入账、小千时薪、房租都**按账号结、不要求在线**；离线入账的流水行 `entity: null, offline: true`。**只结「在这个镇开过户」的账号**（没来过的人不发钱不收租）。`GET /admin/metrics` 多 `accounts {账号: 余额}`、`rent_enabled`。
-- **日薪（M-3）**：阿蝉 200 @18:30、店主 20 @22:00、厨师 20 @21:00、渔夫 20 @17:00（`economy.wages`）。**小千时薪（M-4）**：12 / 小时，**周一至周五 13–17**（`weekdays`），从 `payer`（店主）账户扣（流水 `wage_paid`）；店主余额不够 → 小千照拿、店主记 `wage_debt`（`owed / owed_total` 累计在 `_debts`）。
-- **房租（§3.3，`economy.rent`）**：每月 `due_day` 1 日 `due_at` 08:00 自动扣，`items` 按账号分住房 / 铺面两笔（鲸仔 300 / 阿蝉 300 / 小千 350 / 店主 400+600 / 厨师 400+1000 / 渔夫 350；流水 `kind: rent, rent_kind: home|shop`）；开户前已到期的那个月不收。钱不够 → **欠租** `rent_due`（不部分扣、不赶人；ws `rent overdue`、external `rent`），之后余额够了自动补齐（流水 `label: rent_cleared`、ws `rent cleared`）；判出欠租当刻立即发第一条镇公所催租 QQ，之后欠租期间每日 08:00：在线者心情 `overdue_mood_per_day` −3、房东 **`town_hall`（镇公所，QQ 系统账号）** 再发一条（收件人不必在线）。扣前 `notice_days` 3 天：每日 08:00 一条 ws `rent due_soon`。`rent.enabled=false` 整段关闭（bench 短场景）。`GET /player/{id}` / `/world.players[]` / ws upsert 带 `rent {amount, items[{kind, amount}], landlord, due_at, due_in_days, overdue, owed, since, balance}`（人类 / 关闭时 `null`）。ws `{type:"rent", event: due_soon|paid|overdue|cleared, account, entity, amount, period, balance}`。
+- **账户独立于在线（M-3 / M-5）**：余额按账号（agent_id；人类 = player id）记在 `economy._balances`，第一次 join / spawn 开户（`initial_gold`：**全员 3000，人类 300**）；在线时 `player.gold` 与账户同步，下线 / 被清理后账户留着，回来接着用。日薪、销售 / 餐费 / 配钥匙入账、克劳蒂娜时薪、房租都**按账号结、不要求在线**；离线入账的流水行 `entity: null, offline: true`。**只结「在这个镇开过户」的账号**（没来过的人不发钱不收租）。`GET /admin/metrics` 多 `accounts {账号: 余额}`、`rent_enabled`。
+- **日薪（M-3）**：阿蝉 200 @18:30、店主 20 @22:00、厨师 20 @21:00、渔夫 20 @17:00（`economy.wages`）。**克劳蒂娜时薪（M-4）**：12 / 小时，**周一至周五 13–17**（`weekdays`），从 `payer`（店主）账户扣（流水 `wage_paid`）；店主余额不够 → 克劳蒂娜照拿、店主记 `wage_debt`（`owed / owed_total` 累计在 `_debts`）。
+- **房租（§3.3，`economy.rent`）**：每月 `due_day` 1 日 `due_at` 08:00 自动扣，`items` 按账号分住房 / 铺面两笔（鲸仔 300 / 阿蝉 300 / 克劳蒂娜 350 / 店主 400+600 / 厨师 400+1000 / 渔夫 350；流水 `kind: rent, rent_kind: home|shop`）；开户前已到期的那个月不收。钱不够 → **欠租** `rent_due`（不部分扣、不赶人；ws `rent overdue`、external `rent`），之后余额够了自动补齐（流水 `label: rent_cleared`、ws `rent cleared`）；判出欠租当刻立即发第一条镇公所催租 QQ，之后欠租期间每日 08:00：在线者心情 `overdue_mood_per_day` −3、房东 **`town_hall`（镇公所，QQ 系统账号）** 再发一条（收件人不必在线）。扣前 `notice_days` 3 天：每日 08:00 一条 ws `rent due_soon`。`rent.enabled=false` 整段关闭（bench 短场景）。`GET /player/{id}` / `/world.players[]` / ws upsert 带 `rent {amount, items[{kind, amount}], landlord, due_at, due_in_days, overdue, owed, since, balance}`（人类 / 关闭时 `null`）。ws `{type:"rent", event: due_soon|paid|overdue|cleared, account, entity, amount, period, balance}`。
 - **委托（M-6）**：`daily_p` 0.15、`song_fee` 100–200、`max_open` 2、`expire_days` 3（`expires_at`，到期 `status: expired` + ws `commission expire` + external）；酬金仍是外部入账、**不扣委托人（v1.1 定）**。
 - **直播收入（M-2）**：`POST /admin/income source=stream` 接 `viewers_total`（当场累计观看人次）/ `gifts_rmb`（旧 `viewers_avg` / `gifts` 仍收，同公式）：`amount = viewers_total × 0.005 + gifts_rmb × 1.0`；未接直播侧前下播合成 `viewers_total 1000–3000、gifts_rmb 0–20`（≈ 5–35 金币）标 `synthetic: true`。
 - **流水 kind** 新增：`wage_paid` / `wage_debt` / `rent`；`income` 多 `offline` 字段（离线入账）。
 
 ### 12.10 X7「只有她」模式（`SANDBOX_SOLO=1`）与每日复位
 
-- **`SANDBOX_SOLO=1`**（towns.yaml `sandbox_env`；`GET /admin/metrics.solo`）：NPC 身体不 spawn。本来就不依赖 NPC 在场的事照常：买 / 卖 / 餐厅 `eat meal` / 配钥匙的钱进店主**账户**（离线入账）、商店与餐厅按营业时间开、QQ 发给没来的人照常入信箱（没人回）、没开户的 NPC 不发日薪不收租。**委托交付**改为 `deliver {item?="cd", commission_id?, client?}`：站到委托人的 **drop point**（`economy.commissions.drop_points`：餐厅老板 `door_restaurant` / `bar`、店主 `door_grocery` / `counter`、渔夫 `door_fisher` / `fish_stall`、小千 `door_xiaoqian`）2 格内即算交付（酬金入账，委托 `via: "drop"`；委托人不在线不记亲密度）。失败 `not_solo`（非 solo 仍当面 `give`）/ `no_open_commission` / `not_at_drop_point {drop_points}` / `no_item`。
+- **`SANDBOX_SOLO=1`**（towns.yaml `sandbox_env`；`GET /admin/metrics.solo`）：NPC 身体不 spawn。本来就不依赖 NPC 在场的事照常：买 / 卖 / 餐厅 `eat meal` / 配钥匙的钱进店主**账户**（离线入账）、商店与餐厅按营业时间开、QQ 发给没来的人照常入信箱（没人回）、没开户的 NPC 不发日薪不收租。**委托交付**改为 `deliver {item?="cd", commission_id?, client?}`：站到委托人的 **drop point**（`economy.commissions.drop_points`：餐厅老板 `door_restaurant` / `bar`、店主 `door_grocery` / `counter`、渔夫 `door_fisher` / `fish_stall`、克劳蒂娜 `door_claudine`）2 格内即算交付（酬金入账，委托 `via: "drop"`；委托人不在线不记亲密度）。失败 `not_solo`（非 solo 仍当面 `give`）/ `no_open_commission` / `not_at_drop_point {drop_points}` / `no_item`。
 - **每日复位** `cd back_end && uv run python scripts/x7_reset.py --base <镇> --date <YYYY-MM-DD> [--wipe-data <sandbox 数据目录>]`：`reset` → `set_time <date> 04:00` → spawn 鲸仔（账户 3,000）→ `occupy bed_whale`，并断言：冰箱 6 饭 + 4 食材、NPC 家 4 饭、商店满货、无委托、在床上 `sleeping`、背包只有钥匙、房租未欠、只有她在场。
 
 ### 12.11 world-v1.2 紧凑地图（主播 11-14 定；`SANDBOX_MAP=v1.2`，tag `world-v1.2`）
 
-> **v1.2.1（tag `world-v1.2.1`）门格跟外观图走**：按 E 的量表挪 7 栋楼的门格（楼 / 门 id / 物品不变；图书馆、合租房、校门不动）：教学楼 (5,5)、音乐楼 (24,5)、渔夫家 (36,6)（巷格 (36,7)）、餐厅 (35,17)、杂货店改南门 (23,24)（门外短巷 y25，x22–29）、小千家 (15,25)、店主家 (34,25)（门内 (34,24) 过道）。`buildings[].doors[].cell` 随之变；下面关键坐标已按 v1.2.1。
+> **v1.2.1（tag `world-v1.2.1`）门格跟外观图走**：按 E 的量表挪 7 栋楼的门格（楼 / 门 id / 物品不变；图书馆、合租房、校门不动）：教学楼 (5,5)、音乐楼 (24,5)、渔夫家 (36,6)（巷格 (36,7)）、餐厅 (35,17)、杂货店改南门 (23,24)（门外短巷 y25，x22–29）、克劳蒂娜家 (15,25)、店主家 (34,25)（门内 (34,24) 过道）。`buildings[].doors[].cell` 随之变；下面关键坐标已按 v1.2.1。
 >
 > **v1.2.2（tag `world-v1.2.2`）只改装饰**：公园 tree_4 (18,11)→(15,11)、tree_2 (18,16)→(17,16)，让告示牌 (19,10) / (22,17) 不被树冠盖住（fantasy 预设树图 4–5 格宽、5–8 格高，按 y 排序画在告示牌之后）；物品 id / 其余坐标不变，mapVersion 变。
 >
-> **v1.2.3（tag `world-v1.2.3`）室外装饰 +12 件（72 件）**，全部 `interactable: false`、占格阻挡、不堵 1 格宽的巷子 / 不占站位：公园 `bush_park_1` (13,17)、`bush_park_2` (19,17)、`flowerbed_park` (18,12)；广场 `trash_can_square` (31,17)、`mailbox_square` (22,11)；码头 `bench_dock_side` (42,4)-(42,5)；门前灌木 `bush_fisher` (37,7)、`bush_home` (10,19)、`bush_restaurant` (36,19)、`bush_grocery` (24,25)、`bush_xiaoqian` (14,27)、`bush_owners` (35,27)。门 / 夹具坐标 / x1-shortest 不变。
+> **v1.2.3（tag `world-v1.2.3`）室外装饰 +12 件（72 件）**，全部 `interactable: false`、占格阻挡、不堵 1 格宽的巷子 / 不占站位：公园 `bush_park_1` (13,17)、`bush_park_2` (19,17)、`flowerbed_park` (18,12)；广场 `trash_can_square` (31,17)、`mailbox_square` (22,11)；码头 `bench_dock_side` (42,4)-(42,5)；门前灌木 `bush_fisher` (37,7)、`bush_home` (10,19)、`bush_restaurant` (36,19)、`bush_grocery` (24,25)、`bush_claudine` (14,27)、`bush_owners` (35,27)。门 / 夹具坐标 / x1-shortest 不变。
 >
 > **v1.2.4（tag `world-v1.2.4`）装饰船下水**：`boat`（2×1，interactable false）从码头沙滩 (43,9)-(44,9) 挪到水上 (46,8)-(47,8)，贴码头木板 (45,8) 东侧；两格 arena 仍是 `water`，tiles 导出为 object（与其他物品占格一样），原 (43,9)(44,9) 变回可走的码头铺地。码头侧向长椅 `bench_dock_side` (42,4)-(42,5) 在码头靠陆一侧，座面朝东看河、靠背朝西。
 >
@@ -1590,13 +1590,13 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 { "id": "home", "sector": "home", "floor": 1, "footprint": { "x": 2, "y": 10, "w": 10, "h": 8 },
   "doors": [ { "door_id": "door_home", "cell": { "x": 9, "y": 17 }, "kind": "door" } ] }
 ```
-10 条：`classroom` (3,1,7,5) / `library` (11,1,7,5) / `music_room` (23,1,7,5)（sector `university`）、`fisher_house` (33,1,9,6)、`home` (2,10,10,8)、`home_2f` (2,29,6,5) floor 2（门 `stairs_home` cell (3,30)）、`restaurant` (33,10,10,8)、`grocery` (22,20,8,5)（门 `door_grocery` cell (23,24) 朝南）、`xiaoqian_house` (13,20,8,6)、`owners_house` (31,20,11,6)。只在 format 2 且地图带 `buildings` 时非空（v1 / v0 为 `[]`）。
-- 关键坐标（夹具 / 跑手用，全表见 `docs/x5-fixtures.md` 坐标段）：出生点 (4,13)；床边 (3,13) up；直播台 pc_whale 站 (5,12) up；冰箱 fridge_home 站 (5,16) up；灶台 (3,16) up；餐桌 table_home 站 (7,12) up；客厅 (9,13)；广场 (28,14)；街道 (30,9)；餐厅门外 (35,18)、桌 table_rest_1 站 (34,12) up；杂货店门外 (23,25)（短巷 y25，门朝南）、柜台站 (27,22) right；琴房电脑站 (24,3) up；码头 (43,5)、钓位 1 站 (45,3) up；渔夫家门外 (36,7)、小千家门外 (15,26)、店主家门外 (34,26)；教学楼 / 音乐楼门外 (5,6) / (24,6)。
+10 条：`classroom` (3,1,7,5) / `library` (11,1,7,5) / `music_room` (23,1,7,5)（sector `university`）、`fisher_house` (33,1,9,6)、`home` (2,10,10,8)、`home_2f` (2,29,6,5) floor 2（门 `stairs_home` cell (3,30)）、`restaurant` (33,10,10,8)、`grocery` (22,20,8,5)（门 `door_grocery` cell (23,24) 朝南）、`claudine_house` (13,20,8,6)、`owners_house` (31,20,11,6)。只在 format 2 且地图带 `buildings` 时非空（v1 / v0 为 `[]`）。
+- 关键坐标（夹具 / 跑手用，全表见 `docs/x5-fixtures.md` 坐标段）：出生点 (4,13)；床边 (3,13) up；直播台 pc_whale 站 (5,12) up；冰箱 fridge_home 站 (5,16) up；灶台 (3,16) up；餐桌 table_home 站 (7,12) up；客厅 (9,13)；广场 (28,14)；街道 (30,9)；餐厅门外 (35,18)、桌 table_rest_1 站 (34,12) up；杂货店门外 (23,25)（短巷 y25，门朝南）、柜台站 (27,22) right；琴房电脑站 (24,3) up；码头 (43,5)、钓位 1 站 (45,3) up；渔夫家门外 (36,7)、克劳蒂娜家门外 (15,26)、店主家门外 (34,26)；教学楼 / 音乐楼门外 (5,6) / (24,6)。
 - `docs/x1-shortest.json` 重出（`scripts/x1_shortest.py --map v1.2`）：S01 7 / S02 41 / S03 56 / N1 63 / N2 19 / N3 null / N4 29 / N5 15；旧表 `docs/x1-shortest-v1.json`。
 
 ### 12.7 地图 v1
 
-NPC 家（渔夫 / 小千 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；小千家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。
+NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。
 
 ## 10. 金币与入账（W10 ④）
 
@@ -1604,9 +1604,9 @@ NPC 家（渔夫 / 小千 / 店主们）各加 `stove_*` + `table_*`（dining_ta
 
 | 项 | 配置（`back_end/game/economy.json`，06-economy 假设值） |
 |---|---|
-| 初始金币 | 鲸仔 300、阿蝉 2000、小千 400、两位店主各 3000、渔夫 800；human 300（`default`） |
+| 初始金币 | 鲸仔 300、阿蝉 2000、克劳蒂娜 400、两位店主各 3000、渔夫 800；human 300（`default`） |
 | 日薪（tick 自动结，`kind: wage`） | 阿蝉 150 @ 18:30、餐厅老板 100 @ 21:00、杂货店老板 100 @ 20:00、渔夫 80 @ 17:00（当日只发一次；人要在线。已付记录进检查点，重启不重发） |
-| 时薪 | 小千 12/h，13:00–17:00 每满一整点结一次（14 / 15 / 16 / 17 点，共 4 次） |
+| 时薪 | 克劳蒂娜 12/h，13:00–17:00 每满一整点结一次（14 / 15 / 16 / 17 点，共 4 次） |
 | 餐价 | `meal_price` 20（use 餐桌时扣） |
 | 商店 | `shops`: `shop_counter`（杂货店主，卖 bread 5 / sweets 6 / ingredients 8 / bait 3 / gift 25）、`fish_stall`（渔夫，卖鱼 12 / 收鱼 10）、`bar`（餐厅老板，收鱼 10）。营业时间沿用物品 `openHours` |
 | 未做 | 直播收入自动折算（`live_income_per_viewer` 0.5 已留配置，直播侧回传后用 `/admin/income` 入账）、钓鱼得鱼、灶台出便当、写歌产出 `song`——等 03-objects 定稿 |

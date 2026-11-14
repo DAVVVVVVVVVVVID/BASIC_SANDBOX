@@ -352,7 +352,7 @@
     }
   },
   {
-    "id": "bush_xiaoqian",
+    "id": "bush_claudine",
     "type": "bush_flower",
     "position": {
       "x": 14,
@@ -488,7 +488,7 @@
     }
   },
   {
-    "id": "bed_xiaoqian",
+    "id": "bed_claudine",
     "type": "bed",
     "position": {
       "x": 14,
@@ -496,7 +496,7 @@
     }
   },
   {
-    "id": "table_xiaoqian",
+    "id": "table_claudine",
     "type": "dining_table",
     "position": {
       "x": 14,
@@ -504,7 +504,7 @@
     }
   },
   {
-    "id": "stove_xiaoqian",
+    "id": "stove_claudine",
     "type": "stove",
     "position": {
       "x": 18,
@@ -512,7 +512,7 @@
     }
   },
   {
-    "id": "fridge_xiaoqian",
+    "id": "fridge_claudine",
     "type": "fridge",
     "position": {
       "x": 19,

@@ -291,6 +291,12 @@ def knock(entity_id: str, payload: dict) -> tuple[dict | None, str | None, dict 
             return None, "already_knocking", {"request_id": r["id"], "status": r["status"], "expires_at": r["expires_at"]}
     gts = ws.game_now_ts()
     owners = sorted(home_owners(sector))
+    # world-v1.3：屋里只有勿扰的人（主播操控的阿蝉不在）→ 立刻 busy「在忙」，不挂 90 s 等 no_answer；屋里另有清醒的非勿扰者则照常（勿扰者不被通知）
+    insiders = [op for op in ws._players.values() if op["id"] != entity_id and _inside(op, sector)]
+    dnd_in = [op for op in insiders if ws.is_dnd(op)]
+    if dnd_in and not any(_at_home_awake(op, sector) and not ws.is_dnd(op) for op in insiders):
+        _log(entity_id, "knock", {"home": sector, "door_id": d["id"], "busy": [op["id"] for op in dnd_in]}, success=False, reason="busy")
+        return None, "busy", {"home": sector, "door_id": d["id"], "message": f"{ws.zone_display_name('sector', sector)}里的人在忙，先别打扰。", "dnd": [op["id"] for op in dnd_in]}
     req = {"id": f"k{uuid.uuid4().hex[:8]}", "visitor": entity_id, "visitor_name": p.get("name"), "visitor_account": p.get("agent_id") or entity_id,
            "home": sector, "home_name": ws.zone_display_name("sector", sector), "owners": owners,
            "door": {"id": d["id"], "name": d.get("name"), "x": anchor[0], "y": anchor[1], "inside": {"x": d["b"]["x"], "y": d["b"]["y"]}},
@@ -298,7 +304,7 @@ def knock(entity_id: str, payload: dict) -> tuple[dict | None, str | None, dict 
            "status": "pending", "responded_by": None, "answers": [], "notified": []}
     _requests[req["id"]] = req
     for op in ws._players.values():
-        if op["id"] != entity_id and _at_home_awake(op, sector):                  # §3.41 补：屋内所有清醒者（不限 owner）
+        if op["id"] != entity_id and _at_home_awake(op, sector) and not ws.is_dnd(op):   # §3.41 补：屋内所有清醒者（不限 owner）；勿扰者不通知
             ws._pending_messages[op["id"]] = f"{p.get('name')} 在敲门。"
             req["notified"].append(op["id"])
     _log(entity_id, "knock", public_request(req))

@@ -65,7 +65,8 @@ _init_defaults()
 
 # ── 账号 ──
 def account_of(player: dict) -> str:
-    return player.get("agent_id") if player.get("controller") == "agent" and player.get("agent_id") else player["id"]
+    """账号：有 agent_id 就用它（agent；world-v1.3 起人类带 profile.agent_id 也算，主播演阿蝉），否则 player id。"""
+    return player.get("agent_id") or player["id"]
 
 
 def _players_by_account() -> dict[str, dict]:
@@ -96,6 +97,9 @@ def resolve_account(ref: str) -> str | None:
         return ref
     for acc, nm in NAMES.items():
         if nm == ref:
+            return acc
+    for acc, als in (_CFG.get("aliases") or {}).items():          # world-v1.3：昵称 / 旧 id（克劳蒂娜：小克 / 小千 / npc_xiaoqian）
+        if ref in als:
             return acc
     for acc, p in by_acc.items():
         if p.get("name") == ref:
@@ -243,6 +247,7 @@ def on_tick(gts: float, players: dict) -> None:
     from game.time_state import _game_dt
     after = float(_PENALTY.get("after_hours", 2)); per = float(_PENALTY.get("per_hour", 1)); cap = float(_PENALTY.get("daily_cap", 5))
     day = _game_dt(gts).strftime("%Y-%m-%d")
+    by_acc = _players_by_account()
     with _LOCK:
         for m in _messages:
             if m.get("group") or m["read_at"] is not None or not m.get("to"):
@@ -250,6 +255,9 @@ def on_tick(gts: float, players: dict) -> None:
             try:
                 sent = datetime.fromisoformat(m["game_time"]).timestamp()
             except Exception:
+                continue
+            to_p = by_acc.get(m["to"])
+            if to_p is not None and to_p.get("dnd"):                   # world-v1.3：收件人勿扰（主播不在）→ 未读不算冷落，不扣发件人亲密度
                 continue
             hours = (gts - sent) / 3600.0
             due = int(hours - after) if hours > after else 0          # 已经该扣的小时数

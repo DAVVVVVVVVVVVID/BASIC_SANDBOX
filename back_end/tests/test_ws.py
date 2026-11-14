@@ -47,7 +47,7 @@ def test_patches_follow_player_object_and_chat_changes(live):
         p = _recv(ws, "patch", pred=lambda m: any(x["id"] == b for x in m.get("players", {}).get("upsert", [])))
         up = next(x for x in p["players"]["upsert"] if x["id"] == b)
         assert set(up) == {"id", "name", "position", "facing", "state", "controller", "online", "agent_id",
-                           "stateLabel", "usingObjectId", "tags", "pos_seq", "away", "gold", "inventory", "busy", "daily_use", "rent"}   # W5 E①⑥ + W8 Q0e + W10 ④ + v1.1 busy / daily_use / rent
+                           "stateLabel", "usingObjectId", "tags", "pos_seq", "away", "gold", "inventory", "busy", "daily_use", "rent", "dnd"}   # W5 E①⑥ + W8 Q0e + W10 ④ + v1.1 busy / daily_use / rent + v1.3 dnd
         # 移动 → position 变化
         action(live, a, "move", {"direction": "right"})
         p = _recv(ws, "patch", pred=lambda m: any(x["id"] == a for x in m.get("players", {}).get("upsert", [])))

@@ -104,6 +104,7 @@ class OtherPlayer(BaseModel):
     busy: Optional[dict] = None        # world-v1.1：进食 / 刻盘进度（E 旁观页从 players[] 读）
     daily_use: Optional[dict] = None   # world-v1.1 I-1：{obj_type: {used_min, limit_min}}
     rent: Optional[dict] = None        # world-v1.1 §3.3：{amount, items, due_at, due_in_days, overdue, owed, landlord, balance}
+    dnd: Optional[bool] = None         # world-v1.3：静态勿扰（tags 里同时有 dnd / working）
 
 
 class WorldData(BaseModel):

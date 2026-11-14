@@ -9,7 +9,7 @@ world-v1.2 紧凑地图（主播 2026-11-14 定：每栋楼占地缩小、外观
   y0–7   鲸鱼大学 campus x2–30（教学楼 / 图书馆 / 音乐楼 三栋 7×5 并排，过道 y6，校门 (20,7)(21,7) 接南北街）；老渔夫家 x33–41,y1–6；码头 x42–45,y1–9 贴河（河 x46–49）
   y8–9   东西主街；x20–21 南北街（y8–26）；y18 北巷（各家 / 餐厅门前）；y26 南巷
   y10–17 合租房 1F x2–11 | 公园 x13–19 | 广场 x22–31 | 餐厅 x33–42
-  y20–25 小千家 x13–20 | 杂货店 x22–29（门朝南开到短巷 y25）| 店主们的家 x31–41
+  y20–25 克劳蒂娜家 x13–20 | 杂货店 x22–29（门朝南开到短巷 y25）| 店主们的家 x31–41
   2F 阿蝉房画在 x2–7,y29–33，楼梯边 (10,16)↔(3,30)
 """
 import argparse
@@ -27,12 +27,12 @@ arena  = [["A"] * W for _ in range(H)]
 SECTORS: dict[str, str] = {}       # char -> sector id
 ARENAS: dict[str, str] = {}        # char -> arena id
 SECTOR_NAMES = {"outside": "小镇", "university": "鲸鱼大学", "fisher_house": "老渔夫家", "home": "合租房", "restaurant": "餐厅",
-                "grocery": "杂货店", "xiaoqian_house": "小千家", "owners_house": "店主们的家"}
+                "grocery": "杂货店", "claudine_house": "克劳蒂娜家", "owners_house": "店主们的家"}
 ARENA_NAMES = {"grass": "草地", "street": "街道", "lane": "小巷", "campus": "校园", "classroom": "教学楼", "library": "图书馆",
                "music_room": "音乐楼·琴房", "fisher_bedroom": "渔夫的卧室", "fisher_kitchen": "渔夫的厨房", "dock": "码头", "water": "河",
                "whale_room": "鲸仔房间", "living_room": "客厅", "kitchen": "厨房", "achan_room": "阿蝉房间（2F）",
                "park": "公园", "square": "广场", "dining": "餐厅大堂", "rest_kitchen": "餐厅后厨", "grocery_shop": "杂货店",
-               "xiaoqian_room": "小千的房间", "xiaoqian_kitchen": "小千的厨房",
+               "claudine_room": "克劳蒂娜的房间", "claudine_kitchen": "克劳蒂娜的厨房",
                "owner_rest_room": "餐厅老板的房间", "owner_grocer_room": "杂货店老板的房间", "owners_kitchen": "店主们的厨房"}
 FLOORS = {"achan_room": 2}
 _sec_chars = iter(string.ascii_uppercase); _ar_chars = iter(string.ascii_letters + string.digits)
@@ -116,7 +116,7 @@ obj("fish_stall", "fish_stall", 42, 1); obj("fishing_spot_1", "fishing_spot", 45
 fill(0, 8, 45, 9, "F", "outside", "street")             # 东西主街
 fill(20, 0, 21, 26, "F", "outside", "street")           # 南北街（穿校园，校门口 y7 由 house 开口）
 fill(2, 18, 45, 18, "F", "outside", "lane")             # 北巷：合租房 / 餐厅门前
-fill(12, 26, 41, 26, "F", "outside", "lane")            # 南巷：小千家 / 店主家门前
+fill(12, 26, 41, 26, "F", "outside", "lane")            # 南巷：克劳蒂娜家 / 店主家门前
 fill(36, 7, 36, 7, "F", "outside", "lane")              # 渔夫家门前一格（门 (36,6)）
 fill(22, 25, 29, 25, "F", "outside", "lane")            # 杂货店门前短巷 y25：西接南北街 (21,25)、南接南巷 y26
 obj("notice_board_street", "notice_board", 19, 10); obj("lamp_1", "lamp", 22, 10); obj("lamp_2", "lamp", 12, 19)
@@ -171,7 +171,7 @@ obj("bush_park_1", "bush_round", 13, 17); obj("bush_park_2", "bush_flower", 19, 
 obj("trash_can_square", "trash_can", 31, 17); obj("mailbox_square", "mailbox", 22, 11)
 obj("bench_dock_side", "bench_side", 42, 4)
 obj("bush_fisher", "bush_round", 37, 7); obj("bush_home", "bush_flower", 10, 19); obj("bush_restaurant", "bush_round", 36, 19)
-obj("bush_grocery", "bush_flower", 24, 25); obj("bush_xiaoqian", "bush_flower", 14, 27); obj("bush_owners", "bush_round", 35, 27)
+obj("bush_grocery", "bush_flower", 24, 25); obj("bush_claudine", "bush_flower", 14, 27); obj("bush_owners", "bush_round", 35, 27)
 fill(22, 10, 31, 17, "F", "outside", "square")
 obj("fountain", "fountain", 26, 12)
 obj("bench_square_1", "bench", 23, 11); obj("bench_square_2", "bench", 29, 11); obj("bench_square_3", "bench", 26, 16)
@@ -189,13 +189,13 @@ house(22, 20, 29, 24, "grocery", rooms=[(23, 21, 28, 23, "grocery_shop")], doors
 obj("counter", "shop_counter", 28, 22); obj("shelf_1", "shelf", 23, 21); obj("shelf_2", "shelf", 24, 23); obj("shelf_3", "shelf", 28, 21)   # shelf_2 让出门内格 (23,23)
 edge("door_grocery", "door", (23, 25), (23, 24), "杂货店门", open_hours=[["09:00", "22:00"]], owner=["npc_grocer"])
 
-# ── 小千家（x13–20,y20–25；门 (16,25) → 南巷 (16,26)）与店主们的家（x31–41,y20–25；门 (36,25) → (36,26)）──
-house(13, 20, 20, 25, "xiaoqian_house", rooms=[(14, 21, 16, 24, "xiaoqian_room"), (18, 21, 19, 24, "xiaoqian_kitchen")], doors=[(15, 25)], building="")
-wall(17, 21, 17, 24, door=(17, 23), ar="xiaoqian_room")
-obj("bed_xiaoqian", "bed", 14, 21); obj("table_xiaoqian", "dining_table", 14, 23); obj("stove_xiaoqian", "stove", 18, 21); obj("fridge_xiaoqian", "fridge", 19, 21)
-edge("door_xiaoqian", "door", (15, 26), (15, 25), "小千家门", owner=["npc_xiaoqian"])
-access["xiaoqian_room"] = {"owner": ["npc_xiaoqian"]}
-access["xiaoqian_kitchen"] = {"owner": ["npc_xiaoqian"]}
+# ── 克劳蒂娜家（x13–20,y20–25；门 (16,25) → 南巷 (16,26)）与店主们的家（x31–41,y20–25；门 (36,25) → (36,26)）──
+house(13, 20, 20, 25, "claudine_house", rooms=[(14, 21, 16, 24, "claudine_room"), (18, 21, 19, 24, "claudine_kitchen")], doors=[(15, 25)], building="")
+wall(17, 21, 17, 24, door=(17, 23), ar="claudine_room")
+obj("bed_claudine", "bed", 14, 21); obj("table_claudine", "dining_table", 14, 23); obj("stove_claudine", "stove", 18, 21); obj("fridge_claudine", "fridge", 19, 21)
+edge("door_claudine", "door", (15, 26), (15, 25), "克劳蒂娜家门", owner=["claudine"])
+access["claudine_room"] = {"owner": ["claudine"]}
+access["claudine_kitchen"] = {"owner": ["claudine"]}
 house(31, 20, 41, 25, "owners_house", rooms=[(32, 21, 33, 24, "owner_rest_room"), (35, 21, 37, 24, "owners_kitchen"), (39, 21, 40, 24, "owner_grocer_room")], doors=[(34, 25)], building="")
 arena[25][34] = R("owners_kitchen")                      # 门格归厨房；门 (34,25) 正对内墙 x34 → 底排 (34,24) 开成过道（左老板房 / 右厨房）
 wall(34, 21, 34, 24, door=(34, 23), ar="owner_rest_room"); tiles[24][34] = "f"; arena[24][34] = R("owners_kitchen"); wall(38, 21, 38, 24, door=(38, 22), ar="owners_kitchen")
@@ -210,7 +210,7 @@ decor: list[dict] = []
 
 # ── 码头栈道边（主街 ↔ 小巷无门，不设边）──
 PLAYER_START = {"x": 4, "y": 13, "facing": "down"}       # 鲸仔房间
-HOMES = {"whale": "whale_room", "achan": "achan_room", "npc_fisher": "fisher_bedroom", "npc_xiaoqian": "xiaoqian_room",
+HOMES = {"whale": "whale_room", "achan": "achan_room", "npc_fisher": "fisher_bedroom", "claudine": "claudine_room",
          "npc_rest_owner": "owner_rest_room", "npc_grocer": "owner_grocer_room"}
 
 

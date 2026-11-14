@@ -69,7 +69,7 @@
       "D": "home",
       "E": "restaurant",
       "F": "grocery",
-      "G": "xiaoqian_house",
+      "G": "claudine_house",
       "H": "owners_house"
     },
     "arena": {
@@ -93,8 +93,8 @@
       "r": "dining",
       "s": "rest_kitchen",
       "t": "grocery_shop",
-      "u": "xiaoqian_room",
-      "v": "xiaoqian_kitchen",
+      "u": "claudine_room",
+      "v": "claudine_kitchen",
       "w": "owner_rest_room",
       "x": "owners_kitchen",
       "y": "owner_grocer_room"
@@ -111,7 +111,7 @@
       "home": "合租房",
       "restaurant": "餐厅",
       "grocery": "杂货店",
-      "xiaoqian_house": "小千家",
+      "claudine_house": "克劳蒂娜家",
       "owners_house": "店主们的家"
     },
     "arena": {
@@ -135,8 +135,8 @@
       "dining": "餐厅大堂",
       "rest_kitchen": "餐厅后厨",
       "grocery_shop": "杂货店",
-      "xiaoqian_room": "小千的房间",
-      "xiaoqian_kitchen": "小千的厨房",
+      "claudine_room": "克劳蒂娜的房间",
+      "claudine_kitchen": "克劳蒂娜的厨房",
       "owner_rest_room": "餐厅老板的房间",
       "owner_grocer_room": "杂货店老板的房间",
       "owners_kitchen": "店主们的厨房"
@@ -475,21 +475,21 @@
       "keys": 1
     },
     {
-      "id": "door_xiaoqian",
+      "id": "door_claudine",
       "kind": "door",
-      "name": "小千家门",
+      "name": "克劳蒂娜家门",
       "a": {
         "arena": "lane",
         "x": 15,
         "y": 26
       },
       "b": {
-        "arena": "xiaoqian_room",
+        "arena": "claudine_room",
         "x": 15,
         "y": 25
       },
       "owner": [
-        "npc_xiaoqian"
+        "claudine"
       ],
       "keys": 1
     },
@@ -557,14 +557,14 @@
       ],
       "allow_when_locked": []
     },
-    "xiaoqian_room": {
+    "claudine_room": {
       "owner": [
-        "npc_xiaoqian"
+        "claudine"
       ]
     },
-    "xiaoqian_kitchen": {
+    "claudine_kitchen": {
       "owner": [
-        "npc_xiaoqian"
+        "claudine"
       ]
     },
     "owner_rest_room": {
@@ -590,7 +590,7 @@
     "whale": "whale_room",
     "achan": "achan_room",
     "npc_fisher": "fisher_bedroom",
-    "npc_xiaoqian": "xiaoqian_room",
+    "claudine": "claudine_room",
     "npc_rest_owner": "owner_rest_room",
     "npc_grocer": "owner_grocer_room"
   },
@@ -765,8 +765,8 @@
       ]
     },
     {
-      "id": "xiaoqian_house",
-      "sector": "xiaoqian_house",
+      "id": "claudine_house",
+      "sector": "claudine_house",
       "floor": 1,
       "footprint": {
         "x": 13,
@@ -776,7 +776,7 @@
       },
       "doors": [
         {
-          "door_id": "door_xiaoqian",
+          "door_id": "door_claudine",
           "cell": {
             "x": 15,
             "y": 25

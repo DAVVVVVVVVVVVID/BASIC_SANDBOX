@@ -25,7 +25,7 @@ def main() -> int:
     ap.add_argument("--map", default="v1.2", help="game/maps/<name> 或目录（world-v1.2 起默认 v1.2）")
     ap.add_argument("--at", default=None, help="游戏时刻 HH:MM（营业时间 / 锁门按它算；缺省 12:00）")
     ap.add_argument("--ignore-locks", action="store_true")
-    ap.add_argument("--as", dest="mover", default=None, help="按谁的门禁算（agent_id，如 whale / npc_xiaoqian）")
+    ap.add_argument("--as", dest="mover", default=None, help="按谁的门禁算（agent_id，如 whale / claudine）")
     ap.add_argument("--points", nargs="*", default=[])
     ap.add_argument("--objects", nargs="*", default=[])
     ap.add_argument("--arenas", nargs="*", default=[])

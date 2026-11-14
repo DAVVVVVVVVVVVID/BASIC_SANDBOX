@@ -49,8 +49,8 @@ def test_owner_can_go_home_after_closing_and_guest_can_leave_but_not_enter(clien
 def test_locked_home_guest_can_exit_and_grocer_owner_both_ways(client, v12, fake_clock):
     _at(fake_clock, 12, 0)
     whale = _agent(client, "whale"); grocer = _agent(client, "npc_grocer")
-    # 小千家常锁（allow owner）：外人被带进去后也能出来
-    place(whale, 15, 25, "down")                                                               # 小千家门内侧
+    # 克劳蒂娜家常锁（allow owner）：外人被带进去后也能出来
+    place(whale, 15, 25, "down")                                                               # 克劳蒂娜家门内侧
     res = action(client, whale, "move", {"direction": "down"})
     assert res["success"], res
     walk_done(whale, fake_clock)

@@ -117,7 +117,7 @@ def op_spawn(step: dict) -> dict:
     profile = dict(step.get("profile") or {})
     if step.get("agent_id"):
         profile["agent_id"] = step["agent_id"]
-    player = world_state.create_player(name, controller=controller, profile=profile or None)
+    player = world_state.create_player(name, controller=controller, profile=profile or None, dnd=step.get("dnd"))
     pid = player["id"]
     if step.get("x") is not None and step.get("y") is not None:
         op_teleport({"player": pid, "x": step["x"], "y": step["y"], "facing": step.get("facing")})
@@ -125,7 +125,7 @@ def op_spawn(step: dict) -> dict:
         op_set_vars({"player": pid, "vars": step["vars"]})
     from game import self_sync
     self_sync.assert_local(pid)                       # W11 维护：夹具摆的值以本地为准，不被自我层旧值 snap 回去
-    pushed = self_sync.push_local_now(world_state._players[pid], world_state.game_now_ts())   # 并立刻推给自我层，开局即一致
+    pushed = self_sync.push_local_now(world_state._players[pid], world_state.game_now_ts()) if controller == "agent" else {"ok": False, "skipped": "human"}   # 并立刻推给自我层，开局即一致（人类不推）
     return {**_brief(world_state._players[pid]), "self_push": pushed}
 
 
@@ -242,7 +242,7 @@ def op_respond(step: dict) -> dict:
 
 
 def op_say(step: dict) -> dict:
-    """{player, text, room?}：有 room 走房间发言；没 room 走 Q6 的「靠近即可说」（X4 say / GA 变体的脚本小千）。"""
+    """{player, text, room?}：有 room 走房间发言；没 room 走 Q6 的「靠近即可说」（X4 say / GA 变体的脚本克劳蒂娜）。"""
     pid = _resolve(step.get("player"))
     if not step.get("room"):
         from game import speech

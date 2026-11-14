@@ -3,7 +3,7 @@ from game import world_state
 from tests.conftest import BED_ID, BED_STAND, DESK_ID, DESK_STAND, join, action, place
 from tests.test_w9_map_v2 import v12  # noqa: F401  复用 v1 地图 fixture
 
-SOUTH_DOORS = ("door_home", "door_restaurant", "door_grocery", "door_xiaoqian", "door_owners")
+SOUTH_DOORS = ("door_home", "door_restaurant", "door_grocery", "door_claudine", "door_owners")
 
 
 def test_v1_buildings_enter_from_south(client, v12):

@@ -40,7 +40,7 @@ def info() -> dict:
 reload()
 _paid: dict[str, str] = {}            # "account:daily:YYYY-MM-DD" / "account:hourly:YYYY-MM-DDTHH" -> ts（防重复结算）
 _balances: dict[str, int] = {}        # world-v1.1 §3 M-3 / M-5：按账号（agent_id）记余额，独立于在线；在线时 player.gold 是同一份数（ledger 同步）
-_debts: dict[str, int] = {}           # 欠薪：payer 账号 -> 累计欠小千的工资
+_debts: dict[str, int] = {}           # 欠薪：payer 账号 -> 累计欠克劳蒂娜的工资
 _opened: dict[str, float] = {}        # 账号 -> 开户游戏时刻（第一次 join / spawn）；日薪 / 房租只对开过户的账号
 
 
@@ -302,6 +302,11 @@ def import_state(data: dict) -> None:
     _balances.clear(); _balances.update({k: int(v) for k, v in (data.get("balances") or {}).items()})
     _debts.clear(); _debts.update({k: int(v) for k, v in (data.get("debts") or {}).items()})
     _opened.clear(); _opened.update({k: float(v) for k, v in (data.get("opened") or {}).items()})
+    from game.world_state import LEGACY_IDS
+    for old, new in LEGACY_IDS.items():                                   # world-v1.3：旧检查点里的账号改名
+        for d in (_balances, _debts, _opened, _paid):
+            if old in d and new not in d:
+                d[new] = d.pop(old)
 
 
 def _reset_for_tests() -> None:

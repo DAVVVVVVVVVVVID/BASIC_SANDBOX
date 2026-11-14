@@ -161,7 +161,7 @@ def test_restaurant_meal_charges_and_insufficient_funds(client, fake_clock):
 
 def test_admin_income_and_wages_by_schedule(client, fake_clock):
     _at(fake_clock, 12, 0)
-    whale = _agent(client, "whale"); achan = _agent(client, "achan"); xq = _agent(client, "npc_xiaoqian")
+    whale = _agent(client, "whale"); achan = _agent(client, "achan"); xq = _agent(client, "claudine")
     r = client.post("/admin/income", json={"entity_id": whale, "amount": 200, "source": "song_fee", "label": "《夜航》酬金"}).json()
     assert r["ok"] and r["balance"] == 3200 and r["account"] == "whale"
     r = client.post("/admin/income", json={"account": "whale", "amount": -30, "source": "adjust"}).json()
@@ -169,7 +169,7 @@ def test_admin_income_and_wages_by_schedule(client, fake_clock):
     assert client.post("/admin/income", json={"account": "nobody", "amount": 1}).status_code == 404
     _tick(fake_clock, 1)
     assert world_state._players[xq]["gold"] == 3000 and world_state._players[achan]["gold"] == 3000
-    # 小千周一至周五 13–17 点时薪 12（11-10 周二）：到 15:30 应结 2 小时（14 点、15 点整点）；到 17:05 共 4 小时；之后不再发；钱从店主（没上线）账户扣
+    # 克劳蒂娜周一至周五 13–17 点时薪 12（11-10 周二）：到 15:30 应结 2 小时（14 点、15 点整点）；到 17:05 共 4 小时；之后不再发；钱从店主（没上线）账户扣
     _at(fake_clock, 15, 30); _tick(fake_clock, 1)
     assert world_state._players[xq]["gold"] == 3000 + 24 and economy.balance("npc_grocer") == 3000 - 24
     _at(fake_clock, 17, 5); _tick(fake_clock, 1)
@@ -182,7 +182,7 @@ def test_admin_income_and_wages_by_schedule(client, fake_clock):
     _at(fake_clock, 19, 0); _tick(fake_clock, 1); _tick(fake_clock, 1)
     assert world_state._players[achan]["gold"] == 3200
     wage_rows = [r for r in _ledger() if r["kind"] == "wage"]
-    assert [(r["account"], r["delta"]) for r in wage_rows] == [("npc_xiaoqian", 12)] * 4 + [("achan", 200)]
+    assert [(r["account"], r["delta"]) for r in wage_rows] == [("claudine", 12)] * 4 + [("achan", 200)]
     assert [(r["account"], r["delta"], r["offline"]) for r in _ledger() if r["kind"] == "wage_paid"] == [("npc_grocer", -12, True)] * 4
     # 老板娘上线：接着用自己的账户（离线扣过的钱不回来）
     grocer = _agent(client, "npc_grocer")

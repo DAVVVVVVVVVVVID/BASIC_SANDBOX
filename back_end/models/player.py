@@ -37,7 +37,8 @@ class Player(BaseModel):
     online: bool = True                         # B6：agent 10 s 无心跳标 False，不删除
     away: bool = False                          # W8 Q0e：human 120 s 无输入；agent 恒 False
     scene: Literal["sandbox", "live"] = "sandbox"   # B4：衰减速率按 scene
-    agent_id: Optional[str] = None              # 自我层 agent id（controller=agent 时）
+    agent_id: Optional[str] = None              # 自我层 agent id（controller=agent 时；world-v1.3：人类带 profile.agent_id 也填）
+    dnd: bool = False                           # world-v1.3：静态勿扰（主播操控的阿蝉）
     last_tick_ts: str = ""                      # 上次 tick 的游戏时刻，ISO 8601（§3.7 裁定 3）
     usingObjectId: Optional[str] = None
     buffs: List[Buff] = []

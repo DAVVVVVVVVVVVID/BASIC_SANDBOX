@@ -28,7 +28,7 @@ def main() -> int:
     B = a.base
     old_speed = http(B, "GET", "/world?fields=worldState")["worldState"]["speed"]
     ids = {}
-    for aid, name in (("achan", "阿蝉"), ("npc_xiaoqian", "小千"), ("npc_grocer", "杂货店老板娘"), ("npc_rest_owner", "餐厅老板"), ("npc_fisher", "老渔夫")):
+    for aid, name in (("achan", "阿蝉"), ("claudine", "克劳蒂娜"), ("npc_grocer", "杂货店老板娘"), ("npc_rest_owner", "餐厅老板"), ("npc_fisher", "老渔夫")):
         ids[aid] = http(B, "POST", "/player/join", {"name": name, "controller": "agent", "profile": {"agent_id": aid}})["playerId"]
     from datetime import date, timedelta
     tomorrow = (date.fromisoformat(http(B, "GET", "/world?fields=worldState")["worldState"]["date"]) + timedelta(days=1)).isoformat()
@@ -82,7 +82,7 @@ def main() -> int:
         "20:00 老板娘日薪": at("gold:npc_grocer", gold0["npc_grocer"] + 100, "20:00", "20:08"),
         "21:00 餐厅老板日薪": at("gold:npc_rest_owner", gold0["npc_rest_owner"] + 100, "21:00", "21:08"),
         "17:00 渔夫日薪": at("gold:npc_fisher", gold0["npc_fisher"] + 80, "17:00", "17:08"),
-        "小千 4 次时薪": (last.get("gold:npc_xiaoqian") == gold0["npc_xiaoqian"] + 48) or None,
+        "克劳蒂娜 4 次时薪": (last.get("gold:claudine") == gold0["claudine"] + 48) or None,
         "跑满一日": seen_day_end or None,
     }
     ok = all(v for v in checks.values())

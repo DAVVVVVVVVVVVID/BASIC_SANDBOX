@@ -26,8 +26,8 @@ def test_solo_checklist_and_drop_delivery(client, v12, fake_clock, monkeypatch):
     place(whale, 34, 12, "up"); assert action(client, whale, "use")["success"]
     r = action(client, whale, "eat", {"item": "meal"}); assert r["success"] and economy.balance("npc_rest_owner") == 3020
     action(client, whale, "leave")
-    # QQ 发给不在的小千：入信箱、没人回
-    assert client.post("/qq/send", json={"entity_id": whale, "to": "npc_xiaoqian", "text": "在吗"}).json()["success"]
+    # QQ 发给不在的克劳蒂娜：入信箱、没人回
+    assert client.post("/qq/send", json={"entity_id": whale, "to": "claudine", "text": "在吗"}).json()["success"]
     # 委托：当面 give 没有对象 → 放到餐厅门口 / 柜台即交付
     cm = client.post("/admin/commission", json={"client": "餐厅老板", "title": "店歌", "fee": 150}).json()["commission"]
     inventory.add(p, "cd", 1, meta={"title": "夜航", "commission_id": cm["id"]}, expires_at=None)

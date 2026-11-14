@@ -58,12 +58,12 @@ def test_v1_map_loads_format2_and_world_exposes_graph(client, v12):
     tree = client.get("/agent/perceive", params={"entity_id": join(client, "h")}).json()["arena_tree"]
     floors = {a["id"]: a["floor"] for s in tree["sectors"] for a in s["arenas"]}
     assert floors["achan_room"] == 2 and floors["whale_room"] == 1
-    assert {s["id"] for s in tree["sectors"]} == {"outside", "university", "fisher_house", "home", "restaurant", "grocery", "xiaoqian_house", "owners_house"}
+    assert {s["id"] for s in tree["sectors"]} == {"outside", "university", "fisher_house", "home", "restaurant", "grocery", "claudine_house", "owners_house"}
 
 
 def test_spawn_points_follow_bible(client, v12):
     for aid, arena in (("whale", "whale_room"), ("achan", "achan_room"), ("npc_fisher", "fisher_bedroom"),
-                       ("npc_xiaoqian", "xiaoqian_room"), ("npc_rest_owner", "owner_rest_room"), ("npc_grocer", "owner_grocer_room")):
+                       ("claudine", "claudine_room"), ("npc_rest_owner", "owner_rest_room"), ("npc_grocer", "owner_grocer_room")):
         p = client.post("/player/join", json={"name": aid, "controller": "agent", "profile": {"agent_id": aid}}).json()["player"]
         assert world_state.get_zone_at(p["position"]["x"], p["position"]["y"])["arena"] == arena, aid
     h = client.post("/player/join", json={"name": "h"}).json()["player"]

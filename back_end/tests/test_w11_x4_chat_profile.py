@@ -126,13 +126,13 @@ def test_three_party_room_semantics(client):
 
 def test_scenario_say_without_room_and_qq_send(client, monkeypatch):
     monkeypatch.setenv("SANDBOX_SCENARIO", "1")
-    a = join(client, "鲸仔"); x = client.post("/player/join", json={"name": "小千", "controller": "agent", "profile": {"agent_id": "npc_xiaoqian"}}).json()["playerId"]
+    a = join(client, "鲸仔"); x = client.post("/player/join", json={"name": "克劳蒂娜", "controller": "agent", "profile": {"agent_id": "claudine"}}).json()["playerId"]
     place(a, 41, 26, "up"); place(x, 41, 25, "down")
-    r = client.post("/admin/scenario", json={"steps": [{"op": "say", "player": "小千", "text": "昨天你干了什么？"}]}).json()
+    r = client.post("/admin/scenario", json={"steps": [{"op": "say", "player": "克劳蒂娜", "text": "昨天你干了什么？"}]}).json()
     assert r["ok"] and r["steps"][0]["detail"]["heard_by"] == [a]
     assert client.get("/agent/perceive", params={"entity_id": a}).json()["nearby_speech"][0]["text"] == "昨天你干了什么？"
-    r = client.post("/admin/scenario", json={"steps": [{"op": "qq_send", "from": "小千", "to": a, "text": "餐厅几点开门？"}]}).json()
-    assert r["ok"] and r["steps"][0]["detail"]["kind"] == "text" and r["steps"][0]["detail"]["from"] == "npc_xiaoqian"
+    r = client.post("/admin/scenario", json={"steps": [{"op": "qq_send", "from": "克劳蒂娜", "to": a, "text": "餐厅几点开门？"}]}).json()
+    assert r["ok"] and r["steps"][0]["detail"]["kind"] == "text" and r["steps"][0]["detail"]["from"] == "claudine"
     assert client.get("/qq/inbox", params={"player": a}).json()["unread_total"] == 1
-    r = client.post("/admin/scenario", json={"steps": [{"op": "qq_send", "from": "小千", "group": "g_live", "text": "群"}]}).json()
+    r = client.post("/admin/scenario", json={"steps": [{"op": "qq_send", "from": "克劳蒂娜", "group": "g_live", "text": "群"}]}).json()
     assert r["ok"] is False and "not_member" in r["error"]

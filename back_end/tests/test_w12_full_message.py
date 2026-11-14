@@ -5,7 +5,7 @@ from game import world_state
 
 
 def test_bench_full_message_names_object_and_count(client, v12):
-    a, b, c = (_agent(client, x) for x in ("whale", "achan", "npc_xiaoqian"))
+    a, b, c = (_agent(client, x) for x in ("whale", "achan", "claudine"))
     for pid, x in ((a, 23), (b, 24)):
         place(pid, x, 12, "up")
         assert action(client, pid, "use")["success"]

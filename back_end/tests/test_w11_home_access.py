@@ -22,18 +22,18 @@ def _arena(pid):
 
 def test_keys_issued_on_join_and_gate_doors(client, v12, fake_clock):
     _at(fake_clock, 5, 40)
-    fisher = _agent(client, "npc_fisher"); xq = _agent(client, "npc_xiaoqian"); achan = _agent(client, "achan"); whale = _agent(client, "whale")
+    fisher = _agent(client, "npc_fisher"); xq = _agent(client, "claudine"); achan = _agent(client, "achan"); whale = _agent(client, "whale")
     assert [k["door_id"] for k in client.get(f"/player/{whale}").json()["keys"]] == ["door_home"]
     assert [k["door_id"] for k in client.get(f"/player/{achan}").json()["keys"]] == ["door_home"]
     assert [k["door_id"] for k in client.get(f"/player/{fisher}").json()["keys"]] == ["door_fisher"]
-    assert [k["door_id"] for k in client.get(f"/player/{xq}").json()["keys"]] == ["door_xiaoqian"]
+    assert [k["door_id"] for k in client.get(f"/player/{xq}").json()["keys"]] == ["door_claudine"]
     inv = client.get(f"/player/{whale}").json()["inventory"]
     assert inv == [{"type": "key", "name": "钥匙", "class": "key", "count": 1, "meta": {"door_id": "door_home", "name": "合租房大门钥匙"}}]
     # 老渔夫没合租房钥匙：街道 go_to 厨房 → no_path/locked，卡在大门
     place(fisher, 30, 9, "left")
     res = action(client, fisher, "go_to", {"target": "kitchen"})
     assert res["success"] is False and res["reason"] == "no_path" and res["result"]["blocked_reason"] == "locked" and res["result"]["blocked_at"] == {"x": 9, "y": 17}
-    # 小千没钥匙也进不去（白名单没了）
+    # 克劳蒂娜没钥匙也进不去（白名单没了）
     place(xq, 30, 9, "left")
     assert action(client, xq, "go_to", {"target": "living_room"})["reason"] == "no_path"
     # 鲸仔 / 阿蝉有钥匙直接过
@@ -90,11 +90,11 @@ def test_map_doors_and_access_shape(client, v12):
     m = client.get("/world", params={"fields": "map"}).json()["map"]
     edges = {e["id"]: e for e in m["edges"]}
     assert edges["door_home"]["owner"] == ["whale", "achan"] and edges["door_home"]["keys"] == 3 and "allow" not in edges["door_home"]
-    for eid, owner in (("door_fisher", ["npc_fisher"]), ("door_xiaoqian", ["npc_xiaoqian"]), ("door_owners", ["npc_rest_owner", "npc_grocer"]),
+    for eid, owner in (("door_fisher", ["npc_fisher"]), ("door_claudine", ["claudine"]), ("door_owners", ["npc_rest_owner", "npc_grocer"]),
                        ("door_restaurant", ["npc_rest_owner"]), ("door_grocery", ["npc_grocer"])):
         assert edges[eid]["owner"] == owner and edges[eid]["keys"] == len(owner), eid
     acc = m["access"]
     assert all("locked" not in a for k, a in acc.items() if k != "achan_room") and acc["achan_room"]["locked"] == [["09:00", "18:30"]]
     d = {x["door_id"]: x for x in m["doors"]}
-    assert set(d) == {"door_home", "door_fisher", "door_xiaoqian", "door_owners", "door_restaurant", "door_grocery"}
+    assert set(d) == {"door_home", "door_fisher", "door_claudine", "door_owners", "door_restaurant", "door_grocery"}
     assert d["door_home"]["open"] is False and d["door_home"]["keys"] == 3 and d["door_home"]["x"] == 9

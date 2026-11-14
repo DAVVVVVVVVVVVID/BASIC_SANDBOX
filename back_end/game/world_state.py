@@ -460,10 +460,10 @@ _id_rng = random.Random(SANDBOX_SEED) if SANDBOX_SEED is not None else None
 # - NPC 出生点：controller=agent 的玩家出生在其「家」arena 内由 (seed, agent_id) 决定的可走格；seed 为 None 时取该 arena 第一个可走格
 WEATHER_SLOT_HOURS = 6
 WEATHER_WEIGHTS = (("sunny", 6), ("cloudy", 3), ("rain", 1))
-# agent_id 全线统一（04-npcs.md，11-07 定）：whale / achan / npc_xiaoqian / npc_rest_owner / npc_grocer / npc_fisher。
+# agent_id 全线统一（04-npcs.md，11-07 定）：whale / achan / claudine / npc_rest_owner / npc_grocer / npc_fisher。
 # 这里是 v0 图（map.json 没有 homes）时的兜底；npc_cook / npc_regular 等是 v0 旧别名，只为老检查点保留。
 AGENT_HOME_ARENA = {"whale": "storage", "achan": "achan_room", "npc_grocer": "grocer_bedroom", "npc_fisher": "fisher_hut",
-                    "npc_rest_owner": "cook_bedroom", "npc_xiaoqian": "regular_bedroom",
+                    "npc_rest_owner": "cook_bedroom", "claudine": "regular_bedroom",
                     "npc_cook": "cook_bedroom", "npc_regular": "regular_bedroom",
                     "npc_teacher": "teacher_room", "npc_painter": "painter_room", "npc_herbalist": "herbalist_room"}
 
@@ -516,12 +516,60 @@ def mood_baseline(E: float = 50.0, N: float = 50.0) -> float:
     return _mood_baseline(E, N)
 
 
+LEGACY_IDS = {"npc_xiaoqian": "claudine"}        # world-v1.3：旧 agent_id → 新（主播改名；C / A 过渡期仍可能发旧 id）
+
+
+def canonical_id(aid: str | None) -> str | None:
+    return LEGACY_IDS.get(aid, aid) if aid else aid
+
+
+DND_DEFAULT_IDS = {"achan"}                      # world-v1.3：这些身份的人类玩家默认勿扰（主播本人操控，不在时不被打扰）
+DND_DEFAULT_NAMES = {"阿蝉"}
+
+
+def _human_agent_id(profile: dict | None) -> str | None:
+    aid = (profile or {}).get("agent_id") or (profile or {}).get("agent")
+    return canonical_id(str(aid)) if aid else None
+
+
+def _default_dnd(name: str, controller: str, profile: dict | None) -> bool:
+    if controller != "human":
+        return False
+    return _human_agent_id(profile) in DND_DEFAULT_IDS or name in DND_DEFAULT_NAMES
+
+
+def is_dnd(player: dict | None) -> bool:
+    return bool(player and player.get("dnd"))
+
+
+def set_dnd(player_id: str, on: bool) -> dict | None:
+    with STATE_LOCK:
+        p = _players.get(player_id)
+        if p is None:
+            return None
+        p["dnd"] = bool(on)
+        return p
+
+
+def view_tags(player: dict) -> list[str]:
+    """对外 tags：实际 tags + 勿扰标记（dnd；在自家房间再加 working），C 的感知据此不去找他。"""
+    tags = list(player.get("tags", []))
+    if is_dnd(player):
+        if "dnd" not in tags:
+            tags.append("dnd")
+        home = _HOMES.get(player.get("agent_id") or "")
+        pos = player.get("position") or {}
+        if home and get_zone_at(pos.get("x", -1), pos.get("y", -1)).get("arena") == home and "working" not in tags:
+            tags.append("working")
+    return tags
+
+
 def _agent_id_for(name: str, profile: dict | None) -> str:
     """自我层 agent id：profile.agent_id 优先，否则 name 的 slug（假设）。"""
     profile = profile or {}
     aid = profile.get("agent_id") or profile.get("agent")
     if aid:
-        return str(aid)
+        return canonical_id(str(aid))
     return name[:12].lower().replace(" ", "_")
 
 
@@ -557,7 +605,8 @@ def _make_player(
         "online":        True,                       # B6：agent 10 s 无心跳只标 False，不删除
         "away":          False,                      # W8 Q0e：human 120 s 无输入 → True；agent 恒 False
         "scene":         "sandbox",                  # B4：衰减速率按 scene 切换（sandbox | live）
-        "agent_id":      _agent_id_for(name, profile) if controller == "agent" else None,
+        "agent_id":      _agent_id_for(name, profile) if controller == "agent" else _human_agent_id(profile),   # world-v1.3：人类带 profile.agent_id 即认领身份（主播演阿蝉）
+        "dnd":           _default_dnd(name, controller, profile),   # world-v1.3：静态勿扰（主播操控的阿蝉默认开）
         "last_tick_ts":  _iso_game_now(),
         "pos_seq":       0,
         "inventory":     [],                         # W10 ④：背包 [{item, qty, meta?}]，≤ 10 种
@@ -601,7 +650,7 @@ def _ensure_player_fields(player: dict) -> None:
 
 # ── 玩家生命周期 ──────────────────────────────────────────────────────────────
 
-def create_player(name: str, controller: str = "human", profile: dict | None = None) -> dict:
+def create_player(name: str, controller: str = "human", profile: dict | None = None, dnd: bool | None = None) -> dict:
     """创建新玩家，生成唯一 ID，返回玩家数据的深拷贝。
 
     controller: "human" | "agent"（B6）；profile: {E, N, agent_id?}。
@@ -613,6 +662,8 @@ def create_player(name: str, controller: str = "human", profile: dict | None = N
     while player_id in _players:
         player_id = f"{safe}_{uuid.uuid4().hex[:6]}"
     player = _make_player(player_id, name, controller, profile)
+    if dnd is not None:
+        player["dnd"] = bool(dnd)
     if player["controller"] == "agent":
         sp = spawn_point_for(player.get("agent_id"))
         player["position"] = {"x": sp["x"], "y": sp["y"]}; player["facing"] = sp["facing"]
@@ -745,8 +796,8 @@ def _cleanup_stale_players() -> None:
         stale = [pid for pid, ts in _last_seen.items() if now - ts > _PLAYER_TIMEOUT]
         for pid in stale:
             p = _players.get(pid)
-            if p is not None and p.get("controller") == "agent":
-                p["online"] = False          # B6：她的身体留在原地，仍参与 tick
+            if p is not None and (p.get("controller") == "agent" or p.get("dnd")):
+                p["online"] = False          # B6：她的身体留在原地，仍参与 tick；world-v1.3：勿扰的人类（主播演阿蝉）下线也留在原地
             else:
                 remove_player(pid)
 
@@ -792,6 +843,8 @@ def get_player(player_id: str) -> dict | None:
     data["busy"] = food.busy_view(player_id) or _prod.busy_view(player_id)   # world-v1.1：进食 / 刻盘 {kind, item, started_at, ends_at, remaining_s, progress, gain?}，否则 null
     data["daily_use"] = daily_use_view(player_id)             # world-v1.1 I-1：{obj_type: {used_min, limit_min}}
     data["rent"] = _rent_view_safe(player)                    # world-v1.1 §3.3：{amount, items, due_at, due_in_days, overdue, owed, landlord, balance}，人类 null
+    data["dnd"] = is_dnd(player)                               # world-v1.3
+    data["tags"] = view_tags(player)
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -811,7 +864,8 @@ def get_all_players_snapshot() -> list[dict]:
             "agent_id":   p.get("agent_id"),          # §3.11 A1：自我层 agent↔player 映射
             "stateLabel":    p.get("stateLabel"),      # E①
             "usingObjectId": p.get("usingObjectId"),   # E①
-            "tags":          list(p.get("tags", [])),  # E①
+            "tags":          view_tags(p),             # E①；world-v1.3：勿扰者多 dnd（在家再多 working）
+            "dnd":           is_dnd(p),                # world-v1.3
             "pos_seq":       p.get("pos_seq", 0),      # E⑥：位置单调序号
             "gold":          int(p.get("gold", 0)),    # W10 ④
             "inventory":     _inv_view_safe(p),        # W10 ④：[{type, name, class, count}]

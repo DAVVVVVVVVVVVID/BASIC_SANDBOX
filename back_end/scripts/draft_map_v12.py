@@ -101,7 +101,7 @@ obj("bush_park_1", "bush_round", 13, 17); obj("bush_park_2", "bush_flower", 19, 
 obj("trash_can_square", "trash_can", 31, 17); obj("mailbox_square", "mailbox", 22, 11)
 obj("bench_dock_side", "bench_side", 42, 4)
 obj("bush_fisher", "bush_round", 37, 7); obj("bush_home", "bush_flower", 10, 19); obj("bush_restaurant", "bush_round", 36, 19)
-obj("bush_grocery", "bush_flower", 24, 25); obj("bush_xiaoqian", "bush_flower", 14, 27); obj("bush_owners", "bush_round", 35, 27)
+obj("bush_grocery", "bush_flower", 24, 25); obj("bush_claudine", "bush_flower", 14, 27); obj("bush_owners", "bush_round", 35, 27)
 # ── 广场 x22–31,y10–17 ──
 fill(22, 10, 31, 17, "F", "q")
 obj("fountain", "fountain", 26, 12); obj("bench_square_1", "bench", 23, 11); obj("bench_square_2", "bench", 29, 11); obj("bench_square_3", "bench", 26, 16)
@@ -116,11 +116,11 @@ edge("door_restaurant", (35, 18), (35, 17))
 house(22, 20, 29, 24, "G", doors=[(23, 24)]); fill(22, 25, 29, 25, "F", "-")
 obj("counter", "shop_counter", 28, 22); obj("shelf_1", "shelf", 23, 21); obj("shelf_2", "shelf", 24, 23); obj("shelf_3", "shelf", 28, 21)
 edge("door_grocery", (23, 25), (23, 24))
-# ── 小千家 x13–20,y20–25（8×6；门 (16,25) 接南巷 y26）──
+# ── 克劳蒂娜家 x13–20,y20–25（8×6；门 (16,25) 接南巷 y26）──
 house(13, 20, 20, 25, "X", doors=[(15, 25)])
 wall(17, 21, 17, 24, door=(17, 23))                               # 房间 x14–16 | 厨房 x18–19
-obj("bed_xiaoqian", "bed", 14, 21); obj("table_xiaoqian", "dining_table", 14, 23); obj("stove_xiaoqian", "stove", 18, 21); obj("fridge_xiaoqian", "fridge", 19, 21)
-edge("door_xiaoqian", (15, 26), (15, 25))
+obj("bed_claudine", "bed", 14, 21); obj("table_claudine", "dining_table", 14, 23); obj("stove_claudine", "stove", 18, 21); obj("fridge_claudine", "fridge", 19, 21)
+edge("door_claudine", (15, 26), (15, 25))
 # ── 店主们的家 x31–41,y20–25（11×6；门 (36,25) 接南巷 y26）──
 house(31, 20, 41, 25, "O", doors=[(34, 25)])
 wall(34, 21, 34, 24, door=(34, 23)); tiles[24][34] = "f"; wall(38, 21, 38, 24, door=(38, 22))   # 餐厅老板房 x32–33 | 厨房 x35–37 | 店主房 x39–40（(38,23) 对着餐桌，门开 (38,22)）
@@ -188,7 +188,7 @@ if __name__ == "__main__":
             t = tiles[y][x]
             row += {"b": "~", ".": "#", "a": "o", "F": label[y][x] if label[y][x] in "=|-dqu" else "·", "f": label[y][x].lower() if label[y][x].strip() else ".", "#": " "}[t]
         print(f"{y:3d} {row}")
-    print("\n图例：# 墙  o 物品  · 铺地(街/广场/码头)  小写字母 室内地板（c 教学楼 l 图书馆 m 音乐楼 f 渔夫家 h 合租房 a 阿蝉房(2F) r 餐厅 g 杂货店 x 小千家 o 店主家）  ~ 河  空白 草地")
+    print("\n图例：# 墙  o 物品  · 铺地(街/广场/码头)  小写字母 室内地板（c 教学楼 l 图书馆 m 音乐楼 f 渔夫家 h 合租房 a 阿蝉房(2F) r 餐厅 g 杂货店 x 克劳蒂娜家 o 店主家）  ~ 河  空白 草地")
     print("\n物品 %d 件；边 %d 条；校验：%s" % (len(objects), len(edges), "全部通过" if not problems else problems))
     home_door, rest_door, groc_door, gate, dock, music = (9, 18), (35, 18), (23, 25), (20, 8), (43, 8), (24, 6)
     for name, a, b in [("家门→餐厅门", home_door, rest_door), ("家门→杂货店门", home_door, groc_door), ("家门→校门", home_door, gate), ("家门→码头", home_door, dock),

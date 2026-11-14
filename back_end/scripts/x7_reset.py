@@ -41,7 +41,7 @@ def main():
     checks = {
         "时间 04:00 当日": ws_["date"] == a.date and ws_["time"].startswith("04:00"),
         "冰箱 6 饭 + 4 食材": objs["fridge_home"]["stock"] == {"home_meal": 6, "ingredients": 4},
-        "NPC 家冰箱 4 饭": all(objs[f]["stock"] == {"home_meal": 4} for f in ("fridge_fisher", "fridge_xiaoqian", "fridge_owners", "fridge_rest")),
+        "NPC 家冰箱 4 饭": all(objs[f]["stock"] == {"home_meal": 4} for f in ("fridge_fisher", "fridge_claudine", "fridge_owners", "fridge_rest")),
         "商店满货": objs["counter"]["stock"] == objs["counter"]["daily_supply"] and objs["fish_stall"]["stock"] == {"fish": 6},
         "鲸仔 3000 / 账户": p["gold"] == 3000 and m["accounts"].get("whale") == 3000,
         "无委托": http(B, "GET", "/commissions")["count"] == 0,

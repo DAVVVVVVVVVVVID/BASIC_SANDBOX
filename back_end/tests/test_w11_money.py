@@ -1,4 +1,4 @@
-"""world-v1.1 ③：账户独立于在线（日薪 / 销售入离线账户、上线接着用）、小千时薪从店主扣与欠薪、房租（到期扣两笔 / 欠租 / 心情 / 镇公所 QQ / 补齐 / due_soon）、委托过期。"""
+"""world-v1.1 ③：账户独立于在线（日薪 / 销售入离线账户、上线接着用）、克劳蒂娜时薪从店主扣与欠薪、房租（到期扣两笔 / 欠租 / 心情 / 镇公所 QQ / 补齐 / due_soon）、委托过期。"""
 from datetime import datetime
 
 import pytest
@@ -43,12 +43,12 @@ def test_offline_accounts_wages_and_sales(client, v12, fake_clock):
     assert all(x["account"] != "npc_rest_owner" for x in economy_rows())
 
 
-def test_xiaoqian_wage_debt_when_grocer_broke(client, v12, fake_clock):
+def test_claudine_wage_debt_when_grocer_broke(client, v12, fake_clock):
     _at(fake_clock, 2026, 11, 10, 12, 0)                           # 周二
-    xq = _agent(client, "npc_xiaoqian"); grocer = _agent(client, "npc_grocer")
+    xq = _agent(client, "claudine"); grocer = _agent(client, "npc_grocer")
     world_state._players[grocer]["gold"] = 5; economy.on_leave(world_state._players[grocer])
     _at(fake_clock, 2026, 11, 10, 14, 1); _tick(fake_clock, 1)
-    assert world_state._players[xq]["gold"] == 3012 and world_state._players[grocer]["gold"] == 5          # 小千照拿，店主不扣
+    assert world_state._players[xq]["gold"] == 3012 and world_state._players[grocer]["gold"] == 5          # 克劳蒂娜照拿，店主不扣
     debt = [x for x in economy_rows() if x["kind"] == "wage_debt"]
     assert len(debt) == 1 and debt[0]["account"] == "npc_grocer" and debt[0]["owed"] == 12 and debt[0]["owed_total"] == 12 and economy._debts["npc_grocer"] == 12
 

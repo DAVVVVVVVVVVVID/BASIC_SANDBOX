@@ -51,13 +51,13 @@ def test_send_inbox_read_contacts_roundtrip(client, fake_clock):
     # contacts：初始通讯录 + 在线状态 + 群
     c = client.get("/qq/contacts", params={"player": whale}).json()
     accs = {x["account"]: x for x in c["contacts"]}
-    assert set(accs) == {"achan", "npc_xiaoqian", "npc_rest_owner", "npc_grocer"} and all(x["id"] == x["account"] for x in c["contacts"])
-    assert accs["achan"]["online"] is True and accs["achan"]["player_id"] == achan and accs["npc_xiaoqian"]["online"] is False
+    assert set(accs) == {"achan", "claudine", "npc_rest_owner", "npc_grocer"} and all(x["id"] == x["account"] for x in c["contacts"])
+    assert accs["achan"]["online"] is True and accs["achan"]["player_id"] == achan and accs["claudine"]["online"] is False
     assert c["groups"] == [{"id": "g_live", "name": "鲸仔直播组", "members": ["whale", "achan"], "member_names": ["鲸仔", "阿蝉"], "unread": 0}]
 
 
 def test_group_message_per_member_read_state(client):
-    whale = _agent(client, "whale"); achan = _agent(client, "achan"); xq = _agent(client, "npc_xiaoqian")
+    whale = _agent(client, "whale"); achan = _agent(client, "achan"); xq = _agent(client, "claudine")
     assert client.post("/qq/send", json={"entity_id": xq, "group": "g_live", "text": "x"}).json()["reason"] == "not_member"
     r = client.post("/qq/send", json={"entity_id": whale, "group": "g_live", "text": "今晚八点开播"}).json()
     assert r["success"] and r["message"]["group"] == "g_live" and r["message"]["to"] is None

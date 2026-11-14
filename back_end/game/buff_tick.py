@@ -175,7 +175,7 @@ _TICK_CTX: dict = {"game_end_ts": None, "skip_vars": frozenset()}
 
 def _handler_decay(player: dict, buff: dict, delta: float) -> None:
     dt = delta / 1000.0
-    if dt <= 0:
+    if dt <= 0 or player.get("dnd"):                 # world-v1.3：勿扰 = 静态，七变量 / 心情 / 亲密度都不动
         return
     scene = player.get("scene", "sandbox")
     if scene not in DECAY_RATES:

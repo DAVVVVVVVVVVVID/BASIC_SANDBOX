@@ -91,7 +91,7 @@ def test_full_game_day_at_x6_triggers_restock_wages_and_hours(client, v12, fake_
     from game import food
     monkeypatch.setitem(economy.cfg()["fridge"], "restock_enabled", True)       # v1.1 默认不补货；这里验开关打开时的旧行为
     _at(fake_clock, 7, 0)
-    achan = _agent(client, "achan"); xq = _agent(client, "npc_xiaoqian"); grocer = _agent(client, "npc_grocer")
+    achan = _agent(client, "achan"); xq = _agent(client, "claudine"); grocer = _agent(client, "npc_grocer")
     fridge = world_state.get_object_by_id("fridge_home"); counter = world_state.get_object_by_id("counter"); table = world_state.get_object_by_id("table_rest_1")
     fridge["contents"] = []; food.refresh_stock(fridge); counter["stock"]["bread"] = 4
     timeline = {}
@@ -109,7 +109,7 @@ def test_full_game_day_at_x6_triggers_restock_wages_and_hours(client, v12, fake_
     assert timeline["07:59"]["fridge"] == 0 and timeline["08:01"]["fridge"] == 2 and timeline["06:59"]["fridge"] == 2          # 08:00 +2，当日只一次
     assert timeline["07:59"]["bread"] == 4 and timeline["08:01"]["bread"] == 8                                               # v1.1：固定上新到 daily_supply
     assert timeline["18:29"]["achan"] == 3000 and timeline["18:31"]["achan"] == 3200 and timeline["06:59"]["achan"] == 3200     # 阿蝉 18:30 一次 200
-    assert timeline["06:59"]["xq"] == 3000 + 48 and timeline["06:59"]["grocer"] == 3000 + 20 - 48                             # 小千 4 小时（店主付）、老板娘 22:00 日薪 20
+    assert timeline["06:59"]["xq"] == 3000 + 48 and timeline["06:59"]["grocer"] == 3000 + 20 - 48                             # 克劳蒂娜 4 小时（店主付）、老板娘 22:00 日薪 20
     transitions = [(hm, s) for hm, s in opens]
     rest = [(hm, s[0]) for hm, s in transitions if last is not None]
     # 餐厅：11:00 开 14:00 关 17:00 开 21:00 关；杂货店 09:00 开 20:00 关（起点 07:00 两店都关）

@@ -14,6 +14,11 @@ class JoinRequest(BaseModel):
     name: str
     controller: str = "human"            # B6："human" | "agent"（与 AGENT_V2 join_player 同名）
     profile: Optional[dict] = None       # B6：{E, N, agent_id?}
+    dnd: Optional[bool] = None           # world-v1.3：静态勿扰；缺省 = 人类且身份为 achan（或名叫阿蝉）时开
+
+
+class DndRequest(BaseModel):
+    on: bool
 
 
 class RejoinRequest(BaseModel):
@@ -33,7 +38,9 @@ def join(body: JoinRequest):
         raise HTTPException(status_code=400, detail="name cannot be empty")
     if body.controller not in ("human", "agent"):
         raise HTTPException(status_code=400, detail="controller must be 'human' or 'agent'")
-    player = create_player(body.name.strip(), controller=body.controller, profile=body.profile)
+    player = create_player(body.name.strip(), controller=body.controller, profile=body.profile, dnd=body.dnd)
+    from game.world_state import view_tags
+    player["tags"] = view_tags(player)                                   # world-v1.3：响应里的 tags 与 GET /player 一致（dnd / working）
     return {"playerId": player["id"], "player": player}
 
 
@@ -81,6 +88,7 @@ def _state_view(p: dict) -> dict:
         "scene":        p.get("scene", "sandbox"),
         "controller":   p.get("controller", "human"),
         "online":       p.get("online", True),
+        "dnd":          bool(p.get("dnd", False)),       # world-v1.3
         "agent_id":     p.get("agent_id"),
         "last_tick_ts": p.get("last_tick_ts"),
         "recent_uses":  get_recent_uses(p["id"]),
@@ -110,6 +118,17 @@ def post_player_effects(player_id: str, body: EffectsRequest):
 
 
 # ── 管理接口 ──────────────────────────────────────────────────────────────────
+
+@router.post("/admin/player/{player_id}/dnd")
+def set_player_dnd(player_id: str, body: DndRequest):
+    """world-v1.3：静态勿扰开关（主播接管阿蝉时关，离开时开）。开 = 七变量不衰减、敲门即 busy、QQ 未读不扣发件人亲密度、
+    tags 带 dnd（在自家房间再带 working）、心跳超时不删人（位置留在原地，不自动传送）。"""
+    from game.world_state import set_dnd
+    p = set_dnd(player_id, body.on)
+    if p is None:
+        raise HTTPException(status_code=404, detail=f"player not found: {player_id}")
+    return {"ok": True, "playerId": player_id, "dnd": bool(p["dnd"]), "tags": __import__("game.world_state", fromlist=["x"]).view_tags(p)}
+
 
 @router.get("/admin/player/{player_id}/buffs")
 def admin_get_buffs(player_id: str):

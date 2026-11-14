@@ -1,11 +1,11 @@
 {
-  "_doc": "W10 ③ QQ（沙盒内手机消息）。read_game_seconds：读一次占用的游戏秒；social_per_message：每条消息给发送者 / 阅读者的 social 增量；names：账号显示名；contacts：初始通讯录（互相可见）；groups：初始群。 W11：unread_penalty（1:1 消息未读超过 after_hours 游戏小时，发件人对收件人亲密度每小时 −per_hour，每人每日最多 −daily_cap）；read_reply_bonus（读 / 回 1:1 消息，对方对我亲密度 +）。群消息不计。",
+  "_doc": "W10 ③ QQ（沙盒内手机消息）。read_game_seconds：读一次占用的游戏秒；social_per_message：每条消息给发送者 / 阅读者的 social 增量；names：账号显示名；contacts：初始通讯录（互相可见）；groups：初始群。 W11：unread_penalty（1:1 消息未读超过 after_hours 游戏小时，发件人对收件人亲密度每小时 −per_hour，每人每日最多 −daily_cap）；read_reply_bonus（读 / 回 1:1 消息，对方对我亲密度 +）。群消息不计。 world-v1.3：aliases：账号的别名 / 昵称 / 旧 id（resolve_account 用，display_name 不用）。",
   "read_game_seconds": 60,
   "social_per_message": 2.0,
   "names": {
     "whale": "鲸仔",
     "achan": "阿蝉",
-    "npc_xiaoqian": "小千",
+    "claudine": "克劳蒂娜",
     "npc_rest_owner": "餐厅老板",
     "npc_grocer": "杂货店老板",
     "npc_fisher": "老渔夫",
@@ -14,18 +14,18 @@
   "contacts": {
     "whale": [
       "achan",
-      "npc_xiaoqian",
+      "claudine",
       "npc_rest_owner",
       "npc_grocer"
     ],
     "achan": [
-      "npc_xiaoqian"
+      "claudine"
     ],
     "npc_rest_owner": [
       "npc_grocer",
       "npc_fisher"
     ],
-    "npc_xiaoqian": [
+    "claudine": [
       "npc_grocer"
     ]
   },
@@ -47,5 +47,12 @@
   "read_reply_bonus": 1.0,
   "system_accounts": [
     "town_hall"
-  ]
+  ],
+  "aliases": {
+    "claudine": [
+      "小克",
+      "小千",
+      "npc_xiaoqian"
+    ]
+  }
 }

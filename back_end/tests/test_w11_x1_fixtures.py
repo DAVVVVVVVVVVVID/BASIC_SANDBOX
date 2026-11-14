@@ -78,7 +78,7 @@ def test_admin_path_endpoint(client, v12, fake_clock):
     assert client.get("/admin/path", params={"from": "2,10", "to": "4,13"}).status_code == 400            # 起点是墙
     assert client.get("/admin/path", params={"from": "x", "to": "5,25"}).status_code == 400
     assert client.get("/admin/path", params={"from": "43,5", "to_object": "nope"}).status_code == 404
-    # 锁门：小千家只有小千能进
+    # 锁门：克劳蒂娜家只有克劳蒂娜能进
     _at(fake_clock, 12, 0)
-    assert client.get("/admin/path", params={"from": "15,26", "to_arena": "xiaoqian_room"}).json()["reachable"] is False
-    assert client.get("/admin/path", params={"from": "15,26", "to_arena": "xiaoqian_room", "mover": "npc_xiaoqian"}).json()["reachable"] is True
+    assert client.get("/admin/path", params={"from": "15,26", "to_arena": "claudine_room"}).json()["reachable"] is False
+    assert client.get("/admin/path", params={"from": "15,26", "to_arena": "claudine_room", "mover": "claudine"}).json()["reachable"] is True
