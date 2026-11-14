@@ -1627,6 +1627,13 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - 沙盒写的 kind：`achan_login`（人类以 achan 身份 join / rejoin 接管 / 首个动作接管 / admin 关 dnd；payload.via）、`achan_logout`（心跳超时归位 / leave / admin 开 dnd；payload.reason / position）、`achan_chat`（阿蝉参与的房间开→关一行：turns / minutes / room_id，targets = 对方 agent）、`achan_qq`（阿蝉发的每条：peer / chars / group，**不记原文**）、`achan_knock`（敲门 / 开门 / 给物 / 应门：action / door / home / item / 应门 chars，targets = 门主或对方）、`set_time`（夹具拨钟：from / to / speed，reversible）、`fixture`（每次 `/admin/scenario` 一行：label / ops）、`restart`（沙盒启动：pid / commit / 回填人数 / 停机秒）。actor：阿蝉类 `streamer`，夹具 / 启动 `system`。
 - 不记：弹幕 / 评论原文、uid / 昵称、凭证；阿蝉说的话只记长度（原文在 chat / qq 日志）。导演指令（`director_directive`）由 C 的 direct.py 写同一目录，沙盒不加 `/admin/instruct`。
 
+### 12.15 闭测周 §2：直播机 → whale-live webhook（tag `world-v1.3.9`；与 G 对定）
+
+- 环境变量 `LIVE_URL`（如 `http://127.0.0.1:8767`，G 的 whale-live 控制页端口）非空才发；`LIVE_TOKEN` → `Authorization: Bearer`。两者都放 `~/.env`（townctl base_env 自动带；手起 run_town.sh 前 `source ~/.env`）。
+- 开播：鲸仔 `use` 带 external `live` 的物品（`pc` / `stream_desk`）→ 先打自我层 `/self/live/start`（失败仍 `live_unavailable`，不变）→ 成功后 **同步** `POST {LIVE_URL}/live/start`，3 s 超时，**失败只记日志不阻塞 use**（直播侧挂了不拦她用电脑）。下播：`leave` / 被请出 / 打烊 / 每日上限 / dnd 归位 → 后台线程 `POST /live/stop`。
+- payload：`{event: start|stop, agent, player, object, object_type, town, ts（墙钟 ISO）, game_time, session_id（沙盒生成，start/stop 同一个）, reason（仅 stop：leave / kicked / closed / daily_limit / dnd_park / left_town）}`。回包只看 2xx（G 侧「沙盒联动」开关关着时回 202 ignored，封测 15–19 日默认关）；start 的 `session / stage_url` 暂不存。
+- ws `/ws/world` 同时推 `{type: "live", ...同 payload}`；external 日志 `live` 行多 `session_id`；`/admin/metrics` 暂不含统计（`external_effects.live_stats` 进程内：start_sent / stop_sent / failed / last_error）。`leave_object(entity, reason)` 多了 reason 参数（默认 leave）。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

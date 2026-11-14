@@ -22,6 +22,82 @@ FEED_N = 8
 FEED_ITEM_FIELDS = ("ts", "topic", "sentiment", "is_question", "is_song_request", "summary", "injection")
 SYNC_STOP = False   # 测试：True 时 live.stop 同步发送
 
+# ── 闭测 §2（world-v1.3.9）：直播机 → whale-live webhook。LIVE_URL 非空才发；start 同步 3 s 超时、失败只记日志不阻塞 use；stop 后台线程。
+# payload（与 G 对定）：event / agent / player / object / object_type / town / ts / game_time / session_id / reason（仅 stop）；Authorization: Bearer $LIVE_TOKEN。
+import os as _os
+import uuid as _uuid
+from datetime import datetime as _dt
+_LIVE = {"url": (_os.environ.get("LIVE_URL") or "").rstrip("/"), "token": _os.environ.get("LIVE_TOKEN") or "", "transport": None, "timeout": 3.0}
+_live_sessions: dict[str, str] = {}      # agent -> session_id（start/stop 同一个）
+live_stats = {"start_sent": 0, "stop_sent": 0, "failed": 0, "last_error": None, "last_status": None}
+
+
+def configure_live(url: str | None = None, token: str | None = None, transport=None) -> None:
+    if url is not None: _LIVE["url"] = url.rstrip("/")
+    if token is not None: _LIVE["token"] = token
+    _LIVE["transport"] = transport
+
+
+def live_webhook_enabled() -> bool:
+    return bool(_LIVE["url"])
+
+
+def _live_client() -> httpx.Client:
+    headers = {"Authorization": f"Bearer {_LIVE['token']}"} if _LIVE["token"] else {}
+    return httpx.Client(base_url=_LIVE["url"], headers=headers, timeout=_LIVE["timeout"], transport=_LIVE["transport"])
+
+
+def _live_payload(event: str, player: dict, obj: dict | None, game_iso: str, session_id: str, reason: str | None) -> dict:
+    p = {"event": event, "agent": player.get("agent_id"), "player": player["id"], "object": (obj or {}).get("id"), "object_type": (obj or {}).get("type"),
+         "town": _os.environ.get("SANDBOX_TOWN") or "main", "ts": _dt.now().astimezone().isoformat(timespec="seconds"), "game_time": game_iso, "session_id": session_id}
+    if event == "stop":
+        p["reason"] = reason or "leave"
+    return p
+
+
+def _live_post(path: str, payload: dict) -> None:
+    try:
+        with _live_client() as c:
+            r = c.post(path, json=payload)
+            live_stats["last_status"] = r.status_code
+            r.raise_for_status()
+            live_stats["start_sent" if payload["event"] == "start" else "stop_sent"] += 1
+    except Exception as e:
+        live_stats["failed"] += 1; live_stats["last_error"] = str(e)[:200]
+        log.warning("live webhook %s failed for %s: %s", path, payload.get("agent"), e)
+
+
+def _ws_live(payload: dict) -> None:
+    try:
+        from routers.ws import hub
+        hub.push_event({"type": "live", **payload})
+    except Exception:
+        pass
+
+
+def live_webhook_start(player: dict, obj: dict | None, game_iso: str) -> str | None:
+    """开播通知（同步，失败不阻塞）。返回 session_id。"""
+    agent = _agent_for(player) or player["id"]
+    sid = _uuid.uuid4().hex[:12]
+    _live_sessions[agent] = sid
+    payload = _live_payload("start", player, obj, game_iso, sid, None)
+    if live_webhook_enabled():
+        _live_post("/live/start", payload)
+    _ws_live(payload)
+    return sid
+
+
+def live_webhook_stop(player: dict, obj: dict | None, game_iso: str, reason: str) -> None:
+    agent = _agent_for(player) or player["id"]
+    sid = _live_sessions.pop(agent, None) or _uuid.uuid4().hex[:12]
+    payload = _live_payload("stop", player, obj, game_iso, sid, reason)
+    if live_webhook_enabled():
+        if SYNC_STOP:
+            _live_post("/live/stop", payload)
+        else:
+            threading.Thread(target=_live_post, args=("/live/stop", payload), name="live-webhook-stop", daemon=True).start()
+    _ws_live(payload)
+
 
 def _agent_for(player: dict) -> str | None:
     return player.get("agent_id")
@@ -70,9 +146,9 @@ def fetch_feed(player: dict, game_iso: str) -> dict:
     return {**base, "status": "ok", "items": _sanitize_items(doc.get("items")), "digest_ts": doc.get("digest_ts")}
 
 
-def live_start(player: dict, game_iso: str) -> dict:
-    """返回 {"ok": bool, "error"?: str, "resp"?: dict}。
-    没有 agent_id（人类玩家）→ 失败（§3.11 B4：阿蝉不能替她开播）；SELF_SYNC 关闭 → 失败。"""
+def live_start(player: dict, game_iso: str, obj: dict | None = None) -> dict:
+    """返回 {"ok": bool, "error"?: str, "resp"?: dict, "session_id"?: str}。
+    没有 agent_id（人类玩家）→ 失败（§3.11 B4：阿蝉不能替她开播）；SELF_SYNC 关闭 → 失败。成功后再发 whale-live webhook（失败不影响结果）。"""
     agent = _agent_for(player)
     if not agent:
         return {"ok": False, "error": "no_agent_id: only agent players can stream"}
@@ -82,10 +158,12 @@ def live_start(player: dict, game_iso: str) -> dict:
         with self_sync._client() as c:
             r = c.post("/self/live/start", json={"agent": agent, "ts": game_iso})
             r.raise_for_status()
-            return {"ok": True, "resp": r.json()}
+            resp = r.json()
     except Exception as e:
         log.warning("live.start failed for %s: %s", agent, e)
         return {"ok": False, "error": str(e)}
+    sid = live_webhook_start(player, obj, game_iso)
+    return {"ok": True, "resp": resp, "session_id": sid}
 
 
 def _live_stop_send(agent: str, game_iso: str) -> None:
@@ -97,8 +175,8 @@ def _live_stop_send(agent: str, game_iso: str) -> None:
         log.warning("live.stop failed for %s: %s", agent, e)
 
 
-def live_stop(player: dict, game_iso: str) -> None:
-    """下播：不可失败，后台线程发送（SYNC_STOP=True 时同步，测试用）。"""
+def live_stop(player: dict, game_iso: str, obj: dict | None = None, reason: str = "leave") -> None:
+    """下播：不可失败，后台线程发送（SYNC_STOP=True 时同步，测试用）。自我层 + whale-live webhook（带 reason）。"""
     agent = _agent_for(player)
     if not agent or not self_sync.enabled():
         return
@@ -106,6 +184,7 @@ def live_stop(player: dict, game_iso: str) -> None:
         _live_stop_send(agent, game_iso)
     else:
         threading.Thread(target=_live_stop_send, args=(agent, game_iso), name="live-stop", daemon=True).start()
+    live_webhook_stop(player, obj, game_iso, reason)
 
 
 # ── B18 / W10-4b 游戏机：D 的 brain 正式接口（report-D.md 5b / 6；地址 GAME_URL，默认 http://127.0.0.1:8110） ──

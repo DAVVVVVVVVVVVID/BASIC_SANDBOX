@@ -3,6 +3,7 @@ import json
 
 import httpx
 import pytest
+from tests.test_w9_map_v2 import v12  # noqa: F401
 
 from game import world_state, self_sync, external_effects
 from tests.conftest import PHONE_ID, PHONE_STAND, STREAM_ID, STREAM_STAND, join, action, place
@@ -173,3 +174,32 @@ def test_external_effects_skipped_in_apply_effects():
     p = world_state._make_player("x", "x")
     r = world_state.apply_effects(p, [{"type": "external", "key": "feed"}, {"type": "instant_effect", "key": "fun", "value": 1}], source="t")
     assert r == {"applied": 1, "skipped": 0}
+
+
+def test_live_webhook_to_whale_live(client, fake_self, monkeypatch, v12):
+    """闭测 §2（world-v1.3.9）：LIVE_URL 非空时，开播 POST /live/start、下播 POST /live/stop（同 session_id、带 reason），Bearer LIVE_TOKEN；直播侧挂了不阻塞 use。"""
+    from tests.conftest import place, action
+    calls = []
+
+    def handler(req):
+        calls.append((req.url.path, req.headers.get("authorization"), json.loads(req.content)))
+        if req.url.path == "/live/start":
+            return httpx.Response(200, json={"ok": True, "session": "g-1", "stage_url": "http://x/stage"})
+        return httpx.Response(202, json={"ok": True, "ignored": "auto_live off"})
+    external_effects.configure_live(url="http://live.test", token="tkn", transport=httpx.MockTransport(handler))
+    try:
+        pid = _agent(client)
+        place(pid, 5, 12, "up")                                   # v1.2：鲸仔房 pc_whale (5,11)，站 (5,12) 朝 up
+        r = action(client, pid, "use"); assert r["success"], r
+        assert calls[0][0] == "/live/start" and calls[0][1] == "Bearer tkn"
+        start = calls[0][2]
+        assert start["event"] == "start" and start["agent"] == "whale" and start["player"] == pid and start["object_type"] in ("pc", "stream_desk") and start["session_id"] and "ts" in start and "game_time" in start and "reason" not in start
+        assert action(client, pid, "leave")["success"]
+        assert calls[1][0] == "/live/stop" and calls[1][2]["event"] == "stop" and calls[1][2]["session_id"] == start["session_id"] and calls[1][2]["reason"] == "leave"
+        # 直播侧挂了：开播照常成功（自我层 ok 即可），只记 failed
+        external_effects.configure_live(url="http://live.test", token="tkn", transport=httpx.MockTransport(lambda req: (_ for _ in ()).throw(httpx.ConnectError("down", request=req))))
+        before = external_effects.live_stats["failed"]
+        assert action(client, pid, "use")["success"] and external_effects.live_stats["failed"] == before + 1
+        action(client, pid, "leave")
+    finally:
+        external_effects.configure_live(url="", token="", transport=None)

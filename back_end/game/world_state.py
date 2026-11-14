@@ -137,7 +137,7 @@ def _kick_users(obj: dict) -> list[str]:
     kicked = []
     for uid in list(obj["userList"]):
         if uid in _players:
-            leave_object(uid); kicked.append(uid)
+            leave_object(uid, "kicked"); kicked.append(uid)
     obj["userList"] = []; obj["currentUsers"] = 0
     return kicked
 
@@ -555,7 +555,7 @@ def _park_dnd_locked(player: dict, reason: str) -> None:
     """v1.3.4 ②：开 dnd 并送回自家房间待机（调用方持 STATE_LOCK）。"""
     pid = player["id"]
     if player.get("usingObjectId"):
-        leave_object(pid)
+        leave_object(pid, "dnd_park")
     stop_walk(pid, "stopped", reason)
     sp = spawn_point_for(player.get("agent_id"))
     update_player_position(pid, sp["x"], sp["y"], sp["facing"])
@@ -790,7 +790,7 @@ def remove_player(player_id: str) -> None:
         # 先清理聊天室（必须在 _players 仍包含该 player 时执行，以便移除 buff）
         from game.chat_state import cleanup_player_chats
         cleanup_player_chats(player_id)
-        leave_object(player_id)
+        leave_object(player_id, "left_town")
         from game import doors, economy as _eco
         if player_id in _players:
             doors.on_player_removed(_players[player_id])         # §3.41：钥匙回池
@@ -1061,7 +1061,7 @@ def _kick_closed_objects() -> None:
         if open_state(o, gts)[0]:
             continue
         for pid in list(o["userList"]):
-            left = leave_object(pid)
+            left = leave_object(pid, "closed")
             if left and pid in _pending_messages:
                 _pending_messages[pid] = left.get("leaveMessage") or "营业结束了。"
 
@@ -1155,7 +1155,7 @@ def _daily_use_tick(delta_ms: float, gts: float) -> None:
         rec["used_s"] += delta_ms / 1000.0
         if rec["used_s"] >= lim:
             rec["used_s"] = lim
-            left = leave_object(pid)
+            left = leave_object(pid, "daily_limit")
             if left:
                 _pending_messages[pid] = f"今天{left['name']}用够了（{int(lim // 60)} 分钟），{DAILY_RESET_HM} 后再来。"
                 try:
@@ -1777,7 +1777,8 @@ def _restore_pre_use_pos(player: dict) -> None:
     player["facing"] = pre["facing"]
 
 
-def leave_object(entity_id: str) -> dict | None:
+def leave_object(entity_id: str, reason: str = "leave") -> dict | None:
+    """reason（闭测 §2 下播原因给直播侧）：leave / kicked / closed / daily_limit / dnd_park / left_town / teleport。"""
     player = _players.get(entity_id)
     if player is None:
         return None
@@ -1806,7 +1807,7 @@ def leave_object(entity_id: str) -> dict | None:
         player["scene"] = "sandbox"       # B11：下播
         from game import external_effects, economy
         from game.time_state import game_now_iso
-        external_effects.live_stop(player, game_now_iso())
+        external_effects.live_stop(player, game_now_iso(), obj, reason)
         economy.synthetic_stream_income(player, obj_id)    # W11 ②：直播机未接前按 synthetic 入账
         from game import social
         social.live_session_end(player)                    # world-v1.1 §4.1：直播一场社交 +10

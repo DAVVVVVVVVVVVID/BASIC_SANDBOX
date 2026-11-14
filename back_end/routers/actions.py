@@ -287,8 +287,8 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
     # world-v1.1：餐厅坐下免费，点一顿在 eat {item:"meal"} 时扣钱（§1.1）
 
     if "live" in ext:                                       # B11 直播台：先开播，失败就不坐下
-        live = external_effects.live_start(_players.get(entity_id, player), game_now_iso())
-        external_log.log("live", entity_id, object=obj["id"], action="start", ok=live["ok"], error=live.get("error"))
+        live = external_effects.live_start(_players.get(entity_id, player), game_now_iso(), obj)
+        external_log.log("live", entity_id, object=obj["id"], action="start", ok=live["ok"], error=live.get("error"), session_id=live.get("session_id"))
         if not live["ok"]:
             return ActionResponse(
                 success=False, type="use", reason="live_unavailable",

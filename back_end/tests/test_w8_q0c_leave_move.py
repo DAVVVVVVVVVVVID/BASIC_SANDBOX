@@ -22,10 +22,10 @@ def stubs(fake_clock, monkeypatch):
     from game.time_state import GAME_TZ
     from game import external_effects
     fake_clock.t = datetime(2026, 11, 10, 12, 30, tzinfo=GAME_TZ).timestamp()
-    monkeypatch.setattr(external_effects, "live_start", lambda p, iso: {"ok": True})
-    monkeypatch.setattr(external_effects, "live_stop", lambda p, iso: None)
+    monkeypatch.setattr(external_effects, "live_start", lambda p, iso, *a, **k: {"ok": True})
+    monkeypatch.setattr(external_effects, "live_stop", lambda p, iso, *a, **k: None)
     monkeypatch.setattr(external_effects, "game_start", lambda p, iso: {"ok": True, "game": {"status": "playing", "started_at": iso}})
-    monkeypatch.setattr(external_effects, "game_end", lambda p, iso: None)
+    monkeypatch.setattr(external_effects, "game_end", lambda p, iso, *a, **k: None)
 
 
 def _free_dir(x, y):

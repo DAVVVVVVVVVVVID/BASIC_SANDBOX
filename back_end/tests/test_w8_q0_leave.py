@@ -25,10 +25,10 @@ CONTINUOUS = [o["id"] for o in world_state._OBJECTS if o["prototype"] == "contin
 def noon_and_stubs(fake_clock, monkeypatch):
     fake_clock.t = datetime(2026, 11, 10, 12, 30, tzinfo=GAME_TZ).timestamp()      # 餐馆 / 钓位 / 柜台都营业
     from game import external_effects
-    monkeypatch.setattr(external_effects, "live_start", lambda p, iso: {"ok": True})
-    monkeypatch.setattr(external_effects, "live_stop", lambda p, iso: None)
+    monkeypatch.setattr(external_effects, "live_start", lambda p, iso, *a, **k: {"ok": True})
+    monkeypatch.setattr(external_effects, "live_stop", lambda p, iso, *a, **k: None)
     monkeypatch.setattr(external_effects, "game_start", lambda p, iso: {"ok": True, "game": {"status": "playing", "started_at": iso}})
-    monkeypatch.setattr(external_effects, "game_end", lambda p, iso: None)
+    monkeypatch.setattr(external_effects, "game_end", lambda p, iso, *a, **k: None)
 
 
 def _agent(client):
