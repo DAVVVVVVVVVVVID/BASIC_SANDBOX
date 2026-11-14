@@ -138,6 +138,7 @@ export default defineConfig(({ mode }) => {
       readOnlyDir('/gameruns', env.VITE_GAME_RUNS_DIR || '/home/shan-dw/Project/whale-game/runs'),
       readOnlyDir('/selfdays', env.VITE_SELF_DAYS_DIR || '/home/shan-dw/Project/whale-self/data/self/whale/memory/days'),
       readOnlyDir('/art', env.VITE_ART_DIR || path.resolve(__dirname, '../../whale-godot/assets/ext')),   // 11-14：Godot 呈现层同一份素材源（角色条带 / 地砖 / 道具 / 外观 / 室内），不复制进仓库
+      readOnlyDir('/art0', env.VITE_ART_BASE_DIR || path.resolve(__dirname, '../../whale-godot/assets')),   // Godot 仓库内置素材（p0 兜底图集 / map_rules.json / 基础物品图）
       readOnlyDir('/selfmem', env.VITE_SELF_MEMORY_DIR || '/home/shan-dw/Project/whale-self/data/self/whale/memory'),
     ],
     server: {

@@ -54,6 +54,14 @@ export default class SceneFocus {
     // 楼梯图示
     for (const e of this.v2.edges) {
       if (e.type !== 'stairs' || !this.scene.textures.exists(objTextureKey('stairs'))) continue
+      if (this.tileIcons === false) {   // Godot 同步②：楼梯格由 structures 层画瓦片，这里只留楼层文字
+        for (const p of e.tiles) {
+          const f = e.floors ? `${e.floors[0]}F↔${e.floors[1]}F` : '楼梯'
+          const t = this.scene.add.text(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE - 2, f, { fontFamily: 'system-ui, sans-serif', fontSize: '12px', color: '#fff', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(3).setResolution(2)
+          this.edgeNodes.push(t); this.labels.push(t); this.edgeNodeTiles.push({ node: t, tile: p })
+        }
+        continue
+      }
       for (const p of e.tiles) {
         const img = this.scene.add.image(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE + TILE_SIZE / 2, objTextureKey('stairs')).setDisplaySize(TILE_SIZE - 8, TILE_SIZE - 8).setDepth(2)
         const f = e.floors ? `${e.floors[0]}F↔${e.floors[1]}F` : '楼梯'
@@ -67,7 +75,16 @@ export default class SceneFocus {
       const locksByAccess = (e.to && this.v2.access.get(e.to)?.lockHours) || (e.from && this.v2.access.get(e.from)?.lockHours)
       if (!e.openHours && !locksByAccess) continue
       if (!this.scene.textures.exists(objTextureKey('door_closed'))) continue
-      for (const p of e.tiles.slice(-1)) {   // a=外侧格、b=内侧格：门画在内侧那一格
+      for (const p of e.tiles.slice(-1)) {
+        if (this.tileIcons === false) {
+          const img = this.scene.add.image(0, 0, objTextureKey('door_closed')).setVisible(false).setActive(false)
+          const fmt = (h: { start: string; end: string }, kind: '开' | '锁') => (h.start === '00:00' && h.end === '24:00') ? (kind === '锁' ? '常锁' : '常开') : `${kind} ${h.start}–${h.end}`
+          const hours = e.openHours ? fmt(e.openHours, '开') : locksByAccess ? fmt(locksByAccess, '锁') : ''
+          const who = e.to && this.v2.access.get(e.to)?.owner ? `（${arenaName(e.to)}）` : ''
+          const label = this.scene.add.text(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE - 4, `🔒 ${hours}${who}`, { fontFamily: 'system-ui, "PingFang SC", sans-serif', fontSize: '12px', color: '#ffd7d7', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5, 1).setDepth(3).setResolution(2).setVisible(false)
+          this.doorNodes.push({ edge: e, img, label }); this.labels.push(label)
+          continue
+        }   // a=外侧格、b=内侧格：门画在内侧那一格
         const img = this.scene.add.image(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE + TILE_SIZE / 2, objTextureKey('door_closed')).setDisplaySize(TILE_SIZE, TILE_SIZE).setDepth(2).setVisible(false)
         const fmt = (h: { start: string; end: string }, kind: '开' | '锁') => (h.start === '00:00' && h.end === '24:00') ? (kind === '锁' ? '常锁' : '常开') : `${kind} ${h.start}–${h.end}`
         const hours = e.openHours ? fmt(e.openHours, '开') : locksByAccess ? fmt(locksByAccess, '锁') : ''
@@ -78,6 +95,8 @@ export default class SceneFocus {
     }
   }
 
+  /** false = 不画像素楼梯 / 门图标（瓦片层已画），只留文字标签 */
+  tileIcons = true
   get hasV2() { return this.v2.hasV2 }
   /** W8：屋顶视图下藏起楼梯 / 门标记（roofed = 有屋顶且当前没进入的 sector） */
   setRoofed(isRoofed: (tile: { x: number; y: number }) => boolean) {
@@ -118,7 +137,7 @@ export default class SceneFocus {
       for (const d of this.doorNodes) {
         const byAccess = (d.edge.to && arenaLockedNow(this.v2.access.get(d.edge.to), time)) || (d.edge.from && arenaLockedNow(this.v2.access.get(d.edge.from), time))
         const locked = edgeLockedNow(d.edge, time) || !!byAccess
-        d.img.setVisible(locked); d.label.setVisible(locked)
+        d.img.setVisible(locked && this.tileIcons); d.label.setVisible(locked)
       }
     }
 

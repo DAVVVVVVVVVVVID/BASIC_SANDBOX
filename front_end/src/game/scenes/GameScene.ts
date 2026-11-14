@@ -14,6 +14,8 @@ import { preloadGenAssets, createGenAnimations, charKeyFor, objTextureKey } from
 import { buildTileIndex, zoneLabel } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
 import { preloadGodotChars, createGodotCharAnimations } from '../godotCharsLoad'
+import { preloadGodotMap, godotMapReady } from '../godotMapLoad'
+import GodotTileMap from '../map/GodotTileMap'
 import { preloadAiAssets, getAiManifest, aiBackdropKey, aiObjectKey, aiEnabled, aiHasObject, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
 import { arenaBBox, isIndoor, mapBuildings, buildingRoofKey } from '../map/mapv2'
 
@@ -63,7 +65,7 @@ export default class GameScene extends Phaser.Scene {
   private params: SpectateParams | null = null
   private playerName: string | null = null
 
-  private tileMap!: TileMap
+  private tileMap!: TileMap | GodotTileMap
   private focus!: SceneFocus
   private focusZoom: number | null = null
   private lastFocusIndoor = false
@@ -132,6 +134,7 @@ export default class GameScene extends Phaser.Scene {
     preloadGenAssets(this)
     preloadAiAssets(this)
     preloadGodotChars(this)   // 11-14：Godot 六角色条带（/art → whale-godot/assets/ext）
+    preloadGodotMap(this, this.worldData.objects.map(o => o.type))   // 11-14 ②：Godot 地砖 / 物品清单（同一份素材源）
     preloadTileAssets(this, this.worldData.tiled)
     for (const obj of this.worldData.objects) {
       if (obj.sprite && !this.textures.exists(`obj_${obj.sprite}`) && !aiHasObject(obj.type)) {
@@ -404,6 +407,7 @@ export default class GameScene extends Phaser.Scene {
   private setDoorOpen(doorId: string, open: boolean, ms = 60_000) {
     const cur = this.openDoors.get(doorId)
     if (cur) { cur.img.destroy(); cur.label.destroy(); this.openDoors.delete(doorId) }
+    if (this.tileMap instanceof GodotTileMap) this.tileMap.setDoor(doorId, open)   // ②：structures 层换 door / door_open
     if (!open) return
     const d = this.mapDoors.find(x => x.door_id === doorId)
     if (!d) return
@@ -413,7 +417,7 @@ export default class GameScene extends Phaser.Scene {
     const T = TILE_SIZE
     // 优先 AI 的开门态素材（objects/door_open.png，总控 11-08 批准出图、六扇门共用）：底边贴门内侧格底边、自然尺寸；没有就用 door_closed 贴图绕门轴转开
     const aiOpen = aiEnabled() && this.textures.exists(aiObjectKey('door_open')) ? aiObjectKey('door_open') : null
-    const tex = aiOpen ?? (this.textures.exists(objTextureKey('door_closed')) ? objTextureKey('door_closed') : null)
+    const tex = this.tileMap instanceof GodotTileMap ? null : aiOpen ?? (this.textures.exists(objTextureKey('door_closed')) ? objTextureKey('door_closed') : null)   // Godot 模式：开门态已是瓦片，只留标签
     const img = !tex ? this.add.image(0, 0, '__DEFAULT').setVisible(false)
       : aiOpen ? this.add.image(b.x * T + T / 2, (b.y + 1) * T, tex).setOrigin(0.5, 1).setScale(T / (getAiManifest()?.tile_px || 96)).setDepth((b.y + 1) * T + 2)
       : this.add.image(b.x * T + 6, (b.y + 1) * T - 4, tex).setOrigin(0, 1).setDisplaySize(T - 12, T - 8).setAngle(-70).setAlpha(0.95).setDepth((b.y + 1) * T + 2)
@@ -610,7 +614,9 @@ export default class GameScene extends Phaser.Scene {
     const world = this.worldData
     const missing = (world.tiled?.tilesets ?? []).filter(ts => !this.textures.exists(ts.imageSource))
     const missingObj = world.objects.filter(o => o.sprite && !this.textures.exists(`obj_${o.sprite}`) && !aiHasObject(o.type))
-    if (missing.length === 0 && missingObj.length === 0) { this.buildMap(world); return }
+    const beforeQueue = this.load.list.size
+    preloadGodotMap(this, world.objects.map(o => o.type))   // 新物品类型的 Godot 图（幂等）
+    if (missing.length === 0 && missingObj.length === 0 && this.load.list.size === beforeQueue) { this.buildMap(world); return }
     preloadTileAssets(this, world.tiled)
     for (const o of missingObj) this.load.image(`obj_${o.sprite}`, `assets/sprites/${o.sprite}.png`)
     this.load.once(Phaser.Loader.Events.COMPLETE, () => this.buildMap(world))
@@ -625,14 +631,17 @@ export default class GameScene extends Phaser.Scene {
     for (const b of this.backdrops) b.img.destroy()
     this.backdrops = []
     this.roofedSectors.clear()
-    this.tileMap = new TileMap(this, world.tiles, world.tiled)
+    const godot = godotMapReady(this)   // 11-14 ②：Godot 口径地砖（语义格 + 自动拼接 + 门 / 楼梯瓦片），装饰撒点不画（Godot 没有）
+    const extras = useGameStore.getState().mapExtras
+    const rawEdges = ((world.map as { edges?: unknown[] } | undefined)?.edges ?? world.edges ?? (extras.map as { edges?: unknown[] } | undefined)?.edges ?? extras.edges ?? []) as import('../godotMap').EdgeLike[]
+    this.tileMap = godot ? new GodotTileMap(this, world.tiles, world.objects, rawEdges) : new TileMap(this, world.tiles, world.tiled)
     this.tileMap.render()
     this.deco?.destroy()
     const decor = ((world as unknown as { decor?: unknown[] }).decor ?? (world.map as unknown as { decor?: unknown[] } | undefined)?.decor ?? []) as unknown[]
-    this.deco = new DecoLayer(this, world.tiles, world.objects, this.focus?.doorTiles() ?? [], decor)
+    this.deco = godot ? null : new DecoLayer(this, world.tiles, world.objects, this.focus?.doorTiles() ?? [], decor)
     this.tileIndex = buildTileIndex(world.tiles)
     if (!this.focus) this.focus = new SceneFocus(this, { enabled: (this.params?.scene ?? 'follow') === 'follow', baseZoom: () => this.mode === 'spectate' ? this.followZoom : this.currentZoom, snap: snapZoom })
-    const extras = useGameStore.getState().mapExtras
+    this.focus.tileIcons = !godot
     this.focus.setMap({ tiles: world.tiles, edges: world.edges ?? extras.edges, floors: world.floors ?? extras.floors, access: world.access ?? extras.access, arenas: world.arenas ?? extras.arenas, map: world.map ?? extras.map } as Parameters<SceneFocus['setMap']>[0], Math.round(this.mapPx.w / TILE_SIZE) || 1, Math.round(this.mapPx.h / TILE_SIZE) || 1)
     const { w, h } = mapSize(world.tiles, world.tiled)
     this.mapPx = { w: w * TILE_SIZE, h: h * TILE_SIZE }

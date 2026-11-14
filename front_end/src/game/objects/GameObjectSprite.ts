@@ -3,6 +3,7 @@ import { GameObject } from '../../types'
 import { tileToPixel, TILE_SIZE } from '../map/TileMap'
 import { objTextureKey } from '../assets'
 import { aiObjectKey, aiEnabled, aiObjectTypeFor, getAiManifest } from '../aiAssets'
+import { godotObjectTexFor } from '../godotMapLoad'
 
 const COLOR_OBJECT = 0x8b6b3e
 const TYPE_ICON: [RegExp, string][] = [
@@ -46,6 +47,18 @@ export default class GameObjectSprite {
     const imgW = cols * TILE_SIZE
     const imgH = rows * TILE_SIZE
 
+    // 11-14 Godot 同步②：Godot 的物品清单（assets/ext/objects/manifest.json，48 px/格 ×2）优先——底边贴占地底边、水平居中、按底边 y 排序（同 ObjectsLayer._place）
+    const g = godotObjectTexFor(scene, obj.type, minX, minY)
+    if (g) {
+      const k = TILE_SIZE / g.pxPerTile
+      const img = scene.add.image(px + imgW / 2, py + imgH, g.key).setOrigin(0.5, 1).setScale(k).setDepth(py + imgH).setInteractive()
+      this.nodes.push(img)
+      const tooltip = scene.add.text(px + imgW / 2, py - 2, tooltipLabel(obj), { fontSize: '12px', color: '#ffffff', backgroundColor: '#1a1a2e', padding: { x: 4, y: 2 } }).setOrigin(0.5, 1).setDepth(10).setVisible(false)
+      this.tooltip = tooltip
+      img.on('pointerover', () => { if (!this.hiddenByRoof) tooltip.setVisible(true) })
+      img.on('pointerout', () => tooltip.setVisible(false))
+      return
+    }
     // 优先自制图（按物品类型；bed_21 这类直接有同名图），其次后端给的旧图，借用占位图不用
     const aiType = aiObjectTypeFor(obj.type)
     const aiKey = aiEnabled() && scene.textures.exists(aiObjectKey(obj.type)) ? aiObjectKey(obj.type) : aiEnabled() && scene.textures.exists(aiObjectKey(aiType)) ? aiObjectKey(aiType) : null
