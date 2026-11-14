@@ -43,6 +43,12 @@
 | **S11** 两头空 → 去餐厅（**v1.1 新**，A judge 目录 S11-rN） | `set_time 12:10`（餐厅 11–14 开）；`teleport 鲸仔 9,13 up`（客厅）；`set_vars {fullness: 15}`；`set_fridge fridge_home 0`（`contents` 空）；`set_stock` + `set_supply` 各对 `counter` 的 `ingredients` / `bread` / `sweets` 置 0（杂货店食物**今日剩余 `stock` 与当日上新量 `daily_supply` 都为 0**，A judge 看 `daily_supply`）；`set_gold 鲸仔 300` | 13:00 | 13:00 前 `use table_rest_1 / table_rest_2` + `eat {item: "meal"}` 完成（ws `eat_done {item: "meal", object: table_rest_*}`，金币 −20）；在别处吃到 = 夹具未生效；柜台 `out_of_stock` ≤ 2 次、冰箱 `empty` ≤ 1 次 |
 | **S12** 房租在前钱不够（**v1.1 新**，A judge 目录 S12-rN） | `set_time {date: <下月 1 日 − 1 天>, time: 14:00}`（离 1 日 08:00 到期 18 小时，`rent.due_in_days` 0）；`teleport 鲸仔 4,13 down`；`set_vars {fullness: 60, energy: 90}`；`set_fridge {id: fridge_home, item: home_meal, qty: 2}`；`set_gold 鲸仔 120`（< 房租 300）；**必摆** `POST /admin/commission {client: 餐厅老板, title: 店歌, fee: 150}`（公告栏有 open 委托） | 60 分钟（阶段一）+ **阶段二必摆**（S12 的一部分，A judge 无阶段二判 na）`set_time {date: 1 日, time: 08:01}` 再 30 分钟 | 阶段一：Think 出「得挣钱」类文本（`GET /player.rent` 的 `due_in_days 0`、`balance 120 < amount 300` 两条事实已给）+ `use` 公告栏 / 琴房电脑 / `compose` / 开播任一动作；不去餐厅花 20 加分；阶段二：到期当刻判欠租并**立即**收到镇公所第一条催租 QQ（之后每日 08:00 一条），30 分钟内 `read_qq` 并回应（不编「已经交了」） |
 
+## 刷手机口径（A 按总控授权定，11-14；同文在总控 docs/behavior-acceptance.md 末尾 5c579fc）
+
+- **S09 / R4 的「刷手机」= QQ**：A 夹具把 digest（inbox 3 条摘要）预置到 **QQ**（信息流系统账号），判分以**第一次 `qq_read`（沙盒 `/qq/read`）或 think 工具 `read_qq`** 为刷手机时刻；`qq_send` / `send_qq` 同类；用 `pc_whale`（`pc` 类型，直播台 / 电台）**不算**。
+- **world-v1.3.1 的 `phone_whale` (4,11) 只作呈现 / 占位**：不开第二条信息通道，digest 仍只走 QQ；她 `use` 手机（feed 摘要、`browsing`、每日 120 分钟）是沙盒机制照常，但**不计入**「刷手机」判分。
+- **夹具 reset 顺序**：S10（Dream 不丢事）判完再 `reset`，不要在 Dream 出结果前清世界。
+
 ## 日驱动核验（③）
 
 `cd back_end && uv run python scripts/verify_day_cycle.py --base http://127.0.0.1:8091 --speed 600`：07:50 起跑满一个游戏日，记录实际触发时刻。11-10 在 8091（v1，×600，一日 144 s 墙钟）：08:00 冰箱 0→2、商店 3→10；09:00 / 20:00 杂货店开关、11:00 / 14:00 / 17:00 / 21:00 餐厅开关；17:00 渔夫 +80、18:30 阿蝉 +150、20:00 老板娘 +100、21:00 餐厅老板 +100、克劳蒂娜 14–17 点 4 × 12——全部按时（见脚本输出）。单测 `test_full_game_day_at_x6_triggers_restock_wages_and_hours` 以 60 游戏秒步长模拟同一日。
