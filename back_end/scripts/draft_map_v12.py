@@ -86,6 +86,7 @@ house(2, 10, 11, 17, "H", doors=[(9, 17)])
 wall(6, 11, 6, 16, door=(6, 12)); tiles[16][6] = "f"             # 鲸仔房 x3–5,y11–13 | 客厅 x7–10,y11–16；厨房 x3–5,y15–16
 wall(3, 14, 5, 14)
 obj("bed_whale", "bed", 3, 11); obj("pc_whale", "pc", 5, 11); obj("shelf_whale", "book", 5, 13)
+obj("phone_whale", "phone", 4, 11)   # v1.3.1：手机摆回鲸仔房桌上一格（v1 / v1.2 漏摆；站 (4,12) 朝 up；房间 owner whale，别人进不来即「只给鲸仔」）
 obj("table_home", "dining_table", 7, 11); obj("sofa_tv", "sofa_tv", 7, 15)
 obj("fridge_home", "fridge", 5, 15); obj("stove", "stove", 3, 15)
 edge("door_home", (9, 18), (9, 17))

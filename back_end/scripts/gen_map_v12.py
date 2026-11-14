@@ -150,6 +150,7 @@ arena[17][9] = R("living_room")                          # 门格归客厅
 wall(6, 11, 6, 16, door=(6, 12), ar="whale_room"); tiles[16][6] = "f"; arena[16][6] = R("kitchen")   # 鲸仔房↔客厅 (6,12)；厨房↔客厅 (6,16)
 wall(3, 14, 5, 14, ar="whale_room")                      # 鲸仔房 ↔ 厨房 之间的墙
 obj("bed_whale", "bed", 3, 11); obj("pc_whale", "pc", 5, 11); obj("shelf_whale", "book", 5, 13)
+obj("phone_whale", "phone", 4, 11)   # v1.3.1：手机摆回鲸仔房桌上一格（v1 / v1.2 漏摆；站 (4,12) 朝 up；房间 owner whale，别人进不来即「只给鲸仔」）
 obj("table_home", "dining_table", 7, 11); obj("sofa_tv", "sofa_tv", 7, 15)
 obj("fridge_home", "fridge", 5, 15); obj("stove", "stove", 3, 15)
 edge("door_home", "door", (9, 18), (9, 17), "合租房大门", owner=["whale", "achan"], keys=3)

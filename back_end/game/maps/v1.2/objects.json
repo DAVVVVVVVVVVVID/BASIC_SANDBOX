@@ -184,6 +184,14 @@
     }
   },
   {
+    "id": "phone_whale",
+    "type": "phone",
+    "position": {
+      "x": 4,
+      "y": 11
+    }
+  },
+  {
     "id": "table_home",
     "type": "dining_table",
     "position": {

@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5ae. world-v1.3.1：手机摆回鲸仔房（总控批；tag `world-v1.3.1`）—— 完成，8091 已切
+
+- 答 A「刷手机口径」时发现 v1 / v1.2 图**漏摆 phone**（只 v0 有 phone_whale），而设定里刷手机是定稿机制（v1.1 I-1 每日 2 h、§8 持续使用、设定集 08 手机 = QQ + 直播间动态）。总控批：摆回鲸仔房 (4,11) 桌上一格，站 (4,12) 朝 up，只给鲸仔（房间 owner 机制，物品层没有 owner 字段、也不加）；NPC 仍只用 QQ。
+- 物品 71 件；x1-shortest 不变；**346 passed**。api-spec §12.12 补 v1.3.1 段、x5-fixtures 坐标段。本遍 S09 判分仍认 qq_read / qq_send（总控同意）；A 之后定夹具 digest 预置到 phone feed 还是 QQ。
+
 ## 5ad. world-v1.3：小千 → 克劳蒂娜 + 阿蝉静态勿扰（主播定稿 §3.57；tag `world-v1.3`）—— 完成，待总控对齐后切
 
 - **① 改名一次到底**：27 个文件机械替换（`npc_xiaoqian→claudine`、`xiaoqian_*→claudine_*`、小千→克劳蒂娜），含 sector / arena / 门 / 物品 / buildings id、qq_config、economy、地图 owner / access / HOMES、测试、x7_reset / verify / path_table、api-spec / x5 / x1 / 草案文档；v1.2 图重出（mapVersion 变）。旧 id 别名：`LEGACY_IDS`（join / spawn 旧 id 自动归新）、economy 检查点键改名、QQ `aliases`（小克 / 小千 / npc_xiaoqian → claudine）。`game/maps/v1` 与 x2–x6 历史语料不动。

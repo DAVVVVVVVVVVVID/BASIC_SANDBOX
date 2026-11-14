@@ -49,7 +49,7 @@ def test_v1_map_still_loads(client, v1):
 
 def test_v1_map_loads_format2_and_world_exposes_graph(client, v12):
     assert world_state.MAP_FORMAT == 2 and world_state.MAP_W == 50 and world_state.MAP_H == 37
-    assert len(world_state._OBJECTS) == 70 and len(world_state._EDGES) == 12   # world-v1.2：去掉草坪装饰树，+2 大树 +3 路灯；v1.2.3：+12 件室外装饰（灌木 / 花坛 / 垃圾桶 / 邮筒 / 侧向长椅）；v1.2.5：−2 公园长椅
+    assert len(world_state._OBJECTS) == 71 and len(world_state._EDGES) == 12   # world-v1.2：去掉草坪装饰树，+2 大树 +3 路灯；v1.2.3：+12 件室外装饰（灌木 / 花坛 / 垃圾桶 / 邮筒 / 侧向长椅）；v1.2.5：−2 公园长椅；v1.3.1：+phone_whale
     w = client.get("/world", params={"fields": "map,zone_names,worldState"}).json()
     assert w["map"]["format"] == 2 and w["map"]["floors"] == {"achan_room": 2}
     assert {e["kind"] for e in w["map"]["edges"]} == {"door", "gate", "stairs"}
