@@ -104,10 +104,13 @@ export default class ActorSprite {
   private godot: { key: string; m: GodotCharManifest; scale: number } | null = null
   /** 坐 / 睡 / 吃且在用物品时的排序钉（Godot _update_pin：只改排序，不挪精灵） */
   private pinDepth: number | null = null
+  /** 最近一次左右朝向（主播 11-14：Godot 条带原图 = 朝左，向右走 flipX；上下 / 站立 / 姿态沿用） */
+  private lastH: 'left' | 'right' = 'left'
 
   constructor(scene: Phaser.Scene, position: Position, facing: Facing, opts: ActorOptions) {
     this.scene  = scene
     this.facing = facing
+    if (facing === 'left' || facing === 'right') this.lastH = facing
     this.tile   = { ...position }
     this.name   = opts.name
     this.isSelf = !!opts.isSelf
@@ -218,6 +221,7 @@ export default class ActorSprite {
     if (this.anchored && this.anchor?.facing) return   // 坐在椅子上：朝向由椅子决定，不跟服务器朝向
     if (this.facing === facing) return
     this.facing = facing
+    if (facing === 'left' || facing === 'right') this.lastH = facing
     this.playAnim(this.moving)
     this.redrawArrow()
   }
@@ -231,7 +235,7 @@ export default class ActorSprite {
       const posed = !moving && !this.serverWalking
       const pose = posed ? godotPoseFor(this.stateLabel, has) : null
       const anim = moving ? (has('walk') ? 'walk' : 'idle') : pose ?? 'idle'
-      this.sprite.setFlipX(false)
+      this.sprite.setFlipX(this.lastH === 'right')   // 只翻精灵（origin 在水平中心，标签 / 排序不受影响）
       this.sprite.play(godotCharAnim(g.key, anim), true)
       return
     }
