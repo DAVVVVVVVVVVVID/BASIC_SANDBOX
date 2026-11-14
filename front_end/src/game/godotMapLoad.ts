@@ -5,7 +5,7 @@
  */
 import Phaser from 'phaser'
 import { ART_BASE } from './godotChars'
-import { mergeObjectsMeta, objectEntry, objectImage, type MapRules, type ObjectsMeta, type TilesMeta } from './godotMap'
+import { mergeObjectsMeta, objectEntry, objectImage, type BuildingsManifest, type BuildingSpec, type MapRules, type ObjectsMeta, type TilesMeta } from './godotMap'
 
 export const ART_BASE0 = '/art0'
 export const GODOT_TILES_PRESET = 'fantasy-outdoor'
@@ -16,6 +16,11 @@ let tilesFb: TilesMeta | null = null
 let objectsMeta: ObjectsMeta | null = null
 let objectsOver: Partial<ObjectsMeta> | null = null
 const queuedImages = new Set<string>()
+let buildingsMeta: BuildingsManifest | null = null
+const buildingSpecs = new Map<string, BuildingSpec>()
+export function godotBuildings(): BuildingsManifest | null { return buildingsMeta }
+export function godotBuildingSpec(id: string): BuildingSpec | null { return buildingSpecs.get(id) ?? null }
+export const godotBuildingTex = (image: string) => `gbld_${image.replace(/[^a-zA-Z0-9_.-]/g, '_')}`
 
 export function godotMapEnabled(): boolean {
   try {
@@ -87,6 +92,26 @@ export function preloadGodotMap(scene: Phaser.Scene, objectTypes: string[]) {
       once(`gmap_objects_${GODOT_TILES_PRESET}`, `${ART_BASE}/objects/manifest.${GODOT_TILES_PRESET}.json`, d2 => { objectsOver = (d2 && typeof d2 === 'object') ? d2 as Partial<ObjectsMeta> : null; queueObjects() })
     })
   } else queueObjects()
+  // 建筑外观（③）：manifest → 每栋 <id>.json → 图 + 夜景图
+  if (!buildingsMeta) {
+    once('gmap_buildings', `${ART_BASE}/buildings/manifest.json`, d => {
+      const r = d as BuildingsManifest | null
+      if (!r || !r.buildings) return
+      buildingsMeta = r
+      for (const id of Object.keys(r.buildings)) {
+        once(`gmap_building_${id}`, `${ART_BASE}/buildings/${id}.json`, d2 => {
+          const spec = d2 as BuildingSpec | null
+          if (!spec || !spec.image) return
+          buildingSpecs.set(id, spec)
+          for (const img of [spec.image, spec.night_image]) {
+            if (!img) continue
+            const key = godotBuildingTex(img)
+            if (!queuedImages.has(key) && !scene.textures.exists(key)) { queuedImages.add(key); L.image(key, `${ART_BASE}/buildings/${img}`) }
+          }
+        })
+      }
+    })
+  }
   // 物品图 /art 没有 → 退到 /art0（仓库内置的基础图）
   if (!(L as unknown as { __godotErrHook?: boolean }).__godotErrHook) {
     ;(L as unknown as { __godotErrHook?: boolean }).__godotErrHook = true

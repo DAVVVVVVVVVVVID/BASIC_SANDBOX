@@ -34,6 +34,13 @@ export default class GameObjectSprite {
   private nodes: Phaser.GameObjects.GameObject[] = []
   private tooltip: Phaser.GameObjects.Text | null = null
   private hiddenByRoof = false
+  /** Godot 清单图：遮挡判定用的世界矩形与排序 y（底边） */
+  private occ: { img: Phaser.GameObjects.Image; sortY: number } | null = null
+  occluderProbe(): { rect: Phaser.Geom.Rectangle; sortY: number; img: Phaser.GameObjects.Image } | null {
+    if (!this.occ || this.hiddenByRoof) return null
+    const i = this.occ.img
+    return { rect: new Phaser.Geom.Rectangle(i.x - i.displayWidth / 2, i.y - i.displayHeight, i.displayWidth, i.displayHeight), sortY: this.occ.sortY, img: i }
+  }
 
   constructor(scene: Phaser.Scene, obj: GameObject) {
     const footprint = obj.tiles && obj.tiles.length > 0 ? obj.tiles : [obj.position]
@@ -53,6 +60,7 @@ export default class GameObjectSprite {
       const k = TILE_SIZE / g.pxPerTile
       const img = scene.add.image(px + imgW / 2, py + imgH, g.key).setOrigin(0.5, 1).setScale(k).setDepth(py + imgH).setInteractive()
       this.nodes.push(img)
+      this.occ = { img, sortY: py + imgH }
       const tooltip = scene.add.text(px + imgW / 2, py - 2, tooltipLabel(obj), { fontSize: '12px', color: '#ffffff', backgroundColor: '#1a1a2e', padding: { x: 4, y: 2 } }).setOrigin(0.5, 1).setDepth(10).setVisible(false)
       this.tooltip = tooltip
       img.on('pointerover', () => { if (!this.hiddenByRoof) tooltip.setVisible(true) })

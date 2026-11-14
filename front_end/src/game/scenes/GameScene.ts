@@ -16,6 +16,9 @@ import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
 import { preloadGodotChars, createGodotCharAnimations } from '../godotCharsLoad'
 import { preloadGodotMap, godotMapReady } from '../godotMapLoad'
 import GodotTileMap from '../map/GodotTileMap'
+import GodotBuildings from '../map/GodotBuildings'
+import { focusKeyOf, floorOfKey, phaserKeyOf, buildingBoxes, nightFactor } from '../godotMap'
+import { parseMapV2 } from '../map/mapv2'
 import { preloadAiAssets, getAiManifest, aiBackdropKey, aiObjectKey, aiEnabled, aiHasObject, setAiTexturesLinear, type AiBackdrop } from '../aiAssets'
 import { arenaBBox, isIndoor, mapBuildings, buildingRoofKey } from '../map/mapv2'
 
@@ -86,6 +89,10 @@ export default class GameScene extends Phaser.Scene {
   private lastBusyTick = 0
   private debugTexts: Phaser.GameObjects.Text[] = []
   private deco: DecoLayer | null = null
+  /** Godot 同步③：外观贴图层 + 取景 key 映射（5173 键 "sector|floor" → Godot 键 "university:classroom|1"） */
+  private godotBuildings: GodotBuildings | null = null
+  private godotKeyByPhaser = new Map<string, string>()
+  private faded = new Map<Phaser.GameObjects.GameObject, number>()   // 遮挡物当前 alpha（OccluderFade）
   private roofedSectors = new Set<string>()
   private insideSector: string | null = null   // 当前取景进入的 sector（室内视图）
   private inputSystem: InputSystem | null = null
@@ -427,6 +434,25 @@ export default class GameScene extends Phaser.Scene {
   private pruneOpenDoors(now: number) {
     for (const [k, d] of this.openDoors) if (now >= d.until) this.setDoorOpen(k, false)
   }
+  /** Godot OccluderFade：跟随 / 操控的那个人被外观 / 物品挡住（排序在他之前且矩形相交）→ 遮挡物淡到 0.45，0.18 s 缓入缓出 */
+  private updateOccluders(dt: number) {
+    const target = this.mode === 'play' ? this.self : this.targetId ? this.others.get(this.targetId) ?? null : null
+    const probe = target?.occluderProbe() ?? null
+    const hit = new Set<Phaser.GameObjects.GameObject>()
+    if (probe) {
+      for (const h of this.godotBuildings?.all() ?? []) if (h.container.visible && h.depth > probe.sortY && Phaser.Geom.Rectangle.Overlaps(h.rect, probe.rect)) hit.add(h.container)
+      for (const o of this.objectSprites) { const p = o.occluderProbe(); if (p && p.sortY > probe.sortY && Phaser.Geom.Rectangle.Overlaps(p.rect, probe.rect)) hit.add(p.img) }
+    }
+    const step = dt / 180
+    for (const g of hit) { const a = Math.max(0.45, (this.faded.get(g) ?? 1) - step); this.faded.set(g, a); (g as unknown as { setAlpha: (a: number) => void }).setAlpha(a) }
+    for (const [g, a0] of this.faded) {
+      if (hit.has(g)) continue
+      const a = Math.min(1, a0 + step)
+      ;(g as unknown as { setAlpha: (a: number) => void }).setAlpha(a)
+      if (a >= 0.999) this.faded.delete(g); else this.faded.set(g, a)
+    }
+  }
+
   /** 从 /world.map.doors[] 读初始开关状态 */
   private syncMapDoors(world: WorldData) {
     const m = (world.map as { doors?: MapDoor[] } | undefined)?.doors ?? (world as unknown as { doors?: MapDoor[] }).doors ?? []
@@ -559,6 +585,10 @@ export default class GameScene extends Phaser.Scene {
       b.shadow?.setVisible(!showInterior)
     }
     this.focus?.setRoofed((tile) => this.underRoof(tile))
+    // ③ Godot 口径：取景那栋藏外观、露出它的 focus-only 瓦片层
+    const gk = inside ? this.godotKeyByPhaser.get(inside) ?? inside : ''
+    this.godotBuildings?.applyFocus(gk)
+    if (this.tileMap instanceof GodotTileMap) this.tileMap.applyFocus(gk)
     // 屋内物品：所在 sector 有屋顶且不是当前进入的 → 隐藏（只对 1F；2F 另有位置，照常）
     this.objectSprites.forEach((o, i) => {
       const t = this.tileIndex.get(`${this.objectTiles[i]?.x},${this.objectTiles[i]?.y}`)
@@ -634,7 +664,15 @@ export default class GameScene extends Phaser.Scene {
     const godot = godotMapReady(this)   // 11-14 ②：Godot 口径地砖（语义格 + 自动拼接 + 门 / 楼梯瓦片），装饰撒点不画（Godot 没有）
     const extras = useGameStore.getState().mapExtras
     const rawEdges = ((world.map as { edges?: unknown[] } | undefined)?.edges ?? world.edges ?? (extras.map as { edges?: unknown[] } | undefined)?.edges ?? extras.edges ?? []) as import('../godotMap').EdgeLike[]
-    this.tileMap = godot ? new GodotTileMap(this, world.tiles, world.objects, rawEdges) : new TileMap(this, world.tiles, world.tiled)
+    // ③：取景 key（同 Focus.key_of_tile）、建筑占地盒（map.buildings[]）、有外观的楼 → 这些楼与 floor ≠ 1 的另置画布只在取景时显示
+    const v2 = parseMapV2({ tiles: world.tiles, edges: world.edges ?? extras.edges, floors: world.floors ?? extras.floors, access: world.access ?? extras.access, arenas: world.arenas ?? extras.arenas, map: world.map ?? extras.map } as unknown as Parameters<typeof parseMapV2>[0])
+    const tileAt = new Map(world.tiles.map(t => [`${t.x},${t.y}`, t] as const))
+    const keyOf = (t: Tile | undefined) => focusKeyOf(t, tt => v2.floorOf(tt))
+    const boxes = godot ? buildingBoxes(mapBuildings(world.map ?? extras.map), (x, y) => tileAt.get(`${x},${y}`), keyOf) : []
+    const facaded = godot ? GodotBuildings.facadedKeys(boxes) : new Set<string>()
+    const hidden = (k: string) => floorOfKey(k) !== 1 || facaded.has(k)
+    this.godotKeyByPhaser.clear()
+    this.tileMap = godot ? new GodotTileMap(this, world.tiles, world.objects, rawEdges, { keyOf, hidden }) : new TileMap(this, world.tiles, world.tiled)
     this.tileMap.render()
     this.deco?.destroy()
     const decor = ((world as unknown as { decor?: unknown[] }).decor ?? (world.map as unknown as { decor?: unknown[] } | undefined)?.decor ?? []) as unknown[]
@@ -646,7 +684,16 @@ export default class GameScene extends Phaser.Scene {
     const { w, h } = mapSize(world.tiles, world.tiled)
     this.mapPx = { w: w * TILE_SIZE, h: h * TILE_SIZE }
     for (const obj of world.objects) { this.objectSprites.push(new GameObjectSprite(this, obj)); this.objectTiles.push({ ...obj.position }) }
-    this.placeBackdrops()
+    this.godotBuildings?.destroy(); this.godotBuildings = null
+    if (godot && this.tileMap instanceof GodotTileMap) {
+      // ③：外观贴图替代 AI 外观 / 室内底图；有外观的楼与另置楼层登记到 roofedSectors（人物 / 物品 / 楼梯标记的显隐沿用原机制）
+      this.godotBuildings = new GodotBuildings(this)
+      this.godotBuildings.rebuild(boxes, world.objects)
+      for (const k of [...facaded, ...this.tileMap.focusKeys()]) { const pk = phaserKeyOf(k); this.roofedSectors.add(pk); this.godotKeyByPhaser.set(pk, k) }
+      this.applyView(this.insideSector, true)
+    } else {
+      this.placeBackdrops()
+    }
     this.placeFallbackRoofs(world)
     this.drawDebugWalls()
     this.syncMapDoors(world)
@@ -1043,6 +1090,7 @@ export default class GameScene extends Phaser.Scene {
     }
     for (const s of this.others.values()) { s.update(time, dt, 1); if (this.roofedSectors.size) s.setHidden(this.underRoof(s.getTile())) }
     if (this.self && this.roofedSectors.size) this.self.setHidden(this.underRoof(this.self.getTile()))
+    if (this.godotBuildings) { this.godotBuildings.setNight(nightFactor(store.worldState?.time)); this.updateOccluders(dt) }
 
     // 标签 / 气泡在屏幕上恒定大小
     const ui = Phaser.Math.Clamp(1 / this.cameras.main.zoom, 1, 6)

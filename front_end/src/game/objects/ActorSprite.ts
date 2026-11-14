@@ -177,6 +177,13 @@ export default class ActorSprite {
     // 走 ↔ 停 切换时重算姿势：开始走立刻起身（解除贴床 / 贴椅、换走路 / 站立帧），停下再按标签摆姿
     if (!this.moving) { this.playAnim(false); this.applyPoseAnchor() }
   }
+  /** 遮挡判定用（Godot OccluderFade）：精灵世界矩形（脚底在 footY，向上 anchor 高、宽 frame_w × scale）与排序 y */
+  occluderProbe(): { rect: Phaser.Geom.Rectangle; sortY: number } | null {
+    if (!this.godot || !this.sprite.visible) return null
+    const foot = this.sprite.y + TILE_SIZE / 2 - 4
+    const w = this.godot.m.frame_w * this.godot.scale, h = this.godot.m.anchor[1] * this.godot.scale
+    return { rect: new Phaser.Geom.Rectangle(this.sprite.x - w / 2, foot - h, w, h), sortY: this.pinDepth ?? foot }
+  }
   /** 调试：当前标签 / 姿势 / 是否贴在物品上 */
   debugPose() { return { label: this.stateLabel, pose: this.pose, anchored: this.anchored, serverWalking: this.serverWalking } }
   /** 每格用时（ms）：人类键盘 300；agent 按服务器 1 格 / 游戏秒 × 镇倍速 */

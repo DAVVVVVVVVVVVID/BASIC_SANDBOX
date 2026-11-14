@@ -5,7 +5,7 @@
 import Phaser from 'phaser'
 import type { Tile, GameObject } from '../../types'
 import { TILE_SIZE } from '../constants'
-import { planMap, tileCell, type Cell, type EdgeLike, type MapPlan } from '../godotMap'
+import { planMap, tileCell, type Cell, type EdgeLike, type MapPlan, type PlanOpts, type LayerCells } from '../godotMap'
 import { godotRules, godotTiles, godotTilesFallback, godotTilesTex } from '../godotMapLoad'
 
 const CHUNK = 10
@@ -18,17 +18,22 @@ export default class GodotTileMap {
   private textureKeys: string[] = []
   private doorNodes = new Map<string, Phaser.GameObjects.Image>()
   private plan: MapPlan | null = null
+  /** focus-only 层（③）：key → 该栋 / 该层的瓦片节点，只在取景到它时显示 */
+  private focusNodes = new Map<string, Phaser.GameObjects.GameObject[]>()
+  private focusKey = ''
 
-  constructor(private scene: Phaser.Scene, private tiles: Tile[], private objects: GameObject[], private edges: EdgeLike[]) {}
+  constructor(private scene: Phaser.Scene, private tiles: Tile[], private objects: GameObject[], private edges: EdgeLike[], private opts: PlanOpts = {}) {}
 
   render() {
     const rules = godotRules(), main = godotTiles()
     if (!rules || !main) return
     const fb = godotTilesFallback()
-    this.plan = planMap(this.tiles, this.objects, this.edges, rules, main, fb && this.scene.textures.exists(godotTilesTex('fb')) ? fb : null)
+    this.plan = planMap(this.tiles, this.objects, this.edges, rules, main, fb && this.scene.textures.exists(godotTilesTex('fb')) ? fb : null, this.opts)
     this.bake(this.plan.ground, DEPTH_GROUND, 'g')
     this.bake(this.plan.overlay, DEPTH_OVERLAY, 'o')
     for (const c of this.plan.structures) this.nodes.push(this.cellImage(c, DEPTH_STRUCT))
+    for (const [key, l] of this.plan.focusLayers) this.focusNodes.set(key, this.bakeLayer(l, key))
+    this.applyFocus(this.focusKey)
     const miss = Object.entries(this.plan.missing)
     if (miss.length) console.info('[godotMap] semantic tiles missing in set (fell back to grass):', Object.fromEntries(miss))
   }
@@ -80,7 +85,25 @@ export default class GodotTileMap {
     }
   }
 
-  /** 门开关：structures 层换 door / door_open（同 MapRenderer.set_door） */
+  /** 一个 focus-only 层：地面 / 覆盖 / 门楼梯三组，返回其全部节点（初始隐藏） */
+  private bakeLayer(l: LayerCells, key: string): Phaser.GameObjects.GameObject[] {
+    const before = this.nodes.length
+    this.bake(l.ground, DEPTH_GROUND + 0.01, `fg_${key}`)
+    this.bake(l.overlay, DEPTH_OVERLAY + 0.01, `fo_${key}`)
+    for (const c of l.structures) this.nodes.push(this.cellImage(c, DEPTH_STRUCT))
+    const made = this.nodes.slice(before)
+    for (const n of made) (n as unknown as { setVisible: (v: boolean) => void }).setVisible(false)
+    return made
+  }
+
+  /** 取景到哪栋（Godot key，"" = 室外）：只显示该 key 的 focus-only 层 */
+  applyFocus(key: string) {
+    this.focusKey = key
+    for (const [k, nodes] of this.focusNodes) for (const n of nodes) (n as unknown as { setVisible: (v: boolean) => void }).setVisible(k === key)
+  }
+  focusKeys(): string[] { return [...this.focusNodes.keys()] }
+
+  /** 门开关：structures 层换 door / door_open（同 MapRenderer.set_door）；门在 focus-only 楼里就跟该层一起显隐 */
   setDoor(doorId: string, open: boolean) {
     const cell = this.plan?.doors.get(doorId)
     const main = godotTiles(); if (!cell || !main) return
@@ -90,6 +113,9 @@ export default class GodotTileMap {
     const img = this.cellImage(c, DEPTH_STRUCT + 0.01)
     this.doorNodes.set(doorId, img)
     this.nodes.push(img)
+    const t = this.tiles.find(tt => tt.x === cell.x && tt.y === cell.y)
+    const k = this.opts.keyOf?.(t) ?? ''
+    if (k && this.focusNodes.has(k)) { this.focusNodes.get(k)!.push(img); img.setVisible(k === this.focusKey) }
   }
 
   /** 某格的语义名（调试 / ③④ 用） */
@@ -98,7 +124,7 @@ export default class GodotTileMap {
   destroy() {
     for (const n of this.nodes) n.destroy()
     this.nodes = []
-    this.doorNodes.clear()
+    this.doorNodes.clear(); this.focusNodes.clear()
     for (const k of this.textureKeys) if (this.scene.textures.exists(k)) this.scene.textures.remove(k)
     this.textureKeys = []
   }
