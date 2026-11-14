@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { joinPlayer, joinAs, rejoinPlayer, fetchPlayersLite, setDnd } from '../api/world'
+import { joinPlayer, joinAs, rejoinPlayer, fetchPlayersLite } from '../api/world'
 import { findResidentAchan, ACHAN } from '../game/identity'
 
 interface Props {
@@ -22,7 +22,7 @@ export default function JoinScreen({ onJoined }: Props) {
       } else {
         const r = await joinAs(ACHAN.name, ACHAN.agent_id, false); playerId = r.playerId; player = r.player
       }
-      try { const d = await setDnd(playerId, false); player = { ...player, dnd: d.dnd, tags: d.tags ?? player.tags } } catch { /* 旧后端没有 dnd 接口 */ }
+      // 总控 11-14 选 A：登录不再自动关勿扰——v1.3.4+ 主播第一个 /action 服务端自动关；6a09c93 上自动关等于撤掉唯一保护。关页 sendBeacon dnd on 与 HUD 开关保留
       onJoined(playerId, player, ACHAN.name, ACHAN.agent_id)
     } catch {
       setError('以阿蝉身份登录失败，请检查后端（需 world-v1.3+）')
