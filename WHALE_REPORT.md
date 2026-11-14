@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5aj. 主镇阿蝉事故记录（11-14 13:10；不出版）
+
+- 常驻 阿蝉_83f3f5（建于 6a09c93）被删：主播用 5173「以阿蝉身份登录」= rejoin → POST dnd off → 页面断开（sendBeacon 没发出）→ 6a09c93 的心跳清理对非 dnd 人类是删除。6a09c93 没有 v1.3.4/1.3.5 的 dnd_auto 保护，这正是热切要补的口。随后主播又 join 了 阿蝉_22cbbe（普通加入框，无 agent_id）与 阿蝉_97b6d8（agent_id achan）。
+- 处置（总控批）：97b6d8 为新常驻阿蝉不动；22cbbe 已 DELETE；economy 账户表残留「阿蝉_22cbbe: 300」一行（无身份人类账号 = player id，离开时写回），无接口可删，等下次 world_reset 清。教训：热切 7ba5cf5 前别在主镇关阿蝉的 dnd；E 可能把 5173 登录自动 dnd off 改手动（总控定）。
+
 ## 5ai. world-v1.3.5：检查点回填 dnd_auto / 旧 id（主镇热切前补；tag `world-v1.3.5`）—— 完成
 
 - 主镇的阿蝉（阿蝉_83f3f5）是在 6a09c93 上建的，检查点里没有 v1.3.4 新字段 `dnd_auto`；热切保留 sandbox.db 时 `_ensure_player_fields` 现在按身份回填 `dnd_auto` / `dnd`（人类 + achan / 阿蝉），并把旧 `agent_id`（npc_xiaoqian）归到 claudine。否则热切后阿蝉不会自动归位、leave 会被删。测试 +1，**351 passed**。主镇 / bench 切换目标改为本版。
