@@ -16,7 +16,7 @@ edges: list[tuple] = []
 SIZES = {"dining_table": (2, 1), "bed": (1, 2), "bed_21": (2, 1), "fridge": (1, 1), "book": (1, 1), "pc": (1, 1), "pc_desk": (1, 1),
          "stove": (1, 1), "sofa_tv": (2, 1), "restaurant_table": (2, 1), "bar": (2, 1), "bench": (2, 1), "fishing_spot": (1, 1),
          "shop_counter": (1, 1), "fish_stall": (1, 1), "notice_board": (1, 1), "pc_music": (1, 1), "reading_desk": (1, 1),
-         "classroom_desk": (1, 1), "tree": (1, 1), "tree_big": (2, 2), "shelf": (1, 1), "boat": (2, 1), "fountain": (2, 2), "piano": (1, 1), "lamp": (1, 1),
+         "classroom_desk": (1, 1), "tree": (1, 1), "tree_big": (2, 2), "shelf": (1, 1), "boat": (2, 1), "fountain": (2, 2), "piano": (1, 1), "lamp": (1, 1), "phone": (1, 1),
          "bench_side": (1, 2), "bush_round": (1, 1), "bush_flower": (1, 1), "flowerbed": (1, 1), "trash_can": (1, 1), "mailbox": (1, 1)}
 USE_POS = {"bed": [(0, 0)], "bed_21": [(0, 0)], "pc": [(0, 1)], "pc_desk": [(0, 1)], "stove": [(0, 1)], "pc_music": [(0, 1)], "classroom_desk": [(0, 1)],
            "reading_desk": [(0, 1), (1, 0)], "bar": [(0, 1), (1, 1)], "dining_table": [(0, 1), (1, 1), (0, -1), (1, -1)],
