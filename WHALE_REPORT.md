@@ -45,6 +45,14 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5ad. world-v1.3：小千 → 克劳蒂娜 + 阿蝉静态勿扰（主播定稿 §3.57；tag `world-v1.3`）—— 完成，待总控对齐后切
+
+- **① 改名一次到底**：27 个文件机械替换（`npc_xiaoqian→claudine`、`xiaoqian_*→claudine_*`、小千→克劳蒂娜），含 sector / arena / 门 / 物品 / buildings id、qq_config、economy、地图 owner / access / HOMES、测试、x7_reset / verify / path_table、api-spec / x5 / x1 / 草案文档；v1.2 图重出（mapVersion 变）。旧 id 别名：`LEGACY_IDS`（join / spawn 旧 id 自动归新）、economy 检查点键改名、QQ `aliases`（小克 / 小千 / npc_xiaoqian → claudine）。`game/maps/v1` 与 x2–x6 历史语料不动。
+- **② dnd**：人类 join 可带 `profile.agent_id` 认领身份（`account_of` 改为「有 agent_id 就用」，22 处调用方受益；人类仍不开经济户、不同步自我层）；`dnd` 缺省对人类 achan / 阿蝉开；`POST /admin/player/{id}/dnd`、join / spawn `dnd` 参数。效果：decay handler 整段跳过（a 是新增——人类原本也衰减）；`knock` 新失败码 `busy`（屋里只有勿扰者时；另有清醒非勿扰者则照常、勿扰者不通知）；QQ 未读罚分跳过勿扰收件人；视图 `dnd` 字段 + tags `dnd` / `working`（在家）；`_cleanup_stale_players` 对勿扰人类只标离线不删。工时：① 0.15 d、② 0.3 d，实际合计约 0.5 d。
+- 测试：新 `tests/test_w12_dnd.py` 6 条；ws 字段集 +dnd；**346 passed**。临时实例：verify 五项 / x7 十项 PASS，accounts 里是 claudine。
+- 给 C / E / A：C 的 agent_id / HOMES / QQ 名 / 委托客户换 claudine（过渡期旧 id 仍能进）；E 的 buildings id `claudine_house`、物品 id `*_claudine`、players[].dnd / tags；A 的 persona id 与 QQ 名。
+- tag 说明：world-v1.3 先打在 385b442（代码），文档补在下一提交后把 tag 挪过来（发布前，未对外）。
+
 ## 5ac. world-v1.2.6：满员提示文字（总控定现在修；tag `world-v1.2.6`）—— 完成，bench 验收后再切
 
 - 起因：核 C 的 S05（01:55 床被占 sticky）时实测，`use` 被占的床返回 `reason: object_full`，但 `message` 借的是床的类型失败语「还不是睡觉的时候」，凌晨读到会误导。

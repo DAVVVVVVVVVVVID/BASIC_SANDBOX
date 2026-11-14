@@ -1461,7 +1461,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 成功 `result {message: "咚咚咚。", request_id, expires_at(+90 游戏秒), home, door{id, name, x, y, inside{x,y}}, notified: [屋内清醒者 id], request}`；**notified = 这家 sector 内所有清醒（无 `sleeping`、`scene ≠ live`、在场）的玩家，不限 owner**（人类演阿蝉站在客厅就能收到）；他们 `pendingMessage`「X 在敲门。」、`GET /player` `pending_knocks[]`、perceive `knocks[]`。ws `{type:"knock", request_id, visitor, visitor_name, home, home_name, door, owners, expires_at, notified}`。日志 `knock`。
 
-失败：`unknown_door` / `missing_door_or_target` / `not_a_home` / `already_inside` / `has_key`（有钥匙不用敲）/ `no_door` / `too_far` / `already_knocking` / `walking`。
+失败：`unknown_door` / `missing_door_or_target` / `not_a_home` / `already_inside` / `has_key`（有钥匙不用敲）/ `no_door` / `too_far` / `already_knocking` / `walking`。 **world-v1.3** 新增 `busy`：屋里只有勿扰（`dnd`）的人（主播操控的阿蝉不在）→ 立刻拒，不挂 90 s 等 `no_answer`，`result {home, door_id, message, dnd: [player id]}`；屋里另有清醒的非勿扰者则照常受理（勿扰者不被通知）。
 
 ### POST /door/respond
 
@@ -1593,6 +1593,18 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 10 条：`classroom` (3,1,7,5) / `library` (11,1,7,5) / `music_room` (23,1,7,5)（sector `university`）、`fisher_house` (33,1,9,6)、`home` (2,10,10,8)、`home_2f` (2,29,6,5) floor 2（门 `stairs_home` cell (3,30)）、`restaurant` (33,10,10,8)、`grocery` (22,20,8,5)（门 `door_grocery` cell (23,24) 朝南）、`claudine_house` (13,20,8,6)、`owners_house` (31,20,11,6)。只在 format 2 且地图带 `buildings` 时非空（v1 / v0 为 `[]`）。
 - 关键坐标（夹具 / 跑手用，全表见 `docs/x5-fixtures.md` 坐标段）：出生点 (4,13)；床边 (3,13) up；直播台 pc_whale 站 (5,12) up；冰箱 fridge_home 站 (5,16) up；灶台 (3,16) up；餐桌 table_home 站 (7,12) up；客厅 (9,13)；广场 (28,14)；街道 (30,9)；餐厅门外 (35,18)、桌 table_rest_1 站 (34,12) up；杂货店门外 (23,25)（短巷 y25，门朝南）、柜台站 (27,22) right；琴房电脑站 (24,3) up；码头 (43,5)、钓位 1 站 (45,3) up；渔夫家门外 (36,7)、克劳蒂娜家门外 (15,26)、店主家门外 (34,26)；教学楼 / 音乐楼门外 (5,6) / (24,6)。
 - `docs/x1-shortest.json` 重出（`scripts/x1_shortest.py --map v1.2`）：S01 7 / S02 41 / S03 56 / N1 63 / N2 19 / N3 null / N4 29 / N5 15；旧表 `docs/x1-shortest-v1.json`。
+
+### 12.12 world-v1.3：小千 → 克劳蒂娜 + 阿蝉静态勿扰（主播定稿 §3.57；tag `world-v1.3`）
+
+**① 改名，id 一次改到底**：`npc_xiaoqian` → **`claudine`**，显示名 / QQ 名 **克劳蒂娜**（昵称小克）。随之改的 id：sector `claudine_house`、arena `claudine_room` / `claudine_kitchen`、门 `door_claudine`、物品 `bed_claudine` / `table_claudine` / `stove_claudine` / `fridge_claudine` / `bush_claudine`、`buildings[].id` `claudine_house`；qq_config `names / contacts`、economy `initial_gold / wages（hourly 12，周一至五 13–17，payer npc_grocer）/ rent.items（350）/ commissions.clients`、地图 `owner / access / HOMES`。坐标 / 门位不变，mapVersion 变。
+- **旧 id 别名**：`LEGACY_IDS {npc_xiaoqian → claudine}`——join / spawn 带旧 `agent_id` 自动归到新 id；旧检查点里 economy 的账户键改名；QQ `resolve_account` 接受 `aliases`（qq_config 新字段：`claudine: [小克, 小千, npc_xiaoqian]`），`display_name` 不受别名影响。
+- 不动：`game/maps/v1`（X1–X6 复现用的旧图，仍是 npc_xiaoqian / xiaoqian_*）、`docs/x2–x6` 历史语料。
+
+**② 阿蝉静态勿扰（`dnd`）**：阿蝉由主播本人以人类玩家操控，主播不在时「没人打扰、不交互」。
+- 身份：人类玩家 join 可带 `profile.agent_id`（如 `achan`），即认领该身份——`agent_id` 字段填上，账号（QQ / 门 owner / HOMES / 钥匙）按它算；人类不开经济户（不发日薪、不收房租）、不同步自我层。
+- 旗标：`POST /player/join` 新字段 `dnd?: bool`；缺省 = **人类且身份为 `achan`（或名叫阿蝉）时开**，其余 false。`POST /admin/player/{id}/dnd {on: bool}` 随时开关（主播接管时关、离开时开），返回 `{ok, playerId, dnd, tags}`。夹具 `spawn` 也可带 `dnd`。
+- 开着时：a) 七变量 / 心情回归 / 亲密度自然衰减**全部静止**（人类原本和 agent 一样会衰减，所以这条是新增）；b) 敲他家门 → `knock` 立刻 `reason: busy`（见 §3.40），不等 90 s；c) 他作为 1:1 收件人时，未读不扣发件人亲密度（Q-2 豁免）；d) `GET /player`、`/world.players[]`、ws upsert 带 `dnd: true`，`tags` 多 `dnd`，人在自家房间（HOMES 的 arena）时再多 `working`——C 的感知据此不去找他；e) 心跳超时**不删人**（和 agent 一样只标 `online: false`），位置留在原地，不自动传送；主播下线前自己走回 `achan_room` 即可。
+- `GET /player/{id}/state` 也带 `dnd`。`Player` / `OtherPlayer` 模型加 `dnd`（ws upsert 字段集 +1）。
 
 ### 12.7 地图 v1
 
