@@ -101,10 +101,29 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
       }
     } catch (e) { setErr(`发送失败：${(e as Error).message}`) }
   }
-  const doRead = async () => {
+  /**
+   * /qq/read 节流（总控 11-15：沙盒每次 read 给读者叠 60 s reading busy，今早叠到 4831 s 锁住主播）：
+   * 只在 ① 用户点「标记已读」② 首次打开某联系人会话页 时调；同一联系人同一批未读只 read 一次（按最后一条未读 id 去重），
+   * 并且每个联系人 90 s 内不重复；4 s 轮询只拉 /qq/inbox，从不调 read。
+   */
+  const readSent = useRef(new Map<string, { lastId: string; at: number }>())
+  const unreadIn = (pid: string) => qq.messages.filter(m => !isMine(m) && !m.readAt && (m.group === pid || (!m.group && m.from === pid)))
+  const doRead = async (manual = true) => {
     if (!peer || readOnly) return
+    const un = unreadIn(peer)
+    const lastId = un.length ? un[un.length - 1].id : ''
+    const prev = readSent.current.get(peer)
+    const now = Date.now()
+    if (!manual) {
+      if (!lastId) return                                              // 没未读不读
+      if (prev && (prev.lastId === lastId || now - prev.at < 90_000)) return   // 同一批已读过 / 90 s 内读过
+    } else if (prev && now - prev.at < 10_000) { setErr('刚标记过，稍等几秒'); return }
+    readSent.current.set(peer, { lastId, at: now })
     try { await markRead(playerId, peer, !!peerC?.group); markQQRead(peer) } catch (e) { setErr(`标记已读失败：${(e as Error).message}`) }
   }
+  // 首次打开某联系人会话页（且有未读）→ 自动 read 一次；轮询到同一联系人的新未读会再读一次（受 90 s 节流）
+  const unreadCountForPeer = peer ? unreadIn(peer).length : 0
+  useEffect(() => { if (peer && open && !readOnly && unreadCountForPeer > 0) void doRead(false) }, [peer, open, readOnly, unreadCountForPeer]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 手机样式（操控页）：角标 → 居中手机；联系人页 → 会话页 ──────────────────────────────
   if (phone) {
@@ -153,7 +172,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
                   <button onClick={() => setPeer(null)} data-testid="qq-back" style={{ background: 'none', border: 'none', color: '#90cdf4', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>‹</button>
                   <b style={{ fontSize: 15 }}>{peerC?.group ? '👥 ' : ''}{peerC?.name ?? peer}</b>
                   {(peerC?.unread ?? 0) > 0 && <span style={{ color: '#fc8181', fontSize: 11 }}>{peerC!.unread} 未读</span>}
-                  {!readOnly && <button onClick={doRead} title="读消息占 1 游戏分钟" style={{ marginLeft: 'auto', ...btn, padding: '3px 8px', fontSize: 11, background: '#2d3748' }}>标记已读</button>}
+                  {!readOnly && <button onClick={() => doRead(true)} title="读消息占 1 游戏分钟（打开会话会自动读一次，一般不用点）" style={{ marginLeft: 'auto', ...btn, padding: '3px 8px', fontSize: 11, background: '#2d3748' }}>标记已读</button>}
                 </div>
                 <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {thread.length === 0 && <div style={{ color: '#718096', textAlign: 'center', marginTop: 20 }}>还没有消息</div>}
@@ -236,7 +255,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
                   <button onClick={doSend} disabled={!peer || !text.trim()} style={btn}>发送</button>
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'flex-end' }}>
-                  <button onClick={doRead} disabled={!peer} title="读消息占 1 游戏分钟" style={btn}>标记已读</button>
+                  <button onClick={() => doRead(true)} disabled={!peer} title="读消息占 1 游戏分钟" style={btn}>标记已读</button>
                 </div>
                 {err && <div style={{ color: '#fc8181', fontSize: 11 }}>{err}</div>}
               </div>
