@@ -20,6 +20,7 @@ from game.paths import data_dir
 _LOCK = threading.RLock()
 _CFG: dict = json.load(open(Path(__file__).with_name("qq_config.json"), encoding="utf-8"))
 READ_GAME_SECONDS = float(_CFG.get("read_game_seconds", 60))
+READ_GAME_SECONDS_HUMAN = float(_CFG.get("read_game_seconds_human", 0))   # v1.3.15：人类读 QQ 不占时间（主播定）
 SOCIAL_PER_MESSAGE = float(_CFG.get("social_per_message", 0.0))
 NAMES: dict[str, str] = dict(_CFG.get("names", {}))
 
@@ -384,12 +385,15 @@ def read(entity_id: str, *, peer: str | None = None) -> tuple[dict | None, str |
         if READ_REPLY_BONUS:                                        # W11 ③：读 → 每个 1:1 发件人对我 +1
             for acc in {m["from"] for m in got if not m.get("group")}:
                 _bump_closeness(acc, me, READ_REPLY_BONUS)
-        # 占用 1 游戏分钟：reading buff（控制类）+ tag
-        dur_ms = READ_GAME_SECONDS * 1000.0
+        # 占用 1 游戏分钟：reading buff（控制类）+ tag；v1.3.15：人类按 read_game_seconds_human（0 = 不占、不加 buff / tag）
+        secs = READ_GAME_SECONDS_HUMAN if p.get("controller") == "human" else READ_GAME_SECONDS
         p["buffs"] = [b for b in p["buffs"] if not (b["key"] == "reading" and b["source"] == "qq")]
-        p["buffs"].append({"key": "reading", "value": 1.0, "mode": "timed", "remaining": dur_ms, "source": "qq"})
-        if "reading" not in p["tags"]:
-            p["tags"].append("reading")
+        if secs > 0:
+            p["buffs"].append({"key": "reading", "value": 1.0, "mode": "timed", "remaining": secs * 1000.0, "source": "qq"})
+            if "reading" not in p["tags"]:
+                p["tags"].append("reading")
+        elif "reading" in p["tags"]:
+            p["tags"].remove("reading")
         apply_control_flags(p)
         if got:
             from game import social as _social
@@ -397,9 +401,9 @@ def read(entity_id: str, *, peer: str | None = None) -> tuple[dict | None, str |
             _social.qq_credit(_gnt(), p, len(got))
         world_state.mark_input(entity_id)
         _log({"kind": "read", "account": me, "peer": peer_acc, "ids": [m["id"] for m in got], "count": len(got),
-              "busy_game_seconds": READ_GAME_SECONDS})
+              "busy_game_seconds": secs})
         _push({"event": "read", "account": me, "entity": entity_id, "peer": peer_acc, "count": len(got), "ids": [m["id"] for m in got]})
-        return {"account": me, "messages": got, "count": len(got), "busy_game_seconds": READ_GAME_SECONDS,
+        return {"account": me, "messages": got, "count": len(got), "busy_game_seconds": secs,
                 "unread": unread_summary(me)}, None
 
 

@@ -184,3 +184,30 @@ def test_admin_qq_purge_and_export_filter(client, tmp_path, monkeypatch):
     ex = client.get("/admin/export", params={"date": date.today().isoformat(), "kinds": "qq"}).json()
     assert all("有人问" not in (row.get("text") or "") for row in ex["qq"]) and ex["manifest"]["purged"]["qq"] >= 3
     assert any(row.get("entity") == achan for row in ex["qq"] if row.get("kind") == "message")        # 日志行带发送者 player id
+
+
+def test_human_read_qq_takes_no_time_v1315(client):
+    """v1.3.15（主播定）：人类读 QQ 不占时间——busy_game_seconds 0、不加 reading buff / tag、能立刻动；agent 仍 60 s。"""
+    whale = _agent(client, "whale")
+    human = client.post("/player/join", json={"name": "阿蝉", "controller": "human", "profile": {"agent_id": "achan"}}).json()["playerId"]
+    client.post("/qq/send", json={"entity_id": whale, "to": "achan", "text": "在吗"})
+    r = client.post("/qq/read", json={"entity_id": human, "peer": "whale"}).json()
+    p = world_state._players[human]
+    assert r["success"] and r["count"] == 1 and r["busy_game_seconds"] == 0
+    assert not any(b["key"] == "reading" for b in p["buffs"]) and "reading" not in p["tags"] and p["canMove"] is True
+    client.post("/qq/send", json={"entity_id": human, "to": "whale", "text": "在"})
+    r = client.post("/qq/read", json={"entity_id": whale, "peer": "achan"}).json()
+    assert r["busy_game_seconds"] == 60 and any(b["key"] == "reading" for b in world_state._players[whale]["buffs"])
+
+
+def test_admin_delete_single_buff_key(client):
+    """v1.3.15：DELETE /admin/player/{id}/buffs?key=reading 只摘一类（decay 不摘），路径与 spec 对齐。"""
+    whale = _agent(client, "whale"); achan = _agent(client, "achan")
+    client.post("/qq/send", json={"entity_id": achan, "to": "whale", "text": "x"})
+    client.post("/qq/read", json={"entity_id": whale, "peer": "achan"})
+    p = world_state._players[whale]
+    assert any(b["key"] == "reading" for b in p["buffs"]) and p["canMove"] is False
+    r = client.delete(f"/admin/player/{whale}/buffs", params={"key": "reading"}).json()
+    assert r == {"ok": True, "cleared": 1, "key": "reading", "source": None}
+    assert not any(b["key"] == "reading" for b in p["buffs"]) and "reading" not in p["tags"] and p["canMove"] is True and any(b["key"] == "decay" for b in p["buffs"])
+    assert client.delete("/admin/player/nobody/buffs", params={"key": "reading"}).status_code == 404

@@ -220,9 +220,22 @@ def admin_get_buffs(player_id: str):
 
 
 @router.delete("/admin/player/{player_id}/buffs")
-def admin_clear_buffs(player_id: str):
-    count = clear_player_buffs(player_id)
-    return {"ok": True, "cleared": count}
+def admin_clear_buffs(player_id: str, key: Optional[str] = None, source: Optional[str] = None):
+    """清 buff。v1.3.15：可带 ?key=reading[&source=qq] 只摘一类（decay 不可摘）；不带则清全部（旧行为）。"""
+    if key is None and source is None:
+        count = clear_player_buffs(player_id)
+        return {"ok": True, "cleared": count}
+    from game.world_state import STATE_LOCK, apply_control_flags
+    with STATE_LOCK:
+        p = _players.get(player_id)
+        if p is None:
+            raise HTTPException(status_code=404, detail=f"player not found: {player_id}")
+        before = len(p["buffs"])
+        p["buffs"] = [b for b in p["buffs"] if b.get("key") == "decay" or not ((key is None or b.get("key") == key) and (source is None or b.get("source") == source))]
+        if key and key in p.get("tags", []):
+            p["tags"].remove(key)
+        apply_control_flags(p)
+        return {"ok": True, "cleared": before - len(p["buffs"]), "key": key, "source": source}
 
 
 @router.post("/admin/player/force-reset")
