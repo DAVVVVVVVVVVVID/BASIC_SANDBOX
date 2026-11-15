@@ -213,3 +213,38 @@ def test_player_views_carry_chat_room_id(client, v12, fake_clock):
     assert snap[a]["chat_room_id"] == room and snap[b]["chat_room_id"] == room
     client.post("/chat/exit", json={"entity_id": a, "chat_room_id": room})
     assert client.get(f"/player/{a}").json()["chat_room_id"] is None and client.get(f"/player/{b}").json()["chat_room_id"] == room
+
+
+def test_live_window_gate_v1317(client, v12, fake_clock, monkeypatch):
+    """v1.3.17：直播只在 live_window（缺省 18:30–22:30）内成立；窗外 use pc = 做稿（不切 scene、无 streaming、不打 /self/live）；purpose 覆盖；result.live。"""
+    import httpx
+    from game import self_sync, external_effects
+    monkeypatch.delenv("SANDBOX_LIVE_WINDOW", raising=False)
+    calls = []
+
+    def handler(req):
+        calls.append(req.url.path)
+        return httpx.Response(200, json={"ok": True, "vars": {}, "closeness": {}, "emotion_tags": [], "ocean": {}, "scene": "sandbox", "last_tick_ts": "x", "items": []})
+    self_sync.configure(url="http://self.test", enabled=True, snap=False, transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(external_effects, "SYNC_STOP", True)
+    whale = _agent(client, "whale")
+    _at(fake_clock, 14, 0); place(whale, 5, 12, "up")
+    r = action(client, whale, "use"); p = world_state._players[whale]
+    assert r["success"] and r["result"]["live"] is False and r["result"]["live_gate"] == "outside_window"
+    assert p["scene"] == "sandbox" and "streaming" not in p["tags"] and "working" in p["tags"] and "/self/live/start" not in calls
+    action(client, whale, "leave"); assert "/self/live/stop" not in calls
+    r = action(client, whale, "use", {"purpose": "live"})                       # 窗外强制开播
+    assert r["result"]["live"] is True and r["result"]["live_gate"] == "purpose_live" and p["scene"] == "live" and "streaming" in p["tags"] and "/self/live/start" in calls
+    action(client, whale, "leave"); assert "/self/live/stop" in calls and p["scene"] == "sandbox"
+    _at(fake_clock, 18, 30); r = action(client, whale, "use"); assert r["success"], r; assert r["result"]["live"] is True; action(client, whale, "leave")   # 边界 18:30 含（时钟只往前走，避免冷却）
+    _at(fake_clock, 19, 0); calls.clear()
+    r = action(client, whale, "use")                                            # 窗内缺省开播
+    assert r["result"]["live"] is True and r["result"]["live_gate"] == "in_window" and p["scene"] == "live"
+    action(client, whale, "leave")
+    _at(fake_clock, 20, 0)
+    r = action(client, whale, "use", {"purpose": "work"})                       # 窗内强制做稿
+    assert r["result"]["live"] is False and p["scene"] == "sandbox" and "streaming" not in p["tags"]
+    action(client, whale, "leave")
+    _at(fake_clock, 22, 31); r = action(client, whale, "use"); assert r["success"] and r["result"]["live"] is False; action(client, whale, "leave")
+    monkeypatch.setenv("SANDBOX_LIVE_WINDOW", "23:00-23:30")
+    _at(fake_clock, 23, 10); r = action(client, whale, "use"); assert r["success"] and r["result"]["live"] is True and external_effects.live_window()["source"] == "env"

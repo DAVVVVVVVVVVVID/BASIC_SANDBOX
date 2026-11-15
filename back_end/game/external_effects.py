@@ -75,6 +75,36 @@ def _ws_live(payload: dict) -> None:
         pass
 
 
+def live_window() -> dict:
+    """{start, end, enabled, source}：env SANDBOX_LIVE_WINDOW="HH:MM-HH:MM" 优先，否则 economy.live_window。"""
+    from game.economy import cfg
+    lw = dict(cfg().get("live_window") or {})
+    env = _os.environ.get("SANDBOX_LIVE_WINDOW")
+    if env and "-" in env:
+        a, b = env.split("-", 1); lw.update({"start": a.strip(), "end": b.strip(), "source": "env"})
+    else:
+        lw.setdefault("source", "config")
+    lw.setdefault("start", "18:30"); lw.setdefault("end", "22:30"); lw.setdefault("enabled", True)
+    return lw
+
+
+def live_allowed(game_iso: str, purpose: str | None = None) -> tuple[bool, dict]:
+    """v1.3.17：这次 use 直播物品算不算开播。purpose live → 是；work → 否；否则看游戏时刻是否在 live_window 内（窗跨午夜也支持）。"""
+    lw = live_window()
+    hm = (game_iso or "")[11:16]
+    s, e = lw["start"], lw["end"]
+    in_win = (s <= hm <= e) if s <= e else (hm >= s or hm <= e)
+    if purpose == "live":
+        ok, why = True, "purpose_live"
+    elif purpose == "work":
+        ok, why = False, "purpose_work"
+    elif not lw.get("enabled", True):
+        ok, why = True, "window_disabled"
+    else:
+        ok, why = in_win, ("in_window" if in_win else "outside_window")
+    return ok, {"live": ok, "reason": why, "window": [s, e], "now": hm, "source": lw.get("source")}
+
+
 def live_webhook_start(player: dict, obj: dict | None, game_iso: str) -> str | None:
     """开播通知（同步，失败不阻塞）。返回 session_id。"""
     agent = _agent_for(player) or player["id"]

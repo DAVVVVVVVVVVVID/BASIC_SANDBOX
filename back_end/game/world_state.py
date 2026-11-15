@@ -1585,6 +1585,16 @@ def get_object_at(x: int, y: int) -> dict | None:
     return None
 
 
+_use_mode: dict[str, str] = {}      # v1.3.17：entity -> "work"（这次 use 直播物品不开播）；enter_object 时消费
+
+
+def set_use_mode(entity_id: str, mode: str | None) -> None:
+    if mode:
+        _use_mode[entity_id] = mode
+    else:
+        _use_mode.pop(entity_id, None)
+
+
 def enter_object(obj_id: str, entity_id: str) -> None:
     player = _players.get(entity_id)
     if player is None:
@@ -1592,6 +1602,7 @@ def enter_object(obj_id: str, entity_id: str) -> None:
     obj = get_object_by_id(obj_id)
     if obj is None:
         return
+    work_only = _use_mode.pop(entity_id, None) == "work"
     if entity_id not in obj["userList"]:
         obj["userList"].append(entity_id)
         obj["currentUsers"] += 1
@@ -1603,11 +1614,15 @@ def enter_object(obj_id: str, entity_id: str) -> None:
     _move_to_use_pos(player, obj)             # W10：坐进去 / 躺上去
 
     # continuous 物品：buff（persistent 到 leave 为止 / timed）、tag、以及进入时的一次性 instant_effect
-    apply_effects(player, obj["effects"], source=obj_id)
+    is_live_obj = "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}
+    effects = obj["effects"]
+    if is_live_obj and work_only:         # v1.3.17：窗外做稿——不挂 streaming tag、不算直播（external live 本就不在这里触发）
+        effects = [e for e in effects if not (e.get("type") == "tag" and e.get("key") == "streaming")]
+    apply_effects(player, effects, source=obj_id)
     apply_control_flags(player)           # Q0c：no_move 等立刻生效，不等下一 tick
     if obj.get("work") and "working" not in player["tags"]:
         player["tags"].append("working")  # world-v1.1 §2.1：工作中精力再 −3/h（decay 读这个 tag）
-    if "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
+    if is_live_obj and not work_only:
         player["scene"] = "live"          # B11：直播中按 live 速率衰减
 
 
@@ -1814,7 +1829,7 @@ def leave_object(entity_id: str, reason: str = "leave") -> dict | None:
     production.on_leave(player)           # W11：钓位 / 灶台状态清掉（v1.1：中途走白费）
     food.cancel(player, "left_table", game_now_ts())     # world-v1.1：离开餐桌 = 进食中断，结算到此刻（按比例）
     _use_start_game_ts.pop(entity_id, None)
-    if obj and "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
+    if obj and "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"} and player.get("scene") == "live":   # v1.3.17：窗外做稿没开播就不下播
         player["scene"] = "sandbox"       # B11：下播
         from game import external_effects, economy
         from game.time_state import game_now_iso

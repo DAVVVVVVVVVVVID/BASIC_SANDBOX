@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5ax. world-v1.3.17：直播只在直播窗内成立（总控定、C / A 点头）—— 完成，周一 .5 窗带上
+
+- 11-15 鲸仔午后做稿 19 次 use/leave 每次都打了 /self/live start/stop + whale-live（.3 口径「use 电脑 = 开播」全在沙盒侧触发）。改：`economy.live_window` 缺省 18:30–22:30（env `SANDBOX_LIVE_WINDOW` 覆盖）；`external_effects.live_allowed(game_iso, purpose)`；`handle_use` 窗外对直播物品走 `set_use_mode(work)` → `enter_object` 不挂 streaming / 不切 scene，`leave_object` 只在 scene live 时下播 / 记收入 / 加社交；payload `purpose live|work` 覆盖；`result.live / live_gate`。
+- 三个直播链路测试模块加 autouse 把窗开全天（它们测的是链路本身）；新测试覆盖窗外 / 窗内 / purpose / 边界 18:30 含、22:31 外 / env 覆盖。**365 passed**；api-spec §12.21。A 的判分认 scene live / tags streaming；C 的 .5 在直播锚点内 use 带 purpose live。
+
 ## 5aw. world-v1.3.16：ws qq 事件去正文（主播在阿蝉 QQ 里看到鲸仔→小克私信）—— 完成，不为它切
 
 - 根因：`qq._push` 把整条消息（含 text）经 `/ws/world` 全体广播，ws 连接不绑玩家、无法定向；前端也没按 peer 过滤。改：message 事件只带 id / from / to / group / kind / ts / chars / participants，客户端按 participants 判相关、按 peer 走 /qq/inbox 拉正文（inbox 只回「我」的消息）。旁观页只读 QQ 走 inbox，不受影响。测试改 1，**364 passed**；api-spec §12.20。今天 10:00 窗仍 f4395cf。

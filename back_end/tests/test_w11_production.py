@@ -15,6 +15,12 @@ from tests.test_w9_map_v2 import v12  # noqa: F401
 from tests.test_external_effects import fake_self  # noqa: F401
 
 
+@pytest.fixture(autouse=True)
+def _live_window_always_open(monkeypatch):
+    """v1.3.17 起直播只在窗内成立；这个模块测的是直播链路本身，把窗开成全天。"""
+    monkeypatch.setenv("SANDBOX_LIVE_WINDOW", "00:00-23:59")
+
+
 def _at(fake_clock, h, m=0):
     fake_clock.t = datetime(2026, 11, 10, h, m, tzinfo=GAME_TZ).timestamp()
 

@@ -8,6 +8,12 @@ from game import world_state
 from tests.conftest import STREAM_STAND, join, action, place
 
 
+@pytest.fixture(autouse=True)
+def _live_window_always_open(monkeypatch):
+    """v1.3.17 起直播只在窗内成立；这个模块测的是直播链路本身，把窗开成全天。"""
+    monkeypatch.setenv("SANDBOX_LIVE_WINDOW", "00:00-23:59")
+
+
 def _agent(client, agent_id="whale"):
     return client.post("/player/join", json={"name": "鲸仔", "controller": "agent", "profile": {"agent_id": agent_id}}).json()["playerId"]
 

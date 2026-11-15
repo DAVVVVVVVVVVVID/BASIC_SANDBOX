@@ -9,6 +9,12 @@ from game import world_state, self_sync, external_effects
 from tests.conftest import PHONE_ID, PHONE_STAND, STREAM_ID, STREAM_STAND, join, action, place
 
 
+@pytest.fixture(autouse=True)
+def _live_window_always_open(monkeypatch):
+    """v1.3.17 起直播只在窗内成立；这个模块测的是直播链路本身，把窗开成全天。"""
+    monkeypatch.setenv("SANDBOX_LIVE_WINDOW", "00:00-23:59")
+
+
 class FakeSelf:
     def __init__(self):
         self.down = False

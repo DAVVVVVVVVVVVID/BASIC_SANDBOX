@@ -1665,6 +1665,12 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - `/ws/world` 是全体广播、连接不绑玩家，旧版 qq `message` 事件把正文广播给了所有订阅者（主播操控阿蝉时在自己 QQ 里看到鲸仔发给小克的私信）。现在事件只带 `{type: qq, event: message, id, from, from_name, to, group, kind, ts, game_time, system, chars, participants[]}`——`participants` = 发件人 + 收件人（群 = 群成员账号）；客户端按 participants 判断与我是否有关，再 `GET /qq/inbox?player=…&peer=…` 拉正文。`read` 事件不变（本来不带正文）。
 - 旁观页（直播画面）的只读 QQ 走 `/qq/inbox?player=<鲸仔>`，接口只回「我」收发的消息（`_is_mine`），与广播无关、不受影响。
 
+### 12.21 直播只在直播窗内成立（tag `world-v1.3.17`；总控 / C / A 11-16 定）
+
+- `economy.live_window {start: "18:30", end: "22:30", enabled: true}`（= 锚点 19:00–22:00 前后各 30 min；env `SANDBOX_LIVE_WINDOW="HH:MM-HH:MM"` 覆盖，bench 跑 S07 用；跨午夜也支持）。
+- `use` 带 external `live` 的物品（`pc` / `stream_desk`）：游戏时刻在窗内 → 照旧开播（/self/live/start、whale-live webhook、`scene live`、tag `streaming`）；**窗外 = 做稿**：物品照常可用（work / 每日上限 / make_video / compose 不变），但不打两边、不切 scene、不挂 `streaming`，离开时也不下播 / 不记直播收入 / 不加直播社交。payload `purpose: "live"` 强制开播（窗外临时加播）、`"work"` 强制不开播（窗内写稿）。
+- 响应 `result` 多 `live: bool` 与 `live_gate`（`in_window / outside_window / purpose_live / purpose_work / window_disabled`）；external 日志 `live` 行多 `gate`，窗外为 `action: skipped`。判分 / agent 认「开播」请看 `result.live` 或 `scene live / tags streaming`，不要认「use 了 pc」。背景：11-15 鲸仔午后做稿 19 次 use/leave 把自我层 scene 切了 19 次。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

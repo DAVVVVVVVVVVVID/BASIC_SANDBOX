@@ -312,5 +312,11 @@
         }
       ]
     }
+  },
+  "live_window": {
+    "_doc": "闭测 11-16（总控 / C / A 定）：直播只在窗内成立——use 带 external live 的物品（pc / stream_desk）时，只有游戏时刻在 [start, end] 内（缺省 18:30–22:30 = 锚点 19:00–22:00 前后各 30 min）才开播（/self/live + whale-live + scene live + streaming tag）；窗外 = 做稿，物品照常可用。payload.purpose: live 强制开播 / work 强制不开播。env SANDBOX_LIVE_WINDOW=\"18:30-22:30\" 可覆盖（bench 跑 S07 用）。以后从 persona stream_windows 同步。",
+    "start": "18:30",
+    "end": "22:30",
+    "enabled": true
   }
 }

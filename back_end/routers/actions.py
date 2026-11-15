@@ -286,14 +286,21 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
 
     # world-v1.1：餐厅坐下免费，点一顿在 eat {item:"meal"} 时扣钱（§1.1）
 
-    if "live" in ext:                                       # B11 直播台：先开播，失败就不坐下
-        live = external_effects.live_start(_players.get(entity_id, player), game_now_iso(), obj)
-        external_log.log("live", entity_id, object=obj["id"], action="start", ok=live["ok"], error=live.get("error"), session_id=live.get("session_id"))
-        if not live["ok"]:
-            return ActionResponse(
-                success=False, type="use", reason="live_unavailable",
-                result={"message": obj.get("failureMessage"), "objectId": obj["id"], "error": live.get("error")},
-            )
+    live_info = None
+    if "live" in ext:                                       # B11 直播台：先开播，失败就不坐下；v1.3.17：只在直播窗内（或 purpose live）才算开播
+        allowed, live_info = external_effects.live_allowed(game_now_iso(), payload.get("purpose"))
+        if allowed:
+            live = external_effects.live_start(_players.get(entity_id, player), game_now_iso(), obj)
+            external_log.log("live", entity_id, object=obj["id"], action="start", ok=live["ok"], error=live.get("error"), session_id=live.get("session_id"), gate=live_info["reason"])
+            if not live["ok"]:
+                return ActionResponse(
+                    success=False, type="use", reason="live_unavailable",
+                    result={"message": obj.get("failureMessage"), "objectId": obj["id"], "error": live.get("error")},
+                )
+        else:
+            from game.world_state import set_use_mode
+            set_use_mode(entity_id, "work")                  # 窗外做稿：不切 scene、不挂 streaming、不打 webhook
+            external_log.log("live", entity_id, object=obj["id"], action="skipped", gate=live_info["reason"], window=live_info["window"])
 
     if "game" in ext:                                       # B18 / W10-4b 游戏机：energy ≥ 中才坐下；问 D 开局 / 接局，失败就不坐下
         if float(player.get("energy", 100.0)) < external_effects.GAME_ENERGY_MIN:
@@ -319,6 +326,7 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
     record_object_use(entity_id, obj["id"])
     updated = get_player(entity_id)
     result = {
+        **({"live": bool(live_info["live"]), "live_gate": live_info["reason"]} if live_info else {}),   # v1.3.17：这次 use 直播物品有没有开播
         "message":      obj.get("successMessage"),
         "playerState":  updated["state"] if updated else "using",
         "stateLabel":   updated["stateLabel"] if updated else None,
