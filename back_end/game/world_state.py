@@ -295,6 +295,7 @@ def _build_objects(raw: list[dict]) -> list[dict]:
             "work":           bool(t.get("work")),      # world-v1.1：工作 / 创作类（精力额外 −3/h、每日时长上限）
             "daily_limit_min": t.get("daily_limit_min"),
             "storage":        {"capacity": 0, "used": 0} if t.get("storage") else None,   # 冰箱：存储（contents 由 food 填）
+            "empty":          True if t.get("storage") else None,   # v1.3.18：冰箱空标记（_object_view 按 contents 刷）
             "contents":       [] if t.get("storage") else None,
             "daily_supply":   None,                     # 商店：每日上新量（下面填）
             "restock_at":     None,
@@ -912,6 +913,9 @@ def get_player(player_id: str) -> dict | None:
     data["tags"] = view_tags(player)
     from game.chat_state import room_of
     data["chat_room_id"] = room_of(player_id)                  # v1.3.13：在房给 id，否则 null（agent 遇 chat_active 可直接读房 / exit）
+    from game import economy as _eco2
+    from game.qq import account_of as _acc2
+    data["today_sales"] = _eco2.today_sales(_acc2(player))     # v1.3.18：卖家今天卖了多少（C：餐厅老板不知道自己午市卖了 13 顿）
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
@@ -1055,6 +1059,7 @@ def _object_view(obj: dict, game_ts: float, viewer: str | None = None) -> dict:
         from game import food
         view["contents"] = food.contents_view(obj, game_ts)
         view["storage"] = {"capacity": food.capacity(obj), "used": food.used(obj)}
+        view["empty"] = food.used(obj) == 0                       # v1.3.18：冰箱空标记（C 感知「冰箱空」不用再 take 一次）
     if obj.get("type") == "stove":
         from game import production
         view["cooking"] = production.cooking_view(obj["id"], game_ts)
@@ -1828,13 +1833,14 @@ def leave_object(entity_id: str, reason: str = "leave") -> dict | None:
     from game import production, food
     production.on_leave(player)           # W11：钓位 / 灶台状态清掉（v1.1：中途走白费）
     food.cancel(player, "left_table", game_now_ts())     # world-v1.1：离开餐桌 = 进食中断，结算到此刻（按比例）
+    live_dur = use_elapsed_game_s(entity_id)                 # v1.3.18：下播前先取时长（下面会 pop）
     _use_start_game_ts.pop(entity_id, None)
     if obj and "live" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"} and player.get("scene") == "live":   # v1.3.17：窗外做稿没开播就不下播
         player["scene"] = "sandbox"       # B11：下播
         from game import external_effects, economy
         from game.time_state import game_now_iso
         external_effects.live_stop(player, game_now_iso(), obj, reason)
-        economy.synthetic_stream_income(player, obj_id)    # W11 ②：直播机未接前按 synthetic 入账
+        economy.synthetic_stream_income(player, obj_id, live_dur)    # W11 ② / v1.3.18：直播机未接前按时长合成入账
         from game import social
         social.live_session_end(player)                    # world-v1.1 §4.1：直播一场社交 +10
     if obj and "game" in {e.get("key") for e in obj["effects"] if e.get("type") == "external"}:
@@ -2059,6 +2065,7 @@ def export_runtime() -> dict:
                 "use_history":     [list(x) for x in _use_history.get(pid, [])],
                 "pre_use_pos":     _pre_use_pos.get(pid),            # W10：use 前站位
                 "daily_use":       {k: dict(v) for k, v in _daily_use.get(pid, {}).items()},   # world-v1.1 I-1
+                "use_start_game_ts": _use_start_game_ts.get(pid),                              # v1.3.18：重启后能结算直播时长 / compose 门槛
             }
             for pid, p in _players.items()
         }
@@ -2098,8 +2105,15 @@ def import_runtime(data: dict, *, grace_last_seen: bool = True) -> int:
                 _pre_use_pos[pid] = dict(row["pre_use_pos"])
             if row.get("daily_use"):
                 _daily_use[pid] = {k: dict(v) for k, v in row["daily_use"].items()}
+            if row.get("use_start_game_ts") is not None:
+                _use_start_game_ts[pid] = float(row["use_start_game_ts"])
             if player.get("controller") == "agent":
                 self_sync.register(pid, game_now_ts())
+        for pid, p in list(_players.items()):            # v1.3.18：重启切断的直播会话在这里下播并按已知时长结算（11-15 20:00 那场跨了重启没结）
+            oid = p.get("usingObjectId"); o = get_object_by_id(oid) if oid else None
+            if o is not None and p.get("scene") == "live" and "live" in {e.get("key") for e in o["effects"] if e.get("type") == "external"}:
+                leave_object(pid, "restart")
+                _pending_messages[pid] = "直播因为重启中断了。"
         from game import state_log
         for p in _players.values():
             state_log.sample_now(p, "restore")        # Q1：回填后立即采样

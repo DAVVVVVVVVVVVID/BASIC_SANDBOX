@@ -177,7 +177,7 @@ def test_make_video_on_pc_and_daily_commission_refresh(client, v12, fake_clock, 
 
 
 # ── ② 直播收入 ──
-def test_stream_income_formula_and_synthetic_on_leave(client, fake_self):
+def test_stream_income_formula_and_synthetic_on_leave(client, fake_self, fake_clock):
     whale = _agent(client, "whale")
     r = client.post("/admin/income", json={"entity_id": whale, "source": "stream", "viewers_total": 2000, "gifts_rmb": 7}).json()
     assert r["delta"] == 17 and r["synthetic"] is False and r["viewers_total"] == 2000               # v1.1 M-2：2000 × 0.005 + 7
@@ -186,10 +186,11 @@ def test_stream_income_formula_and_synthetic_on_leave(client, fake_self):
     place(whale, *STREAM_STAND)
     assert action(client, whale, "use")["success"]
     n0 = len(_ledger())
+    fake_clock.advance(3600); _tick(fake_clock, 1)                                                     # v1.3.18：合成收入按时长——播 1 小时
     assert action(client, whale, "leave")["success"]
     rows = _ledger()[n0:]
-    assert len(rows) == 1 and rows[0]["source"] == "stream" and rows[0]["synthetic"] is True and 5 <= rows[0]["delta"] <= 35
-    assert 1000 <= rows[0]["viewers_total"] <= 3000 and 0 <= rows[0]["gifts_rmb"] <= 20                 # v1.1：合成观众 1000–3000、礼物 0–20
+    assert len(rows) == 1 and rows[0]["source"] == "stream" and rows[0]["synthetic"] is True and 3 <= rows[0]["delta"] <= 16
+    assert 600 <= rows[0]["viewers_total"] <= 1500 and 0 <= rows[0]["gifts_rmb"] <= 8 and 59 <= rows[0]["duration_min"] <= 61   # v1.3.18：每小时 600–1500 人次、0–8 礼物
     assert rows[0]["shop"] == STREAM_ID and world_state._players[whale]["gold"] == 3000 + 17 + 5 + rows[0]["delta"]
     # 直播机接上后关掉 synthetic
     economy.cfg()["live_income"]["synthetic"] = False

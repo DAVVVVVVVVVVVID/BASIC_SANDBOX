@@ -1671,6 +1671,14 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - `use` 带 external `live` 的物品（`pc` / `stream_desk`）：游戏时刻在窗内 → 照旧开播（/self/live/start、whale-live webhook、`scene live`、tag `streaming`）；**窗外 = 做稿**：物品照常可用（work / 每日上限 / make_video / compose 不变），但不打两边、不切 scene、不挂 `streaming`，离开时也不下播 / 不记直播收入 / 不加直播社交。payload `purpose: "live"` 强制开播（窗外临时加播）、`"work"` 强制不开播（窗内写稿）。
 - 响应 `result` 多 `live: bool` 与 `live_gate`（`in_window / outside_window / purpose_live / purpose_work / window_disabled`）；external 日志 `live` 行多 `gate`，窗外为 `action: skipped`。判分 / agent 认「开播」请看 `result.live` 或 `scene live / tags streaming`，不要认「use 了 pc」。背景：11-15 鲸仔午后做稿 19 次 use/leave 把自我层 scene 切了 19 次。
 
+### 12.22 经济侧四条（tag `world-v1.3.18`；A 11-15 轨迹报告 + C 卖家感知）
+
+- **合成直播收入按时长**：`live_income.synthetic_viewers_per_hour [600,1500]`、`synthetic_gifts_per_hour [0,8]`、`synthetic_min_minutes 5`——下播时 viewers_total = 每小时随机 × 小时数（同公式 0.005 / 人 + 礼物），不足 5 分钟不记；只在 scene live 的会话结算（v1.3.17 窗外做稿不算）；流水多 `duration_min`。旧「每次离开随机 5–35」作废（11-15 做稿 19 次得 445）。`use` 起始游戏时刻进检查点（players.extra `use_start_game_ts`），**重启切断的直播会话在回填时自动下播并结算**（pendingMessage「直播因为重启中断了」；11-15 20:00 那场跨重启没结即此）。
+- **店主自家消费免费**：店主在自己店 `buy`（杂货店 / 鱼摊 / 吧台）、餐厅老板在自家桌 `eat meal`、杂货店老板 `copy_key` 都不扣钱不记流水（库存照扣，`result.price 0`）；之前是扣了钱却不进账。
+- **卖家感知**：`GET /player.today_sales {count, gold, last[≤10 {item, qty, gold, buyer, buyer_name, game_time, shop, source}]}`（04:00 日界，进检查点）；每笔进账同时 ws 推 `{type: "sale", seller, item, qty, gold, buyer, buyer_name, game_time, shop, source}`。自家消费不计。
+- **冰箱 `empty`**：`/world.objects[]` 存储类（fridge）多 `empty: bool`（非存储类 null），C 感知「冰箱空」不必再 `take` 一次撞 `empty`。
+- 鱼摊：`shops.fish_stall.daily_supply {fish: 6}` 每日 08:00 固定上新，与老渔夫当天钓到几条无关（v1.1 供给模型）——不是 bug；要「卖自己钓的」需另立规则（渔夫 `sell` 入摊 / 上新量按前日渔获），未做。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

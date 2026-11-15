@@ -52,12 +52,20 @@ def _shop_object(player: dict, payload: dict) -> tuple[dict | None, str | None]:
     return obj, None
 
 
+def _is_own_shop(payer: dict, owner: str | None) -> bool:
+    """v1.3.18：店主在自己店消费 = 免费（之前是扣了钱却不进账，钱凭空消失：11-15 餐厅老板自家桌买饭 −20）。"""
+    from game.qq import account_of
+    return bool(owner) and account_of(payer) == owner
+
+
 def _credit_account(account: str | None, payer: dict, delta: int, **fields) -> None:
-    """v1.1 M-5：销售 / 餐费 / 配钥匙的钱进店主账户，不看在线（自己买自己的不算）。"""
+    """v1.1 M-5：销售 / 餐费 / 配钥匙的钱进店主账户，不看在线（自己买自己的不算）。v1.3.18：顺带记卖家 today_sales + ws sale。"""
     from game.qq import account_of
     if not account or account_of(payer) == account:
         return
     economy.credit_account(account, int(delta), "income" if delta >= 0 else "expense", peer=payer["id"], **fields)
+    if delta > 0:
+        economy.record_sale(account, payer, int(delta), fields)
 
 
 def _credit_owner(obj_type: str, payer: dict, delta: int, **fields) -> None:
@@ -118,8 +126,12 @@ def handle_buy(entity_id: str, payload: dict) -> ActionResponse:
         if stock is not None:
             stock[item] = int(stock.get(item, 0)) - qty
             refresh_shop_views()
-        economy.ledger("buy", p, -total, item=item, qty=qty, price=int(d["price"]), shop=obj["id"], shop_type=obj["type"])
-        _credit_owner(obj["type"], p, total, source="shop_sale", item=item, qty=qty, shop=obj["id"])
+        own = _is_own_shop(p, (economy.shop_for(obj["type"]) or {}).get("owner"))
+        if own:
+            total = 0                                                # v1.3.18：自家店拿货不花钱
+        else:
+            economy.ledger("buy", p, -total, item=item, qty=qty, price=int(d["price"]), shop=obj["id"], shop_type=obj["type"])
+            _credit_owner(obj["type"], p, total, source="shop_sale", item=item, qty=qty, shop=obj["id"])
         mark_input(entity_id)
         return ActionResponse(success=True, type="buy", result={
             "message": f"买了 {qty} 个{d['name']}，花了 {total} 金币。", "objectId": obj["id"], **_item_fields(item, qty, total),
@@ -188,12 +200,13 @@ def handle_eat(entity_id: str, payload: dict) -> ActionResponse:
         if item == food.MEAL_ITEM:                                       # 餐厅一顿
             if not rule.get("meal"):
                 return ActionResponse(success=False, type="eat", reason="not_allowed_here", result={"message": "这里不是餐厅，点不了菜。", "item": item, "objectId": obj["id"]})
-            mc = food.meal_cfg(); price = int(mc.get("price", 20))
+            mc = food.meal_cfg(); price = 0 if _is_own_shop(p, mc.get("owner") or "npc_rest_owner") else int(mc.get("price", 20))   # v1.3.18：老板自己吃免费
             if int(p.get("gold", 0)) < price:
                 return ActionResponse(success=False, type="eat", reason="insufficient_funds",
                                       result={"message": f"一顿要 {price} 金币，身上只有 {int(p.get('gold', 0))}。", "item": item, "price": price, "gold": int(p.get("gold", 0)), "objectId": obj["id"]})
-            economy.ledger("buy", p, -price, item="meal", qty=1, price=price, shop=obj["id"], shop_type=obj["type"])
-            _credit_account(mc.get("owner") or "npc_rest_owner", p, price, source="restaurant_meal", shop=obj["id"])
+            if price:
+                economy.ledger("buy", p, -price, item="meal", qty=1, price=price, shop=obj["id"], shop_type=obj["type"])
+                _credit_account(mc.get("owner") or "npc_rest_owner", p, price, source="restaurant_meal", shop=obj["id"], item="meal", qty=1)
             gain = {k: float(v) for k, v in (mc.get("gain") or {}).items()}; minutes = float(mc.get("minutes", 30))
             name = "一顿饭"; fields = {"item": item, "item_name": name, "qty": 1, "price": price, "gold_delta": -price, "gold": p["gold"]}
         else:
@@ -346,8 +359,11 @@ def handle_copy_key(entity_id: str, payload: dict) -> ActionResponse:
         ierr = inventory.add(p, "key", 1, meta=meta, expires_at=None)
         if ierr:
             return ActionResponse(success=False, type="copy_key", reason=ierr, result={"door_id": door_id})
-        economy.ledger("buy", p, -price, item="key_copy", qty=1, price=price, shop=obj["id"], shop_type=obj["type"], door_id=door_id)
-        _credit_owner(obj["type"], p, price, source="shop_service", item="key_copy", qty=1, shop=obj["id"])
+        if _is_own_shop(p, (economy.shop_for(obj["type"]) or {}).get("owner")):
+            price = 0                                                # v1.3.18：杂货店老板自己配钥匙免费
+        else:
+            economy.ledger("buy", p, -price, item="key_copy", qty=1, price=price, shop=obj["id"], shop_type=obj["type"], door_id=door_id)
+            _credit_owner(obj["type"], p, price, source="shop_service", item="key_copy", qty=1, shop=obj["id"])
         doors._log(entity_id, "copy_key", {"door_id": door_id, "price": price})
         mark_input(entity_id)
         return ActionResponse(success=True, type="copy_key", result={"message": f"配了一把{meta['name']}，花了 {price} 金币。", "item": "key", "item_name": "钥匙", "door_id": door_id,

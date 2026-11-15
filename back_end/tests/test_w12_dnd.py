@@ -248,3 +248,45 @@ def test_live_window_gate_v1317(client, v12, fake_clock, monkeypatch):
     _at(fake_clock, 22, 31); r = action(client, whale, "use"); assert r["success"] and r["result"]["live"] is False; action(client, whale, "leave")
     monkeypatch.setenv("SANDBOX_LIVE_WINDOW", "23:00-23:30")
     _at(fake_clock, 23, 10); r = action(client, whale, "use"); assert r["success"] and r["result"]["live"] is True and external_effects.live_window()["source"] == "env"
+
+
+def test_v1318_economy_fixes(client, v12, fake_clock, monkeypatch):
+    """v1.3.18：① 合成直播收入按时长（不足 5 分钟不记；窗外做稿不记）；② 店主自家消费免费；④ 冰箱 empty；⑤ 卖家 today_sales + ws sale。"""
+    import httpx
+    from game import self_sync, external_effects, economy, inventory
+    monkeypatch.delenv("SANDBOX_LIVE_WINDOW", raising=False)
+    self_sync.configure(url="http://self.test", enabled=True, snap=False,
+                        transport=httpx.MockTransport(lambda req: httpx.Response(200, json={"ok": True, "vars": {}, "closeness": {}, "emotion_tags": [], "ocean": {}, "scene": "sandbox", "last_tick_ts": "x", "items": []})))
+    monkeypatch.setattr(external_effects, "SYNC_STOP", True)
+    whale = _agent(client, "whale"); owner = _agent(client, "npc_rest_owner"); grocer = _agent(client, "npc_grocer")
+    # ① 窗外做稿 2 小时：无 stream 收入
+    _at(fake_clock, 13, 0); place(whale, 5, 12, "up"); g0 = world_state._players[whale]["gold"]
+    assert action(client, whale, "use")["result"]["live"] is False
+    fake_clock.advance(2 * 3600); _tick(fake_clock, 1); action(client, whale, "leave")
+    assert world_state._players[whale]["gold"] == g0
+    # 窗内直播 3 分钟：不足 5 分钟不记；2 小时：按时长记
+    _at(fake_clock, 19, 0); assert action(client, whale, "use")["result"]["live"] is True
+    fake_clock.advance(180); _tick(fake_clock, 1); action(client, whale, "leave"); assert world_state._players[whale]["gold"] == g0
+    _at(fake_clock, 19, 10); assert action(client, whale, "use")["result"]["live"] is True
+    fake_clock.advance(2 * 3600); _tick(fake_clock, 1); action(client, whale, "leave")
+    gain = world_state._players[whale]["gold"] - g0
+    assert 2 * 600 * 0.005 <= gain <= 2 * 1500 * 0.005 + 2 * 8 + 1, gain                 # 1200–3000 人次 × 0.005 + 0–16 礼物
+    # ② 餐厅老板在自家桌点餐免费；顾客点餐进账 + today_sales
+    _at(fake_clock, 12, 0); fake_clock.t += 86400
+    place(owner, 34, 12, "up"); assert action(client, owner, "use")["success"]
+    og = world_state._players[owner]["gold"]
+    r = action(client, owner, "eat", {"item": "meal"}); assert r["success"] and r["result"]["price"] == 0 and world_state._players[owner]["gold"] == og
+    action(client, owner, "leave")
+    place(whale, 34, 15, "up"); assert action(client, whale, "use")["success"]
+    r = action(client, whale, "eat", {"item": "meal"}); assert r["success"] and r["result"]["price"] == 20
+    assert world_state._players[owner]["gold"] == og + 20
+    ts = client.get(f"/player/{owner}").json()["today_sales"]
+    assert ts["count"] == 1 and ts["gold"] == 20 and ts["last"][0]["item"] == "meal" and ts["last"][0]["buyer"] == whale and ts["last"][0]["buyer_name"] == "whale"
+    assert client.get(f"/player/{whale}").json()["today_sales"] == {"count": 0, "gold": 0, "last": []}
+    # 杂货店老板自家柜台拿货免费（库存照扣）
+    place(grocer, 27, 22, "right"); gg = world_state._players[grocer]["gold"]
+    r = action(client, grocer, "buy", {"item": "bread", "qty": 1}); assert r["success"] and world_state._players[grocer]["gold"] == gg and inventory.count(world_state._players[grocer], "bread") == 1
+    # ④ 冰箱 empty
+    objs = {o["id"]: o for o in client.get("/world", params={"fields": "objects"}).json()["objects"]}
+    assert objs["fridge_home"]["empty"] is False and objs["counter"].get("empty") is None
+    client.post("/admin/scenario", json={"steps": []})

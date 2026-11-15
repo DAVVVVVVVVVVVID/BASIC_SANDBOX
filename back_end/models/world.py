@@ -52,6 +52,7 @@ class GameObject(BaseModel):
     work: Optional[bool] = None                     # 工作 / 创作类（精力额外 −3/h；每日时长上限）
     daily_limit_min: Optional[int] = None           # 每人每日使用上限（分钟），-b 批生效
     daily_used_min: Optional[float] = None          # 按 ?player= 请求者（旁观页无 player 为 null）
+    empty: Optional[bool] = None                    # v1.3.18：冰箱空标记（非存储类 null）
     storage: Optional[dict] = None                  # 冰箱 {capacity, used}
     contents: Optional[List[dict]] = None           # 冰箱 [{item, name, count, expires_at, expires_in_days, spoiled}]
     daily_supply: Optional[dict] = None             # 商店每日上新 {item: qty}

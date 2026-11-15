@@ -225,19 +225,54 @@ def stream_income_amount(viewers_total: float | None, gifts_rmb: float | None) -
     return int(round(float(viewers_total or 0) * float(li.get("per_viewer", 0.005)) + float(gifts_rmb or 0) * float(li.get("gift_rate", 1.0))))
 
 
-def synthetic_stream_income(player: dict, obj_id: str) -> dict | None:
-    """W11 ②：直播机未接前，下播按 synthetic_range 随机入账并标 synthetic:true（live_income.synthetic=false 则不做）。"""
+_sales: dict[str, dict] = {}          # v1.3.18：account -> {"day", "count", "gold", "last": [≤10 {item, qty, gold, buyer, buyer_name, game_time, shop}]}
+
+
+def record_sale(account: str, payer: dict, gold: int, fields: dict) -> None:
+    from game.world_state import daily_key
+    from game.time_state import game_now_ts, game_now_iso
+    day = daily_key(game_now_ts())
+    rec = _sales.get(account)
+    if not rec or rec.get("day") != day:
+        rec = {"day": day, "count": 0, "gold": 0, "last": []}; _sales[account] = rec
+    rec["count"] += 1; rec["gold"] += int(gold)
+    row = {"item": fields.get("item"), "qty": int(fields.get("qty", 1) or 1), "gold": int(gold), "buyer": payer["id"], "buyer_name": payer.get("name"),
+           "game_time": game_now_iso(), "shop": fields.get("shop"), "source": fields.get("source")}
+    rec["last"].append(row); rec["last"] = rec["last"][-10:]
+    try:
+        from routers.ws import hub
+        hub.push_event({"type": "sale", "seller": account, **row})
+    except Exception:
+        pass
+
+
+def today_sales(account: str) -> dict:
+    """GET /player.today_sales：{count, gold, last[]}（04:00 日界；没卖过为 0）。"""
+    from game.world_state import daily_key
+    from game.time_state import game_now_ts
+    rec = _sales.get(account)
+    if not rec or rec.get("day") != daily_key(game_now_ts()):
+        return {"count": 0, "gold": 0, "last": []}
+    return {"count": rec["count"], "gold": rec["gold"], "last": list(rec["last"])}
+
+
+def synthetic_stream_income(player: dict, obj_id: str, duration_s: float | None = None) -> dict | None:
+    """W11 ② / v1.3.18：直播机未接前，下播按**时长**合成入账并标 synthetic:true（live_income.synthetic=false 则不做）。
+    viewers_total = rand(synthetic_viewers_per_hour) × 小时数，gifts 同理；不足 synthetic_min_minutes 不记（11-15 曾按每次离开随机 5–35，19 次做稿共 445）。"""
     li = _CFG.get("live_income", {})
     if not li.get("synthetic", False):
+        return None
+    hours = max(0.0, float(duration_s or 0.0)) / 3600.0
+    if hours * 60.0 < float(li.get("synthetic_min_minutes", 5)):
         return None
     import random
     from game.world_state import SANDBOX_SEED
     from game.time_state import game_now_iso
     r = random.Random(f"{SANDBOX_SEED}:stream:{player['id']}:{game_now_iso()}") if SANDBOX_SEED is not None else random.Random()
-    vlo, vhi = li.get("synthetic_viewers", [1000, 3000]); glo, ghi = li.get("synthetic_gifts", [0, 20])
-    viewers = r.randint(int(vlo), int(vhi)); gifts = r.randint(int(glo), int(ghi))
+    vlo, vhi = li.get("synthetic_viewers_per_hour", [600, 1500]); glo, ghi = li.get("synthetic_gifts_per_hour", [0, 8])
+    viewers = int(round(r.randint(int(vlo), int(vhi)) * hours)); gifts = int(round(r.randint(int(glo), int(ghi)) * hours))
     amt = stream_income_amount(viewers, gifts)
-    return ledger("income", player, amt, source="stream", synthetic=True, shop=obj_id, viewers_total=viewers, gifts_rmb=gifts)
+    return ledger("income", player, amt, source="stream", synthetic=True, shop=obj_id, viewers_total=viewers, gifts_rmb=gifts, duration_min=round(hours * 60.0, 1))
 
 
 def _dir() -> Path:
@@ -311,7 +346,8 @@ def on_tick(gts: float, players: dict) -> None:
     rent.on_tick(gts, players)
 
 def export_state() -> dict:
-    return {"paid": dict(_paid), "restocked": dict(_restocked), "balances": dict(_balances), "debts": dict(_debts), "opened": dict(_opened)}
+    return {"paid": dict(_paid), "restocked": dict(_restocked), "balances": dict(_balances), "debts": dict(_debts), "opened": dict(_opened),
+            "sales": {k: dict(v) for k, v in _sales.items()}}
 
 
 def import_state(data: dict) -> None:
@@ -320,6 +356,7 @@ def import_state(data: dict) -> None:
     _balances.clear(); _balances.update({k: int(v) for k, v in (data.get("balances") or {}).items()})
     _debts.clear(); _debts.update({k: int(v) for k, v in (data.get("debts") or {}).items()})
     _opened.clear(); _opened.update({k: float(v) for k, v in (data.get("opened") or {}).items()})
+    _sales.clear(); _sales.update({k: dict(v) for k, v in (data.get("sales") or {}).items()})
     from game.world_state import LEGACY_IDS
     for old, new in LEGACY_IDS.items():                                   # world-v1.3：旧检查点里的账号改名
         for d in (_balances, _debts, _opened, _paid):
@@ -328,6 +365,6 @@ def import_state(data: dict) -> None:
 
 
 def _reset_for_tests() -> None:
-    _paid.clear(); _restocked.clear(); _balances.clear(); _debts.clear(); _opened.clear()
+    _paid.clear(); _restocked.clear(); _balances.clear(); _debts.clear(); _opened.clear(); _sales.clear()
     from game import rent
     rent._reset_for_tests()
