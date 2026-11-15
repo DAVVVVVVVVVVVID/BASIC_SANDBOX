@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { EventBus } from '../game/EventBus'
-import { openDoor, respondKnock } from '../api/door'
+import { openDoor, respondKnock, knockDoor } from '../api/door'
 import type { MapDoor, PendingKnock, WsDoor, WsKnock } from '../types'
 
 /**
@@ -11,6 +11,7 @@ import type { MapDoor, PendingKnock, WsDoor, WsKnock } from '../types'
  * - 站在带 owner 的家门内侧格或其相邻格 → 「开门」→ POST /action open_door {door_id}（不需钥匙，敞开 60 游戏秒）；
  *   not_inside_door 时按 result.inside 提示该站哪格。
  * - 自己敲了别人家的门（player.door_request）→ 显示状态与屋里人的回话。
+ * - 主播 11-16：站在别人家门外 ≤ 2 格 → 「🚪 敲 X 的门」→ POST /action knock {door_id}（有钥匙 / 不是家 / 太远按后端 reason 提示）。
  */
 export default function KnockPanel() {
   const player = useGameStore((s) => s.player)
@@ -53,7 +54,11 @@ export default function KnockPanel() {
   const knocks: PendingKnock[] = [...server, ...local.filter((k) => !server.some((s) => s.id === k.id))].filter((k) => !k.status || k.status === 'pending' || k.status === 'answered')
   const mine = player.door_request
   const myKnockOpen = mine && (mine.status === 'pending' || mine.status === 'answered')
-  if (knocks.length === 0 && !nearDoor && !myKnockOpen && !msg) return null
+  // 门外 ≤ 2 格（按门外侧格 (x,y) 算）且不在门内侧、没有在等的敲门 → 可敲；取最近的一扇
+  const knockable = !nearDoor && !myKnockOpen
+    ? doors.map((d) => ({ d, dist: Math.abs(d.x - me.x) + Math.abs(d.y - me.y) })).filter((x) => x.dist <= 2).sort((a, b) => a.dist - b.dist)[0]?.d ?? null
+    : null
+  if (knocks.length === 0 && !nearDoor && !myKnockOpen && !knockable && !msg) return null
 
   const flash = (t: string) => { setMsg(t); window.setTimeout(() => setMsg(null), 4000) }
   const say = async (k: PendingKnock) => {
@@ -66,6 +71,14 @@ export default function KnockPanel() {
     setBusy(k.id)
     try { const r = await respondKnock(k.id, myId, { decline: true }); if (r.success) { setLocal((l) => l.filter((x) => x.id !== k.id)); flash(`🙅 没让 ${k.visitor_name ?? '访客'} 进`) } else flash(`✗ ${reasonText(r.reason)}`) }
     catch (e) { flash(`✗ ${(e as Error).message}`) } finally { setBusy(null) }
+  }
+  const knock = async (doorId: string) => {
+    setBusy(doorId)
+    try {
+      const r = await knockDoor(myId, doorId)
+      if (r.success) flash(`🚪 咚咚咚……敲了${r.result?.door?.name ?? '门'}，${(r.result?.notified?.length ?? 0) > 0 ? '屋里有人听见了，等人应门' : '屋里好像没人'}`)
+      else flash(`✗ ${reasonText(r.reason)}`)
+    } catch (e) { flash(`✗ ${(e as Error).message}`) } finally { setBusy(null) }
   }
   const open = async (doorId: string) => {
     setBusy(doorId)
@@ -98,6 +111,13 @@ export default function KnockPanel() {
           </div>
         )
       })}
+      {knocks.length === 0 && knockable && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>🚪</span>
+          <span style={{ flex: 1 }}>{knockable.name ?? knockable.door_id}{knockable.owners?.length ? <span style={{ color: '#fbd38d', fontSize: 11 }}>（{knockable.owners.map(ownerName).join('、')}家）</span> : null}</span>
+          <button disabled={!!busy} onClick={() => knock(knockable.door_id)} data-testid="knock-door" style={{ ...bt, background: '#b7791f' }}>敲门</button>
+        </div>
+      )}
       {knocks.length === 0 && nearDoor && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 18 }}>{opened[nearDoor.door_id] ? '🔓' : '🔒'}</span>
@@ -115,8 +135,16 @@ export default function KnockPanel() {
     </div>
   )
 }
+const OWNER_NAMES: Record<string, string> = { whale: '鲸仔', achan: '阿蝉', claudine: '克劳蒂娜', npc_fisher: '老渔夫', npc_rest_owner: '餐厅老板', npc_grocer: '杂货店老板娘' }
+const ownerName = (id: string) => OWNER_NAMES[id] ?? id
 function reasonText(r: string | null | undefined) {
   if (!r) return '失败'
+  if (r === 'has_key') return '你有这家的钥匙，直接进就行'
+  if (r === 'not_a_home') return '这不是住家，不用敲'
+  if (r === 'too_far') return '离门太远，走到门口 2 格内'
+  if (r === 'already_knocking') return '已经敲过了，等人应门'
+  if (r === 'already_inside') return '你已经在屋里了'
+  if (r === 'no_door' || r === 'unknown_door') return '这里没有门'
   if (r === 'not_inside') return '你不在这家里面'
   if (r === 'text_required') return '要么说一句，要么不开'
   if (/^not_pending/.test(r)) return '这次敲门已经过了'
