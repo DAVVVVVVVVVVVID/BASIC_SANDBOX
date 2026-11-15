@@ -53,12 +53,17 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
       const ev = (msg as { event?: string }).event
       if (ev === 'read') { tick(); return }               // B：平铺 {type:'qq', event:'message'|'read', …}；read 只刷一次状态
       const m = normalizeMessage(msg); if (!m) return
-      // 沙盒把所有 QQ 事件广播给全部 ws 订阅者（主播 11-16：阿蝉的鲸仔会话里混进鲸仔发给小克的）→ 只收 to/from 是我、或我所在群的；账号还没拿到就丢，等轮询
+      // 沙盒把所有 QQ 事件广播给全部 ws 订阅者（主播 11-16：阿蝉的鲸仔会话里混进鲸仔发给小克的）→ 只收与我有关的；账号还没拿到就丢，等轮询
+      // B world-v1.3.16：message 事件不再带 text，带 participants[]（发件人 + 收件人账号 / 群成员）→ 按它判相关，再按 peer 拉 inbox 取正文
       const me = accountRef.current
       if (!me) return
-      const mine = m.group ? groupsRef.current.has(m.group) : (m.from === me || m.to === me)
+      const parts = (msg as { participants?: unknown }).participants
+      const mine = Array.isArray(parts) ? parts.map(String).includes(me) : (m.group ? groupsRef.current.has(m.group) : (m.from === me || m.to === me))
       if (!mine) return
-      mergeQQMessages([{ ...m, direction: m.direction ?? (m.from === me ? 'out' : 'in') }])
+      const peerOf = m.group ?? (m.from === me ? m.to ?? null : m.from)
+      if (typeof m.text === 'string' && m.text) mergeQQMessages([{ ...m, direction: m.direction ?? (m.from === me ? 'out' : 'in') }])   // 旧后端带正文：先上屏
+      if (peerOf) void tick(peerOf)                                                                                                     // 以 /qq/inbox?peer= 为准拉正文 / 覆盖
+      else void tick()
     }
     EventBus.on('qq-event', onWs)
     return () => { stop = true; window.clearInterval(id); EventBus.off('qq-event', onWs) }
