@@ -13,6 +13,7 @@ import JoinScreen from './ui/JoinScreen'
 import ChatPanel from './ui/ChatPanel'
 import ConnectionBadge from './ui/ConnectionBadge'
 import QQPanel from './ui/QQPanel'
+import DirectorPanel from './ui/DirectorPanel'
 import BackpackPanel from './ui/BackpackPanel'
 import KnockPanel from './ui/KnockPanel'
 import SpectateApp from './spectate/SpectateApp'
@@ -86,6 +87,7 @@ function PlayApp() {
       <QQPanel playerId={myPlayerId} readOnly={false} compact phone style={{ top: 120, right: 16 }} />
       <BackpackPanel />
       <KnockPanel />
+      <DirectorPanel />
     </div>
   )
 }

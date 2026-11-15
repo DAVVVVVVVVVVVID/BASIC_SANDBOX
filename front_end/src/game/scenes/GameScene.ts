@@ -23,6 +23,7 @@ import { preloadAiAssets, getAiManifest, aiBackdropKey, aiObjectKey, aiEnabled, 
 import { arenaBBox, isIndoor, mapBuildings, buildingRoofKey } from '../map/mapv2'
 
 /** 自由镜头命令（React 控件 / 小地图 / 画布点击 → 场景） */
+export type DirectorCmd = { cmd: 'self' } | { cmd: 'free' } | { cmd: 'follow'; id: string }
 export type FreeCmd = { cmd: 'free' } | { cmd: 'world' } | { cmd: 'follow'; id: string } | { cmd: 'jump'; x: number; y: number } | { cmd: 'enter'; sector: string; floor: number } | { cmd: 'exit' }
 import { itemMeta } from '../items'
 import type { WsKnock, WsDoor, MapDoor, WsEatDone, WsSpoiled, WsDailyLimit, WsRent, WsCookCancelled, BusyState } from '../../types'
@@ -114,6 +115,12 @@ export default class GameScene extends Phaser.Scene {
   private lastTargetPx: { x: number; y: number } | null = null
   private panZoom = MIN_ZOOM
   private followZoom = FOLLOW_ZOOM
+  /** 操控页导播视角（主播 11-16「上帝视角」）：self = 跟随阿蝉（默认）/ free = 自由镜头 / follow = 跟随别人；切走后阿蝉仍可点地走路 */
+  private director: 'self' | 'free' | 'follow' = 'self'
+  private directorFollow: string | null = null
+  /** 旁观页没有 params 时（操控页导播）的取景 / 跟随参数 */
+  private dirParams: { focus: { sector: string; floor: number } | null; follow: string | null } = { focus: null, follow: null }
+  private get camP() { return this.params ?? this.dirParams }
   private mapPx = { w: 0, h: 0 }
 
   // 统计
@@ -167,8 +174,11 @@ export default class GameScene extends Phaser.Scene {
       this.camX = p.x; this.camY = p.y
       cam.centerOn(p.x, p.y)
       this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, deltaY: number) => {
+        if (this.director !== 'self') return   // 导播自由 / 跟随别人：滚轮归自由镜头那套
         this.adjustZoom(deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP)
       })
+      this.setupFreeCamera()   // 导播视角：拖动 / WASD / 滚轮 / 点人（只在 director ≠ self 时生效）
+      this.on('director-cmd', (c: DirectorCmd) => this.directorCmd(c))
     } else {
       this.followZoom = this.params?.zoom ? snapZoom(this.params.zoom) : FOLLOW_ZOOM
       this.currentZoom = this.panZoom
@@ -733,6 +743,12 @@ export default class GameScene extends Phaser.Scene {
           if (far && !bounced) this.self!.snapTo(pos)   // 被服务器挪远了（teleport）直接贴过去
           else this.self!.setPath([pos], true)           // 回弹 / 小校正：平滑走回，朝向以服务器为准
         },
+        onClickConsume: (wx, wy) => {
+          if (this.director === 'self') return false
+          for (const [id, s] of this.others) if (s.containsPoint(wx, wy)) { this.directorCmd({ cmd: 'follow', id }); return true }
+          if (this.self?.containsPoint(wx, wy)) { this.directorCmd({ cmd: 'self' }); return true }
+          return false
+        },
         onInteract: () => this.handleInteract(),
         onUse: () => this.handleUse(),
         onLeave: () => this.handleLeave(),
@@ -869,7 +885,8 @@ export default class GameScene extends Phaser.Scene {
       if (!this.drag || !p.isDown) return
       const dx = p.x - this.drag.x, dy = p.y - this.drag.y
       if (!this.drag.moved && Math.hypot(dx, dy) < 5) return
-      if (!this.drag.moved) { this.drag.moved = true; if (this.camMode !== 'free') this.enterFree() }
+      if (this.mode === 'play' && this.director === 'self') return   // 操控页默认跟随阿蝉：拖动不平移
+      if (!this.drag.moved) { this.drag.moved = true; if (this.camMode !== 'free') this.enterFree(); if (this.mode === 'play') this.directorCmd({ cmd: 'free' }) }
       this.camX -= dx / cam.zoom; this.camY -= dy / cam.zoom
       this.drag.x = p.x; this.drag.y = p.y
     })
@@ -879,7 +896,8 @@ export default class GameScene extends Phaser.Scene {
       this.clickAt(p)
     })
     this.input.on('wheel', (p: Phaser.Input.Pointer, _o: unknown, _dx: number, deltaY: number) => {
-      if (this.camMode !== 'free') this.enterFree()
+      if (this.mode === 'play' && this.director === 'self') return
+      if (this.camMode !== 'free') { this.enterFree(); if (this.mode === 'play') this.directorCmd({ cmd: 'free' }) }
       const before = cam.getWorldPoint(p.x, p.y)
       const z = snapZoom(Phaser.Math.Clamp(this.freeZoom + (deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP), MIN_ZOOM, MAX_ZOOM))
       if (z === this.freeZoom) return
@@ -904,6 +922,13 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private freeCmd(c: FreeCmd) {
+    if (this.mode === 'play') {   // 操控页：Esc / 退出 → 回到跟随阿蝉；其余映射到导播命令
+      if (c.cmd === 'exit') this.directorCmd({ cmd: 'self' })
+      else if (c.cmd === 'free' || c.cmd === 'world') this.directorCmd({ cmd: 'free' })
+      else if (c.cmd === 'follow') this.directorCmd({ cmd: 'follow', id: c.id })
+      else if (c.cmd === 'jump') { this.directorCmd({ cmd: 'free' }); this.camX = (c.x + 0.5) * TILE_SIZE; this.camY = (c.y + 0.5) * TILE_SIZE }
+      return
+    }
     if (!this.params) return
     const cam = this.cameras.main
     switch (c.cmd) {
@@ -920,9 +945,45 @@ export default class GameScene extends Phaser.Scene {
     this.emitSpectateState()
   }
 
+  /** 操控页导播视角：self 跟随阿蝉 / free 自由镜头（WASD 给镜头、点地仍走路）/ follow 跟随别人（键盘仍可走） */
+  private directorCmd(c: DirectorCmd) {
+    if (this.mode !== 'play') return
+    const cam = this.cameras.main
+    if (c.cmd === 'self') {
+      this.director = 'self'; this.directorFollow = null; this.dirParams.focus = null
+      this.inputSystem?.setKeyboardEnabled(true)
+      this.focusZoom = null; this.transitioning = false
+      cam.setZoom(this.currentZoom)
+      const p = this.self?.getPixelPosition(); if (p) { this.camX = p.x; this.camY = p.y }
+    } else if (c.cmd === 'free') {
+      if (this.director !== 'free') { this.director = 'free'; this.directorFollow = null; this.enterFree() }
+      this.inputSystem?.setKeyboardEnabled(false)
+    } else {
+      this.director = 'follow'; this.directorFollow = c.id; this.dirParams.focus = null
+      this.inputSystem?.setKeyboardEnabled(true)
+      this.focusZoom = this.currentZoom; cam.zoomTo(this.currentZoom, 400, 'Sine.easeInOut', true)
+    }
+    EventBus.emit('director-state', { mode: this.director, follow: this.directorFollow })
+  }
+
+  /** 导播跟随别人 / 自由镜头下的每帧相机 */
+  private updateDirectorCamera(dt: number) {
+    if (this.director === 'free') { this.updateFreeCamera(dt); return }
+    const id = this.directorFollow
+    const s = id ? (id === this.myPlayerId ? this.self : this.others.get(id) ?? null) : null
+    if (!s) { this.directorCmd({ cmd: 'self' }); return }
+    const p = s.getPixelPosition(), t = s.getTile()
+    const fr = this.focus.update(t, dt, useGameStore.getState().worldState)
+    this.applyView(fr.indoor ? this.insideKeyAt(t) : null)
+    if (fr.transition) this.doorTransition(fr.transition, null, fr.label)
+    const k = 1 - Math.exp(-dt / CAMERA_LERP_MS)
+    this.camX += (p.x - this.camX) * k; this.camY += (p.y - this.camY) * k
+    this.centerClamped(this.camX, this.camY)
+  }
+
   /** 点一下：点到人 → 跟随；点到室内格 → 进那栋楼（含 2F）；在屋里点屋外 → 回小镇 */
   private clickAt(p: Phaser.Input.Pointer) {
-    if (this.mode !== 'spectate') return
+    if (this.mode !== 'spectate') return   // 操控页：点人跟随走 InputSystem 的 onClickConsume
     const w = this.cameras.main.getWorldPoint(p.x, p.y)
     for (const [id, s] of this.others) { if (s.containsPoint(w.x, w.y)) { this.freeCmd({ cmd: 'follow', id }); return } }
     const tx = Math.floor(w.x / TILE_SIZE), ty = Math.floor(w.y / TILE_SIZE)
@@ -952,8 +1013,8 @@ export default class GameScene extends Phaser.Scene {
       if (this.keys.D?.isDown || this.keys.RIGHT?.isDown) this.camX += v
     }
     let focusTile: Position | null = null
-    if (this.params?.focus) {
-      const c = this.focus.sectorCenter(this.params.focus.sector, this.params.focus.floor)
+    if (this.camP.focus) {
+      const c = this.focus.sectorCenter(this.camP.focus.sector, this.camP.focus.floor)
       if (c) focusTile = c
     }
     const fr = this.focus.update(focusTile, dt, useGameStore.getState().worldState)
@@ -1079,12 +1140,15 @@ export default class GameScene extends Phaser.Scene {
     if (this.mode === 'play') {
       this.inputSystem?.update(time)
       this.self?.update(time, dt, speed)
-      const p = this.self!.getPixelPosition()
-      const fr0 = this.focus.update(this.self!.getTile(), dt, store.worldState)
-      const st0 = this.self!.getTile()
-      this.applyView(fr0.indoor ? this.insideKeyAt(st0) : null)
-      if (fr0.transition) this.doorTransition(fr0.transition, null, fr0.label)
-      this.centerClamped(p.x, p.y)
+      if (this.director !== 'self') { this.updateDirectorCamera(dt) }
+      else {
+        const p = this.self!.getPixelPosition()
+        const fr0 = this.focus.update(this.self!.getTile(), dt, store.worldState)
+        const st0 = this.self!.getTile()
+        this.applyView(fr0.indoor ? this.insideKeyAt(st0) : null)
+        if (fr0.transition) this.doorTransition(fr0.transition, null, fr0.label)
+        this.centerClamped(p.x, p.y)
+      }
     } else {
       this.updateSpectateCamera(time, dt)
     }

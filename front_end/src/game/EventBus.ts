@@ -6,6 +6,8 @@ import Phaser from 'phaser'
 //   'player-snapshot'  { player: Player, sentAt: number }   — /player 轮询结果（位置校正）
 //   'player-rejoined'  { playerId: string, player: Player } — 后端重启后自动重新 join
 //   'walk-to-tile'     { x, y, label? }                      — HUD 上楼 / 下楼：后端寻路走到目标格（跨层）
+//   'director-cmd'     { cmd: 'self' | 'free' } | { cmd: 'follow', id }   — 操控页导播视角（主播 11-16）
+//   'director-state'   { mode: 'self' | 'free' | 'follow', follow: string | null }
 //   'chat-message'     { entityId: string, content: string }— 聊天室新消息（叠加层气泡）
 //   'stats'            { fps: number, ... }                 — 每秒一次帧率统计
 export const EventBus = new Phaser.Events.EventEmitter()

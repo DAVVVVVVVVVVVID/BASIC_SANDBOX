@@ -91,7 +91,7 @@ export default function KnockPanel() {
   }
 
   return (
-    <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', width: 360, background: 'rgba(30,20,15,0.92)', border: '1px solid #b7791f', borderRadius: 10, color: '#fff7ed', fontSize: 13, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none', boxShadow: '0 4px 18px rgba(0,0,0,0.4)' }}>
+    <div style={{ position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)', width: 360, background: 'rgba(30,20,15,0.92)', border: '1px solid #b7791f', borderRadius: 10, color: '#fff7ed', fontSize: 13, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none', boxShadow: '0 4px 18px rgba(0,0,0,0.4)' }}>
       {knocks.map((k) => {
         const doorId = k.door?.door_id ?? k.door?.id
         const d = doors.find((x) => x.door_id === doorId) ?? doors.find((x) => k.door && x.x === k.door.x && x.y === k.door.y)

@@ -73,6 +73,8 @@ export interface InputCallbacks {
   onFacing: (facing: Facing) => void
   /** 与服务器对齐：actor 应当最终站在 pos。bounced=true 表示被拒回弹 */
   onReconcile: (pos: Position, bounced: boolean) => void
+  /** 导播视角：点到人就跟随、不走路——返回 true 表示这次点击被吃掉 */
+  onClickConsume?: (worldX: number, worldY: number) => boolean
   onInteract?: () => void
   onUse?: () => void
   onLeave?: () => void
@@ -109,7 +111,10 @@ export default class InputSystem {
   private isFirstPathStep = false
 
   private enabled = true
+  /** 导播自由镜头时 WASD 给镜头，不走路（鼠标点地仍走） */
+  private keyboardEnabled = true
   private destroyed = false
+  private press: { x: number; y: number } | null = null
 
   constructor(
     private scene: Phaser.Scene,
@@ -144,6 +149,7 @@ export default class InputSystem {
     return { enabled: this.enabled, pluginEnabled: kb?.enabled, managerEnabled: kb?.manager?.enabled, e: this.useKey.isDown, q: this.leaveKey.isDown, up: this.cursors.up.isDown, keysTotal: kb?.keys?.filter(Boolean).length }
   }
   setEnabled(v: boolean) { this.enabled = v }
+  setKeyboardEnabled(v: boolean) { this.keyboardEnabled = v }
   setTiles(tiles: Tile[]) {
     this.walkable.clear()
     for (const t of tiles) if (t.walkable) this.walkable.add(`${t.x},${t.y}`)
@@ -243,8 +249,12 @@ export default class InputSystem {
   }
 
   private setupMouseInput() {
-    this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (!this.enabled || pointer.rightButtonDown()) return
+    // 按下记位置，松开且没拖（< 6 px）才算点击——导播自由镜头拖动平移时不能顺手把人走出去
+    this.scene.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => { this.press = { x: pointer.x, y: pointer.y } })
+    this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+      const pr = this.press; this.press = null
+      if (!this.enabled || pointer.rightButtonReleased() || !pr || Math.hypot(pointer.x - pr.x, pointer.y - pr.y) >= 6) return
+      if (this.cb.onClickConsume?.(pointer.worldX, pointer.worldY)) return
       const tile = pixelToTile(pointer.worldX, pointer.worldY)
       if (!tile) return
       const tiles = useGameStore.getState().tiles
@@ -304,7 +314,7 @@ export default class InputSystem {
   update(now: number) {
     if (!this.enabled) return
     const { up, down, left, right } = this.cursors
-    const heldDir: Direction | null =
+    const heldDir: Direction | null = !this.keyboardEnabled ? null :
       (up.isDown || this.wasd.up.isDown)       ? 'up'    :
       (down.isDown || this.wasd.down.isDown)   ? 'down'  :
       (left.isDown || this.wasd.left.isDown)   ? 'left'  :
@@ -350,5 +360,6 @@ export default class InputSystem {
   destroy() {
     this.destroyed = true
     this.scene.input.off('pointerdown')
+    this.scene.input.off('pointerup')
   }
 }
