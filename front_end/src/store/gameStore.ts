@@ -70,6 +70,8 @@ interface GameStore {
   qq: { contacts: import('../api/qq').QQContact[]; messages: import('../api/qq').QQMessage[]; available: boolean | null }
   setQQContacts: (c: import('../api/qq').QQContact[] | null) => void
   mergeQQMessages: (m: import('../api/qq').QQMessage[]) => void
+  /** 以后端为准覆盖某个会话（peer 的 1:1 / 群）：先删本地属于该会话的，再放入拉回来的（ws 广播混进来的别人消息就此被清） */
+  replaceQQThread: (belongs: (m: import('../api/qq').QQMessage) => boolean, m: import('../api/qq').QQMessage[]) => void
   markQQRead: (peer: string) => void
 }
 
@@ -148,6 +150,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const byId = new Map(s.qq.messages.map(x => [x.id, x]))
     for (const x of m) byId.set(x.id, { ...byId.get(x.id), ...x })
     const all = [...byId.values()].sort((a, b) => a.ts.localeCompare(b.ts)).slice(-500)
+    return { qq: { ...s.qq, messages: all, available: true } }
+  }),
+  replaceQQThread: (belongs, m) => set((s) => {
+    const keep = s.qq.messages.filter(x => !belongs(x))
+    const byId = new Map(keep.map(x => [x.id, x]))
+    for (const x of m) byId.set(x.id, x)
+    const all = [...byId.values()].sort((a, b) => a.ts.localeCompare(b.ts)).slice(-1000)
     return { qq: { ...s.qq, messages: all, available: true } }
   }),
   markQQRead: (peer) => set((s) => ({ qq: { ...s.qq, messages: s.qq.messages.map(x => (x.from === peer || x.group === peer) && !x.readAt ? { ...x, readAt: new Date().toISOString() } : x), contacts: s.qq.contacts.map(c => c.id === peer ? { ...c, unread: 0 } : c) } })),

@@ -14,6 +14,8 @@ export interface QQMessage {
   readAt?: string | null
   /** 后端给的方向：in = 发给我，out = 我发的。from / to 是 QQ 账号（achan / whale），不是 entity id，会话过滤靠它 */
   direction?: 'in' | 'out'
+  /** 游戏时间（ISO）；显示优先用它，没有才退 ts（主播 11-16：ws 来的消息显示成 00:00） */
+  gameTime?: string
 }
 
 const str = (v: unknown, d = '') => (v === null || v === undefined ? d : String(v))
@@ -36,6 +38,7 @@ export function normalizeMessage(raw: unknown): QQMessage | null {
     file: file ? (typeof file === 'string' ? { ref: file } : { ref: str(obj(file).ref ?? obj(file).id ?? obj(file).file_ref), name: str(obj(file).name, ''), type: str(obj(file).type ?? obj(file).item_type, '') }) : null,
     readAt: inner.read_at !== undefined ? (inner.read_at === null ? null : str(inner.read_at)) : inner.readAt !== undefined ? str(inner.readAt) : undefined,
     direction: inner.direction === 'in' || inner.direction === 'out' ? inner.direction : undefined,
+    gameTime: typeof inner.game_time === 'string' ? inner.game_time : undefined,
   }
 }
 
@@ -58,6 +61,20 @@ export function normalizeContacts(raw: unknown): QQContact[] {
 export async function fetchContacts(playerId: string): Promise<QQContact[] | null> {
   try { return normalizeContacts(await apiGet<unknown>(`/qq/contacts?player=${encodeURIComponent(playerId)}`)) }
   catch (e) { if (e instanceof ApiError && (e.status === 404 || e.status === 405)) return null; throw e }
+}
+/** 联系人 + 我的 QQ 账号（account 字段；ws 事件过滤要用） */
+export async function fetchContactsWithAccount(playerId: string): Promise<{ contacts: QQContact[]; account: string | null } | null> {
+  try {
+    const raw = await apiGet<unknown>(`/qq/contacts?player=${encodeURIComponent(playerId)}`)
+    const acc = obj(raw).account
+    return { contacts: normalizeContacts(raw), account: typeof acc === 'string' ? acc : null }
+  } catch (e) { if (e instanceof ApiError && (e.status === 404 || e.status === 405)) return null; throw e }
+}
+/** 显示用的 HH:MM：优先 game_time */
+export function msgClock(m: QQMessage): string {
+  const t = m.gameTime || m.ts || ''
+  if (t.includes('T')) return t.slice(11, 16)
+  return t.length >= 5 ? t.slice(0, 5) : t
 }
 
 /** 收件箱。后端默认 limit=100 且按时间升序——历史 > 100 条时新消息会被截掉（11-15 主播：5 条未读点开看不到），所以按 peer 取 + 放大 limit */

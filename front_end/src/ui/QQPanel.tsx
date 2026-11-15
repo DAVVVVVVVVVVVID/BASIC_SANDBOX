@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { EventBus } from '../game/EventBus'
-import { fetchContacts, fetchInbox, markRead, normalizeMessage, sendText, type QQContact, type QQMessage } from '../api/qq'
+import { fetchContactsWithAccount, fetchInbox, markRead, msgClock, normalizeMessage, sendText, type QQContact, type QQMessage } from '../api/qq'
 import { itemMeta } from '../game/items'   // 老消息里的 kind:file 条目仍要能显示
 
 /**
@@ -13,32 +13,38 @@ import { itemMeta } from '../game/items'   // 老消息里的 kind:file 条目�
 interface Props { playerId: string; readOnly: boolean; compact?: boolean; style?: React.CSSProperties; /** 主播 11-15：手机样式（屏幕居中弹出，联系人 → 会话页），收起回角标 */ phone?: boolean }
 
 const POLL_MS = 4000
+const wallClockMs = () => Date.now()   // 节流用（事件 / effect 里调，不在渲染里）
 
 export default function QQPanel({ playerId, readOnly, compact = false, style, phone = false }: Props) {
   const qq = useGameStore((s) => s.qq)
   const players = useGameStore((s) => s.players)
-  const { setQQContacts, mergeQQMessages, markQQRead } = useGameStore.getState()
+  const { setQQContacts, mergeQQMessages, replaceQQThread, markQQRead } = useGameStore.getState()
+  /** 我的 QQ 账号（/qq/contacts 的 account；achan / whale），ws 事件只收与我有关的 */
+  const accountRef = useRef<string | null>(null)
+  const groupsRef = useRef<Set<string>>(new Set())
   const [peer, setPeer] = useState<string | null>(null)
   const [open, setOpen] = useState(!compact)
   const [text, setText] = useState('')
   const [err, setErr] = useState<string | null>(null)
-  /** 每个联系人各自的增量游标（按 peer 取，历史多也不会被 limit 截掉） */
-  const sinceByPeer = useRef(new Map<string, string>())
   const peerRef = useRef<string | null>(null)
   peerRef.current = peer
   const listRef = useRef<HTMLDivElement>(null)
+  /** 消息属于 pid 这个会话（1:1 或群）——以 QQ 账号 / direction 判，不用 entity id */
+  const belongsTo = (m: QQMessage, pid: string, group: boolean) => group ? m.group === pid : (!m.group && ((m.direction === 'out' || m.from === accountRef.current) ? m.to === pid : m.from === pid))
 
-  // 轮询 + ws：联系人 / 未读数用 /qq/contacts；正文按当前选中的 peer 取（peer= + limit=500 + 各自 since）
+  // 轮询 + ws：联系人 / 未读数用 /qq/contacts；正文按当前选中的 peer 全量取（peer= + limit=500，不带 since），以后端为准覆盖本地该会话
   useEffect(() => {
     let stop = false
     const tick = async (forPeer: string | null = peerRef.current) => {
       try {
-        const since = forPeer ? sinceByPeer.current.get(forPeer) ?? null : null
-        const [c, m] = await Promise.all([fetchContacts(playerId), fetchInbox(playerId, since, { peer: forPeer, limit: 500 })])
+        const [c, m] = await Promise.all([fetchContactsWithAccount(playerId), fetchInbox(playerId, null, { peer: forPeer, limit: 500 })])
         if (stop) return
-        setQQContacts(c)
-        if (m) { mergeQQMessages(m); if (m.length && forPeer) { const last = m[m.length - 1].ts; if (last) sinceByPeer.current.set(forPeer, last) } }
-        else if (c === null) setQQContacts(null)
+        if (c) { setQQContacts(c.contacts); if (c.account) accountRef.current = c.account; groupsRef.current = new Set(c.contacts.filter(x => x.group).map(x => x.id)) }
+        else setQQContacts(null)
+        if (m) {
+          if (forPeer) { const g = groupsRef.current.has(forPeer); replaceQQThread(x => belongsTo(x, forPeer, g), m) }
+          else mergeQQMessages(m)
+        }
       } catch { /* 网络抖动：下次再试 */ }
     }
     tick()
@@ -46,14 +52,20 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
     const onWs = (msg: unknown) => {
       const ev = (msg as { event?: string }).event
       if (ev === 'read') { tick(); return }               // B：平铺 {type:'qq', event:'message'|'read', …}；read 只刷一次状态
-      const m = normalizeMessage(msg); if (m) mergeQQMessages([m])
+      const m = normalizeMessage(msg); if (!m) return
+      // 沙盒把所有 QQ 事件广播给全部 ws 订阅者（主播 11-16：阿蝉的鲸仔会话里混进鲸仔发给小克的）→ 只收 to/from 是我、或我所在群的；账号还没拿到就丢，等轮询
+      const me = accountRef.current
+      if (!me) return
+      const mine = m.group ? groupsRef.current.has(m.group) : (m.from === me || m.to === me)
+      if (!mine) return
+      mergeQQMessages([{ ...m, direction: m.direction ?? (m.from === me ? 'out' : 'in') }])
     }
     EventBus.on('qq-event', onWs)
     return () => { stop = true; window.clearInterval(id); EventBus.off('qq-event', onWs) }
-  }, [playerId, setQQContacts, mergeQQMessages])
+  }, [playerId, setQQContacts, mergeQQMessages, replaceQQThread])
 
   /** 是我发的：优先后端 direction；老数据没有就退回按 entity id 比 */
-  const isMine = (m: QQMessage) => m.direction ? m.direction === 'out' : m.from === playerId
+  const isMine = (m: QQMessage) => m.direction ? m.direction === 'out' : (accountRef.current ? m.from === accountRef.current : m.from === playerId)
   const nameOf = (id: string) => qq.contacts.find(c => c.id === id)?.name ?? players.find(p => p.id === id)?.name ?? id
   const contacts: QQContact[] = useMemo(() => {
     // 联系人表为空时从消息里推出来
@@ -77,17 +89,14 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
   }, [qq.messages, peer, contacts, playerId]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { listRef.current?.scrollTo({ top: 1e9 }) }, [thread.length, open])
   useEffect(() => { if (!phone && !peer && contacts.length) setPeer(contacts[0].id) }, [contacts, peer, phone])
-  // 切换联系人：立刻按 peer 拉它的会话（首次不带 since，取最近 500 条）
+  // 切换联系人：立刻按 peer 全量拉它的会话，以后端为准覆盖
   useEffect(() => {
     if (!peer) return
     let stop = false
-    fetchInbox(playerId, sinceByPeer.current.get(peer) ?? null, { peer, limit: 500 }).then(m => {
-      if (stop || !m) return
-      mergeQQMessages(m)
-      if (m.length) { const last = m[m.length - 1].ts; if (last) sinceByPeer.current.set(peer, last) }
-    }).catch(() => { /* 下次轮询再试 */ })
+    const g = groupsRef.current.has(peer)
+    fetchInbox(playerId, null, { peer, limit: 500 }).then(m => { if (!stop && m) replaceQQThread(x => belongsTo(x, peer, g), m) }).catch(() => { /* 下次轮询再试 */ })
     return () => { stop = true }
-  }, [peer, playerId, mergeQQMessages])
+  }, [peer, playerId, replaceQQThread])
 
   const peerC = contacts.find(c => c.id === peer)
 
@@ -113,7 +122,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
     const un = unreadIn(peer)
     const lastId = un.length ? un[un.length - 1].id : ''
     const prev = readSent.current.get(peer)
-    const now = Date.now()
+    const now = wallClockMs()
     if (!manual) {
       if (!lastId) return                                              // 没未读不读
       if (prev && (prev.lastId === lastId || now - prev.at < 90_000)) return   // 同一批已读过 / 90 s 内读过
@@ -157,7 +166,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
                     <div key={c.id} onClick={() => setPeer(c.id)} data-testid={`qq-contact-${c.id}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 18px', cursor: 'pointer', borderBottom: '1px solid #232640' }}>
                       <div style={{ width: 44, height: 44, borderRadius: 12, background: c.group ? '#553c9a' : '#2b6cb0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{c.group ? '👥' : c.name.slice(0, 1)}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><b style={{ fontSize: 14 }}>{c.name}</b><span style={{ color: '#718096', fontSize: 11 }}>{last?.ts.slice(11, 16) ?? ''}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><b style={{ fontSize: 14 }}>{c.name}</b><span style={{ color: '#718096', fontSize: 11 }}>{last ? msgClock(last) : ''}</span></div>
                         <div style={{ color: '#a0aec0', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{last ? (last.kind === 'file' ? '[文件]' : last.text) : '（还没有消息）'}</div>
                       </div>
                       {c.unread > 0 && <span style={{ background: '#e53e3e', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>{c.unread}</span>}
@@ -178,7 +187,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
                   {thread.length === 0 && <div style={{ color: '#718096', textAlign: 'center', marginTop: 20 }}>还没有消息</div>}
                   {thread.map(m => { const mine = isMine(m); return (
                     <div key={m.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-                      <div style={{ color: '#718096', fontSize: 10, textAlign: mine ? 'right' : 'left' }}>{mine ? '我' : (m.fromName ?? nameOf(m.from))} · {m.ts.slice(11, 16) || m.ts}{!mine && !m.readAt ? ' · 未读' : ''}</div>
+                      <div style={{ color: '#718096', fontSize: 10, textAlign: mine ? 'right' : 'left' }}>{mine ? '我' : (m.fromName ?? nameOf(m.from))} · {msgClock(m)}{!mine && !m.readAt ? ' · 未读' : ''}</div>
                       <div style={{ background: mine ? '#2b6cb0' : '#2a2d3e', borderRadius: 14, padding: '7px 11px', fontSize: 13, wordBreak: 'break-word' }}>
                         {m.kind === 'file' ? <span>{itemMeta(m.file?.type, m.file?.name).icon} 文件：{m.file?.name || itemMeta(m.file?.type).label}</span> : m.text}
                       </div>
@@ -239,7 +248,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
                 const mine = isMine(m)
                 return (
                   <div key={m.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
-                    <div style={{ color: '#718096', fontSize: 10, textAlign: mine ? 'right' : 'left' }}>{mine ? '我' : (m.fromName ?? nameOf(m.from))} · {m.ts.slice(11, 16) || m.ts}{!mine && !m.readAt ? ' · 未读' : ''}</div>
+                    <div style={{ color: '#718096', fontSize: 10, textAlign: mine ? 'right' : 'left' }}>{mine ? '我' : (m.fromName ?? nameOf(m.from))} · {msgClock(m)}{!mine && !m.readAt ? ' · 未读' : ''}</div>
                     <div style={{ background: mine ? '#2b6cb0' : '#2a2d3e', borderRadius: 8, padding: '5px 8px', wordBreak: 'break-word' }}>
                       {m.kind === 'file' ? <span>{itemMeta(m.file?.type, m.file?.name).icon} 文件：{m.file?.name || itemMeta(m.file?.type).label}</span> : m.text}
                     </div>
