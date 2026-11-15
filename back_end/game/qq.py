@@ -49,7 +49,7 @@ def system_send(from_acc: str, to_acc: str, text: str) -> dict:
             del _messages[: len(_messages) - _MEM_MAX]
         _contacts.setdefault(to_acc, set()).add(from_acc)
         _log({**{k: v for k, v in msg.items() if k not in ("read_by", "kind")}, "msg_kind": "text", "kind": "message"})
-        _push({"event": "message", **{k: v for k, v in msg.items() if k not in ("read_by",)}})
+        _push(_msg_event(msg))
         return msg
 
 
@@ -149,6 +149,15 @@ def _push(ev: dict) -> None:
         pass
 
 
+def _msg_event(msg: dict) -> dict:
+    """v1.3.16：ws `/ws/world` 是全体广播、没有按玩家定向的连接——所以 qq message 事件**不带正文 / file_ref**，只给
+    {id, from, from_name, to, group, kind, ts, game_time, chars, participants}；客户端按 participants 判断是否与我有关，再按 peer 走 /qq/inbox 拉正文。
+    （主播操控阿蝉时在自己 QQ 里看到了鲸仔发给小克的私信：旧版把正文广播给了所有订阅者。）"""
+    parts = ([msg.get("from")] + ([msg.get("to")] if msg.get("to") else list((_groups.get(msg.get("group") or "") or {}).get("members") or [])))
+    return {"event": "message", **{k: msg.get(k) for k in ("id", "from", "from_name", "to", "group", "kind", "ts", "game_time", "system")},
+            "chars": len(msg.get("text") or ""), "participants": sorted({x for x in parts if x})}
+
+
 # ── 发送 ──
 def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: str | None,
          file_ref: dict | None) -> tuple[dict | None, str | None]:
@@ -224,7 +233,7 @@ def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: 
                 interventions.achan_qq(p, group or to or "", len(text or ""), bool(group))
         except Exception:
             pass
-        _push({"event": "message", **{k: v for k, v in msg.items() if k not in ("read_by",)}})
+        _push(_msg_event(msg))
         return _public(msg, me), None
 
 

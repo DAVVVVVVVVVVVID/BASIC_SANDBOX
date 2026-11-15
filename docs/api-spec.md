@@ -1660,6 +1660,11 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - `POST /qq/read`：`controller=human` 的读者按 qq_config `read_game_seconds_human`（**0**）占时——不加 `reading` buff / tag、能立刻动、响应 `busy_game_seconds: 0`；agent 仍 `read_game_seconds`（60）。背景：主播操控阿蝉看完手机 60 s 不能动体感差（`remaining` 单位是毫秒，60000 = 60 游戏秒，不是叠加）。
 - 顺带：`DELETE /admin/player/{player_id}/buffs?key=…` 单摘一类 buff；文档里 GET / DELETE 的路径更正为带 player id。
 
+### 12.20 ws `qq` 事件不再带正文（tag `world-v1.3.16`）
+
+- `/ws/world` 是全体广播、连接不绑玩家，旧版 qq `message` 事件把正文广播给了所有订阅者（主播操控阿蝉时在自己 QQ 里看到鲸仔发给小克的私信）。现在事件只带 `{type: qq, event: message, id, from, from_name, to, group, kind, ts, game_time, system, chars, participants[]}`——`participants` = 发件人 + 收件人（群 = 群成员账号）；客户端按 participants 判断与我是否有关，再 `GET /qq/inbox?player=…&peer=…` 拉正文。`read` 事件不变（本来不带正文）。
+- 旁观页（直播画面）的只读 QQ 走 `/qq/inbox?player=<鲸仔>`，接口只回「我」收发的消息（`_is_mine`），与广播无关、不受影响。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

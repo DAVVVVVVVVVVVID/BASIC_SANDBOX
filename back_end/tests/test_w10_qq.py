@@ -144,7 +144,7 @@ def test_ws_pushes_qq_events(client):
                 if m["type"] == "qq":
                     got.append(m)
             assert [g["event"] for g in got] == ["message", "read"]
-            assert got[0]["text"] == "ws 来一条" and got[0]["from"] == "achan" and got[1]["count"] == 1
+            assert "text" not in got[0] and got[0]["chars"] == 6 and got[0]["from"] == "achan" and got[0]["participants"] == ["achan", "whale"] and got[1]["count"] == 1   # v1.3.16：ws 不带正文
 
 
 def test_inbox_returns_latest_and_all_unread_v1314(client):
