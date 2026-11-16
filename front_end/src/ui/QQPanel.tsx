@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { godotCharKeyFor } from '../game/godotChars'
-import QQDesktop from './rpg/QQDesktop'
+import QQMobile from './rpg/QQMobile'
 import qqNicknames from './qqNicknames.json'
 import { EventBus } from '../game/EventBus'
 import { fetchContactsWithAccount, fetchInbox, markRead, msgClock, normalizeMessage, sendText, type QQContact, type QQMessage } from '../api/qq'
@@ -159,7 +159,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
     // 三期（总控 qq-redo.md）：仿 QQ NT 桌面版三栏；逻辑仍在本组件，QQDesktop 只管画
     const myKey = (() => { const me = contacts.find(c => !c.group && accountRef.current && c.id === accountRef.current); return me ? qqKeyOf(me) : 'achan' })()
     return (
-      <QQDesktop myKey={myKey} contacts={sorted} peer={peer} setPeer={setPeer} threadOf={threadOf} isMine={isMine} nameOf={nameOf} keyOf={qqKeyOf} nickOf={qqNick}
+      <QQMobile myKey={myKey} contacts={sorted} peer={peer} setPeer={setPeer} threadOf={threadOf} isMine={isMine} nameOf={nameOf} keyOf={qqKeyOf} nickOf={qqNick}
         totalUnread={totalUnread} text={text} setText={setText} doSend={doSend} doRead={() => doRead(true)} err={err} readOnly={readOnly} listRef={listRef}
         gameDate={useGameStore.getState().worldState?.date} available={qq.available} onClose={close} />
     )
