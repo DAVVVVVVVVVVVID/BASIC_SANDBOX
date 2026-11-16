@@ -147,3 +147,10 @@
 3. CD 创作单字段名（建议 C 在 compose 时放进 meta）：`title / genre / scene / mood / form / chords / lyrics / arrangement`；前端缺字段就不显示。待 C 确认后定稿。
 4. `homework_box` 在 `/world.objects[]` 带 `hint`：「带着 CD 使用 = 交作业，截止周五 10:45（之后算迟交）」（截止时刻按配置拼）；前端只展示 `result.message / late / due`，不判断能不能交。
 5. `GET /school/today?player=` 返回结构落地后贴样例给 E。
+
+## 10. agent 侧加项（会话 C 11-16，v1.4.0 一并给）
+
+1. perceive `lesson` / `GET /player.lesson` 加 `dozed_prev: bool`——刚推的这段的**前一段**睡着了（C 据此出「找小克借笔记」意图）；与 pendingMessage 前缀「（刚才走神睡着了）」同源。
+2. `GET /school/today?player=` 带本周作业状态 `homework {week, due, submitted: [{receipt_id, request_id, title, late, at}], count}`。
+3. compose 的 meta 透传白名单（v1.3.10）加创作单字段 `genre / scene / mood / form / chords / arrangement / homework_week`（`title / lyrics` 已有）；**字段名定稿**，E 按这套显示、A 评分直接读。
+4. **睡着那段正好是 `after_segment`：问题照推，人被叫醒**——这段讲授不推（笔记记 slept），问题推送前缀「（刚才走神睡着了）」，作答窗照常（到下一段推送 / 课末题到下课后 10 分钟）。打瞌睡只吞讲授，不吞问题。
