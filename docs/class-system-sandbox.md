@@ -101,13 +101,13 @@
 
 - 新物品类型（instant、interactable），摆在教学楼 (8,4)（门内格 (5,4) 不挡；站 (8,3) 朝 down）；`/world.objects[]` 带 `hint`。
 - `use {request_id?}`（不带 = 本周还没交过的最近一张 CD）→ 提交：
-  - 收 `pending / delivered / final` 的 compose CD（meta 里有创作单即可）；`redo`（她自己判了重做的）→ `cd_redo`；没 CD → `no_item`。
+  - 收 `pending / delivered / final` 的 compose CD（meta 里有创作单即可）；`redo`（鲸仔自己收到成品后评满意度 < 3）→ `cd_redo`，**但这首已以创作单身份交上的那条提交保留、不作废**；没 CD → `no_item`。
   - `school/submissions.jsonl` 一行 `{ts, game_time, town, week, agent_id, request_id, title, receipt_id, late, audio, creation_sheet_complete, meta 快照}`。
-  - `audio`：CD meta 有 `audio_ref`（或 status delivered / final）→ `final`；meta `proxy: true`（已选为本周代做那首）→ `pending`；否则 `none`。
+  - `audio`：CD `status: final`（她验收过的成品）→ `final`；meta `proxy: true`（本周代做那首，含已送达待她评、redo 重做中）→ `pending`；否则 `none`。**delivered 不算 final**——成品送达后她可能判重做。
   - `creation_sheet_complete`：`title / genre / scene / mood / form / chords / arrangement` 齐（有词时再加 `lyrics`）。
   - **CD 不没收**；回执 = `result {message, receipt_id, late, due, audio}` + 背包一张 `homework_receipt`（meta 同行）。
 - **同一 request_id 再 use = 更新这条**：只更新 `audio`（及 meta 快照），**沿用原 `receipt_id`、`late` 按首次提交时刻不变**；submissions.jsonl 追加一行 `action: update`（不改旧行），回执物品的 meta 同步更新；`result.updated: true`。同一张 CD 交到**另一周** → `already_submitted`。
-- 代做那首在管理口 `POST /admin/item/edit` 标 `delivered`（带 audio_ref）时，沙盒**顺带自动更新**它的提交记录为 `audio: final`（不用她再走一趟；她再 use 一次也一样）。
+- 自动更新：她用 `edit_item` 把代做那首标 `final` 时，沙盒**顺带**把**同一周**的那条提交更新为 `audio: final`（她再 use 一次也一样）；管理口标 `delivered` 不触发（还待她评）。redo 在 music v1 里是对同一张 CD 改状态（request_id 不变、`redo_count` +1），重做成品 final 后同周照常更新。**过了本周才 final 的不更新**，那条提交的 audio 停在 pending（与跨周 `already_submitted` 一致）。
 - 标代做：她（agent）用 `edit_item {match: {request_id}, set: {proxy: true}}`（`proxy` 加进 edit_item 白名单）；C 侧每人周三 23:00 前挑一首，没挑默认第一首——逻辑在 C。
 - 截止：本周 `fri 10:45`（配置）；之后首次提交 `late: true`。
 - 评分在 A：只读创作单 + 歌词，不依赖音频；结果经 `POST /school/grade {kind: homework, receipt_id, …}` 推本人。
