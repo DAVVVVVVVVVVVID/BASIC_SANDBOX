@@ -63,6 +63,8 @@ interface GameStore {
   setTransport: (t: Transport) => void
   /** ws patch：按 id 合并 players（upsert / remove） */
   patchPlayers: (upsert: OtherPlayer[] | undefined, remove: string[] | undefined) => void
+  /** ws thought 事件：落到对应玩家的 last_thought */
+  setPlayerThought: (id: string, thought: import('../types').PlayerThought | null) => void
   /** ws patch：按 id 合并 objects 的使用状态 */
   patchObjects: (partials: Partial<GameObject>[]) => void
   patchWorldState: (partial: Partial<WorldState>) => void
@@ -137,6 +139,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     for (const id of remove ?? []) byId.delete(id)
     return { players: [...byId.values()], lastWorldAt: performance.now() }
   }),
+  setPlayerThought: (id, thought) => set((s) => ({ players: s.players.map(p => (p.id === id || p.agent_id === id || p.name === id) ? { ...p, last_thought: thought } : p) })),
   patchObjects: (partials) => set((s) => {
     if (!partials || partials.length === 0) return {}
     const byId = new Map(partials.filter(p => p.id).map(p => [p.id as string, p]))

@@ -70,6 +70,10 @@ export default class ActorSprite {
   private bubble: Phaser.GameObjects.Container | null = null
   private bubbleText: Phaser.GameObjects.Text | null = null
   private bubbleBg: Phaser.GameObjects.Graphics | null = null
+  /** 💭 想法气泡（导播视角，主播 11-16）：淡紫底 + 三个小圆点尾巴，和白色说话气泡区分；两者同时有则叠在说话气泡上方 */
+  private thought: Phaser.GameObjects.Container | null = null
+  private thoughtText: Phaser.GameObjects.Text | null = null
+  private thoughtH = 0
   private bar: Phaser.GameObjects.Graphics | null = null
   /** v1.1：进食 / 下厨进度条（头顶状态标签下方一条细条） */
   private progressBar: Phaser.GameObjects.Graphics | null = null
@@ -325,6 +329,7 @@ export default class ActorSprite {
       this.nameText.setPosition(x, head - 10 * u).setDepth(d + 2)
       this.stateText.setPosition(x, head + 4 * u).setDepth(d + 2)
       if (this.bubble) this.bubble.setPosition(x, head - 34 * u).setDepth(d + 3)
+      if (this.thought) this.thought.setPosition(x, head - (34 + (this.bubble ? this.bubbleHeight() + 10 : 0)) * u).setDepth(d + 3)
       if (this.bar) this.bar.setPosition(x - BAR_W / 2 * u, foot - 14 * u).setDepth(d + 2)
       if (this.progressBar) this.progressBar.setPosition(x - 28 * u, head + 20 * u).setDepth(d + 2).setScale(u)
       return
@@ -337,6 +342,7 @@ export default class ActorSprite {
     this.nameText.setPosition(x, y + NAME_Y * v).setDepth(d + 2)
     this.stateText.setPosition(x, y + STATE_Y * v).setDepth(d + 2)
     if (this.bubble) this.bubble.setPosition(x, y + BUBBLE_Y * v).setDepth(d + 3)
+    if (this.thought) this.thought.setPosition(x, y + BUBBLE_Y * v - (this.bubble ? this.bubbleHeight() + 10 : 0) * u).setDepth(d + 3)
     if (this.bar) this.bar.setPosition(x - BAR_W / 2 * u, y + BAR_Y * v).setDepth(d + 2)
     if (this.progressBar) this.progressBar.setPosition(x - 28 * u, y + (STATE_Y + 16) * v).setDepth(d + 2).setScale(u)
   }
@@ -375,6 +381,7 @@ export default class ActorSprite {
     this.nameText.setScale(s)
     this.stateText.setScale(s)
     this.bubble?.setScale(s)
+    this.thought?.setScale(s)
     this.bar?.setScale(s)
     this.layout()
   }
@@ -442,9 +449,48 @@ export default class ActorSprite {
     this.bar?.setAlpha(a)
   }
 
+  private bubbleHeight() { return this.bubbleText ? this.bubbleText.height + 10 + 8 : 0 }
+
+  /** 💭 想法（null 撤掉）。只由导播视角调用；旁观 / 直播不渲染 */
+  setThought(text: string | null) {
+    if (!text) {
+      if (this.thought) { this.thought.destroy(true); this.thought = null; this.thoughtText = null; this.thoughtH = 0; this.layout() }
+      return
+    }
+    if (this.thought && this.thoughtText && this.thoughtText.text === text) return
+    let g: Phaser.GameObjects.Graphics
+    if (!this.thought) {
+      g = this.scene.add.graphics()
+      this.thoughtText = this.scene.add.text(0, 0, '', {
+        fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
+        fontSize: '12px', fontStyle: 'italic',
+        color: '#44337a',
+        wordWrap: { width: 200, useAdvancedWrap: true },
+        align: 'left',
+      }).setOrigin(0.5, 1).setResolution(2)
+      this.thought = this.scene.add.container(this.sprite.x, this.sprite.y + BUBBLE_Y, [g, this.thoughtText]).setScale(this.uiScale)
+    } else g = this.thought.list[0] as Phaser.GameObjects.Graphics
+    const t = this.thoughtText!
+    t.setText(text)
+    const padX = 9, padY = 6
+    const w = t.width + padX * 2, h = t.height + padY * 2
+    g.clear()
+    g.fillStyle(0xe9d8fd, 0.94)
+    g.lineStyle(1, 0x805ad5, 0.7)
+    g.fillRoundedRect(-w / 2, -h - 16, w, h, 10)
+    g.strokeRoundedRect(-w / 2, -h - 16, w, h, 10)
+    // 💭 的三个小圆点尾巴
+    g.fillCircle(-4, -11, 4.5); g.strokeCircle(-4, -11, 4.5)
+    g.fillCircle(-9, -4, 3); g.strokeCircle(-9, -4, 3)
+    g.fillCircle(-13, 1, 1.8); g.strokeCircle(-13, 1, 1.8)
+    t.setPosition(0, -16 - padY)
+    this.thoughtH = h + 16
+    this.layout()
+  }
+
   setBubble(text: string | null) {
     if (!text) {
-      if (this.bubble) { this.bubble.destroy(true); this.bubble = null; this.bubbleText = null; this.bubbleBg = null }
+      if (this.bubble) { this.bubble.destroy(true); this.bubble = null; this.bubbleText = null; this.bubbleBg = null; this.layout() }
       return
     }
     if (this.bubble && this.bubbleText && this.bubbleText.text === text) return
@@ -503,6 +549,7 @@ export default class ActorSprite {
   }
 
   destroy() {
+    this.thought?.destroy(true)
     this.sprite.destroy()
     this.arrow?.destroy()
     this.nameText.destroy()

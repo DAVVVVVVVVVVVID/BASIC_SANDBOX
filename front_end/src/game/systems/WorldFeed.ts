@@ -178,6 +178,14 @@ export function startWorldFeed(opts: { preferWs?: boolean } = {}): WorldFeedHand
         case 'qq':
           EventBus.emit('qq-event', msg)
           break
+        case 'thought': {   // B v1.3.19：{type:"thought", entity|player_id|id, text, kind, game_time}
+          const m = msg
+          const who = m.entity ?? m.player_id ?? m.id
+          const text = m.text ?? m.thought?.text
+          if (who && typeof text === 'string') useGameStore.getState().setPlayerThought(who, { text, kind: m.kind ?? m.thought?.kind ?? null, game_time: m.game_time ?? m.thought?.game_time ?? null })
+          EventBus.emit('thought-event', msg)
+          break
+        }
         case 'produce':
           EventBus.emit('produce-event', msg)
           break

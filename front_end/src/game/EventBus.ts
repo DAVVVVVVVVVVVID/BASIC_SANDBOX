@@ -8,6 +8,7 @@ import Phaser from 'phaser'
 //   'walk-to-tile'     { x, y, label? }                      — HUD 上楼 / 下楼：后端寻路走到目标格（跨层）
 //   'director-cmd'     { cmd: 'self' | 'free' } | { cmd: 'follow', id }   — 操控页导播视角（主播 11-16）
 //   'director-state'   { mode: 'self' | 'free' | 'follow', follow: string | null }
+//   'thought-event'    ws thought 原样；'director-thoughts' { on } — 导播栏 💭 想法开关
 //   'chat-message'     { entityId: string, content: string }— 聊天室新消息（叠加层气泡）
 //   'stats'            { fps: number, ... }                 — 每秒一次帧率统计
 export const EventBus = new Phaser.Events.EventEmitter()

@@ -82,6 +82,7 @@ export interface WorldState {
 export type Controller = 'human' | 'agent'
 
 /** GET /world players[] 的元素（B6：带 controller / online） */
+export interface PlayerThought { text: string; kind?: string | null; game_time?: string | null }
 export interface OtherPlayer {
   id: string
   name: string
@@ -92,6 +93,8 @@ export interface OtherPlayer {
   online?: boolean
   /** W4（B 4d6a931）：自我层 agent id，human 为 null */
   agent_id?: string | null
+  /** B v1.3.19：当前想法（导播视角 💭 气泡；主播 11-16） */
+  last_thought?: PlayerThought | null
   /** W5（B 59d1ac8）：与 GET /player 同义，叠加层直接读 */
   stateLabel?: string | null
   usingObjectId?: string | null
@@ -317,7 +320,9 @@ export interface WsSpoiled { type: 'spoiled'; entity?: string; object?: string; 
 export interface WsDailyLimit { type: 'daily_limit'; entity: string; object?: string; object_type?: string; used_min?: number; limit_min?: number; resets_at?: string }
 export interface WsRent { type: 'rent'; event: 'due_soon' | 'paid' | 'overdue' | 'cleared' | string; entity: string; amount?: number; balance?: number; due_in_days?: number }
 export interface WsCookCancelled { type: 'cook_cancelled'; entity?: string; object?: string; item?: string; portions?: number }
-export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ | WsProduce | WsCommission | WsKnock | WsDoor | WsEatDone | WsSpoiled | WsDailyLimit | WsRent | WsCookCancelled
+/** B v1.3.19：想法事件（导播视角 💭）；字段名以 B 落地为准，前端按 entity / player_id / id 兼容 */
+export interface WsThought { type: 'thought'; entity?: string; player_id?: string; id?: string; text?: string; kind?: string; game_time?: string; thought?: PlayerThought }
+export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ | WsProduce | WsCommission | WsKnock | WsDoor | WsEatDone | WsSpoiled | WsDailyLimit | WsRent | WsCookCancelled | WsThought
 /** 屋内人视角的待回应敲门（GET /player.pending_knocks[]） */
 export interface PendingKnock { id: string; visitor?: string; visitor_name?: string; home?: string; home_name?: string; door?: DoorRef | null; status?: string; expires_at?: string }
 /** GET /world.map.doors[]：带 owner 的家门（x,y = 外侧格） */

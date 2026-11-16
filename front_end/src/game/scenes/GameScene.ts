@@ -118,6 +118,8 @@ export default class GameScene extends Phaser.Scene {
   /** 操控页导播视角（主播 11-16「上帝视角」）：self = 跟随阿蝉（默认）/ free = 自由镜头 / follow = 跟随别人；切走后阿蝉仍可点地走路 */
   private director: 'self' | 'free' | 'follow' = 'self'
   private directorFollow: string | null = null
+  /** 导播栏「💭 想法」开关（默认开；只在操控页生效） */
+  private thoughtsOn = true
   /** 旁观页没有 params 时（操控页导播）的取景 / 跟随参数 */
   private dirParams: { focus: { sector: string; floor: number } | null; follow: string | null } = { focus: null, follow: null }
   private get camP() { return this.params ?? this.dirParams }
@@ -179,6 +181,7 @@ export default class GameScene extends Phaser.Scene {
       })
       this.setupFreeCamera()   // 导播视角：拖动 / WASD / 滚轮 / 点人（只在 director ≠ self 时生效）
       this.on('director-cmd', (c: DirectorCmd) => this.directorCmd(c))
+      this.on('director-thoughts', ({ on }: { on: boolean }) => { this.thoughtsOn = on })
     } else {
       this.followZoom = this.params?.zoom ? snapZoom(this.params.zoom) : FOLLOW_ZOOM
       this.currentZoom = this.panZoom
@@ -362,6 +365,7 @@ export default class GameScene extends Phaser.Scene {
       setFocus: (sector: string | null, floor = 1) => { if (this.params) this.params.focus = sector ? { sector, floor } : null },   // W9 任务 4 录屏：运行时切取景
       view: () => ({ inside: this.insideSector, roofed: [...this.roofedSectors], backdrops: this.backdrops.map(b => ({ name: b.name, view: b.meta.view, key: `${b.meta.sector}|${b.meta.floor}`, visible: b.img.visible })) }),
       emit: (evt: string, payload: unknown) => EventBus.emit(evt, payload),   // 调试：模拟 ws 事件（knock-event / door-event …）
+      setThought: (id: string, text: string | null) => useGameStore.getState().setPlayerThought(id, text ? { text } : null),   // 调试：模拟 ws thought（B v1.3.19 落地前看 💭 样式）
       others: () => [...this.others.entries()].map(([id, s]) => ({ id, px: s.getPixelPosition(), tile: s.getTile(), moving: s.isMoving(), ...s.debugPose() })),
     }
 
@@ -1168,6 +1172,11 @@ export default class GameScene extends Phaser.Scene {
     if (time - this.lastPrune > 250) {
       this.lastPrune = time
       store.pruneBubbles(performance.now())
+    }
+    // 💭 想法气泡（导播视角，只在操控页）：players[].last_thought.text；关掉或旁观页一律撤
+    if (this.mode === 'play') {
+      const byId = this.thoughtsOn ? new Map(store.players.map(p => [p.id, p.last_thought?.text ?? null])) : null
+      for (const [id, s] of this.others) s.setThought(byId ? byId.get(id) ?? null : null)
     }
     const bubbles = store.bubbles
     if (bubbles.length > 0 || this.hadBubbles) {
