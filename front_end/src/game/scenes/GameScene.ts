@@ -171,8 +171,8 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.mode === 'play' && this.player && this.myPlayerId) {
       this.createSelf(this.player)
-      this.currentZoom = 1
-      cam.setZoom(1)
+      this.currentZoom = this.touchUi() ? 0.5 : 1   // 手机默认小一档（主播 11-16：视野只剩几格），双指可再放大
+      cam.setZoom(this.currentZoom)
       const p = this.self!.getPixelPosition()
       this.camX = p.x; this.camY = p.y
       cam.centerOn(p.x, p.y)
@@ -913,11 +913,11 @@ export default class GameScene extends Phaser.Scene {
       // 双指缩放（自由镜头；手机 mobile.md）：两指都按下时按两指距离比例缩放，不平移
       const p1 = this.input.pointer1, p2 = this.input.pointer2
       if (p1?.isDown && p2?.isDown) {
-        if (this.mode === 'play' && this.director === 'self') return
-        if (this.camMode !== 'free') { this.enterFree(); if (this.mode === 'play') this.directorCmd({ cmd: 'free' }) }
         const d = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y)
         if (!this.pinch) { this.pinch = { d0: d, z0: cam.zoom }; return }
         const z = Phaser.Math.Clamp(this.pinch.z0 * (d / Math.max(1, this.pinch.d0)), MIN_ZOOM, MAX_ZOOM)
+        if (this.mode === 'play' && this.director !== 'free') { this.currentZoom = z; this.focusZoom = z; cam.setZoom(z); this.drag = null; return }   // 跟随阿蝉 / 别人：只缩放不平移
+        if (this.camMode !== 'free') { this.enterFree(); if (this.mode === 'play') this.directorCmd({ cmd: 'free' }) }
         this.freeZoom = z; cam.setZoom(z); this.drag = null
         return
       }

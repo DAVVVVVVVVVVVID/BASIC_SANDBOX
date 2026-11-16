@@ -8,7 +8,7 @@ import { C, avatarUrl, pillColor, kit } from './theme'
 import { displayName } from './PlayerChip'
 
 /** 「镇上的人」（mockC2）：六人两列——28px 头像 · 名字 · 区域 · 状态药丸 · 距离 · 👁 跟随；含阿蝉自己（高亮） */
-export default function PeoplePanel({ follow }: { follow: string | null }) {
+export default function PeoplePanel({ follow, cols }: { follow: string | null; cols?: 1 | 2 }) {
   const me = useGameStore((s) => s.player)
   const identity = useGameStore((s) => s.identity)
   const players = useGameStore((s) => s.players)
@@ -27,7 +27,7 @@ export default function PeoplePanel({ follow }: { follow: string | null }) {
   const go = (r: Row) => EventBus.emit('director-cmd', r.self ? { cmd: 'self' } : { cmd: 'follow', id: r.id })
   const STATE_ZH: Record<string, string> = { idle: '站着', walking: '走路', using: '使用中', talking: '聊天中', sleeping: '睡觉中' }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 8, minWidth: 0 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: cols === 1 ? '1fr' : 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 8, minWidth: 0 }}>
       {rows.map(r => {
         const doing = STATE_ZH[r.doing] ?? r.doing
         const pc = pillColor(r.online ? doing : '离线')
