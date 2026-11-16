@@ -214,7 +214,13 @@ def live_stop(player: dict, game_iso: str, obj: dict | None = None, reason: str 
         _live_stop_send(agent, game_iso)
     else:
         threading.Thread(target=_live_stop_send, args=(agent, game_iso), name="live-stop", daemon=True).start()
+    sid = _live_sessions.get(agent)
     live_webhook_stop(player, obj, game_iso, reason)
+    try:                                                          # v1.3.21：下播也进 external 日志（带 reason / session_id），seed_reconcile 等能在沙盒侧对账
+        from game import external_log
+        external_log.log("live", player["id"], object=(obj or {}).get("id"), action="stop", reason=reason, session_id=sid)
+    except Exception:
+        pass
 
 
 # ── B18 / W10-4b 游戏机：D 的 brain 正式接口（report-D.md 5b / 6；地址 GAME_URL，默认 http://127.0.0.1:8110） ──

@@ -45,6 +45,10 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bb. world-v1.3.21：下播进 external 日志（C 核 seed_reconcile 找不到落点）—— 完成
+
+- C 在 bench r5 的 S07b 第一帧确认 scene=sandbox、tags []（e190cb9 修复生效，13 场 runner 全 ok），但在 8390 的日志里 grep 不到 seed_reconcile——因为自我层 `/self/live/stop` 请求体只有 `{agent, ts}`，reason 只随 whale-live webhook / ws 事件走，沙盒 external 日志也只记 start / skipped。现在 `live_stop` 也写 external `live action=stop reason session_id`。**369 passed**；api-spec §12.24 补注。不为它切；下次重启带上。
+
 ## 5ba. world-v1.3.20：种入不继承 live（C 报 bench S07b 第一帧 scene=live）—— 完成，周一 .5 窗带上
 
 - 根因：`reset` 删玩家时 `live_stop` 走后台线程，紧接着 `spawn` 从自我层 `/self/state` 种入，远端 scene 仍是 live → 新玩家 scene=live 却什么都没在用（也不会有 streaming tag），直到她自己 use 电脑才被覆盖。修：种入一律 sandbox，远端 live 时补发 stop 对齐。测试 +1，**369 passed**；api-spec §12.24。周一统一 tag 改用本版。

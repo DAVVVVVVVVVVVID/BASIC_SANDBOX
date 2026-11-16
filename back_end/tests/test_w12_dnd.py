@@ -352,3 +352,6 @@ def test_seed_from_self_never_inherits_live_scene(client, v12, monkeypatch):
     p = world_state._players[whale]
     assert p["scene"] == "sandbox" and "streaming" not in p["tags"] and p.get("usingObjectId") is None
     assert "/self/live/stop" in calls                                                  # 补发下播对齐自我层
+    from game.external_log import read_log as _ext_read
+    rows = [r for r in _ext_read() if r.get("kind") == "live" and r.get("entity") == whale and r.get("action") == "stop"]
+    assert rows and rows[-1]["reason"] == "seed_reconcile"                             # v1.3.21：下播进 external 日志带 reason

@@ -1689,6 +1689,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用远端的 `scene`**：新玩家一律 `sandbox`（直播状态只能由 `use` 直播物品进入）；远端还记着 `live`（上一场的 live.stop 晚到 / 没到）就补发一条 `/self/live/stop`（reason `seed_reconcile`）对齐。背景：bench S07b 跑手 `reset` + `spawn` 后鲸仔第一帧 `scene=live`、`usingObjectId` 空。
 
+**v1.3.21**：下播也写 external 日志 `kind live, action stop, reason, session_id`（之前只有 start / skipped），`reason` 含 leave / kicked / closed / daily_limit / dnd_park / left_town / restart / seed_reconcile——注意自我层 `/self/live/stop` 的请求体只有 `{agent, ts}`，不带 reason，所以 8390 / 8100 的访问日志里看不到 seed_reconcile 字样，对账请看沙盒 `external/<日>.jsonl` 或 whale-live 的「决定」。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。
