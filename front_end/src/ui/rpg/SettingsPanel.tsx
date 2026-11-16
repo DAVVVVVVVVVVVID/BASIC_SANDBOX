@@ -5,7 +5,7 @@ import { setDnd, leavePlayer, setDndOnUnload, timeToggle, timeSpeed, timeReset }
 import { parseMapV2 } from '../../game/map/mapv2'
 import { stairsHop } from '../../game/stairs'
 import type { WorldState } from '../../types'
-import { C, btn } from './theme'
+import { C } from './theme'
 
 /** 「设置」（主播定稿）：收纳 楼梯 / 勿扰 / 倍速 / 登出 */
 export default function SettingsPanel() {
@@ -42,24 +42,24 @@ export default function SettingsPanel() {
   return (
     <div>
       {row('楼梯', hop
-        ? <><button className="rb" onClick={goStairs} style={btn('primary')} data-testid="set-stairs">{hop.toFloor < hop.fromFloor ? '⬇ 下楼' : '⬆ 上楼'}去 {hop.toFloor} 楼</button><span style={{ fontSize: 11, color: C.inkSoft }}>或直接点另一层的地板</span></>
+        ? <><button className="k teal" onClick={goStairs} data-testid="set-stairs">{hop.toFloor < hop.fromFloor ? '⬇ 下楼' : '⬆ 上楼'}去 {hop.toFloor} 楼</button><span style={{ fontSize: 11, color: C.inkSoft }}>或直接点另一层的地板</span></>
         : <span style={{ color: C.inkSoft }}>这栋没有楼梯</span>)}
       {row('勿扰', <>
         <span style={{ color: player.dnd ? '#A3581F' : '#246B5C' }}>{player.dnd ? (player.tags?.includes('working') ? '开 · 工作中' : '开') : '关'}</span>
-        <button className="rb" onClick={toggleDnd} disabled={busy === 'dnd'} style={btn(player.dnd ? 'warn' : 'primary')} data-testid="dnd-toggle">{player.dnd ? '关闭勿扰' : '开启勿扰'}</button>
+        <button className={`k ${player.dnd ? 'coral' : 'teal'}`} onClick={toggleDnd} disabled={busy === 'dnd'} data-testid="dnd-toggle">{player.dnd ? '关闭勿扰' : '开启勿扰'}</button>
         <span style={{ fontSize: 11, color: C.inkSoft }}>开着别人不会来找你聊；关页自动开</span>
       </>)}
       {ws && row('时间', <>
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>{ws.date} {ws.time}</span>
         <span style={{ color: C.inkSoft }}>· {ws.speed}x</span>
-        <button className="rb" onClick={toggleRun} style={btn('neutral')} title={ws.running ? '暂停' : '开始'}>{ws.running ? '⏸' : '▶'}</button>
-        <button className="rb" onClick={() => speed(2)} style={btn('neutral')} title="加速 ×2">＋</button>
-        <button className="rb" onClick={() => speed(0.5)} style={btn('neutral')} title="减速 ÷2">－</button>
-        <button className="rb" onClick={reset} style={btn('neutral')} title="重置时间">⟲</button>
+        <button className="k" onClick={toggleRun} title={ws.running ? '暂停' : '开始'}>{ws.running ? '⏸' : '▶'}</button>
+        <button className="k" onClick={() => speed(2)} title="加速 ×2">＋</button>
+        <button className="k" onClick={() => speed(0.5)} title="减速 ÷2">－</button>
+        <button className="k" onClick={reset} title="重置时间">⟲</button>
       </>)}
       {row('账号', <>
         <span style={{ color: C.inkSoft, fontSize: 11 }}>{player.id}</span>
-        <button className="rb" onClick={logout} disabled={busy === 'logout'} style={btn('secondary')} data-testid="logout">登出</button>
+        <button className="k coral" onClick={logout} disabled={busy === 'logout'} data-testid="logout">登出</button>
       </>)}
       {msg && <div style={{ color: C.coral, marginTop: 6 }}>{msg}</div>}
     </div>

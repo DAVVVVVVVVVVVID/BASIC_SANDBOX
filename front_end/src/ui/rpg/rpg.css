@@ -7,6 +7,7 @@
   font-display: swap;
 }
 
+.rpg { --ui: 1; }
 .rpg, .rpg button, .rpg input {
   font-family: 'Fusion Pixel 12px', 'Zpix', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   -webkit-font-smoothing: none;
@@ -37,3 +38,34 @@
 /* 把旧暗色面板嵌进 cream 面板时的中性化 */
 .rpg .embed { color: #3B2F2F; }
 .rpg .embed input { background: #fff; color: #3B2F2F; border: 1px solid #7FB6E8; }
+
+/* ── ② 换皮：素材包切片（public/assets/ui/kit，tools/ui_kit_slice.py）── 九宫格用 border-image，nearest */
+.rpg .panel9 { border-width: 14px !important; border-style: solid !important; border-color: transparent !important; border-image: url('/assets/ui/kit/panel_sky.png') 34 fill / 14px stretch !important; image-rendering: pixelated; background: none !important; box-shadow: none !important; border-radius: 0 !important; }
+.rpg .panel9.mint { border-image-source: url('/assets/ui/kit/panel_mint.png') !important; }
+.rpg .mm9 { border-width: 14px !important; border-style: solid !important; border-color: transparent !important; border-image: url('/assets/ui/kit/minimap_frame.png') 34 fill / 14px stretch !important; image-rendering: pixelated; }
+.rpg .toast9 { border-width: 16px !important; border-style: solid !important; border-color: transparent !important; border-image: url('/assets/ui/kit/toast_blank.png') 34 fill / 16px stretch !important; image-rendering: pixelated; background: none !important; box-shadow: none !important; border-radius: 0 !important; }
+
+/* 按钮三态（teal / coral / neutral）：border-image 换图，文字叠上 */
+.rpg button.k { border-width: 12px !important; border-style: solid !important; border-color: transparent !important; border-image: url('/assets/ui/kit/btn_neutral_normal.png') 22 fill / 12px stretch; image-rendering: pixelated; background: none !important; box-shadow: none !important; border-radius: 0 !important; color: #3B2F2F; padding: 0 8px; min-height: 34px; font-size: 14px; line-height: 1; cursor: pointer; }
+.rpg button.k:hover:not(:disabled) { border-image-source: url('/assets/ui/kit/btn_neutral_hover.png'); }
+.rpg button.k:active:not(:disabled) { border-image-source: url('/assets/ui/kit/btn_neutral_pressed.png'); transform: translateY(1px); }
+.rpg button.k.teal { border-image-source: url('/assets/ui/kit/btn_teal_normal.png'); color: #fff; }
+.rpg button.k.teal:hover:not(:disabled) { border-image-source: url('/assets/ui/kit/btn_teal_hover.png'); }
+.rpg button.k.teal:active:not(:disabled) { border-image-source: url('/assets/ui/kit/btn_teal_pressed.png'); }
+.rpg button.k.coral { border-image-source: url('/assets/ui/kit/btn_coral_normal.png'); color: #fff; }
+.rpg button.k.coral:hover:not(:disabled) { border-image-source: url('/assets/ui/kit/btn_coral_hover.png'); }
+.rpg button.k.coral:active:not(:disabled) { border-image-source: url('/assets/ui/kit/btn_coral_pressed.png'); }
+.rpg button.k:disabled { opacity: 0.55; cursor: default; }
+
+/* 小方键四态（导播三键 / 底栏召唤键） */
+.rpg button.sq { border-width: 16px !important; border-style: solid !important; border-color: transparent !important; border-image: url('/assets/ui/kit/sq_normal.png') 30 fill / 16px stretch; image-rendering: pixelated; background: none !important; box-shadow: none !important; border-radius: 0 !important; color: #3B2F2F; cursor: pointer; padding: 0; }
+.rpg button.sq:hover:not(:disabled) { border-image-source: url('/assets/ui/kit/sq_hover.png'); }
+.rpg button.sq:active:not(:disabled) { border-image-source: url('/assets/ui/kit/sq_pressed.png'); transform: translateY(1px); }
+.rpg button.sq.active { border-image-source: url('/assets/ui/kit/sq_active.png'); outline: none; }
+.rpg .summon { width: 96px; height: 92px; }
+.rpg .summon img.ic { width: 44px; height: 44px; image-rendering: pixelated; }
+.rpg .summon .hk { background: url('/assets/ui/kit/hotkey_badge.png') center / 100% 100% no-repeat; border: none; width: 22px; height: 22px; line-height: 22px; font-size: 13px; left: -12px; top: -12px; }
+.rpg .closex { width: 30px; height: 30px; background: url('/assets/ui/kit/close_x.png') center / 100% 100% no-repeat; border: none !important; color: transparent !important; cursor: pointer; }
+.rpg img.mi { width: 18px; height: 18px; image-rendering: pixelated; vertical-align: -4px; }
+.rpg .qqicon { width: 60px; height: 100px; background: url('/assets/ui/kit/phone_icon.png') center / 100% 100% no-repeat !important; image-rendering: pixelated; border: none !important; cursor: pointer; position: relative; }
+.rpg .qqicon .badge { position: absolute; right: -6px; top: -6px; min-width: 18px; height: 18px; line-height: 18px; border-radius: 9px; background: #E53E3E; color: #fff; font-size: 11px; text-align: center; padding: 0 4px; border: 1px solid #fff; }

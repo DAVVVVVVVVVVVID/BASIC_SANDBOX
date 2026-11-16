@@ -1,4 +1,4 @@
-import { btn } from './theme'
+import { kit } from './theme'
 
 export type PanelKey = 'people' | 'map' | 'bag' | 'log' | 'chat' | 'settings' | 'me'
 export const SUMMON: { key: PanelKey; hk: string; icon: string; label: string }[] = [
@@ -15,11 +15,10 @@ export default function BottomBar({ open, onToggle }: { open: PanelKey | null; o
   return (
     <div data-testid="rpg-bottombar" style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, pointerEvents: 'auto' }}>
       {SUMMON.map(s => (
-        <button key={s.key} className={`rb summon${open === s.key ? ' active' : ''}`} onClick={() => onToggle(s.key)} data-testid={`summon-${s.key}`} title={`${s.label}（快捷键 ${s.hk}）`}
-          style={btn('neutral', { background: open === s.key ? '#FBEBC9' : undefined })}>
+        <button key={s.key} className={`sq summon${open === s.key ? ' active' : ''}`} onClick={() => onToggle(s.key)} data-testid={`summon-${s.key}`} title={`${s.label}（快捷键 ${s.hk}）`}>
           <span className="hk">{s.hk}</span>
-          <span className="ic">{s.icon}</span>
-          <span style={{ fontSize: 13 }}>{s.label}</span>
+          <img className="ic" src={kit(`summon_${s.key}${open === s.key ? '_on' : ''}`)} alt={s.icon} />
+          <span style={{ fontSize: 14, whiteSpace: 'nowrap' }}>{s.label}</span>
         </button>
       ))}
     </div>

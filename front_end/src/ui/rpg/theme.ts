@@ -62,5 +62,6 @@ export function moodFace(mood: number | undefined | null): string {
   return '😟'
 }
 
+export const kit = (name: string) => `assets/ui/kit/${name}.png`
 export const AVATAR_KEYS = ['whale', 'achan', 'claudine', 'cook', 'grocer', 'fisher'] as const
-export const avatarUrl = (key: string, px: 40 | 80 = 80) => `assets/ui/avatars/${key}_${px}.png`
+export const avatarUrl = (key: string, px: 40 | 56 | 80 | 112 = 80) => `assets/ui/avatars/${key}_${px}.png`

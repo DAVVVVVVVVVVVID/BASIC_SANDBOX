@@ -143,8 +143,8 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
   if (phone) {
     if (!open) {
       return (
-        <button onClick={() => setOpen(true)} title="QQ" data-testid="qq-badge" style={{ ...style, position: 'absolute', background: 'rgba(15,15,30,0.85)', border: '1px solid #4a5568', borderRadius: 8, color: '#e2e8f0', padding: '6px 10px', cursor: 'pointer', fontSize: 14, zIndex: 210 }}>
-          📱{totalUnread > 0 && <span style={{ marginLeft: 6, background: '#e53e3e', color: '#fff', borderRadius: 10, padding: '0 6px', fontSize: 11 }}>{totalUnread}</span>}
+        <button onClick={() => setOpen(true)} title="QQ" data-testid="qq-badge" className="qqicon" style={{ ...style, position: 'absolute', zIndex: 210, background: 'none' }}>
+          {totalUnread > 0 && <span className="badge">{totalUnread}</span>}
         </button>
       )
     }

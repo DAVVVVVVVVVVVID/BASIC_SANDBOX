@@ -45,11 +45,18 @@ export default function RpgShell({ playerId }: { playerId: string }) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
+  // 主播 11-16（2552 宽屏）：所有控件按视口统一放大，基准 1920 = 1.0，上限 1.6
+  const [uiScale, setUiScale] = useState(() => Math.min(1.6, Math.max(1, window.innerWidth / 1920)))
+  useEffect(() => {
+    const on = () => setUiScale(Math.min(1.6, Math.max(1, window.innerWidth / 1920)))
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
   const title = open ? (open === 'me' ? '我的状态' : SUMMON.find(s => s.key === open)?.label ?? '') : ''
   const players = useGameStore((s) => s.players)
   const followName = dir.mode === 'follow' ? players.find(p => p.id === dir.follow)?.name ?? '' : ''
   return (
-    <div className="rpg" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+    <div className="rpg" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden', zoom: uiScale } as React.CSSProperties}>
       <PlayerChip onOpen={() => toggle('me')} active={open === 'me'} />
       <TopRight />
       {dir.mode !== 'self' && (
@@ -59,8 +66,8 @@ export default function RpgShell({ playerId }: { playerId: string }) {
       )}
       {/* toast / 门禁条：底栏上方；有面板打开时挪到顶部（不被面板盖住） */}
       <div style={{ position: 'absolute', left: 0, right: 0, ...(open ? { top: 64 } : { bottom: 96 }), pointerEvents: 'none' }}>
-        <div style={{ pointerEvents: 'auto' }}><KnockPanel anchor="bottom" /></div>
-        <div style={{ pointerEvents: 'auto' }}><InteractionPanel anchor="bottom" /></div>
+        <div style={{ pointerEvents: 'auto' }}><KnockPanel anchor="bottom" skin="rpg" /></div>
+        <div style={{ pointerEvents: 'auto' }}><InteractionPanel anchor="bottom" skin="rpg" /></div>
       </div>
       {open && (
         <PanelFrame title={title} onClose={() => setOpen(null)} width={open === 'people' ? 600 : open === 'map' ? 520 : open === 'settings' ? 520 : 560} dark={open === 'me' || open === 'bag' || open === 'log'}>
@@ -79,7 +86,7 @@ export default function RpgShell({ playerId }: { playerId: string }) {
       {/* 左下 QQ 手机图标 → 居中手机 */}
       <div style={{ pointerEvents: 'auto' }}><QQPanel playerId={playerId} readOnly={false} compact phone style={{ bottom: 16, left: 16, top: 'auto', right: 'auto' }} /></div>
       {/* 右下常态小地图 */}
-      <div style={panel({ position: 'absolute', right: 12, bottom: 12, padding: 6, pointerEvents: 'auto' })}><Minimap inline /></div>
+      <div className="mm9" style={{ position: 'absolute', right: 12, bottom: 12, pointerEvents: 'auto', background: 'none' }}><Minimap inline /></div>
       <BottomBar open={open} onToggle={toggle} />
       <div style={{ pointerEvents: 'auto' }}><ConnectionBadge /></div>
     </div>

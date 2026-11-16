@@ -3,7 +3,7 @@ import { useGameStore } from '../../store/gameStore'
 import { EventBus } from '../../game/EventBus'
 import { fetchThoughts } from '../../api/world'
 import type { DirectorCmd } from '../../game/scenes/GameScene'
-import { C, btn, panel } from './theme'
+import { C, panel, kit } from './theme'
 
 const WEATHER_ICON: Record<string, string> = { sunny: '☀', cloudy: '☁', rain: '🌧' }
 const PERIOD: Record<string, string> = { morning: '早晨', day: '白天', dusk: '黄昏', night: '夜晚' }
@@ -33,21 +33,23 @@ export default function TopRight() {
   const toggleThoughts = () => { const on = !thoughts; setThoughts(on); EventBus.emit('director-thoughts', { on }) }
   const time = (ws?.time ?? '--:--').slice(0, 5)
   const gold = typeof player?.gold === 'number' ? player.gold.toLocaleString('en-US') : '—'
-  const key = (label: string, active: boolean, onClick: () => void, title: string, testid: string, kind: 'neutral' | 'thought' = 'neutral') => (
-    <button className={`rb${active ? ' active' : ''}`} onClick={onClick} title={title} data-testid={testid} style={btn(kind, { width: 64, height: 44, padding: 0, fontSize: 13, background: active && kind === 'neutral' ? '#E3F0FB' : undefined })}>{label}</button>
+  const key = (label: string, icon: string, active: boolean, onClick: () => void, title: string, testid: string) => (
+    <button className={`sq${active ? ' active' : ''}`} onClick={onClick} title={title} data-testid={testid} style={{ width: 84, height: 76, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, fontSize: 13 }}>
+      <img className="mi" src={kit(icon)} alt="" style={{ width: 30, height: 30 }} /><span>{label}</span>
+    </button>
   )
+  const wIcon = ws?.weather === 'rain' ? 'mi_rain' : ws?.weather === 'cloudy' ? 'mi_cloud' : (ws?.period === 'night' ? 'mi_moon' : 'mi_sun')
   return (
     <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, pointerEvents: 'auto' }}>
-      <div style={panel({ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px', fontSize: 16, borderRadius: 18 })}>
-        <span style={{ fontVariantNumeric: 'tabular-nums' }}>{time}</span>
-        <span title={ws?.weather ?? ''}>{WEATHER_ICON[ws?.weather ?? ''] ?? '☀'}</span>
-        <span style={{ color: C.inkSoft, fontSize: 13 }}>{PERIOD[ws?.period ?? ''] ?? ''}</span>
-        <span>💰 <b>{gold}</b></span>
+      <div className="panel9" style={panel({ display: 'flex', alignItems: 'center', gap: 12, padding: '2px 10px', fontSize: 18, minHeight: 24 })}>
+        <img className="mi" src={kit('mi_clock')} alt="" /><span style={{ fontVariantNumeric: 'tabular-nums' }}>{time}</span>
+        <img className="mi" src={kit(wIcon)} alt="" title={WEATHER_ICON[ws?.weather ?? ''] ?? ''} /><span style={{ color: C.inkSoft, fontSize: 14 }}>{PERIOD[ws?.period ?? ''] ?? ''}</span>
+        <img className="mi" src={kit('mi_coin')} alt="" /><b>{gold}</b>
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        {key('回阿蝉', dir.mode === 'self', () => send({ cmd: 'self' }), '镜头回到阿蝉（Esc）', 'dir-self')}
-        {key('自由', dir.mode === 'free', () => send({ cmd: 'free' }), '自由镜头：拖动 / WASD / 滚轮；点地面阿蝉照样走', 'dir-free')}
-        {key('💭', thoughts, toggleThoughts, '角色头顶显示当前想法', 'dir-thoughts', 'thought')}
+        {key('回阿蝉', 'dir_back', dir.mode === 'self', () => send({ cmd: 'self' }), '镜头回到阿蝉（Esc）', 'dir-self')}
+        {key('自由', 'dir_camera', dir.mode === 'free', () => send({ cmd: 'free' }), '自由镜头：拖动 / WASD / 滚轮；点地面阿蝉照样走', 'dir-free')}
+        {key('想法', 'dir_thought', thoughts, toggleThoughts, '角色头顶显示当前想法', 'dir-thoughts')}
       </div>
       {dir.mode === 'follow' && <div style={{ fontSize: 11, color: C.inkSoft, background: C.creamA, padding: '1px 8px', borderRadius: 8 }}>跟随中 · 点「回阿蝉」或 Esc 回来</div>}
     </div>

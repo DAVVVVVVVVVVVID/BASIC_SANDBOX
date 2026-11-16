@@ -1,0 +1,390 @@
+{
+"panel_sky": [
+242,
+221
+],
+"panel_mint": [
+241,
+221
+],
+"title_bar": [
+384,
+102
+],
+"btn_teal_normal": [
+284,
+57
+],
+"btn_coral_normal": [
+273,
+57
+],
+"btn_neutral_normal": [
+283,
+57
+],
+"btn_teal_hover": [
+284,
+58
+],
+"btn_coral_hover": [
+272,
+58
+],
+"btn_neutral_hover": [
+283,
+58
+],
+"btn_teal_pressed": [
+284,
+54
+],
+"btn_coral_pressed": [
+272,
+54
+],
+"btn_neutral_pressed": [
+283,
+54
+],
+"sq_normal": [
+76,
+73
+],
+"sq_hover": [
+76,
+73
+],
+"sq_pressed": [
+72,
+69
+],
+"sq_active": [
+75,
+73
+],
+"pill_sky": [
+123,
+49
+],
+"pill_pink": [
+122,
+49
+],
+"pill_peach": [
+122,
+49
+],
+"pill_mint": [
+122,
+49
+],
+"pill_lavender": [
+120,
+49
+],
+"pill_red": [
+120,
+49
+],
+"pill_amber": [
+119,
+49
+],
+"icon_bread": [
+46,
+41
+],
+"bar_fullness": [
+180,
+29
+],
+"icon_bolt": [
+37,
+46
+],
+"bar_energy": [
+170,
+29
+],
+"icon_people": [
+53,
+39
+],
+"bar_social": [
+147,
+29
+],
+"icon_star": [
+45,
+44
+],
+"bar_fun": [
+160,
+29
+],
+"toast_pill": [
+485,
+85
+],
+"close_x": [
+67,
+66
+],
+"hotkey_badge": [
+53,
+51
+],
+"summon_people": [
+110,
+95
+],
+"summon_map": [
+115,
+106
+],
+"summon_bag": [
+112,
+114
+],
+"summon_log": [
+117,
+107
+],
+"summon_chat": [
+113,
+97
+],
+"summon_settings": [
+109,
+108
+],
+"summon_people_on": [
+109,
+97
+],
+"summon_map_on": [
+115,
+107
+],
+"summon_bag_on": [
+113,
+113
+],
+"summon_log_on": [
+118,
+107
+],
+"summon_chat_on": [
+113,
+98
+],
+"summon_settings_on": [
+109,
+107
+],
+"dir_back": [
+82,
+79
+],
+"dir_camera": [
+96,
+81
+],
+"dir_thought": [
+89,
+89
+],
+"toggle_on": [
+105,
+50
+],
+"toggle_off": [
+103,
+50
+],
+"mi_clock": [
+44,
+43
+],
+"mi_sun": [
+43,
+44
+],
+"mi_cloud": [
+46,
+43
+],
+"mi_rain": [
+40,
+41
+],
+"mi_moon": [
+38,
+38
+],
+"mi_coin": [
+40,
+41
+],
+"mi_bread": [
+40,
+33
+],
+"mi_bolt": [
+30,
+44
+],
+"mi_people": [
+45,
+36
+],
+"mi_star": [
+39,
+38
+],
+"mi_happy": [
+37,
+36
+],
+"mi_meh": [
+36,
+36
+],
+"mi_sad": [
+36,
+36
+],
+"mi_dnd": [
+36,
+37
+],
+"mi_stairs": [
+40,
+38
+],
+"mi_door": [
+31,
+43
+],
+"mi_eye": [
+42,
+31
+],
+"mi_unread": [
+39,
+41
+],
+"phone_icon": [
+139,
+230
+],
+"minimap_frame": [
+359,
+244
+],
+"dot_blue": [
+31,
+30
+],
+"dot_pink": [
+30,
+30
+],
+"dot_orange": [
+30,
+30
+],
+"dot_green": [
+30,
+30
+],
+"dot_purple": [
+30,
+30
+],
+"dot_yellow": [
+30,
+30
+],
+"speech_s": [
+115,
+81
+],
+"speech_m": [
+196,
+84
+],
+"speech_l": [
+275,
+109
+],
+"speech_r": [
+232,
+84
+],
+"thought_s": [
+128,
+108
+],
+"thought_m": [
+194,
+125
+],
+"thought_l": [
+250,
+151
+],
+"thought_dots": [
+229,
+138
+],
+"name_tag_a": [
+145,
+49
+],
+"name_tag_b": [
+138,
+49
+],
+"tag_sleep": [
+177,
+53
+],
+"tag_live": [
+163,
+59
+],
+"knock_burst": [
+207,
+127
+],
+"phone_shell": [
+234,
+418
+],
+"contact_row": [
+554,
+122
+],
+"send_btn": [
+152,
+68
+],
+"input_box": [
+376,
+62
+],
+"login_ribbon": [
+655,
+108
+],
+"login_big_btn": [
+338,
+80
+],
+"toast_blank": [
+485,
+85
+]
+}
