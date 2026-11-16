@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { fetchWorld, fetchEvents, leavePlayer, setDndOnUnload } from './api/world'
+import { fetchWorld, fetchEvents, leavePlayer, setDndOnUnload, setAdminView } from './api/world'
 import { initGame } from './game/PhaserGame'
 import { startTickSystem } from './game/systems/TickSystem'
 import { useGameStore } from './store/gameStore'
@@ -40,6 +40,7 @@ function PlayApp() {
     setIdentity(identity ?? null)
     setPlayer(player)
     try {
+      setAdminView(true)   // 操控页 = 导播视角：/world 带 view=admin 才有 players[].last_thought（B v1.3.19）
       const [worldData, events] = await Promise.all([fetchWorld(), fetchEvents(), loadAiManifest()])
       setWorldState(worldData.worldState)
       setZoneNames(worldData.zone_names)

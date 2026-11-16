@@ -2,9 +2,13 @@ import { apiGet, apiPost, apiDelete, apiGetOrNull } from './client'
 import type { Player, PlayerStateVars, WorldData, WorldEvent, ActionLogEntry, WorldState } from '../types'
 
 export const fetchEvents  = () => apiGet<WorldEvent[]>('/events')
-export const fetchWorld   = () => apiGet<WorldData>('/world')
+/** B world-v1.3.19：players[].last_thought 只在 `view=admin` 时带出——操控页（导播视角）开，旁观 / 直播不开 */
+let adminView = false
+export function setAdminView(on: boolean) { adminView = on }
+const av = (sep: '?' | '&') => (adminView ? `${sep}view=admin` : '')
+export const fetchWorld   = () => apiGet<WorldData>(`/world${av('?')}`)
 /** W5 瘦身：只要动态部分（约 10 KB）；老后端忽略 query 回全量，调用方按 tiles 是否为空判断 */
-export const fetchWorldLive = () => apiGet<WorldData>('/world?fields=players,objects,worldState')
+export const fetchWorldLive = () => apiGet<WorldData>(`/world?fields=players,objects,worldState${av('&')}`)
 export const fetchHistory = () => apiGet<ActionLogEntry[]>('/history')
 
 export function joinPlayer(name: string) {
@@ -17,7 +21,9 @@ export function joinAs(name: string, agentId: string, dnd?: boolean) {
 }
 
 /** 只拉 players[]（找常驻的阿蝉用） */
-export const fetchPlayersLite = () => apiGet<{ players?: Player[] }>('/world?fields=players')
+export const fetchPlayersLite = () => apiGet<{ players?: Player[] }>(`/world?fields=players${av('&')}`)
+/** 导播视角慢轮询：只拉 players 的 last_thought（ws 通道里的 snapshot 不带它） */
+export const fetchThoughts = () => apiGet<{ players?: { id: string; last_thought?: import('../types').PlayerThought | null }[] }>('/world?fields=players&view=admin')
 
 /** world-v1.3：勿扰开关（主播接管时关、离开时开） */
 export function setDnd(playerId: string, on: boolean) {

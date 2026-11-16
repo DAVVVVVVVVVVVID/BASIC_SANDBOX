@@ -4,6 +4,7 @@ import { EventBus } from '../game/EventBus'
 import { deriveStateLabel } from '../game/stateLabel'
 import { zoneLabel } from '../game/map/zones'
 import type { DirectorCmd } from '../game/scenes/GameScene'
+import { fetchThoughts } from '../api/world'
 
 /**
  * 操控页「导播视角」（主播 11-16：操控阿蝉时能知道的信息太少）——阿蝉的上帝视角，只给主播用，旁观 / 直播布局不动。
@@ -24,6 +25,20 @@ export default function DirectorPanel() {
     EventBus.on('director-state', on)
     return () => { EventBus.off('director-state', on) }
   }, [])
+  // 想法慢轮询（8 s）：ws 的 snapshot / patch 不带 last_thought，只有 /world?view=admin 带；ws thought 事件即时补
+  useEffect(() => {
+    if (!thoughts) return
+    let stop = false
+    const tick = async () => {
+      try {
+        const r = await fetchThoughts(); if (stop) return
+        const set = useGameStore.getState().setPlayerThought
+        for (const p of r.players ?? []) if (p.id) set(p.id, p.last_thought ?? null)
+      } catch { /* 下次再试 */ }
+    }
+    tick(); const id = window.setInterval(tick, 8000)
+    return () => { stop = true; window.clearInterval(id) }
+  }, [thoughts])
   const send = (c: DirectorCmd) => EventBus.emit('director-cmd', c)
   const tileAt = useMemo(() => new Map(tiles.map(t => [`${t.x},${t.y}`, t] as const)), [tiles])
   if (!me) return null
