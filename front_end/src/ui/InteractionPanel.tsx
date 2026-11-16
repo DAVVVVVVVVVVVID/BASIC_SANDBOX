@@ -41,9 +41,7 @@ export default function InteractionPanel({ anchor = 'free', skin = 'dark' }: { a
       }}
     >
       <p style={{ margin: 0 }}>{message}</p>
-      <small style={{ color: '#718096', marginTop: '8px', display: 'block' }}>
-        点击或按 Esc 关闭
-      </small>
+      {skin !== 'rpg' && <small style={{ color: '#718096', marginTop: '8px', display: 'block' }}>点击或按 Esc 关闭</small>}
     </div>
   )
 }

@@ -174,8 +174,8 @@ export default function HUD({ embedded = false }: { embedded?: boolean } = {}) {
       <div style={{ fontWeight: 'bold', marginBottom: 6, color: c('#90cdf4'), fontSize: 13 }}>
         {profile?.name ?? player.id}
       </div>
-      <Row label="年龄" value={profile?.age ?? '—'} />
-      <Row label="ID"   value={<span style={{ color: c('#718096'), fontSize: 11 }}>{player.id}</span>} />
+      {!embedded && <Row label="年龄" value={profile?.age ?? '—'} />}
+      {!embedded && <Row label="ID"   value={<span style={{ color: c('#718096'), fontSize: 11 }}>{player.id}</span>} />}
       {typeof player.gold === 'number' && <Row label="金币" value={<span style={{ color: c('#ffe9a8'), fontWeight: 700 }}>💰 {player.gold}</span>} />}
       {(identity === 'achan' || player.agent_id === 'achan' || typeof player.dnd === 'boolean') && <DndRow playerId={player.id} dnd={!!player.dnd} tags={player.tags ?? []} />}
       <StairsRow position={position} />
@@ -187,8 +187,8 @@ export default function HUD({ embedded = false }: { embedded?: boolean } = {}) {
 
       {/* 位置与朝向 */}
       <Row label="位置"   value={<span style={{ color: c('#a0aec0'), fontSize: 11 }}>{zoneLabel}</span>} />
-      <Row label="坐标"   value={`(${position.x}, ${position.y})`} />
-      <Row label="朝向"   value={{ up: '↑ 上', down: '↓ 下', left: '← 左', right: '→ 右' }[facing]} />
+      {!embedded && <Row label="坐标"   value={`(${position.x}, ${position.y})`} />}
+      {!embedded && <Row label="朝向"   value={{ up: '↑ 上', down: '↓ 下', left: '← 左', right: '→ 右' }[facing]} />}
 
       <Divider />
 
