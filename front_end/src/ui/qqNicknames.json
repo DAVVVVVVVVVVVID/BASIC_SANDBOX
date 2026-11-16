@@ -1,0 +1,34 @@
+{
+ "whale": {
+  "nick": "鲸仔今天也在赶稿",
+  "name": "鲸仔"
+ },
+ "achan": {
+  "nick": "蝉（忙）",
+  "name": "阿蝉"
+ },
+ "claudine": {
+  "nick": "小克_今天去哪玩",
+  "name": "克劳蒂娜"
+ },
+ "grocer": {
+  "nick": "AAA鲸鱼杂货店·欢迎光临",
+  "name": "杂货店老板"
+ },
+ "cook": {
+  "nick": "按规矩来",
+  "name": "餐厅老板"
+ },
+ "fisher": {
+  "nick": "随缘",
+  "name": "老渔夫"
+ },
+ "townhall": {
+  "nick": "鲸鱼大学城镇公所",
+  "name": "镇公所"
+ },
+ "livegroup": {
+  "nick": "鲸仔直播间·后台",
+  "name": "鲸仔直播组"
+ }
+}
