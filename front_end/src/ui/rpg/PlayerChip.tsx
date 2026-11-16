@@ -1,4 +1,5 @@
 import { useGameStore } from '../../store/gameStore'
+import type { Player } from '../../types'
 import { godotCharKeyFor } from '../../game/godotChars'
 import { C, avatarUrl, moodFace, panel, kit } from './theme'
 
@@ -6,11 +7,13 @@ import { C, avatarUrl, moodFace, panel, kit } from './theme'
 export const displayName = (name: string, identity: string | null) => identity === 'achan' ? '阿蝉' : name.replace(/_[0-9a-f]{6}$/i, '')
 
 /** 左上阿蝉竖卡（主播 11-16 二稿）：56px 头 + 肩头像 + 名字 + 心情脸；五条属性竖排（饱腹 / 精力 / 社交 / 乐趣 / 心情，微图标 + 数值）；点一下打开「我」面板 */
-export default function PlayerChip({ onOpen, active }: { onOpen: () => void; active: boolean }) {
-  const player = useGameStore((s) => s.player)
+export interface ChipOverride { player: Player; name: string; key: string }
+export default function PlayerChip({ onOpen, active, override }: { onOpen: () => void; active: boolean; override?: ChipOverride | null }) {
+  const me = useGameStore((s) => s.player)
   const identity = useGameStore((s) => s.identity)
+  const player = override?.player ?? me
   if (!player) return null
-  const key = godotCharKeyFor(player.profile?.name ?? player.id, 'human', identity ?? player.agent_id ?? null)
+  const key = override ? override.key : godotCharKeyFor(player.profile?.name ?? player.id, 'human', identity ?? player.agent_id ?? null)
   const bars: [string, string, number, string][] = [
     ['饱腹', C.bar.fullness, Number(player.fullness ?? player.hp ?? 0), 'mi_bread'],
     ['精力', C.bar.energy, Number(player.energy ?? 0), 'mi_bolt'],
@@ -20,12 +23,13 @@ export default function PlayerChip({ onOpen, active }: { onOpen: () => void; act
   ]
   return (
     <div onClick={onOpen} data-testid="rpg-chip" title="点开看完整状态" className={`panel9${active ? ' active' : ''}`}
-      style={panel({ position: 'absolute', top: 12, left: 12, width: 206, padding: '2px 6px 4px', cursor: 'pointer', pointerEvents: 'auto' })}>
+      style={panel({ position: 'absolute', top: 12, left: 12, width: 206, padding: '2px 6px 4px', cursor: 'pointer', pointerEvents: 'auto' }, override ? '#C9B6F2' : undefined)}>
+      {override && <div style={{ position: 'absolute', right: 8, top: 4, fontSize: 11, color: C.inkSoft }} title="导播跟随中：只看不能操作，点卡片回阿蝉">🔒 只看</div>}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
         <img className="px" src={avatarUrl(key, 112)} width={56} height={56} alt="" style={{ borderRadius: 8, border: `2px solid ${C.sky}`, background: '#fff', boxShadow: '0 0 0 1px #fff inset' }} />
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <b style={{ fontSize: 20 }}>{displayName(player.profile?.name ?? player.id, identity)}</b>
+            <b style={{ fontSize: 20 }}>{override ? override.name : displayName(player.profile?.name ?? player.id, identity)}</b>
             <span style={{ fontSize: 20 }} title={`心情 ${Math.floor(Number(player.mood ?? 0))}`}>{moodFace(Number(player.mood ?? 50))}</span>
           </div>
           <div style={{ fontSize: 12, color: C.inkSoft }}>{player.dnd ? '勿扰 · 工作中' : (player.stateLabel ?? '').replace(/^[^一-龥A-Za-z]+/, '') || ' '}</div>

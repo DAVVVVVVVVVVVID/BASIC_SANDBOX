@@ -19,6 +19,9 @@ import InteractionPanel from '../InteractionPanel'
 import ConnectionBadge from '../ConnectionBadge'
 import { panel } from './theme'
 import { setUiSkin } from '../uiPalette'
+import { useFollowedPlayer, FollowBag, FollowChat } from './FollowPanels'
+import { godotCharKeyFor } from '../../game/godotChars'
+import { displayName } from './PlayerChip'
 
 /**
  * 操控页像素 RPG 菜单风外壳（主播 11-16 定稿 mockC1 / C2）：
@@ -56,10 +59,15 @@ export default function RpgShell({ playerId }: { playerId: string }) {
   }, [])
   const title = open ? (open === 'me' ? '我的状态' : SUMMON.find(s => s.key === open)?.label ?? '') : ''
   const players = useGameStore((s) => s.players)
-  const followName = dir.mode === 'follow' ? players.find(p => p.id === dir.follow)?.name ?? '' : ''
+  const myId = useGameStore((s) => s.myPlayerId)
+  const followOther = dir.mode === 'follow' && dir.follow && dir.follow !== myId ? players.find(p => p.id === dir.follow) ?? null : null
+  const followName = followOther ? displayName(followOther.name, null) : ''
+  const followKey = followOther ? godotCharKeyFor(followOther.name, followOther.controller, followOther.agent_id) : 'achan'
+  // 导播跟随（director-follow.md）：每 2 s GET /player/{他}，左上卡 / 背包 / 聊天切到他（只读）；镇上的人 / 地图 / 设置 / QQ 不切
+  const followed = useFollowedPlayer(followOther ? followOther.id : null)
   return (
     <div className="rpg" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden', zoom: uiScale } as React.CSSProperties}>
-      <PlayerChip onOpen={() => toggle('me')} active={open === 'me'} />
+      <PlayerChip onOpen={() => { if (followOther) EventBus.emit('director-cmd', { cmd: 'self' }); else toggle('me') }} active={open === 'me'} override={followOther ? { player: followed ?? { ...followOther, profile: { name: followOther.name } } as unknown as import('../../types').Player, name: followName, key: followKey } : null} />
       <TopRight />
       {dir.mode !== 'self' && (
         <div style={panel({ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', padding: '4px 12px', fontSize: 12, borderRadius: 14 }, '#F2B84B')}>
@@ -71,18 +79,19 @@ export default function RpgShell({ playerId }: { playerId: string }) {
         <div style={{ pointerEvents: 'auto' }}><KnockPanel anchor="bottom" skin="rpg" /></div>
         <div style={{ pointerEvents: 'auto' }}><InteractionPanel anchor="bottom" skin="rpg" /></div>
       </div>
-      {open && open !== 'chat' && (
-        <PanelFrame title={title} onClose={() => setOpen(null)} width={open === 'people' ? 760 : open === 'map' ? 520 : open === 'settings' ? 520 : 600} dark={false}>
+      {open && (open !== 'chat' || followOther) && (
+        <PanelFrame title={title} onClose={() => setOpen(null)} width={open === 'people' ? 760 : open === 'map' ? 520 : open === 'settings' ? 520 : open === 'chat' ? 600 : 600} dark={false}>
           {open === 'people' && <PeoplePanel follow={dir.mode === 'follow' ? dir.follow : null} />}
           {open === 'map' && <div style={{ display: 'flex', justifyContent: 'center' }}><Minimap inline large /></div>}
-          {open === 'bag' && <BackpackPanel embedded />}
+          {open === 'bag' && (followOther ? <FollowBag player={followed} name={followName} /> : <BackpackPanel embedded />)}
           {open === 'log' && <ActionLog embedded />}
           {open === 'me' && <HUD embedded />}
           {open === 'settings' && <SettingsPanel />}
+          {open === 'chat' && followOther && <FollowChat id={followOther.id} name={followName} avatarKey={followKey} player={followed} />}
         </PanelFrame>
       )}
       {/* 聊天：始终挂载（轮询 / 聊天室状态不丢），按 5 显示；来邀请 / 进聊天室自动打开 */}
-      <div style={{ pointerEvents: 'auto' }}><ChatPanel embedded visible={open === 'chat'} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} /></div>
+      <div style={{ pointerEvents: 'auto' }}><ChatPanel embedded visible={open === 'chat' && !followOther} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} /></div>
       {/* 左下 QQ 手机图标 → 居中手机 */}
       <div style={{ pointerEvents: 'auto' }}><QQPanel playerId={playerId} readOnly={false} compact phone style={{ bottom: 16, left: 16, top: 'auto', right: 'auto' }} /></div>
       {/* 右下常态小地图 */}

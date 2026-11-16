@@ -451,7 +451,9 @@ export default class GameScene extends Phaser.Scene {
   }
   /** Godot OccluderFade：跟随 / 操控的那个人被外观 / 物品挡住（排序在他之前且矩形相交）→ 遮挡物淡到 0.45，0.18 s 缓入缓出 */
   private updateOccluders(dt: number) {
-    const target = this.mode === 'play' ? this.self : this.targetId ? this.others.get(this.targetId) ?? null : null
+    const target = this.mode === 'play'
+      ? (this.director === 'follow' && this.directorFollow ? (this.directorFollow === this.myPlayerId ? this.self : this.others.get(this.directorFollow) ?? null) : this.director === 'free' ? null : this.self)   // 导播跟随：对被跟随的人生效（director-follow.md）
+      : this.targetId ? this.others.get(this.targetId) ?? null : null
     const probe = target?.occluderProbe() ?? null
     const hit = new Set<Phaser.GameObjects.GameObject>()
     if (probe) {
@@ -887,7 +889,11 @@ export default class GameScene extends Phaser.Scene {
   private setupFreeCamera() {
     const cam = this.cameras.main
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC') as Record<string, Phaser.Input.Keyboard.Key> | null
-    this.input.keyboard?.on('keydown-ESC', () => this.freeCmd({ cmd: 'exit' }))
+    this.input.keyboard?.on('keydown-ESC', () => {
+      // 操控页：有面板 / QQ 窗开着时 Esc 先关它们（RpgShell 处理），不退出跟随
+      if (this.mode === 'play' && document.querySelector('[data-testid="rpg-popup"], [data-testid="qq-phone"]')) return
+      this.freeCmd({ cmd: 'exit' })
+    })
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { this.drag = { x: p.x, y: p.y, moved: false } })
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
       if (!this.drag || !p.isDown) return

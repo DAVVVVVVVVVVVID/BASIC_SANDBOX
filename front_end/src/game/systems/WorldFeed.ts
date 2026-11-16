@@ -59,6 +59,7 @@ function applyPatch(p: WsPatch) {
   if (p.objects) s.patchObjects(p.objects)
   if (p.chat) {
     for (const c of p.chat) {
+      EventBus.emit('chat-row', c)   // 导播跟随：只读对话面板实时追加（含 event 行）
       if (c.kind === 'message' && c.from_entity_id && c.content) {
         s.pushBubble(c.from_entity_id, c.content)
         EventBus.emit('chat-message', { entityId: c.from_entity_id, content: c.content, roomId: c.chat_room_id, fromName: c.from_name })

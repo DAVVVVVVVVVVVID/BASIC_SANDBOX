@@ -55,6 +55,9 @@ export interface RoomData {
 const get  = <T>(path: string) => apiGet<T>(path)
 const post = <T>(path: string, body: unknown) => apiPost<T>(path, body)
 
+/** W5 GET /history/chat：当日聊天 JSONL 回放（只读）。导播跟随的只读对话面板用，按 from / to / participants 过滤 */
+export interface ChatHistoryRow { kind: 'message' | 'event'; ts: string; game_time?: string; room_id: string; seq?: number; from?: string; from_name?: string; to?: string[]; text?: string; event?: string; participants?: string[]; entity?: string; reason?: string }
+export const getChatHistory = (since: string, limit = 500) => get<ChatHistoryRow[]>(`/history/chat?since=${encodeURIComponent(since)}&limit=${limit}`)
 export const getNearby = (entityId: string) =>
   get<{ players: NearbyPlayer[] }>(`/chat/nearby?entity_id=${encodeURIComponent(entityId)}`)
 
