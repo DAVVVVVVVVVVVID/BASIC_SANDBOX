@@ -38,15 +38,15 @@ export default function JoinScreenRpg({ onJoined }: Props) {
     <div className="rpg" style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(180deg, #BFE3F7 0%, #D8EFD4 60%, #B9DBA6 100%)', imageRendering: 'pixelated' }}>
       {/* 底纹：小镇全景截图淡淡铺底 */}
       <img src="assets/ui/login_bg.jpg" alt="" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55, imageRendering: 'pixelated' }} />
-      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, width: 520 }}>
-        <div style={{ position: 'relative', width: 520, height: 86, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundImage: `url(${kit('login_ribbon')})`, backgroundSize: '100% 100%', imageRendering: 'pixelated' }}>
-          <span style={{ fontSize: 30, fontWeight: 700, color: C.ink, letterSpacing: 2, marginTop: -6 }}>鲸仔小镇 · 操控台</span>
+      <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 18, width: 'min(520px, 94vw)' }}>
+        <div style={{ position: 'relative', width: 'min(520px, 94vw)', height: 86, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundImage: `url(${kit('login_ribbon')})`, backgroundSize: '100% 100%', imageRendering: 'pixelated' }}>
+          <span style={{ fontSize: 'clamp(20px, 5.5vw, 30px)', fontWeight: 700, color: C.ink, letterSpacing: 2, marginTop: -6 }}>鲸仔小镇 · 操控台</span>
         </div>
-        <div className="panel9" style={{ width: 400, padding: '14px 18px 18px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, color: C.ink }}>
+        <div className="panel9" style={{ width: 'min(400px, 90vw)', padding: '14px 18px 18px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, color: C.ink }}>
           <img className="px" src={avatarUrl('achan', 112)} width={96} height={96} alt="" style={{ borderRadius: 14, border: `3px solid ${C.sky}`, background: '#fff' }} />
           <div style={{ fontSize: 16, color: C.inkSoft }}>以阿蝉的身份进入小镇</div>
           <button onClick={handleJoinAsAchan} disabled={loading} data-testid="login-achan"
-            style={{ width: 300, height: 64, border: 'none', background: `url(${kit('login_big_btn')}) center / 100% 100% no-repeat`, color: '#fff', fontSize: 22, fontWeight: 700, cursor: loading ? 'default' : 'pointer', imageRendering: 'pixelated', textShadow: '0 1px 0 rgba(0,0,0,0.25)' }}>
+            style={{ width: 'min(300px, 76vw)', height: 64, border: 'none', background: `url(${kit('login_big_btn')}) center / 100% 100% no-repeat`, color: '#fff', fontSize: 22, fontWeight: 700, cursor: loading ? 'default' : 'pointer', imageRendering: 'pixelated', textShadow: '0 1px 0 rgba(0,0,0,0.25)' }}>
             {loading ? '进入中…' : '🎙 以阿蝉身份登录'}
           </button>
           {error && <div style={{ color: C.coral, fontSize: 13 }}>{error}</div>}

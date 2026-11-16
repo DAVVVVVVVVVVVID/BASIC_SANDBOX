@@ -86,7 +86,7 @@ function btn(bg: string): React.CSSProperties {
 type Mode = 'idle' | 'selecting' | 'waiting' | 'in_room'
 
 /** 像素 RPG 外壳（主播 11-16）：embedded = 装进底栏上方的弹出面板里（自己画 PanelFrame，始终挂载以保住轮询 / 聊天室状态）；visible 由外壳的「聊天」键控制；来邀请 / 进聊天室时 onRequestOpen 让外壳把面板打开 */
-export default function ChatPanel({ embedded = false, visible = true, onClose, onRequestOpen }: { embedded?: boolean; visible?: boolean; onClose?: () => void; onRequestOpen?: () => void } = {}) {
+export default function ChatPanel({ embedded = false, visible = true, onClose, onRequestOpen, frame = 'panel' }: { embedded?: boolean; visible?: boolean; onClose?: () => void; onRequestOpen?: () => void; frame?: 'panel' | 'plain' } = {}) {
   const myPlayerId = useGameStore((s) => s.myPlayerId)
   const myPlayer   = useGameStore((s) => s.player)
   const players    = useGameStore((s) => s.players)
@@ -116,6 +116,12 @@ export default function ChatPanel({ embedded = false, visible = true, onClose, o
   const myId   = myPlayerId ?? ''
   const myName = myPlayer?.profile?.name ?? myId
 
+  // 手机：点角色「聊天」→ 直接进选人态并勾上他（mobile.md）
+  useEffect(() => {
+    const onPick = ({ id }: { id: string }) => { if (mode === 'idle' || mode === 'selecting') { setSelected(new Set([id])); setMode('selecting') } }
+    EventBus.on('chat-pick', onPick)
+    return () => { EventBus.off('chat-pick', onPick) }
+  }, [mode])
   // 嵌入外壳：来邀请 / 进聊天室 / 等待中 → 请外壳打开聊天面板
   useEffect(() => { if (embedded && (pendingReq || mode === 'in_room' || mode === 'waiting')) onRequestOpen?.() }, [embedded, pendingReq, mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -328,7 +334,7 @@ export default function ChatPanel({ embedded = false, visible = true, onClose, o
     const inp: React.CSSProperties = { ...INPUT, background: '#fff', color: '#3B2F2F', border: '1px solid #7FB6E8' }
     const nearbyOthers = nearby.filter(p => !whale || p.entity_id !== whale.id)
     return (
-      <EmbeddedFrame visible={visible} onClose={onClose}>
+      <EmbeddedFrame visible={visible} onClose={onClose} plain={frame === 'plain'}>
         {toast && <div style={{ color: c('#fbd38d'), fontSize: 12, textAlign: 'center', marginBottom: 6 }}>{toast}</div>}
         {pendingReq && (
           <div style={{ border: `1px solid ${c('#4a5568')}`, borderRadius: 8, padding: '8px 10px', marginBottom: 8, background: c('#2d3748') }}>
@@ -617,7 +623,8 @@ export default function ChatPanel({ embedded = false, visible = true, onClose, o
 }
 
 // ─── 外壳里的弹出框（display:none 保住状态） ─────────────────────────────────
-function EmbeddedFrame({ visible, onClose, children }: { visible: boolean; onClose?: () => void; children: React.ReactNode }) {
+function EmbeddedFrame({ visible, onClose, plain, children }: { visible: boolean; onClose?: () => void; plain?: boolean; children: React.ReactNode }) {
+  if (plain) return <div style={{ display: visible ? 'block' : 'none' }}>{children}</div>   // 手机抽屉里：外壳自己画框
   return (
     <div style={{ display: visible ? 'block' : 'none' }}>
       <PanelFrame title="聊天" onClose={() => onClose?.()} width={560}>{children}</PanelFrame>

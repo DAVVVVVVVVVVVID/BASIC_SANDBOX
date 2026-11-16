@@ -13,12 +13,12 @@ import { itemMeta } from '../game/items'   // 老消息里的 kind:file 条目�
  *   旁观页：只读，看跟随目标（鲸仔）的会话；`layout=live` 收成右上角图标 + 未读角标，点开看最近 5 条。
  * 数据：ws `qq` 事件即时推；每 4 s 轮询 /qq/inbox 兜底；后端还没有 /qq/*（404）时面板显示「后端未开通」而不是报错。
  */
-interface Props { playerId: string; readOnly: boolean; compact?: boolean; style?: React.CSSProperties; /** 主播 11-15：手机样式（屏幕居中弹出，联系人 → 会话页），收起回角标 */ phone?: boolean }
+interface Props { playerId: string; readOnly: boolean; compact?: boolean; style?: React.CSSProperties; /** 主播 11-15：手机样式（屏幕居中弹出，联系人 → 会话页），收起回角标 */ phone?: boolean; /** 手机适配：全屏去壳、由外壳控制开合、软键盘高度 */ fullscreen?: boolean; forceOpen?: boolean; onClosed?: () => void; kb?: number }
 
 const POLL_MS = 4000
 const wallClockMs = () => Date.now()   // 节流用（事件 / effect 里调，不在渲染里）
 
-export default function QQPanel({ playerId, readOnly, compact = false, style, phone = false }: Props) {
+export default function QQPanel({ playerId, readOnly, compact = false, style, phone = false, fullscreen = false, forceOpen, onClosed, kb = 0 }: Props) {
   const qq = useGameStore((s) => s.qq)
   const players = useGameStore((s) => s.players)
   const { setQQContacts, mergeQQMessages, replaceQQThread, markQQRead } = useGameStore.getState()
@@ -27,6 +27,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
   const groupsRef = useRef<Set<string>>(new Set())
   const [peer, setPeer] = useState<string | null>(null)
   const [open, setOpen] = useState(!compact)
+  useEffect(() => { if (forceOpen !== undefined) setOpen(forceOpen) }, [forceOpen])
   const [text, setText] = useState('')
   const [err, setErr] = useState<string | null>(null)
   const peerRef = useRef<string | null>(null)
@@ -153,7 +154,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
     }
     const threadOf = (c: QQContact) => qq.messages.filter(m => c.group ? m.group === c.id : (!m.group && ((!isMine(m) && m.from === c.id) || (isMine(m) && m.to === c.id))))
     const lastOf = (c: QQContact) => { const ms = threadOf(c); return ms[ms.length - 1] }
-    const close = () => { setOpen(false) }
+    const close = () => { setOpen(false); onClosed?.() }
     // 排序：有未读在前 → 最后一条时间倒序 → 群固定最后
     const sorted = [...contacts].sort((a, b) => (Number(!!a.group) - Number(!!b.group)) || (Number(b.unread > 0) - Number(a.unread > 0)) || ((lastOf(b)?.ts ?? '').localeCompare(lastOf(a)?.ts ?? '')))
     // 三期（总控 qq-redo.md）：仿 QQ NT 桌面版三栏；逻辑仍在本组件，QQDesktop 只管画
@@ -161,7 +162,7 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
     return (
       <QQMobile myKey={myKey} contacts={sorted} peer={peer} setPeer={setPeer} threadOf={threadOf} isMine={isMine} nameOf={nameOf} keyOf={qqKeyOf} nickOf={qqNick}
         totalUnread={totalUnread} text={text} setText={setText} doSend={doSend} doRead={() => doRead(true)} err={err} readOnly={readOnly} listRef={listRef}
-        gameDate={useGameStore.getState().worldState?.date} available={qq.available} onClose={close} />
+        gameDate={useGameStore.getState().worldState?.date} available={qq.available} onClose={close} fullscreen={fullscreen} kb={kb} />
     )
   }
 

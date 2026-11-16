@@ -91,7 +91,7 @@ export default function KnockPanel({ anchor = 'top', skin = 'dark' }: { anchor?:
   }
 
   return (
-    <div className={skin === 'rpg' ? 'toast9' : ''} style={{ position: anchor === 'bottom' ? 'relative' : 'absolute', top: anchor === 'bottom' ? 'auto' : 104, left: '50%', transform: 'translateX(-50%)', margin: anchor === 'bottom' ? '6px 0' : 0, width: 420, ...(skin === 'rpg' ? { color: '#3B2F2F', fontSize: 13, padding: '0 6px', userSelect: 'none' as const } : { background: 'rgba(30,20,15,0.92)', border: '1px solid #b7791f', borderRadius: 10, color: '#fff7ed', fontSize: 13, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none' as const, boxShadow: '0 4px 18px rgba(0,0,0,0.4)' }) }}>
+    <div className={skin === 'rpg' ? 'toast9' : ''} style={{ position: anchor === 'bottom' ? 'relative' : 'absolute', top: anchor === 'bottom' ? 'auto' : 104, left: '50%', transform: 'translateX(-50%)', margin: anchor === 'bottom' ? '6px 0' : 0, width: 'min(420px, calc(100vw - 16px))', ...(skin === 'rpg' ? { color: '#3B2F2F', fontSize: 13, padding: '0 6px', userSelect: 'none' as const } : { background: 'rgba(30,20,15,0.92)', border: '1px solid #b7791f', borderRadius: 10, color: '#fff7ed', fontSize: 13, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none' as const, boxShadow: '0 4px 18px rgba(0,0,0,0.4)' }) }}>
       {knocks.map((k) => {
         const doorId = k.door?.door_id ?? k.door?.id
         const d = doors.find((x) => x.door_id === doorId) ?? doors.find((x) => k.door && x.x === k.door.x && x.y === k.door.y)

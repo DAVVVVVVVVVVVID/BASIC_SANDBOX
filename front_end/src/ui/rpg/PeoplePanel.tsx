@@ -27,7 +27,7 @@ export default function PeoplePanel({ follow }: { follow: string | null }) {
   const go = (r: Row) => EventBus.emit('director-cmd', r.self ? { cmd: 'self' } : { cmd: 'follow', id: r.id })
   const STATE_ZH: Record<string, string> = { idle: '站着', walking: '走路', using: '使用中', talking: '聊天中', sleeping: '睡觉中' }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, minWidth: 0 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 8, minWidth: 0 }}>
       {rows.map(r => {
         const doing = STATE_ZH[r.doing] ?? r.doing
         const pc = pillColor(r.online ? doing : '离线')

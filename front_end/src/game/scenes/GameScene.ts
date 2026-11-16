@@ -724,6 +724,14 @@ export default class GameScene extends Phaser.Scene {
 
   // ── 自己 ─────────────────────────────────────────────────────────────────────
 
+  /** 手机模式（mobile.md）：(pointer: coarse) 且短边 ≤ 820，?m=1/0 强制 */
+  private touchUi(): boolean {
+    const q = new URLSearchParams(window.location.search).get('m')
+    if (q === '1') return true
+    if (q === '0') return false
+    return (window.matchMedia?.('(pointer: coarse)').matches ?? false) && Math.min(window.innerWidth, window.innerHeight) <= 820
+  }
+  private pinch: { d0: number; z0: number } | null = null
   /** 操控页像素 RPG 皮肤（主播 11-16）：旁观页与 ?ui=old 不启用 */
   private rpgSkin(): boolean { return this.mode === 'play' && new URLSearchParams(window.location.search).get('ui') !== 'old' }
 
@@ -754,6 +762,11 @@ export default class GameScene extends Phaser.Scene {
           else this.self!.setPath([pos], true)           // 回弹 / 小校正：平滑走回，朝向以服务器为准
         },
         onClickConsume: (wx, wy) => {
+          if (this.touchUi()) {
+            // 手机：点到角色 → 弹动作条（聊天 / 看看他 / 跟随），不走路
+            for (const [id, s] of this.others) if (s.containsPoint(wx, wy)) { const cam = this.cameras.main; const px = s.getPixelPosition(); EventBus.emit('actor-tap', { id, name: useGameStore.getState().players.find(p => p.id === id)?.name ?? id, x: (px.x - cam.worldView.x) * cam.zoom, y: (px.y - cam.worldView.y) * cam.zoom }); return true }
+            if (this.self?.containsPoint(wx, wy)) return true
+          }
           if (this.director === 'self') return false
           for (const [id, s] of this.others) if (s.containsPoint(wx, wy)) { this.directorCmd({ cmd: 'follow', id }); return true }
           if (this.self?.containsPoint(wx, wy)) { this.directorCmd({ cmd: 'self' }); return true }
@@ -895,7 +908,20 @@ export default class GameScene extends Phaser.Scene {
       this.freeCmd({ cmd: 'exit' })
     })
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { this.drag = { x: p.x, y: p.y, moved: false } })
+    this.input.addPointer(1)   // 第二根手指：双指缩放
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      // 双指缩放（自由镜头；手机 mobile.md）：两指都按下时按两指距离比例缩放，不平移
+      const p1 = this.input.pointer1, p2 = this.input.pointer2
+      if (p1?.isDown && p2?.isDown) {
+        if (this.mode === 'play' && this.director === 'self') return
+        if (this.camMode !== 'free') { this.enterFree(); if (this.mode === 'play') this.directorCmd({ cmd: 'free' }) }
+        const d = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y)
+        if (!this.pinch) { this.pinch = { d0: d, z0: cam.zoom }; return }
+        const z = Phaser.Math.Clamp(this.pinch.z0 * (d / Math.max(1, this.pinch.d0)), MIN_ZOOM, MAX_ZOOM)
+        this.freeZoom = z; cam.setZoom(z); this.drag = null
+        return
+      }
+      this.pinch = null
       if (!this.drag || !p.isDown) return
       const dx = p.x - this.drag.x, dy = p.y - this.drag.y
       if (!this.drag.moved && Math.hypot(dx, dy) < 5) return
