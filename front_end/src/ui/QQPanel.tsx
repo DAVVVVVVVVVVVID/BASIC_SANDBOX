@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { godotCharKeyFor } from '../game/godotChars'
+import QQDesktop from './rpg/QQDesktop'
 import qqNicknames from './qqNicknames.json'
 import { EventBus } from '../game/EventBus'
 import { fetchContactsWithAccount, fetchInbox, markRead, msgClock, normalizeMessage, sendText, type QQContact, type QQMessage } from '../api/qq'
@@ -152,77 +153,15 @@ export default function QQPanel({ playerId, readOnly, compact = false, style, ph
     }
     const threadOf = (c: QQContact) => qq.messages.filter(m => c.group ? m.group === c.id : (!m.group && ((!isMine(m) && m.from === c.id) || (isMine(m) && m.to === c.id))))
     const lastOf = (c: QQContact) => { const ms = threadOf(c); return ms[ms.length - 1] }
-    const now = useGameStore.getState().worldState?.time ?? ''
     const close = () => { setOpen(false) }
     // 排序：有未读在前 → 最后一条时间倒序 → 群固定最后
     const sorted = [...contacts].sort((a, b) => (Number(!!a.group) - Number(!!b.group)) || (Number(b.unread > 0) - Number(a.unread > 0)) || ((lastOf(b)?.ts ?? '').localeCompare(lastOf(a)?.ts ?? '')))
-    const INK = '#3b3a44', SUB = '#8a8a96', FAINT = '#b4b4bf'
+    // 三期（总控 qq-redo.md）：仿 QQ NT 桌面版三栏；逻辑仍在本组件，QQDesktop 只管画
+    const myKey = (() => { const me = contacts.find(c => !c.group && accountRef.current && c.id === accountRef.current); return me ? qqKeyOf(me) : 'achan' })()
     return (
-      <div className="rpg" onClick={close} onKeyDown={e => { if (e.key === 'Escape') close() }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div onClick={e => e.stopPropagation()} data-testid="qq-phone" style={{ width: 374, height: 'min(700px, 92vh)', position: 'relative', display: 'flex', flexDirection: 'column', color: INK }}>
-          {/* 壳：kit phone_shell 九宫格；屏幕 cream */}
-          <div style={{ position: 'absolute', inset: 0, borderWidth: 28, borderStyle: 'solid', borderColor: 'transparent', borderImage: 'url(assets/ui/kit/phone_shell.png) 60 fill / 28px stretch', imageRendering: 'pixelated', pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', left: 14, right: 14, top: 18, bottom: 22, background: '#FFF8EC', borderRadius: 18, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* 状态栏 */}
-            <div style={{ display: 'flex', alignItems: 'center', padding: '8px 16px 2px', fontSize: 12, color: SUB }}>
-              <span>{now.slice(0, 5) || '--:--'}</span>
-              <span style={{ marginLeft: 'auto', marginRight: 8 }}>{totalUnread > 0 ? `${totalUnread} 未读` : '📶'}</span>
-              <button className="closex" onClick={close} title="收起" style={{ width: 22, height: 22 }}>✕</button>
-            </div>
-            {qq.available === false && <div style={{ padding: 16, color: SUB }}>QQ 还没开通。</div>}
-            {qq.available !== false && !peer && (
-              <>
-                <div style={{ padding: '4px 16px 8px', fontSize: 20, fontWeight: 700 }}>QQ <span style={{ fontSize: 12, color: SUB, fontWeight: 400, marginLeft: 6 }}>{nameOf(playerId)}</span></div>
-                <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px 8px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {sorted.length === 0 && <div style={{ padding: 18, color: FAINT, textAlign: 'center' }}>没有联系人</div>}
-                  {sorted.map(c => { const last = lastOf(c); return (
-                    <div key={c.id} onClick={() => setPeer(c.id)} data-testid={`qq-contact-${c.id}`} className="panel9" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2px 6px', cursor: 'pointer', minHeight: 44 }}>
-                      <QQAvatar c={c} size={48} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline', minWidth: 0 }}><QQName c={c} size={14} /><span style={{ color: SUB, fontSize: 11, flexShrink: 0 }}>{last ? msgClock(last) : ''}</span></div>
-                        <div style={{ fontSize: 12, color: last ? '#6b6b78' : FAINT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...(last ? {} : { fontSize: 11 }) }}>{last ? (last.kind === 'file' ? '[文件]' : last.text) : '还没有消息'}</div>
-                      </div>
-                      {c.unread > 0 && <span style={{ background: '#FF8A73', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: 11, border: '1px solid #fff' }}>{c.unread}</span>}
-                    </div>
-                  ) })}
-                </div>
-              </>
-            )}
-            {qq.available !== false && peer && (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 8px 6px', borderBottom: '2px solid #7FB6E8' }}>
-                  <button onClick={() => setPeer(null)} data-testid="qq-back" title="返回" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 0 }}><img className="mi" src="assets/ui/kit/dir_back.png" alt="‹" style={{ width: 26, height: 26 }} /></button>
-                  {peerC && <QQAvatar c={peerC} size={32} />}
-                  {peerC ? <QQName c={peerC} size={15} /> : <b style={{ fontSize: 15, color: INK }}>{peer}</b>}
-                  {(peerC?.unread ?? 0) > 0 && <span style={{ color: '#FF8A73', fontSize: 11 }}>{peerC!.unread} 未读</span>}
-                  {!readOnly && <button className="k" onClick={() => doRead(true)} title="读消息占 1 游戏分钟（打开会话会自动读一次）" style={{ marginLeft: 'auto', fontSize: 12, minHeight: 28, whiteSpace: 'nowrap', flexShrink: 0 }}>标为已读</button>}
-                </div>
-                <div ref={listRef} style={{ flex: 1, overflowY: 'auto', padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {thread.length === 0 && peerC && <div style={{ textAlign: 'center', marginTop: 30, color: FAINT, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}><QQAvatar c={peerC} size={80} /><span style={{ fontSize: 12 }}>还没有消息</span></div>}
-                  {thread.map(m => { const mine = isMine(m); return (
-                    <div key={m.id} style={{ alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '82%', display: 'flex', flexDirection: 'column', alignItems: mine ? 'flex-end' : 'flex-start' }}>
-                      <div style={{ borderWidth: '12px 18px 16px 18px', borderStyle: 'solid', borderColor: 'transparent', borderImage: `url(assets/ui/kit/${mine ? 'speech_r' : 'speech_l'}.png) 30 50 44 50 fill / 12px 18px 16px 18px stretch`, imageRendering: 'pixelated', padding: '0 2px', fontSize: 13, color: mine ? '#fff' : INK, wordBreak: 'break-word', lineHeight: 1.4, ...(mine ? { filter: 'none' } : {}) }}>
-                        <span style={mine ? { background: '#3BB7A8', boxShadow: '0 0 0 6px #3BB7A8', borderRadius: 2 } : undefined}>{m.kind === 'file' ? <span>{itemMeta(m.file?.type, m.file?.name).icon} 文件：{m.file?.name || itemMeta(m.file?.type).label}</span> : m.text}</span>
-                      </div>
-                      <div style={{ color: SUB, fontSize: 10, marginTop: -6 }}>{mine ? '我' : (m.fromName ?? nameOf(m.from))} · {msgClock(m)}{!mine && !m.readAt ? ' · 未读' : ''}</div>
-                    </div>
-                  ) })}
-                </div>
-                {!readOnly && (
-                  <div style={{ padding: '6px 10px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') doSend() }} placeholder={`发给 ${peerC?.name ?? peer}…`} autoFocus
-                        style={{ flex: 1, borderWidth: 10, borderStyle: 'solid', borderColor: 'transparent', borderImage: 'url(assets/ui/kit/input_box.png) 24 fill / 10px stretch', imageRendering: 'pixelated', background: 'none', color: INK, padding: '2px 6px', fontSize: 13, outline: 'none', minHeight: 36 }} />
-                      <button onClick={doSend} disabled={!text.trim()} style={{ width: 72, height: 38, border: 'none', background: 'url(assets/ui/kit/send_btn.png) center / 100% 100% no-repeat', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', imageRendering: 'pixelated', opacity: text.trim() ? 1 : 0.6 }}>发送</button>
-                    </div>
-                    {err && <div style={{ color: '#FF8A73', fontSize: 11 }}>{err}</div>}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+      <QQDesktop myKey={myKey} contacts={sorted} peer={peer} setPeer={setPeer} threadOf={threadOf} isMine={isMine} nameOf={nameOf} keyOf={qqKeyOf} nickOf={qqNick}
+        totalUnread={totalUnread} text={text} setText={setText} doSend={doSend} doRead={() => doRead(true)} err={err} readOnly={readOnly} listRef={listRef}
+        gameDate={useGameStore.getState().worldState?.date} available={qq.available} onClose={close} />
     )
   }
 
@@ -293,7 +232,6 @@ const btn: React.CSSProperties = { background: '#2b6cb0', border: 'none', border
 
 // ─── QQ 头像（总控 qq-redo.md）：人物用裁好的精灵头像 + 3px 人设色外框 + 1px 白内框；镇公所 / 直播组用 kit04 图标 ───
 // 二期（主播 11-16 12:3x）：头像换成「这个人自己会选的 QQ 头像」（run/data/art/ui-redo/qq-avatars → public/assets/ui/qq），网名只在界面显示、真名小字保留；按 QQ 账号 id 映射，不动后端
-const QQ_RING: Record<string, string> = { whale: '#7FB6E8', achan: '#C9B6F2', claudine: '#FF8A73', fisher: '#3BB7A8', grocer: '#F2B84B', cook: '#FFB38A', townhall: '#7FB6E8', livegroup: '#7FB6E8' }
 const NICK = qqNicknames as Record<string, { nick: string; name: string }>
 /** 联系人 → 头像 key（whale / achan / claudine / grocer / cook / fisher / townhall / livegroup） */
 export function qqKeyOf(c: QQContact): string {
@@ -304,14 +242,4 @@ export function qqKeyOf(c: QQContact): string {
 export function qqNick(c: QQContact): { nick: string; name: string } {
   const n = NICK[qqKeyOf(c)]
   return n ? { nick: n.nick, name: n.name } : { nick: c.name, name: '' }
-}
-function QQAvatar({ c, size }: { c: QQContact; size: number }) {
-  const key = qqKeyOf(c)
-  const src = `assets/ui/qq/${key}_${size > 56 ? 112 : 56}.png`
-  return <img className="px" src={src} width={size} height={size} alt="" style={{ borderRadius: 10, border: `3px solid ${QQ_RING[key] ?? '#7FB6E8'}`, boxShadow: 'inset 0 0 0 1px #fff', background: '#fff', flexShrink: 0, imageRendering: 'pixelated' }} />
-}
-/** 网名 + 真名小字 */
-function QQName({ c, size = 14 }: { c: QQContact; size?: number }) {
-  const n = qqNick(c)
-  return <span style={{ minWidth: 0, display: 'inline-flex', alignItems: 'baseline', gap: 6, flex: 1 }}><b style={{ fontSize: size, color: '#3b3a44', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.nick}</b>{n.name && n.name !== n.nick && <span style={{ fontSize: Math.max(10, size - 3), color: '#8a8a96', whiteSpace: 'nowrap', flexShrink: 0 }}>{n.name}</span>}</span>
 }
