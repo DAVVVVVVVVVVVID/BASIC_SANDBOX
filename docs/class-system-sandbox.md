@@ -136,3 +136,11 @@
 3. 写作选修「当堂打分」：沙盒记答案，分数由 A 事后打并写回？还是当堂要出分（那需要 A 提供一个同步评分接口）？
 4. 小克是否也有打瞌睡概率（设计稿只写鲸仔，缺省 0）。
 5. 课时段内教学楼门 08:00–20:00 已覆盖，不改。
+
+## 9. 前端需求（会话 E 11-16，v1.4.0 一并给）
+
+1. `GET /world.players[]` 与 ws upsert 每人带精简 `lesson {lesson_id, course, title, dozing}`（不在课为 null；`dozing` = 当前段睡着了），头顶「上课中 / zZ」不用逐人轮询；ws `lesson` 事件 `doze` 带 `entity`（player id）。
+2. `GET /player.inventory[]` 原样带 `class_notes` 的完整 `meta.segments[{i, text, status}]` 与 `homework_receipt` 的 meta——跟随视角只读也能看全文（`read_item` 只是 agent 用的便捷入口）。
+3. CD 创作单字段名（建议 C 在 compose 时放进 meta）：`title / genre / scene / mood / form / chords / lyrics / arrangement`；前端缺字段就不显示。待 C 确认后定稿。
+4. `homework_box` 在 `/world.objects[]` 带 `hint`：「带着 CD 使用 = 交作业，截止周五 10:45（之后算迟交）」（截止时刻按配置拼）；前端只展示 `result.message / late / due`，不判断能不能交。
+5. `GET /school/today?player=` 返回结构落地后贴样例给 E。
