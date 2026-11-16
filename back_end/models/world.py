@@ -107,6 +107,7 @@ class OtherPlayer(BaseModel):
     rent: Optional[dict] = None        # world-v1.1 §3.3：{amount, items, due_at, due_in_days, overdue, owed, landlord, balance}
     dnd: Optional[bool] = None         # world-v1.3：静态勿扰（tags 里同时有 dnd / working）
     chat_room_id: Optional[str] = None # v1.3.13：当前 active 聊天房 id，不在房 null
+    last_thought: Optional[dict] = None # v1.3.19：思考气泡 {text, kind, game_time, ts}，只在 /world?view=admin 带
 
 
 class WorldData(BaseModel):

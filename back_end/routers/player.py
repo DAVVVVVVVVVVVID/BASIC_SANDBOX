@@ -21,6 +21,26 @@ class DndRequest(BaseModel):
     on: bool
 
 
+class ThoughtRequest(BaseModel):
+    text: str
+    kind: str = "think"                  # think | plan | wait
+    game_time: Optional[str] = None      # 缺省沙盒当前游戏钟
+    ts: Optional[str] = None             # 定稿字段名（同 game_time）
+
+
+@router.post("/player/{player_id}/thought")
+def post_player_thought(player_id: str, body: ThoughtRequest):
+    """v1.3.19 思考气泡：agent 每轮 Think 后推一句（≤ 60 字，超长截断；kind think | plan）。存 player.last_thought，
+    /world?view=admin 的 players[] 带出（旁观 / 直播布局不传 view 就看不到），ws 推 {type: thought, entity, text, kind, game_time}（定稿：带正文，旁观页自己不渲染），actions 日志 type thought。"""
+    from game.world_state import set_thought
+    if not body.text.strip():
+        raise HTTPException(status_code=400, detail="text required")
+    rec = set_thought(player_id, body.text, body.kind, body.game_time or body.ts)
+    if rec is None:
+        raise HTTPException(status_code=404, detail=f"player not found: {player_id}")
+    return {"ok": True, "playerId": player_id, "last_thought": rec}
+
+
 class RejoinRequest(BaseModel):
     playerId: str
 

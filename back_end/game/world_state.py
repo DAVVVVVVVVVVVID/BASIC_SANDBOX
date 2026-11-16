@@ -870,8 +870,8 @@ def _cleanup_stale_players() -> None:
 
 # ── 公开访问函数 ──────────────────────────────────────────────────────────────
 
-def get_world(viewer: str | None = None) -> dict:
-    """只读（B8）：时间推进、buff tick、stale 清理都在后台 ticker 里。viewer（player id / agent_id）给则物品带 daily_used_min。"""
+def get_world(viewer: str | None = None, admin: bool = False) -> dict:
+    """只读（B8）：时间推进、buff tick、stale 清理都在后台 ticker 里。viewer（player id / agent_id）给则物品带 daily_used_min。admin=True 带 last_thought（v1.3.19）。"""
     from game.time_state import get_time_state
     world_state = get_time_state()
     world_state["weather"] = _WEATHER
@@ -882,7 +882,7 @@ def get_world(viewer: str | None = None) -> dict:
         "tiles":      _TILES,
         "objects":    [_object_view(o, gts, _resolve_viewer(viewer)) for o in _OBJECTS],
         "worldState": world_state,
-        "players":    get_all_players_snapshot(),
+        "players":    get_all_players_snapshot(include_thought=admin or thought_visible_to() == "all"),
         "tiled":      _MAP_DATA.get("tiled"),
         "zone_names": _MAP_DATA.get("zone_names", {}),   # W7 E：区域中文名，只读
         "map": map_graph_summary(),                      # W9：v2 的 edges / floors / access（v1 地图为空）
@@ -916,12 +916,46 @@ def get_player(player_id: str) -> dict | None:
     from game import economy as _eco2
     from game.qq import account_of as _acc2
     data["today_sales"] = _eco2.today_sales(_acc2(player))     # v1.3.18：卖家今天卖了多少（C：餐厅老板不知道自己午市卖了 13 顿）
+    if thought_visible_to() != "all":
+        data.pop("last_thought", None)                         # v1.3.19：GET /player 缺省不带（旁观页也用它）；导播页走 /world?view=admin
     data["pendingMessage"] = _pending_messages.get(player_id)
     _pending_messages[player_id] = None
     return data
 
 
-def get_all_players_snapshot() -> list[dict]:
+THOUGHT_MAX_CHARS = 60
+
+
+def thought_visible_to() -> str:
+    """v1.3.19：last_thought 对谁可见——env SANDBOX_THOUGHT_VISIBLE_TO = admin（缺省：只 /world?view=admin、ws 不带正文）| all。"""
+    return (os.environ.get("SANDBOX_THOUGHT_VISIBLE_TO") or "admin").strip().lower()
+
+
+def set_thought(player_id: str, text: str, kind: str = "think", game_time: str | None = None) -> dict | None:
+    """v1.3.19 思考气泡：agent 每轮 Think 后推一句（≤ 60 字，超长截断）。存 player.last_thought，记 actions 日志 type thought，ws 推 thought（正文按可见性）。"""
+    with STATE_LOCK:
+        p = _players.get(player_id)
+        if p is None:
+            return None
+        t = (text or "").strip()
+        if len(t) > THOUGHT_MAX_CHARS:
+            t = t[:THOUGHT_MAX_CHARS - 1] + "…"
+        rec = {"text": t, "kind": kind if kind in ("think", "plan", "wait") else "think", "game_time": game_time or _iso_game_now()}
+        p["last_thought"] = rec
+    try:
+        from game.action_log import append_log
+        append_log(player_id, "thought", {"kind": rec["kind"], "text": t, "game_time": rec["game_time"]}, success=True, reason=None)
+    except Exception:
+        pass
+    try:
+        from routers.ws import hub
+        hub.push_event({"type": "thought", "entity": player_id, "text": t, "kind": rec["kind"], "game_time": rec["game_time"]})   # 定稿（E 3cd5dae / C）：ws 带正文，旁观页自己不渲染
+    except Exception:
+        pass
+    return rec
+
+
+def get_all_players_snapshot(include_thought: bool = False) -> list[dict]:
     return [
         {
             "id":       p["id"],
@@ -938,6 +972,7 @@ def get_all_players_snapshot() -> list[dict]:
             "tags":          view_tags(p),             # E①；world-v1.3：勿扰者多 dnd（在家再多 working）
             "dnd":           is_dnd(p),                # world-v1.3
             "chat_room_id":  _room_of_safe(p["id"]),   # v1.3.13
+            "last_thought":  (p.get("last_thought") if include_thought else None),   # v1.3.19：只在 /world?view=admin（导播 / 操控页）带出
             "pos_seq":       p.get("pos_seq", 0),      # E⑥：位置单调序号
             "gold":          int(p.get("gold", 0)),    # W10 ④
             "inventory":     _inv_view_safe(p),        # W10 ④：[{type, name, class, count}]

@@ -1679,6 +1679,12 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - **冰箱 `empty`**：`/world.objects[]` 存储类（fridge）多 `empty: bool`（非存储类 null），C 感知「冰箱空」不必再 `take` 一次撞 `empty`。
 - 鱼摊：`shops.fish_stall.daily_supply {fish: 6}` 每日 08:00 固定上新，与老渔夫当天钓到几条无关（v1.1 供给模型）——不是 bug；要「卖自己钓的」需另立规则（渔夫 `sell` 入摊 / 上新量按前日渔获），未做。
 
+### 12.23 思考气泡（tag `world-v1.3.19`；主播需求，字段按总控 11-16 定稿 = E 3cd5dae / C）
+
+- `POST /player/{id}/thought {text, kind: think|plan|wait, ts?}`（agent 每轮 Think 后推一句；`text` ≤ 60 字，超长截断加 …；`ts` 即游戏时刻，缺省沙盒当前钟；也接受 `game_time`）→ `{ok, playerId, last_thought}`。
+- 存 `player.last_thought {text, kind, game_time}`（进检查点）。**只在导播 / 操控页可见**：`GET /world?view=admin` 的 `players[].last_thought` 带出，不传 `view` 为 `null`（旁观 / 直播布局）；`GET /player/{id}` 缺省不带。env `SANDBOX_THOUGHT_VISIBLE_TO=all` 时全带（缺省 `admin`）。
+- ws `/ws/world` 推 `{type: "thought", entity: <player id>, text, kind, game_time}`（定稿：带正文，旁观页自己不渲染）。actions 日志 `type: thought`（payload kind / text / game_time），给数据集。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

@@ -45,6 +45,10 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5az. world-v1.3.19：思考气泡（主播需求；字段按总控定稿）—— 完成，周一 .5 窗带上
+
+- `POST /player/{id}/thought`、`player.last_thought`、`/world?view=admin` 才带（旁观 / 直播布局不传 view 看不到；GET /player 缺省不带；env `SANDBOX_THOUGHT_VISIBLE_TO=all` 全开）、ws `thought` 事件带正文、actions 日志 type thought。工时 0.15 d。测试 +2、ws 字段集 +1；**368 passed**；api-spec §12.23。踩坑：`append_log` 的 `reason` 是必填位置参数，漏传被 try 吞掉导致日志没写——测试抓到。
+
 ## 5ay. world-v1.3.18：经济侧四条（总控转 A 轨迹报告 + C 卖家感知）—— 完成，周一 .5 窗带上（economy sha 又变）
 
 - ① 「每次 use pc 产生合成收入 445，20–23 正式直播反无收入」：合成收入原按**每次离开**随机 5–35、与时长无关；20:00 那场她一直没离开，跨 07:36 重启后才在 11-16 结了 1 笔。改为按时长（每小时 600–1500 人次 / 0–8 礼物，< 5 min 不记，只结 scene live 的会话），`use_start_game_ts` 进检查点，重启切断的直播会话在回填时自动下播并结算。

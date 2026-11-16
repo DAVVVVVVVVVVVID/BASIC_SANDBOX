@@ -290,3 +290,46 @@ def test_v1318_economy_fixes(client, v12, fake_clock, monkeypatch):
     objs = {o["id"]: o for o in client.get("/world", params={"fields": "objects"}).json()["objects"]}
     assert objs["fridge_home"]["empty"] is False and objs["counter"].get("empty") is None
     client.post("/admin/scenario", json={"steps": []})
+
+
+def test_thought_bubble_v1319(client, v12, monkeypatch):
+    """v1.3.19：POST /player/{id}/thought → last_thought；只在 /world?view=admin 带出；GET /player 缺省不带；ws 事件缺省不带正文；超长截断；actions 日志 type thought。"""
+    import json as _json
+    monkeypatch.delenv("SANDBOX_THOUGHT_VISIBLE_TO", raising=False)
+    whale = _agent(client, "whale")
+    r = client.post(f"/player/{whale}/thought", json={"text": "该去餐厅了吧，有点饿", "kind": "plan"}).json()
+    assert r["ok"] and r["last_thought"] == {"text": "该去餐厅了吧，有点饿", "kind": "plan", "game_time": r["last_thought"]["game_time"]} and r["last_thought"]["game_time"]
+    assert client.post(f"/player/{whale}/thought", json={"text": "   "}).status_code == 400
+    assert client.post("/player/nobody/thought", json={"text": "x"}).status_code == 404
+    long = "想" * 80
+    assert len(client.post(f"/player/{whale}/thought", json={"text": long}).json()["last_thought"]["text"]) == 60
+    pub = {p["id"]: p for p in client.get("/world", params={"fields": "players"}).json()["players"]}
+    assert pub[whale]["last_thought"] is None                                                    # 旁观 / 直播布局看不到
+    adm = {p["id"]: p for p in client.get("/world", params={"fields": "players", "view": "admin"}).json()["players"]}
+    assert adm[whale]["last_thought"]["kind"] == "think" and adm[whale]["last_thought"]["text"].endswith("…")
+    assert "last_thought" not in client.get(f"/player/{whale}").json()
+    monkeypatch.setenv("SANDBOX_THOUGHT_VISIBLE_TO", "all")
+    assert client.get(f"/player/{whale}").json()["last_thought"]["kind"] == "think"
+    assert {p["id"]: p for p in client.get("/world", params={"fields": "players"}).json()["players"]}[whale]["last_thought"] is not None
+    from game.action_log import read_log
+    rows = read_log(entity=whale)
+    th = [x for x in rows if x["type"] == "thought" and x["entityId"] == whale]
+    assert len(th) == 2 and th[0]["payload"]["kind"] == "plan" and th[0]["payload"]["text"] == "该去餐厅了吧，有点饿"
+
+
+
+def test_thought_ws_event_carries_text(client, v12):
+    import json as _json, time as _time
+    from fastapi.testclient import TestClient
+    from main import app
+    with TestClient(app) as live:
+        whale = live.post("/player/join", json={"name": "whale", "controller": "agent", "profile": {"agent_id": "whale"}}).json()["playerId"]
+        with live.websocket_connect("/ws/world") as ws:
+            _json.loads(ws.receive_text())                                          # 首帧快照
+            live.post(f"/player/{whale}/thought", json={"text": "去钓鱼", "kind": "wait", "ts": "2026-11-16T10:00:00+08:00"})
+            got = None; t0 = _time.time()
+            while _time.time() - t0 < 3 and got is None:
+                m = _json.loads(ws.receive_text())
+                if m.get("type") == "thought":
+                    got = m
+            assert {k: got[k] for k in ("type", "entity", "text", "kind", "game_time")} == {"type": "thought", "entity": whale, "text": "去钓鱼", "kind": "wait", "game_time": "2026-11-16T10:00:00+08:00"}

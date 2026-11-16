@@ -39,9 +39,10 @@ def admin_path(frm: str = Query(..., alias="from", description="x,y"), to: Optio
 
 @router.get("/world", response_model=WorldData)
 def get_world_data(fields: Optional[str] = Query(default=None, description="逗号分隔，只回这些顶层字段，如 players,objects,worldState（E③ 瘦身）"),
-                   player: Optional[str] = Query(default=None, description="world-v1.1：按这个 player（id / agent_id）给物品的 daily_used_min")):
+                   player: Optional[str] = Query(default=None, description="world-v1.1：按这个 player（id / agent_id）给物品的 daily_used_min"),
+                   view: Optional[str] = Query(default=None, description="v1.3.19：admin = 导播 / 操控页，players[] 带 last_thought（思考气泡）；旁观 / 直播布局不要传")):
     # 只读（B8）：时间推进与 buff tick 由后台 ticker 负责
-    world = get_world(viewer=player)
+    world = get_world(viewer=player, admin=(view == "admin"))
     if fields:
         want = {f.strip() for f in fields.split(",") if f.strip() in _FIELDS}
         # 走同一个响应模型序列化（字段形状与全量一致），只保留请求的顶层键
