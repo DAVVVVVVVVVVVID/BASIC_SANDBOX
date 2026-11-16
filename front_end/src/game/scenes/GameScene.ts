@@ -151,6 +151,7 @@ export default class GameScene extends Phaser.Scene {
     preloadAiAssets(this)
     preloadGodotChars(this)   // 11-14：Godot 六角色条带（/art → whale-godot/assets/ext）
     preloadGodotMap(this, this.worldData.objects.map(o => o.type))   // 11-14 ②：Godot 地砖 / 物品清单（同一份素材源）
+    if (this.rpgSkin()) for (const [k, f] of [['kit_speech_m', 'speech_m'], ['kit_thought_m', 'thought_m'], ['kit_name_tag_a', 'name_tag_a']]) if (!this.textures.exists(k)) this.load.image(k, `assets/ui/kit/${f}.png`)   // 11-16 像素 RPG 风：画布内名牌 / 气泡
     preloadTileAssets(this, this.worldData.tiled)
     for (const obj of this.worldData.objects) {
       if (obj.sprite && !this.textures.exists(`obj_${obj.sprite}`) && !aiHasObject(obj.type)) {
@@ -721,10 +722,13 @@ export default class GameScene extends Phaser.Scene {
 
   // ── 自己 ─────────────────────────────────────────────────────────────────────
 
+  /** 操控页像素 RPG 皮肤（主播 11-16）：旁观页与 ?ui=old 不启用 */
+  private rpgSkin(): boolean { return this.mode === 'play' && new URLSearchParams(window.location.search).get('ui') !== 'old' }
+
   private createSelf(player: Player) {
     const selfName = this.playerName ?? player.profile?.name ?? player.id
     const agentId = useGameStore.getState().identity ?? (player as { agent_id?: string | null }).agent_id ?? null
-    this.self = new PlayerSprite(this, player.position, player.facing, selfName, charKeyFor(selfName, 'human'), { controller: 'human', agentId })
+    this.self = new PlayerSprite(this, player.position, player.facing, selfName, charKeyFor(selfName, 'human'), { controller: 'human', agentId, skin: this.rpgSkin() ? 'rpg' : 'dark' })
     this.inputSystem = new InputSystem(
       this,
       player.id,
@@ -770,7 +774,7 @@ export default class GameScene extends Phaser.Scene {
       seen.add(op.id)
       let s = this.others.get(op.id)
       if (!s) {
-        s = new OtherPlayerSprite(this, op.position, op.facing, op.name, charKeyFor(op.name, op.controller), { controller: op.controller, agentId: op.agent_id })
+        s = new OtherPlayerSprite(this, op.position, op.facing, op.name, charKeyFor(op.name, op.controller), { controller: op.controller, agentId: op.agent_id, skin: this.rpgSkin() ? 'rpg' : 'dark' })
         this.others.set(op.id, s)
       } else {
         const end = s.getPathEnd()

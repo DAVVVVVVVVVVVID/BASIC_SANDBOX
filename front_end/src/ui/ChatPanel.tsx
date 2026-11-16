@@ -357,7 +357,7 @@ export default function ChatPanel({ embedded = false, visible = true, onClose, o
               </div>
             )}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <b>附近能聊的人</b><span style={{ color: c('#718096'), fontSize: 11 }}>同一区域 · /chat/nearby</span>
+              <b>附近能聊的人</b><span style={{ color: c('#718096'), fontSize: 11 }}>和你在同一个区域里的</span>
               {nearbyOthers.length > 0 && <button className="k teal" data-testid="chat-others" onClick={() => setMode('selecting')} style={{ marginLeft: 'auto' }}>找人聊 ({nearbyOthers.length})</button>}
             </div>
             {nearbyOthers.length === 0 && <div style={{ color: c('#718096'), textAlign: 'center', padding: '8px 0' }}>附近没有其他玩家<br /><span style={{ fontSize: 11 }}>要先走到和对方同一个区域</span></div>}

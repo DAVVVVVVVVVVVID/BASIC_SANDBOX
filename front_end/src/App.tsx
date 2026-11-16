@@ -15,6 +15,7 @@ import ConnectionBadge from './ui/ConnectionBadge'
 import QQPanel from './ui/QQPanel'
 import DirectorPanel from './ui/DirectorPanel'
 import RpgShell from './ui/rpg/RpgShell'
+import JoinScreenRpg from './ui/rpg/JoinScreenRpg'
 import BackpackPanel from './ui/BackpackPanel'
 import KnockPanel from './ui/KnockPanel'
 import SpectateApp from './spectate/SpectateApp'
@@ -72,7 +73,7 @@ function PlayApp() {
   }, [])
 
   if (!myPlayerId) {
-    return <JoinScreen onJoined={handleJoined} />
+    return new URLSearchParams(window.location.search).get('ui') === 'old' ? <JoinScreen onJoined={handleJoined} /> : <JoinScreenRpg onJoined={handleJoined} />
   }
 
   const oldUi = new URLSearchParams(window.location.search).get('ui') === 'old'

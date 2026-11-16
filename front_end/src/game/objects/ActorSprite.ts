@@ -55,7 +55,12 @@ export interface ActorOptions {
   /** 11-14 Godot 同步：按 agent_id / 控制者选六角色外观（同 Actor.gd key_for） */
   controller?: string | null
   agentId?: string | null
+  /** 11-16 像素 RPG 风（操控页）：名牌 / 说话 / 想法气泡用 kit03 九宫格图；旁观页不传 */
+  skin?: 'dark' | 'rpg'
 }
+/** kit03 九宫格贴图键与切片边（素材 ≈3 px / 像素；尾巴在左下，切片把尾巴留在底边区） */
+export const KIT_TEX = { speech: 'kit_speech_m', thought: 'kit_thought_m', name: 'kit_name_tag_a' } as const
+const NINE = { speech: [40, 22, 18, 34], thought: [44, 22, 20, 56], name: [16, 16, 14, 14] } as const
 
 /**
  * 场上一个人的精灵：沿路点按时间匀速移动（而不是跳格），自带名字牌、状态标签、聊天气泡、七变量小条。
@@ -74,6 +79,8 @@ export default class ActorSprite {
   private thought: Phaser.GameObjects.Container | null = null
   private thoughtText: Phaser.GameObjects.Text | null = null
   private thoughtH = 0
+  private rpgSkin = false
+  private namePlate: Phaser.GameObjects.NineSlice | null = null
   private bar: Phaser.GameObjects.Graphics | null = null
   /** v1.1：进食 / 下厨进度条（头顶状态标签下方一条细条） */
   private progressBar: Phaser.GameObjects.Graphics | null = null
@@ -147,12 +154,19 @@ export default class ActorSprite {
       this.redrawArrow()
     }
 
+    this.rpgSkin = opts.skin === 'rpg' && scene.textures.exists(KIT_TEX.name)
     this.nameText = scene.add.text(x, y + NAME_Y, opts.name, {
       fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
       fontSize: '14px',
       color: this.isSelf ? '#ffe9a8' : '#ffffff',
       stroke: '#000000', strokeThickness: 4,
     }).setOrigin(0.5, 1).setDepth(y + 2).setResolution(2)
+    if (this.rpgSkin) {
+      // 名牌：kit 名牌九宫格垫在名字下，字改深棕无描边
+      this.nameText.setStyle({ color: '#3B2F2F', stroke: '#FFF8EC', strokeThickness: 2, fontFamily: '"Fusion Pixel 12px", system-ui, "PingFang SC", sans-serif', fontSize: '15px' })
+      const [l, r, t, b] = NINE.name
+      this.namePlate = scene.add.nineslice(x, y + NAME_Y, KIT_TEX.name, undefined, Math.max(60, this.nameText.width + 22), 26, l, r, t, b).setOrigin(0.5, 1).setDepth(y + 1.9)
+    }
 
     this.stateText = scene.add.text(x, y + STATE_Y, '', {
       fontFamily: 'system-ui, "PingFang SC", "Microsoft YaHei", sans-serif',
@@ -327,6 +341,7 @@ export default class ActorSprite {
       if (this.arrow) { this.arrow.setDepth(d + 1); this.redrawArrow() }
       const u = this.uiScale
       this.nameText.setPosition(x, head - 10 * u).setDepth(d + 2)
+      this.namePlate?.setPosition(x, head - 10 * u + 5 * u).setDepth(d + 1.9).setScale(u)
       this.stateText.setPosition(x, head + 4 * u).setDepth(d + 2)
       if (this.bubble) this.bubble.setPosition(x, head - 34 * u).setDepth(d + 3)
       if (this.thought) this.thought.setPosition(x, head - (34 + (this.bubble ? this.bubbleHeight() + 10 : 0)) * u).setDepth(d + 3)
@@ -340,6 +355,7 @@ export default class ActorSprite {
     if (this.arrow) { this.arrow.setDepth(d + 1); this.redrawArrow() }
     const u = this.uiScale, v = this.uiScale * this.labelMul
     this.nameText.setPosition(x, y + NAME_Y * v).setDepth(d + 2)
+    this.namePlate?.setPosition(x, y + NAME_Y * v + 5 * u).setDepth(d + 1.9).setScale(u)
     this.stateText.setPosition(x, y + STATE_Y * v).setDepth(d + 2)
     if (this.bubble) this.bubble.setPosition(x, y + BUBBLE_Y * v).setDepth(d + 3)
     if (this.thought) this.thought.setPosition(x, y + BUBBLE_Y * v - (this.bubble ? this.bubbleHeight() + 10 : 0) * u).setDepth(d + 3)
@@ -382,6 +398,7 @@ export default class ActorSprite {
     this.stateText.setScale(s)
     this.bubble?.setScale(s)
     this.thought?.setScale(s)
+    this.namePlate?.setScale(s)
     this.bar?.setScale(s)
     this.layout()
   }
@@ -434,7 +451,7 @@ export default class ActorSprite {
     if (h === this.hidden) return
     this.hidden = h
     const v = !h
-    this.sprite.setVisible(v); this.nameText.setVisible(v); this.stateText.setVisible(v && !!this.stateLabel)
+    this.sprite.setVisible(v); this.nameText.setVisible(v); this.namePlate?.setVisible(v); this.stateText.setVisible(v && !!this.stateLabel)
     this.arrow?.setVisible(v); this.bubble?.setVisible(v); this.bar?.setVisible(v)
   }
 
@@ -449,7 +466,7 @@ export default class ActorSprite {
     this.bar?.setAlpha(a)
   }
 
-  private bubbleHeight() { return this.bubbleText ? this.bubbleText.height + 10 + 8 : 0 }
+  private bubbleHeight() { return this.bubbleText ? this.bubbleText.height + (this.rpgSkin ? 44 : 10 + 8) : 0 }
 
   /** 💭 想法（null 撤掉）。只由导播视角调用；旁观 / 直播不渲染 */
   setThought(text: string | null) {
@@ -458,6 +475,23 @@ export default class ActorSprite {
       return
     }
     if (this.thought && this.thoughtText && this.thoughtText.text === text) return
+    if (this.rpgSkin && this.scene.textures.exists(KIT_TEX.thought)) {
+      // kit03 想法云（九宫格，尾巴三圆点在左下）：文字叠在云身里
+      if (!this.thought) {
+        this.thoughtText = this.scene.add.text(0, 0, '', { fontFamily: '"Fusion Pixel 12px", system-ui, "PingFang SC", sans-serif', fontSize: '14px', color: '#44337a', wordWrap: { width: 200, useAdvancedWrap: true }, align: 'left' }).setOrigin(0.5, 1).setResolution(2)
+        const [l, r, tt, b] = NINE.thought
+        const ns = this.scene.add.nineslice(0, 0, KIT_TEX.thought, undefined, 120, 90, l, r, tt, b).setOrigin(0.5, 1)
+        this.thought = this.scene.add.container(this.sprite.x, this.sprite.y + BUBBLE_Y, [ns, this.thoughtText]).setScale(this.uiScale)
+      }
+      const t = this.thoughtText!, ns = this.thought.list[0] as Phaser.GameObjects.NineSlice
+      t.setText(text)
+      const w = Math.max(110, t.width + 44), h = t.height + 26 + 44   // 44 = 尾巴区
+      ns.setSize(w, h); ns.setPosition(w / 2 - 36, 0)                 // 尾巴（左下）对着头顶：云身整体右移
+      t.setPosition(w / 2 - 36, -44 - 13)
+      this.thoughtH = h
+      this.layout()
+      return
+    }
     let g: Phaser.GameObjects.Graphics
     if (!this.thought) {
       g = this.scene.add.graphics()
@@ -494,6 +528,22 @@ export default class ActorSprite {
       return
     }
     if (this.bubble && this.bubbleText && this.bubbleText.text === text) return
+    if (this.rpgSkin && this.scene.textures.exists(KIT_TEX.speech)) {
+      if (!this.bubble) {
+        this.bubbleText = this.scene.add.text(0, 0, '', { fontFamily: '"Fusion Pixel 12px", system-ui, "PingFang SC", sans-serif', fontSize: '14px', color: '#3B2F2F', wordWrap: { width: 220, useAdvancedWrap: true }, align: 'left' }).setOrigin(0.5, 1).setResolution(2)
+        const [l, r, tt, b] = NINE.speech
+        const ns = this.scene.add.nineslice(0, 0, KIT_TEX.speech, undefined, 120, 60, l, r, tt, b).setOrigin(0.5, 1)
+        this.bubble = this.scene.add.container(this.sprite.x, this.sprite.y + BUBBLE_Y, [ns, this.bubbleText]).setScale(this.uiScale)
+      }
+      const t = this.bubbleText!, ns = this.bubble.list[0] as Phaser.GameObjects.NineSlice
+      t.setText(text)
+      const w = Math.max(90, t.width + 36), h = t.height + 22 + 22   // 22 = 尾巴区
+      ns.setSize(w, h); ns.setPosition(w / 2 - 30, 0)
+      t.setPosition(w / 2 - 30, -22 - 11)
+      this.bubble.setAlpha(1)
+      this.layout()
+      return
+    }
     if (!this.bubble) {
       this.bubbleBg = this.scene.add.graphics()
       this.bubbleText = this.scene.add.text(0, 0, '', {
@@ -550,6 +600,7 @@ export default class ActorSprite {
 
   destroy() {
     this.thought?.destroy(true)
+    this.namePlate?.destroy()
     this.sprite.destroy()
     this.arrow?.destroy()
     this.nameText.destroy()

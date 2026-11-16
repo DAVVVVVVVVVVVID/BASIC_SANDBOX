@@ -72,7 +72,7 @@ export default function RpgShell({ playerId }: { playerId: string }) {
         <div style={{ pointerEvents: 'auto' }}><InteractionPanel anchor="bottom" skin="rpg" /></div>
       </div>
       {open && open !== 'chat' && (
-        <PanelFrame title={title} onClose={() => setOpen(null)} width={open === 'people' ? 600 : open === 'map' ? 520 : open === 'settings' ? 520 : 560} dark={false}>
+        <PanelFrame title={title} onClose={() => setOpen(null)} width={open === 'people' ? 760 : open === 'map' ? 520 : open === 'settings' ? 520 : 600} dark={false}>
           {open === 'people' && <PeoplePanel follow={dir.mode === 'follow' ? dir.follow : null} />}
           {open === 'map' && <div style={{ display: 'flex', justifyContent: 'center' }}><Minimap inline large /></div>}
           {open === 'bag' && <BackpackPanel embedded />}
