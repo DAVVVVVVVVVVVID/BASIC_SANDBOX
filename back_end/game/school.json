@@ -1,0 +1,132 @@
+{
+  "_doc": "上课系统 v1（world-v1.4.0）：课表与参数。方案 docs/class-system-sandbox.md；课案由 A 写 run/data/<town>/school/<YYYY-MM-DD>.json。",
+  "schema": 1,
+  "term_start": "2026-11-23",
+  "weeks": [
+    "游戏 BGM",
+    "City Pop",
+    "摇滚",
+    "民谣",
+    "电子舞曲",
+    "R&B",
+    "动画歌曲",
+    "国风"
+  ],
+  "courses": {
+    "genre": {
+      "name": "类型创作",
+      "required": true
+    },
+    "lyrics": {
+      "name": "歌词写作",
+      "required": true
+    },
+    "harmony": {
+      "name": "和声学",
+      "required": true
+    },
+    "writing": {
+      "name": "写作",
+      "required": false
+    },
+    "review": {
+      "name": "作业讲评",
+      "required": true
+    }
+  },
+  "timetable": {
+    "mon": [
+      [
+        "09:00",
+        "genre"
+      ],
+      [
+        "10:45",
+        "lyrics"
+      ]
+    ],
+    "tue": [
+      [
+        "09:00",
+        "harmony"
+      ],
+      [
+        "10:45",
+        "genre"
+      ],
+      [
+        "14:00",
+        "writing"
+      ]
+    ],
+    "wed": [
+      [
+        "09:00",
+        "lyrics"
+      ],
+      [
+        "10:45",
+        "harmony"
+      ]
+    ],
+    "thu": [
+      [
+        "09:00",
+        "genre"
+      ],
+      [
+        "10:45",
+        "lyrics"
+      ],
+      [
+        "14:00",
+        "writing"
+      ]
+    ],
+    "fri": [
+      [
+        "09:00",
+        "harmony"
+      ],
+      [
+        "10:45",
+        "review"
+      ]
+    ]
+  },
+  "lesson_minutes": 90,
+  "segment_minutes": 10,
+  "segments_per_lesson": 9,
+  "late_after_minutes": 10,
+  "end_question_grace_minutes": 10,
+  "students": [
+    "whale",
+    "claudine"
+  ],
+  "elective_students": {
+    "writing": [
+      "whale"
+    ]
+  },
+  "room": "classroom",
+  "desks": [
+    "classroom_desk_1",
+    "classroom_desk_2"
+  ],
+  "doze": {
+    "per_segment": {
+      "whale": 0.05
+    },
+    "seed": "class-v1"
+  },
+  "homework": {
+    "due": "fri 10:45",
+    "box": "homework_box",
+    "grade_mood": {
+      "A": 5,
+      "B": 0,
+      "C": -3
+    }
+  },
+  "lesson_dir": "school"
+}

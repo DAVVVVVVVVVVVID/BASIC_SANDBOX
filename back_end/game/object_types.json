@@ -1412,5 +1412,22 @@
     "advertise": {},
     "success_message": "",
     "failure_message": "这不能用。"
+  },
+  "homework_box": {
+    "prototype": "instant",
+    "name": "作业提交箱",
+    "size": [
+      1,
+      1
+    ],
+    "sprite": "homework_box",
+    "interactable": true,
+    "description": "教学楼里的作业提交箱。带着 CD 使用就是交作业。",
+    "effects": [],
+    "advertise": {},
+    "success_message": "作业交上了。",
+    "failure_message": "没有可以交的作业。",
+    "cooldown_s": 0,
+    "hint": "带着 CD 使用 = 交作业，截止{due}（之后算迟交）"
   }
 }

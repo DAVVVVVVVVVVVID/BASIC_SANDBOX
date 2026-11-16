@@ -250,6 +250,12 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
             return ActionResponse(success=True, type="use",
                                   result={"message": msg, "objectId": obj["id"], "contents": cv, "storage": {"capacity": _food.capacity(obj), "used": _food.used(obj)},
                                           "stock": dict(obj.get("stock") or {}), "empty": not cv})
+        if obj["type"] == "homework_box":                                        # v1.4.0：带 CD 使用 = 交作业
+            from game import school
+            res, reason, extra = school.submit(_players.get(entity_id, player), payload.get("request_id"))
+            if reason:
+                return ActionResponse(success=False, type="use", reason=reason, result={"objectId": obj["id"], **(extra or {})})
+            return ActionResponse(success=True, type="use", result={"objectId": obj["id"], **res})
         apply_instant_object(obj["id"], entity_id)
         record_object_use(entity_id, obj["id"])            # B10：没信号也算用过（有冷却）
         result = {"message": obj.get("successMessage"), "objectId": obj["id"]}
@@ -581,6 +587,8 @@ _HANDLERS = {
     "say":          handle_say,                   # Q6 靠近即可说
     "compose":      economy_actions.handle_compose,
     "edit_item":    economy_actions.handle_edit_item,
+    "answer":       economy_actions.handle_answer,      # v1.4.0 上课：作答（坐着也能答）
+    "read_item":    economy_actions.handle_read_item,   # v1.4.0：读笔记 / 回执等带 meta 的纸类物品
     "make_video":   economy_actions.handle_make_video,
 }
 

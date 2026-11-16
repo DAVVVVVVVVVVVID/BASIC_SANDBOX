@@ -1691,6 +1691,24 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 
 **v1.3.21**：下播也写 external 日志 `kind live, action stop, reason, session_id`（之前只有 start / skipped），`reason` 含 leave / kicked / closed / daily_limit / dnd_park / left_town / restart / seed_reconcile——注意自我层 `/self/live/stop` 的请求体只有 `{agent, ts}`，不带 reason，所以 8390 / 8100 的访问日志里看不到 seed_reconcile 字样，对账请看沙盒 `external/<日>.jsonl` 或 whale-live 的「决定」。
 
+### 12.25 上课系统 v1（tag `world-v1.4.0`；方案 `docs/class-system-sandbox.md`，主播 11-16 拍板）
+
+**配置** `game/school.json`（`GET /school/timetable` 原样给 + 本周 `week / week_genre`）：开学 `term_start` 2026-11-23（env `SANDBOX_SCHOOL_TERM_START` 覆盖，bench 开学前跑课用）、八周类型 `weeks[]`、`courses {id: {name, required}}`、`timetable {mon..fri: [[HH:MM, course], …]}`、90 分钟 / 9 段 / 每段 10 分钟、迟到线 10 分钟、`students` [whale, claudine]、`elective_students {writing: [whale]}`、课桌 `classroom_desk_1/2`、`doze.per_segment {whale: 0.05}`、作业截止 `fri 10:45`、作业成绩心情 A+5 / B 0 / C−3。
+
+**课案**（A 写，沙盒只读）`run/data/<town>/school/<YYYY-MM-DD>.json`（env `SANDBOX_SCHOOL_DIR` 覆盖）：`{schema 1, date, lessons[{lesson_id "<date>-<HHMM>-<course>", start, course, title, segments[9 × {i, text}], questions[{qid, phase mid|end, after_segment, text, answer, explanation}], homework_note}]}`。**每次推段前按文件 mtime 重载**，只替换还没推的段与题（讲评课截止后重写第 2–9 段）。缺课案 → 照常开课、讲授占位、external `school lesson_missing`。示例课案：`scripts/make_sample_lesson.py --date --dir [--term-start]`。
+
+**上课**：课时段内坐在课桌上的学生 = 上课中（tag `in_class`、stateLabel「<名>在上<课名>」）。第 k 段在 `start + (k−1)×10 分钟`推：pendingMessage「【课名】原文」；鲸仔每段按 `sha256(seed|town|lesson_id|agent|i)` 掷 5% 打瞌睡——这段不推（笔记记 slept），下一段前缀「（刚才走神睡着了）」，ws `lesson {event: doze, entity, segment}`。`after_segment` 那段推完即推提问 pendingMessage「【提问】…（用 answer 作答）」（睡着那段也照推并叫醒）；必修课第 9 段后推「【作业提醒】…」。下课（start + 90 分钟）：在座者离座（reason `class_over`），出勤 / 迟到者背包得 `class_notes`。
+- `GET /player.lesson` / perceive `lesson`（只在课桌上上课时有，否则 null）：`{lesson_id, course, course_name, title, start, end, segment_i, segment {i, text}, dozed_prev, dozing, question {qid, text, phase, deadline} | null, attendance present|late, next_segment_at}`。`/world.players[]` / ws upsert：`lesson {lesson_id, course, title, dozing}` | null。
+- 动作 **`answer {qid, text ≤ 500}`**：坐着上课也能用（不受 no_use / no_interact）；课中题窗到下一段推送，课末题到下课后 10 分钟（出勤者离座后也可答）；成功 `result {message, qid, lesson_id, correct_answer, explanation, phase}`（当场公布；写作课 answer 为空 = 下课后批）；失败 `unknown_question / not_in_class / question_closed / already_answered / empty_text`。落 `school/answers.jsonl {ts, game_time, town, lesson_id, course, qid, phase, agent_id, player, text, answered_at_segment, late}`。
+- 考勤：开课 10 分钟内入座 present、之后 late、没坐过 absent；`left_early_at`。`GET /school/today?player=<id | agent_id>`：`{date, week, week_genre, lessons[{lesson_id, course, course_name, title, start, end, status upcoming|ongoing|done, mine, my_attendance, attendance {agent: status}}], homework {week, due, count, submitted[{receipt_id, request_id, title, late, audio, at}]}}`（同学考勤互相可见）。下课写 `school/attendance.jsonl`。
+- ws `lesson`：`{event: start | segment | question | doze | end | grade, lesson_id, …}`，不带讲授正文。
+
+**课堂笔记** `class_notes`（items 新类 `paper`：与钥匙一样不占背包种类、不受每种 20 上限）：`meta {lesson_id, course, course_name, title, date, owner, segments[{i, text | null, status heard|slept|absent}]}`，`GET /player.inventory[]` 原样带。动作 **`read_item {item, match {lesson_id | receipt_id | request_id | title}}`** → `result {message 全文（睡着段「……（这段睡着了）」、没来段「（没来）」）, item, meta}`，不占时间。**`give` 带 meta 的物品现在一律按本转交、meta 随行**（`{target, item, lesson_id | receipt_id | request_id | title}` 指定哪本；CD 仍只认 final）。
+
+**作业提交箱** `homework_box`（新物件，教学楼 (8,4)，站 (8,3) 朝 down；`/world.objects[].hint`「带着 CD 使用 = 交作业，截止周五 10:45（之后算迟交）」）：`use {request_id?}`（不带 = 最近一张没交过的 CD）——收 pending / delivered / final 的 CD，`redo` → `cd_redo`，没 CD → `no_item`；CD 不没收；成功 `result {message, receipt_id, late, due, audio none|pending|final, updated, request_id}` + 背包 `homework_receipt`（meta 同）；`audio`：CD final → final，meta `proxy: true` → pending，否则 none。同 request_id 同周再交 = 更新（沿用 receipt_id、late 不变、`updated: true`）；跨周 → `already_submitted`；她 `edit_item` 把 CD 标 final 时同周提交自动更新为 audio final。落 `school/submissions.jsonl {…, action submit|update, week, receipt_id, late, audio, creation_sheet_complete, meta}`。`edit_item` 白名单加 `proxy`；compose 透传加 `genre / scene / mood / form / chords / arrangement / homework_week`。
+
+**评分回写** `POST /school/grade {agent_id, grade A|B|C, kind writing|homework, comment ≤ 200, lesson_id?, qid?, receipt_id?}`（沙盒设了 `SANDBOX_ADMIN_TOKEN` 或 `SELF_TOKEN` 时要 `Authorization: Bearer <其一>`）→ 本人 pendingMessage「写作课成绩：B，评语：…」/「作业成绩：…」、作业成绩按配置改心情、`school/grades.jsonl`、ws `lesson {event: grade}`；`{ok, delivered, …}`。检查点 meta `school`（进行中的课、已作答、提交记录）。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

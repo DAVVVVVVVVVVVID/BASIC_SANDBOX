@@ -52,7 +52,7 @@ edges: list[dict] = []
 access: dict[str, dict] = {}
 buildings: list[dict] = []          # E 的整栋贴图：{id, sector, floor, footprint{x,y,w,h}（外墙含）, doors[{door_id, cell}]（室内侧格）}
 SIZES = {"dining_table": (2, 1), "bed": (1, 2), "bed_21": (2, 1), "bath": (1, 2), "fridge": (1, 1), "desk": (1, 1), "desk_12": (1, 2), "book": (1, 1),
-         "phone": (1, 1), "stream_desk": (1, 1), "restaurant_table": (2, 1), "bench": (2, 1), "fishing_spot": (1, 1),
+         "phone": (1, 1), "stream_desk": (1, 1), "homework_box": (1, 1), "restaurant_table": (2, 1), "bench": (2, 1), "fishing_spot": (1, 1),
          "shop_counter": (1, 1), "game_console": (1, 1), "pc": (1, 1), "pc_desk": (1, 1), "stove": (1, 1), "sofa_tv": (2, 1),
          "bar": (2, 1), "fish_stall": (1, 1), "notice_board": (1, 1), "pc_music": (1, 1), "reading_desk": (1, 1),
          "classroom_desk": (1, 1), "tree": (1, 1), "tree_big": (2, 2), "lamp": (1, 1), "shelf": (1, 1), "boat": (2, 1), "fountain": (2, 2), "piano": (1, 1),
@@ -126,6 +126,7 @@ house(2, 0, 30, 7, "university", rooms=[(3, 1, 29, 6, "campus")], doors=[(20, 7)
 fill(3, 1, 29, 6, "F", "university", "campus")
 house(3, 1, 9, 5, "university", rooms=[(4, 2, 8, 4, "classroom")], doors=[(5, 5)], building="classroom")     # v1.2.1：门格跟外观图（E 量表）
 obj("classroom_desk_1", "classroom_desk", 4, 2); obj("classroom_desk_2", "classroom_desk", 6, 2); obj("pc_lab", "pc_desk", 8, 2)
+obj("homework_box", "homework_box", 8, 4)   # v1.4.0 上课系统：作业提交箱（站 (8,3) 朝 down；门内格 (5,4) 不挡）
 house(11, 1, 17, 5, "university", rooms=[(12, 2, 16, 4, "library")], doors=[(14, 5)], building="library")
 obj("reading_desk_1", "reading_desk", 12, 2); obj("reading_desk_2", "reading_desk", 14, 2); obj("shelf_lib_1", "shelf", 16, 2); obj("shelf_lib_2", "shelf", 16, 4)
 house(23, 1, 29, 5, "university", rooms=[(24, 2, 28, 4, "music_room")], doors=[(24, 5)], building="music_room")

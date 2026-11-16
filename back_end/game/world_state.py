@@ -916,6 +916,8 @@ def get_player(player_id: str) -> dict | None:
     from game import economy as _eco2
     from game.qq import account_of as _acc2
     data["today_sales"] = _eco2.today_sales(_acc2(player))     # v1.3.18：卖家今天卖了多少（C：餐厅老板不知道自己午市卖了 13 顿）
+    from game import school as _school
+    data["lesson"] = _school.lesson_view(player)               # v1.4.0：上课中才有
     if thought_visible_to() != "all":
         data.pop("last_thought", None)                         # v1.3.19：GET /player 缺省不带（旁观页也用它）；导播页走 /world?view=admin
     data["pendingMessage"] = _pending_messages.get(player_id)
@@ -973,6 +975,7 @@ def get_all_players_snapshot(include_thought: bool = False) -> list[dict]:
             "dnd":           is_dnd(p),                # world-v1.3
             "chat_room_id":  _room_of_safe(p["id"]),   # v1.3.13
             "last_thought":  (p.get("last_thought") if include_thought else None),   # v1.3.19：只在 /world?view=admin（导播 / 操控页）带出
+            "lesson":        _lesson_compact_safe(p),  # v1.4.0：{lesson_id, course, title, dozing}，不在课 null（头顶「上课中 / zZ」）
             "pos_seq":       p.get("pos_seq", 0),      # E⑥：位置单调序号
             "gold":          int(p.get("gold", 0)),    # W10 ④
             "inventory":     _inv_view_safe(p),        # W10 ④：[{type, name, class, count}]
@@ -982,6 +985,14 @@ def get_all_players_snapshot(include_thought: bool = False) -> list[dict]:
         }
         for p in _players.values()
     ]
+
+
+def _lesson_compact_safe(p: dict) -> dict | None:
+    try:
+        from game import school
+        return school.lesson_compact(p)
+    except Exception:
+        return None
 
 
 def _room_of_safe(pid: str) -> str | None:
@@ -1095,6 +1106,9 @@ def _object_view(obj: dict, game_ts: float, viewer: str | None = None) -> dict:
         view["contents"] = food.contents_view(obj, game_ts)
         view["storage"] = {"capacity": food.capacity(obj), "used": food.used(obj)}
         view["empty"] = food.used(obj) == 0                       # v1.3.18：冰箱空标记（C 感知「冰箱空」不用再 take 一次）
+    if obj.get("type") == "homework_box":                          # v1.4.0：提交箱提示（截止按配置拼）
+        from game import school as _school
+        view["hint"] = (OBJECT_TYPES.get("homework_box", {}).get("hint") or "").replace("{due}", _school.due_label())
     if obj.get("type") == "stove":
         from game import production
         view["cooking"] = production.cooking_view(obj["id"], game_ts)
@@ -2078,6 +2092,8 @@ def _run_buff_tick_all(delta: float) -> None:
         qq.on_tick(gts, _players)                       # W11 ③：未读消息的亲密度惩罚
         from game import doors
         doors.on_tick(gts, _players)                    # §3.40：敲门超时 / 通行证失效
+        from game import school
+        school.on_tick(gts, _players)                   # v1.4.0：上课（开课 / 分段推送 / 提问 / 下课发笔记）
         update_weather(gts)
         _kick_closed_objects()
         from game import state_log
@@ -2187,6 +2203,7 @@ def _reset_for_tests() -> None:
         _REMOVED_OBJECTS.clear(); _OBJ_ORIG_POS.clear()
         from game import food, social, needs_cfg
         food._reset_for_tests(); social._reset_for_tests(); needs_cfg.reload()
+        from game import school as _school; _school._reset_for_tests()
         from game.buff_tick import reload_rates
         reload_rates()
         from game.economy import daily_supply as _ds

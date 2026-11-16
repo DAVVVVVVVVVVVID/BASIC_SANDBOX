@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bd. world-v1.4.0：上课系统 v1 沙盒侧（主播 11-16 拍板；方案 docs/class-system-sandbox.md）—— 完成，11-19 bench 冒烟、11-22 上主镇
+
+- 新 `game/school.py` + `game/school.json` + `routers/school.py`：课表 / 课案加载（mtime 重载）、上课中状态与 10 分钟分段推送、可复现打瞌睡、课中 / 课末提问与 `answer`、考勤、下课离座发 `class_notes`、`read_item`、作业提交箱 `homework_box`（地图 72 件）、`POST /school/grade` 评分回写；`give` 推广为带 meta 物品按本转交；新物品类 `paper` 不占背包上限；CD meta 透传创作单字段 + edit_item `proxy` + final 钩子；`GET /player.lesson`、perceive `lesson`、players[] 精简 lesson、物件 `hint`；检查点 meta `school`。
+- 测试：新 `tests/test_w13_school.py` 9 条（整节课流程含瞌睡 / 叫醒 / 作答 / 迟到 / 下课笔记 / 借笔记 / 落盘、缺课案、选修只鲸仔 + 周末 / 开学前、提交箱全规则、评分回写与鉴权、瞌睡可复现与比例、中途检查点、开学日覆盖、课中重载）；**379 passed**；api-spec §12.25。8091 用示例课案实跑一节全通。
+- 工具：`scripts/make_sample_lesson.py`（A 正式课案没出时 bench 冒烟用）。economy sha 不变。
+
 ## 5bc. world-v1.3.22：敲门只给此刻在家的清醒者（总控报，主播「她不在家怎么知道的」）—— 完成，等总控排窗
 
 - 11-16 09:59 阿蝉敲克劳蒂娜家门，小克在教学楼上课却在 pending_knocks 里看到了敲门：`doors.pending_for_owner` 是 `_inside or _is_owner`。knock 时的 notified 本来就只算屋内清醒者（v1.3 起排除勿扰），列表口径没跟上。改为与 notified 同口径：`_at_home_awake and not dnd`。GET /player.pending_knocks、perceive.knocks、/door/requests 一并生效；/door/respond 的 not_inside 校验不变。

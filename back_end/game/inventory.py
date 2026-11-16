@@ -30,8 +30,9 @@ def is_file_item(item: str) -> bool:
 
 
 def counts_toward_kinds(item: str) -> bool:
+    """钥匙与纸类（课堂笔记 / 作业回执，v1.4.0）不占背包种类、不受每种叠加上限。"""
     d = _ITEMS.get(item) or {}
-    return d.get("class") != "key"
+    return d.get("class") not in ("key", "paper")
 
 
 def spoil_days(item: str) -> float | None:

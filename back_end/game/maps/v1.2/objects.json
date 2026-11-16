@@ -80,6 +80,14 @@
     }
   },
   {
+    "id": "homework_box",
+    "type": "homework_box",
+    "position": {
+      "x": 8,
+      "y": 4
+    }
+  },
+  {
     "id": "reading_desk_1",
     "type": "reading_desk",
     "position": {

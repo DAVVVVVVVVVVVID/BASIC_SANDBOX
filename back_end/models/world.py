@@ -53,6 +53,7 @@ class GameObject(BaseModel):
     daily_limit_min: Optional[int] = None           # 每人每日使用上限（分钟），-b 批生效
     daily_used_min: Optional[float] = None          # 按 ?player= 请求者（旁观页无 player 为 null）
     empty: Optional[bool] = None                    # v1.3.18：冰箱空标记（非存储类 null）
+    hint: Optional[str] = None                      # v1.4.0：物件交互提示（作业提交箱）
     storage: Optional[dict] = None                  # 冰箱 {capacity, used}
     contents: Optional[List[dict]] = None           # 冰箱 [{item, name, count, expires_at, expires_in_days, spoiled}]
     daily_supply: Optional[dict] = None             # 商店每日上新 {item: qty}
@@ -108,6 +109,7 @@ class OtherPlayer(BaseModel):
     dnd: Optional[bool] = None         # world-v1.3：静态勿扰（tags 里同时有 dnd / working）
     chat_room_id: Optional[str] = None # v1.3.13：当前 active 聊天房 id，不在房 null
     last_thought: Optional[dict] = None # v1.3.19：思考气泡 {text, kind, game_time, ts}，只在 /world?view=admin 带
+    lesson: Optional[dict] = None       # v1.4.0：{lesson_id, course, title, dozing}
 
 
 class WorldData(BaseModel):

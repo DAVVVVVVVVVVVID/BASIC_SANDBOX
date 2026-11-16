@@ -228,7 +228,8 @@ def craft(entity_id: str, kind: str, payload: dict) -> tuple[dict | None, str | 
         title = payload.get("title") or meta.get("title") or f"{(inventory.item_def(item) or {}).get('name', item)} {game_now_iso()[:16]}"
         meta["title"] = title
         for k in ("commission_id", "text", "summary", "ref", "suno_id", "audio_ref", "satisfaction", "redo_count", "lyrics", "style",
-                  "request_id", "status", "duration_hint", "vocal", "note"):   # 闭测 §6（主播代做版）：字段透传进 CD meta
+                  "request_id", "status", "duration_hint", "vocal", "note",
+                  "genre", "scene", "mood", "form", "chords", "arrangement", "homework_week", "proxy"):   # 闭测 §6（主播代做版）+ v1.4.0 创作单字段：透传进 CD meta
             if payload.get(k) is not None:
                 meta[k] = payload[k]
         if item == "cd" and "status" in meta:
@@ -248,7 +249,7 @@ def craft(entity_id: str, kind: str, payload: dict) -> tuple[dict | None, str | 
 # ── 闭测 §6（主播代做版，world-v1.3.10）：CD meta 状态机与编辑 ──
 CD_STATUS = ("pending", "delivered", "final", "redo")
 CD_AGENT_TRANSITIONS = {("pending", "final"), ("pending", "redo"), ("delivered", "final"), ("delivered", "redo")}
-CD_AGENT_KEYS = ("status", "satisfaction", "redo_count", "note")
+CD_AGENT_KEYS = ("status", "satisfaction", "redo_count", "note", "proxy")   # v1.4.0：proxy = 选为本周代做那首
 CD_ADMIN_KEYS = CD_AGENT_KEYS + ("audio_ref",)
 
 
@@ -310,8 +311,18 @@ def edit_item_meta(player: dict, item: str, match: dict | None, changes: dict, *
             if not isinstance(v, str) or not v:
                 return None, "invalid_value", {"key": k, "allowed": "非空字串"}
             new[k] = v
+        elif k == "proxy":
+            if not isinstance(v, bool):
+                return None, "invalid_value", {"key": k, "allowed": "true / false"}
+            new[k] = v
     new["updated_at"] = game_now_iso()
     entry["meta"] = new
+    if new.get("status") == "final" and meta.get("status") != "final":
+        try:
+            from game import school
+            school.on_cd_final(player, new)                 # v1.4.0：同周作业提交 audio → final
+        except Exception:
+            pass
     return {"item": item, "meta": new, "changed": sorted(changes)}, None, None
 
 

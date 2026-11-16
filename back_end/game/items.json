@@ -165,5 +165,19 @@
     "price": null,
     "sell": null,
     "_doc": "琴房电脑写完一首歌 → 1 张 CD（meta title / commission_id / by…）；只能当面 give；委托交付认 CD；再刻一张 burn_cd 10 分钟"
+  },
+  "class_notes": {
+    "name": "课堂笔记",
+    "class": "paper",
+    "price": null,
+    "sell": null,
+    "_doc": "上课系统 v1：下课时发给出勤学生，meta {lesson_id, course, title, date, owner, segments[{i, text|null, status heard|slept|absent}]}；read_item 读全文；give 按本转交（meta 随行）。class paper 不占背包种类与叠加上限。"
+  },
+  "homework_receipt": {
+    "name": "作业回执",
+    "class": "paper",
+    "price": null,
+    "sell": null,
+    "_doc": "上课系统 v1：作业提交箱回执，meta {receipt_id, week, request_id, title, late, audio, due, submitted_at}。"
   }
 }

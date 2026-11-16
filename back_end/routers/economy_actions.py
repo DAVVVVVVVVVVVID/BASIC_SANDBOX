@@ -295,6 +295,16 @@ def handle_give(entity_id: str, payload: dict) -> ActionResponse:
             if ierr:
                 return ActionResponse(success=False, type="give", reason=ierr, result={**_item_fields(item, qty), "target": t["id"], "target_name": t.get("name")})
             inventory.remove_entry(p, entry, 1)
+        elif any(e.get("type") == item and e.get("meta") for e in inventory.ensure(p)):   # v1.4.0：带 meta 的物品（课堂笔记 / 回执 / 稿子…）按本转交、meta 随行
+            match = {k: payload[k] for k in _META_MATCH_KEYS if payload.get(k) is not None}
+            entry = _find_meta_entry(p, item, match)
+            if entry is None:
+                return ActionResponse(success=False, type="give", reason="no_item", result={**_item_fields(item, qty), "match": match})
+            qty = 1; moved_meta = dict(entry.get("meta") or {})
+            ierr = inventory.add(t, item, 1, meta=moved_meta or None, expires_at=entry.get("expires_at"))
+            if ierr:
+                return ActionResponse(success=False, type="give", reason=ierr, result={**_item_fields(item, qty), "target": t["id"], "target_name": t.get("name")})
+            inventory.remove_entry(p, entry, 1)
         else:
             ierr = inventory.add(t, item, qty)
             if ierr:
@@ -555,6 +565,56 @@ def handle_discard(entity_id: str, payload: dict) -> ActionResponse:
 
 def handle_compose(entity_id: str, payload: dict) -> ActionResponse:
     return _craft("compose", entity_id, payload)
+
+
+def handle_answer(entity_id: str, payload: dict) -> ActionResponse:
+    """v1.4.0 上课：{qid, text}——作答当场公布标准答案；不受 no_use / no_interact（坐在课桌上也能答）。"""
+    from game import school
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="answer", reason="player_not_found")
+        res, reason, extra = school.answer(p, payload.get("qid"), payload.get("text") or "")
+    if reason:
+        return ActionResponse(success=False, type="answer", reason=reason, result=extra)
+    return ActionResponse(success=True, type="answer", result=res)
+
+
+_META_MATCH_KEYS = ("lesson_id", "request_id", "receipt_id", "title", "commission_id")
+
+
+def _find_meta_entry(p: dict, item: str, match: dict) -> dict | None:
+    rows = [e for e in inventory.ensure(p) if e.get("type") == item]
+    for k in _META_MATCH_KEYS:
+        if match.get(k) is not None:
+            rows = [e for e in rows if (e.get("meta") or {}).get(k) == match[k]]
+    return rows[0] if rows else None
+
+
+def handle_read_item(entity_id: str, payload: dict) -> ActionResponse:
+    """v1.4.0：{item, match: {lesson_id | receipt_id | request_id | title}}——读背包里带 meta 的物品（课堂笔记拼全文；回执给摘要）；不占时间。"""
+    from game import school
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="read_item", reason="player_not_found")
+        item = _item(payload) or "class_notes"
+        match = dict(payload.get("match") or {})
+        for k in _META_MATCH_KEYS:
+            if payload.get(k) is not None:
+                match.setdefault(k, payload[k])
+        e = _find_meta_entry(p, item, match)
+        if e is None:
+            return ActionResponse(success=False, type="read_item", reason="no_such_item", result={"item": item, "match": match})
+        meta = dict(e.get("meta") or {})
+        if item == "class_notes":
+            msg = school.notes_text(meta)
+        elif item == "homework_receipt":
+            msg = f"作业回执 {meta.get('receipt_id')}：第 {meta.get('week')} 周《{meta.get('title')}》，{'迟交' if meta.get('late') else '按时'}，音频 {meta.get('audio')}。"
+        else:
+            msg = f"{(inventory.item_def(item) or {}).get('name', item)}：" + "；".join(f"{k} {v}" for k, v in meta.items() if isinstance(v, (str, int, float)))
+    mark_input(entity_id)
+    return ActionResponse(success=True, type="read_item", result={"message": msg, "item": item, "meta": meta})
 
 
 def handle_edit_item(entity_id: str, payload: dict) -> ActionResponse:
