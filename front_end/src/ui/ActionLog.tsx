@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import { c } from './uiPalette'
 import { useGameStore } from '../store/gameStore'
 
 /** §3.40 敲门事件（后端日志 type：knock / door_respond / door_pass_granted / door_pass_expired）→ 事件流文案 */
@@ -34,28 +35,28 @@ export default function ActionLog({ embedded = false }: { embedded?: boolean } =
       border: '1px solid #4a5568',
       borderRadius: 8,
       padding: '8px 10px',
-      color: '#e2e8f0',
+      color: c('#e2e8f0'),
       fontSize: 11,
       userSelect: 'none',
       display: 'flex',
       flexDirection: 'column',
       ...(embedded ? { position: 'static', top: 'auto', left: 'auto', right: 'auto', bottom: 'auto', width: 'auto', minWidth: 0, maxHeight: 'none', background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 } : {}),
     }}>
-      <div style={{ marginBottom: 6, fontSize: 12, color: '#a0aec0', borderBottom: '1px solid #4a5568', paddingBottom: 4 }}>
+      <div style={{ marginBottom: 6, fontSize: 12, color: c('#a0aec0'), borderBottom: '1px solid #4a5568', paddingBottom: 4 }}>
         行为日志（最近 {log.length} 条）
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {log.map((entry, i) => {
           const time = entry.timestamp.slice(11, 19)
-          const color = entry.success ? '#68d391' : '#fc8181'
+          const color = entry.success ? c('#68d391') : c('#fc8181')
           const display = entry.label ?? knockLabel(entry) ?? entry.type
           return (
             <div key={i} style={{ marginBottom: 4, lineHeight: 1.4 }}>
-              <span style={{ color: '#a0aec0' }}>{time} </span>
-              <span style={{ color: '#90cdf4' }}>[{entry.entityId}] </span>
+              <span style={{ color: c('#a0aec0') }}>{time} </span>
+              <span style={{ color: c('#90cdf4') }}>[{entry.entityId}] </span>
               <span style={{ color }}>{display}</span>
               {!entry.success && entry.reason && (
-                <span style={{ color: '#a0aec0' }}> — {entry.reason}</span>
+                <span style={{ color: c('#a0aec0') }}> — {entry.reason}</span>
               )}
             </div>
           )

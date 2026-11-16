@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { c } from './uiPalette'
+import PanelFrame from './rpg/PanelFrame'
 import { useGameStore } from '../store/gameStore'
 import * as chatApi from '../api/chat'
 import { EventBus } from '../game/EventBus'
@@ -15,7 +17,7 @@ const PANEL: React.CSSProperties = {
   background: 'rgba(15, 15, 30, 0.95)',
   border: '1px solid #4a5568',
   borderRadius: 8,
-  color: '#e2e8f0',
+  color: c('#e2e8f0'),
   fontFamily: 'system-ui, sans-serif',
   fontSize: 13,
   zIndex: 200,
@@ -34,7 +36,7 @@ const ROOM_PANEL: React.CSSProperties = {
   background: 'rgba(15, 15, 30, 0.97)',
   border: '1px solid #4a5568',
   borderRadius: 8,
-  color: '#e2e8f0',
+  color: c('#e2e8f0'),
   fontFamily: 'system-ui, sans-serif',
   fontSize: 13,
   zIndex: 200,
@@ -55,10 +57,10 @@ const PANEL_HEADER: React.CSSProperties = {
 
 const INPUT: React.CSSProperties = {
   width: '100%',
-  background: '#1a202c',
+  background: c('#1a202c'),
   border: '1px solid #4a5568',
   borderRadius: 4,
-  color: '#e2e8f0',
+  color: c('#e2e8f0'),
   padding: '6px 8px',
   fontSize: 13,
   outline: 'none',
@@ -71,7 +73,7 @@ function btn(bg: string): React.CSSProperties {
     background: bg,
     border: 'none',
     borderRadius: 4,
-    color: '#e2e8f0',
+    color: c('#e2e8f0'),
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -83,7 +85,8 @@ function btn(bg: string): React.CSSProperties {
 
 type Mode = 'idle' | 'selecting' | 'waiting' | 'in_room'
 
-export default function ChatPanel() {
+/** 像素 RPG 外壳（主播 11-16）：embedded = 装进底栏上方的弹出面板里（自己画 PanelFrame，始终挂载以保住轮询 / 聊天室状态）；visible 由外壳的「聊天」键控制；来邀请 / 进聊天室时 onRequestOpen 让外壳把面板打开 */
+export default function ChatPanel({ embedded = false, visible = true, onClose, onRequestOpen }: { embedded?: boolean; visible?: boolean; onClose?: () => void; onRequestOpen?: () => void } = {}) {
   const myPlayerId = useGameStore((s) => s.myPlayerId)
   const myPlayer   = useGameStore((s) => s.player)
   const players    = useGameStore((s) => s.players)
@@ -112,6 +115,9 @@ export default function ChatPanel() {
 
   const myId   = myPlayerId ?? ''
   const myName = myPlayer?.profile?.name ?? myId
+
+  // 嵌入外壳：来邀请 / 进聊天室 / 等待中 → 请外壳打开聊天面板
+  useEffect(() => { if (embedded && (pendingReq || mode === 'in_room' || mode === 'waiting')) onRequestOpen?.() }, [embedded, pendingReq, mode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Toast auto-clear ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -318,6 +324,93 @@ export default function ChatPanel() {
 
   if (!myId) return null
 
+  if (embedded) {
+    const inp: React.CSSProperties = { ...INPUT, background: '#fff', color: '#3B2F2F', border: '1px solid #7FB6E8' }
+    const nearbyOthers = nearby.filter(p => !whale || p.entity_id !== whale.id)
+    return (
+      <EmbeddedFrame visible={visible} onClose={onClose}>
+        {toast && <div style={{ color: c('#fbd38d'), fontSize: 12, textAlign: 'center', marginBottom: 6 }}>{toast}</div>}
+        {pendingReq && (
+          <div style={{ border: `1px solid ${c('#4a5568')}`, borderRadius: 8, padding: '8px 10px', marginBottom: 8, background: c('#2d3748') }}>
+            <div style={{ fontWeight: 600, color: c('#90cdf4'), marginBottom: 4 }}>💬 收到对话邀请</div>
+            <div style={{ color: c('#a0aec0'), lineHeight: 1.5 }}><b style={{ color: c('#e2e8f0') }}>{pendingReq.from_name}</b> 说：「{pendingReq.greeting}」</div>
+            <textarea value={replyText} onChange={e => setReplyText(e.target.value)} placeholder="填写回应（接受）或拒绝理由…" rows={2} style={{ ...inp, resize: 'none', marginTop: 6 }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+              <button className="k teal" onClick={() => handleRespond(true)} disabled={!replyText.trim() || sending}>接受</button>
+              <button className="k coral" onClick={() => handleRespond(false)} disabled={!replyText.trim() || sending}>拒绝</button>
+              <button className="k" onClick={() => { setPendingReq(null); setReplyText('') }} style={{ marginLeft: 'auto' }}>忽略</button>
+            </div>
+          </div>
+        )}
+        {mode === 'idle' && (
+          <>
+            {whale && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderRadius: 8, background: c('#2d3748'), marginBottom: 8 }}>
+                <img className="px" src={`assets/ui/avatars/whale_80.png`} width={40} height={40} alt="" style={{ borderRadius: 8, border: `1px solid ${c('#4a5568')}`, background: '#fff' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}>{whale.name} <span style={{ color: c('#718096'), fontSize: 11 }}>{whale.online === false ? '离线' : (whale.stateLabel ?? whale.state)} · ({whale.position.x}, {whale.position.y})</span></div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    <button className="k" onClick={handleWalkToWhale} disabled={walking}>{walking ? '走过去…' : '走到她旁边'}</button>
+                    <button className="k teal" onClick={handleInviteWhale} disabled={sending || nearby.every(p => p.entity_id !== whale.id)} title={nearby.some(p => p.entity_id === whale.id) ? '' : '要在同一个区域里才能邀请'}>邀请她聊天</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <b>附近能聊的人</b><span style={{ color: c('#718096'), fontSize: 11 }}>同一区域 · /chat/nearby</span>
+              {nearbyOthers.length > 0 && <button className="k teal" data-testid="chat-others" onClick={() => setMode('selecting')} style={{ marginLeft: 'auto' }}>找人聊 ({nearbyOthers.length})</button>}
+            </div>
+            {nearbyOthers.length === 0 && <div style={{ color: c('#718096'), textAlign: 'center', padding: '8px 0' }}>附近没有其他玩家<br /><span style={{ fontSize: 11 }}>要先走到和对方同一个区域</span></div>}
+            {nearbyOthers.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{nearbyOthers.map(p => <span key={p.entity_id} style={{ padding: '2px 8px', borderRadius: 9, background: c('#2d3748'), fontSize: 12 }}>{p.name}</span>)}</div>}
+            <input value={greeting} onChange={e => setGreeting(e.target.value)} placeholder="开场白（可空：鲸仔，有空聊两句吗？）" style={{ ...inp, marginTop: 8 }} />
+          </>
+        )}
+        {(mode === 'selecting' || mode === 'waiting') && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+              <b style={{ flex: 1 }}>{mode === 'waiting' ? '等待响应…' : '发起对话'}</b>
+              <button className="k" onClick={() => { setMode('idle'); setWaitingId(null); setSelected(new Set()) }}>取消</button>
+            </div>
+            {mode === 'selecting' && (
+              <>
+                {nearby.length === 0 ? <div style={{ color: c('#718096'), textAlign: 'center', padding: '8px 0' }}>附近没有其他玩家<br /><span style={{ fontSize: 11 }}>要先走到和对方同一个区域</span></div>
+                  : nearby.map(p => (
+                    <label key={p.entity_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: `1px solid ${c('#2d3748')}`, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={selected.has(p.entity_id)} onChange={e => setSelected(prev => { const next = new Set(prev); if (e.target.checked) next.add(p.entity_id); else next.delete(p.entity_id); return next })} style={{ accentColor: '#3BB7A8', width: 16, height: 16, flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>{p.name}</span><span style={{ color: c('#718096'), fontSize: 11 }}>{p.entity_id}</span>
+                    </label>
+                  ))}
+                {selected.size > 0 && (
+                  <>
+                    <input value={greeting} onChange={e => setGreeting(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendRequest()} placeholder="开场白（如：你好！有空聊聊吗）" style={{ ...inp, marginTop: 8 }} />
+                    <div style={{ fontSize: 11, color: c('#718096'), margin: '4px 0' }}>提示：开场白仅用于敲门，请勿包含具体信息诉求</div>
+                    <button className="k teal" onClick={handleSendRequest} disabled={!greeting.trim() || sending}>发送邀请</button>
+                  </>
+                )}
+              </>
+            )}
+            {mode === 'waiting' && (
+              <div style={{ color: c('#a0aec0'), textAlign: 'center', padding: '12px 0' }}>
+                <div style={{ marginBottom: 8 }}>{waitStage === 'walking_over' ? '🚶 对方接受了，正在走过来…' : '⏳ 等待对方接受邀请…'}</div>
+                <div style={{ fontSize: 11, color: c('#718096') }}>{waitStage === 'walking_over' ? '两人相邻后自动开房（最多 30 s）' : '对方接受后将自动进入聊天室（60 s 超时）'}</div>
+              </div>
+            )}
+          </>
+        )}
+        {mode === 'in_room' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, height: 320 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <b style={{ flex: 1 }}>💬 聊天室</b>
+              {roomId && <span style={{ fontSize: 11, color: c('#718096') }}>{roomId.slice(0, 8)}…</span>}
+              <button className="k coral" onClick={handleExit}>退出</button>
+            </div>
+            <RoomView messages={messages} events={roomEvents} myId={myId} myName={myName} onSend={handleSend} />
+          </div>
+        )}
+      </EmbeddedFrame>
+    )
+  }
+
   return (
     <>
       {/* Toast */}
@@ -325,7 +418,7 @@ export default function ChatPanel() {
         <div style={{
           position: 'fixed', top: 68, left: '50%', transform: 'translateX(-50%)',
           background: 'rgba(30, 30, 60, 0.95)', border: '1px solid #4a5568',
-          padding: '6px 18px', borderRadius: 6, color: '#fbd38d',
+          padding: '6px 18px', borderRadius: 6, color: c('#fbd38d'),
           fontSize: 13, zIndex: 400, pointerEvents: 'none',
         }}>
           {toast}
@@ -338,16 +431,16 @@ export default function ChatPanel() {
           position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
           width: 360, background: 'rgba(15, 15, 30, 0.97)',
           border: '1px solid #4a5568', borderRadius: 8, padding: '14px 18px',
-          color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', fontSize: 13,
+          color: c('#e2e8f0'), fontFamily: 'system-ui, sans-serif', fontSize: 13,
           zIndex: 300, display: 'flex', flexDirection: 'column', gap: 10,
         }}>
-          <div style={{ fontWeight: 600, color: '#90cdf4' }}>💬 收到对话邀请</div>
-          <div style={{ color: '#a0aec0', lineHeight: 1.5 }}>
-            <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{pendingReq.from_name}</span>
+          <div style={{ fontWeight: 600, color: c('#90cdf4') }}>💬 收到对话邀请</div>
+          <div style={{ color: c('#a0aec0'), lineHeight: 1.5 }}>
+            <span style={{ color: c('#e2e8f0'), fontWeight: 600 }}>{pendingReq.from_name}</span>
             {' 说：'}
             <span style={{
               display: 'inline-block', marginTop: 4, padding: '3px 10px',
-              background: '#2d3748', borderRadius: 4, color: '#e2e8f0',
+              background: c('#2d3748'), borderRadius: 4, color: c('#e2e8f0'),
             }}>
               「{pendingReq.greeting}」
             </span>
@@ -383,12 +476,12 @@ export default function ChatPanel() {
         <div style={{
           position: 'fixed', top: 'calc(50% + 90px)', right: 8, width: 320,
           background: 'rgba(15, 15, 30, 0.92)', border: '1px solid #4a5568', borderRadius: 8,
-          color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', fontSize: 12, padding: '8px 10px', zIndex: 190,
+          color: c('#e2e8f0'), fontFamily: 'system-ui, sans-serif', fontSize: 12, padding: '8px 10px', zIndex: 190,
           display: 'flex', flexDirection: 'column', gap: 6,
         }}>
-          <div style={{ color: '#90cdf4', fontWeight: 600 }}>
+          <div style={{ color: c('#90cdf4'), fontWeight: 600 }}>
             🐳 {whale.name} · {whale.online === false ? '离线' : (whale.stateLabel ?? whale.state)}
-            <span style={{ color: '#718096', marginLeft: 6 }}>({whale.position.x}, {whale.position.y})</span>
+            <span style={{ color: c('#718096'), marginLeft: 6 }}>({whale.position.x}, {whale.position.y})</span>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={handleWalkToWhale} disabled={walking} style={btn('#2b6cb0')}>{walking ? '走过去…' : '走到她旁边'}</button>
@@ -415,7 +508,7 @@ export default function ChatPanel() {
             padding: '8px 16px',
             background: 'rgba(15, 15, 30, 0.95)',
             border: '1px solid #4a5568', borderRadius: 8,
-            color: '#90cdf4', fontSize: 13, fontWeight: 600,
+            color: c('#90cdf4'), fontSize: 13, fontWeight: 600,
             cursor: 'pointer', zIndex: 200,
           }}
         >
@@ -427,7 +520,7 @@ export default function ChatPanel() {
       {(mode === 'selecting' || mode === 'waiting') && (
         <div style={PANEL}>
           <div style={PANEL_HEADER}>
-            <span style={{ flex: 1, fontWeight: 600, color: '#90cdf4' }}>
+            <span style={{ flex: 1, fontWeight: 600, color: c('#90cdf4') }}>
               {mode === 'waiting' ? '💬 等待响应…' : '💬 发起对话'}
             </span>
             <button
@@ -439,7 +532,7 @@ export default function ChatPanel() {
             {mode === 'selecting' && (
               <>
                 {nearby.length === 0 ? (
-                  <div style={{ color: '#718096', textAlign: 'center', padding: '8px 0' }}>
+                  <div style={{ color: c('#718096'), textAlign: 'center', padding: '8px 0' }}>
                     附近没有其他玩家<br />
                     <span style={{ fontSize: 11 }}>要先走到和对方同一个区域</span>
                   </div>
@@ -457,10 +550,10 @@ export default function ChatPanel() {
                           if (e.target.checked) next.add(p.entity_id); else next.delete(p.entity_id)
                           return next
                         })}
-                        style={{ accentColor: '#4299e1', width: 14, height: 14, flexShrink: 0 }}
+                        style={{ accentColor: c('#4299e1'), width: 14, height: 14, flexShrink: 0 }}
                       />
                       <span style={{ flex: 1 }}>{p.name}</span>
-                      <span style={{ color: '#718096', fontSize: 11 }}>{p.entity_id}</span>
+                      <span style={{ color: c('#718096'), fontSize: 11 }}>{p.entity_id}</span>
                     </label>
                   ))
                 )}
@@ -473,7 +566,7 @@ export default function ChatPanel() {
                       placeholder="开场白（如：你好！有空聊聊吗）"
                       style={INPUT}
                     />
-                    <div style={{ fontSize: 11, color: '#718096' }}>
+                    <div style={{ fontSize: 11, color: c('#718096') }}>
                       提示：开场白仅用于敲门，请勿包含具体信息诉求
                     </div>
                     <button
@@ -486,9 +579,9 @@ export default function ChatPanel() {
               </>
             )}
             {mode === 'waiting' && (
-              <div style={{ color: '#a0aec0', textAlign: 'center', padding: '12px 0' }}>
+              <div style={{ color: c('#a0aec0'), textAlign: 'center', padding: '12px 0' }}>
                 <div style={{ marginBottom: 8 }}>{waitStage === 'walking_over' ? '🚶 对方接受了，正在走过来…' : '⏳ 等待对方接受邀请…'}</div>
-                <div style={{ fontSize: 11, color: '#718096' }}>{waitStage === 'walking_over' ? '两人相邻后自动开房（最多 30 s）' : '对方接受后将自动进入聊天室（60 s 超时）'}</div>
+                <div style={{ fontSize: 11, color: c('#718096') }}>{waitStage === 'walking_over' ? '两人相邻后自动开房（最多 30 s）' : '对方接受后将自动进入聊天室（60 s 超时）'}</div>
               </div>
             )}
           </div>
@@ -499,9 +592,9 @@ export default function ChatPanel() {
       {mode === 'in_room' && !roomHidden && (
         <div style={ROOM_PANEL}>
           <div style={PANEL_HEADER}>
-            <span style={{ flex: 1, fontWeight: 600, color: '#90cdf4' }}>💬 聊天室</span>
+            <span style={{ flex: 1, fontWeight: 600, color: c('#90cdf4') }}>💬 聊天室</span>
             {roomId && (
-              <span style={{ fontSize: 11, color: '#718096', marginRight: 4 }}>
+              <span style={{ fontSize: 11, color: c('#718096'), marginRight: 4 }}>
                 {roomId.slice(0, 8)}…
               </span>
             )}
@@ -520,6 +613,15 @@ export default function ChatPanel() {
         </div>
       )}
     </>
+  )
+}
+
+// ─── 外壳里的弹出框（display:none 保住状态） ─────────────────────────────────
+function EmbeddedFrame({ visible, onClose, children }: { visible: boolean; onClose?: () => void; children: React.ReactNode }) {
+  return (
+    <div style={{ display: visible ? 'block' : 'none' }}>
+      <PanelFrame title="聊天" onClose={() => onClose?.()} width={560}>{children}</PanelFrame>
+    </div>
   )
 }
 
@@ -563,7 +665,7 @@ function RoomView({
         paddingRight: 2,
       }}>
         {items.length === 0 && (
-          <div style={{ color: '#718096', fontSize: 12, textAlign: 'center', padding: '8px 0' }}>
+          <div style={{ color: c('#718096'), fontSize: 12, textAlign: 'center', padding: '8px 0' }}>
             对话开始，开始聊天吧
           </div>
         )}
@@ -575,7 +677,7 @@ function RoomView({
               item.data.type
             return (
               <div key={i} style={{
-                textAlign: 'center', color: '#718096',
+                textAlign: 'center', color: c('#718096'),
                 fontSize: 11, fontStyle: 'italic',
               }}>
                 — {label} —
@@ -587,11 +689,11 @@ function RoomView({
           const name = isSelf ? myName : (m.from_name || m.from_entity_id)
           return (
             <div key={i} style={{ textAlign: isSelf ? 'right' : 'left' }}>
-              <div style={{ fontSize: 11, color: '#718096', marginBottom: 2 }}>{name}</div>
+              <div style={{ fontSize: 11, color: c('#718096'), marginBottom: 2 }}>{name}</div>
               <span style={{
                 display: 'inline-block',
-                background: isSelf ? '#2b4c7e' : '#2d3748',
-                color: isSelf ? '#90cdf4' : '#e2e8f0',
+                background: isSelf ? c('#2b4c7e') : c('#2d3748'),
+                color: isSelf ? c('#90cdf4') : c('#e2e8f0'),
                 borderRadius: 6,
                 padding: '5px 10px',
                 maxWidth: '85%',

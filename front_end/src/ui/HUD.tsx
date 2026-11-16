@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { c } from './uiPalette'
 import { useGameStore } from '../store/gameStore'
 import { setDnd } from '../api/world'
 import { gameNowMs, busyText, dailyUseLines, rentText } from '../game/v11'
@@ -11,7 +12,7 @@ import { stairsHop } from '../game/stairs'
 import { EventBus } from '../game/EventBus'
 
 const NEED_CSS: Record<string, string> = {
-  fullness: '#f6ad55', energy: '#63b3ed', social: '#b794f4', fun: '#68d391', mood: '#fbd38d',
+  fullness: c('#f6ad55'), energy: c('#63b3ed'), social: c('#b794f4'), fun: c('#68d391'), mood: c('#fbd38d'),
 }
 const NEED_FULL: Record<string, string> = {
   fullness: '饱腹', energy: '精力', social: '社交', fun: '乐趣', mood: '心情',
@@ -22,7 +23,7 @@ const BAR_WIDTH = 160
 function Bar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = Math.max(0, Math.min(1, value / max))
   return (
-    <div style={{ width: BAR_WIDTH, height: 8, background: '#2d3748', borderRadius: 4, overflow: 'hidden' }}>
+    <div style={{ width: BAR_WIDTH, height: 8, background: c('#2d3748'), borderRadius: 4, overflow: 'hidden' }}>
       <div style={{ width: `${pct * 100}%`, height: '100%', background: color, transition: 'width 0.2s' }} />
     </div>
   )
@@ -31,8 +32,8 @@ function Bar({ value, max, color }: { value: number; max: number; color: string 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
-      <span style={{ color: '#a0aec0', flexShrink: 0 }}>{label}</span>
-      <span style={{ color: '#e2e8f0', textAlign: 'right' }}>{value}</span>
+      <span style={{ color: c('#a0aec0'), flexShrink: 0 }}>{label}</span>
+      <span style={{ color: c('#e2e8f0'), textAlign: 'right' }}>{value}</span>
     </div>
   )
 }
@@ -57,10 +58,10 @@ function StairsRow({ position }: { position: { x: number; y: number } }) {
   return (
     <Row label="楼梯" value={
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <button onClick={go} data-testid="stairs-go" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, border: '1px solid #4a5568', background: '#2c5282', color: '#fff', cursor: 'pointer' }}>
+        <button onClick={go} data-testid="stairs-go" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, border: '1px solid #4a5568', background: c('#2c5282'), color: '#fff', cursor: 'pointer' }}>
           {hop.toFloor < hop.fromFloor ? '⬇ 下楼' : '⬆ 上楼'}去 {hop.toFloor} 楼
         </button>
-        <span style={{ color: '#718096', fontSize: 10 }}>或直接点另一层的地板</span>
+        <span style={{ color: c('#718096'), fontSize: 10 }}>或直接点另一层的地板</span>
       </span>
     } />
   )
@@ -82,8 +83,8 @@ function DndRow({ playerId, dnd, tags }: { playerId: string; dnd: boolean; tags:
   return (
     <Row label="勿扰" value={
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ color: dnd ? '#f6ad55' : '#68d391', fontSize: 11 }}>{dnd ? (working ? '开 · 工作中' : '开') : '关'}</span>
-        <button onClick={toggle} disabled={busy} data-testid="dnd-toggle" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, border: '1px solid #4a5568', background: dnd ? '#744210' : '#22543d', color: '#fff', cursor: 'pointer' }}>
+        <span style={{ color: dnd ? c('#f6ad55') : c('#68d391'), fontSize: 11 }}>{dnd ? (working ? '开 · 工作中' : '开') : '关'}</span>
+        <button onClick={toggle} disabled={busy} data-testid="dnd-toggle" style={{ fontSize: 11, padding: '1px 8px', borderRadius: 4, border: '1px solid #4a5568', background: dnd ? c('#744210') : c('#22543d'), color: '#fff', cursor: 'pointer' }}>
           {busy ? '…' : (dnd ? '关闭勿扰' : '开启勿扰')}
         </button>
       </span>
@@ -163,29 +164,29 @@ export default function HUD({ embedded = false }: { embedded?: boolean } = {}) {
       border: '1px solid #4a5568',
       borderRadius: 8,
       padding: '10px 14px',
-      color: '#e2e8f0',
+      color: c('#e2e8f0'),
       fontSize: 12,
       userSelect: 'none',
       minWidth: 200,
       ...(embedded ? { position: 'static', top: 'auto', left: 'auto', right: 'auto', bottom: 'auto', width: 'auto', minWidth: 0, maxHeight: 'none', background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 } : {}),
     }}>
       {/* 档案 */}
-      <div style={{ fontWeight: 'bold', marginBottom: 6, color: '#90cdf4', fontSize: 13 }}>
+      <div style={{ fontWeight: 'bold', marginBottom: 6, color: c('#90cdf4'), fontSize: 13 }}>
         {profile?.name ?? player.id}
       </div>
       <Row label="年龄" value={profile?.age ?? '—'} />
-      <Row label="ID"   value={<span style={{ color: '#718096', fontSize: 11 }}>{player.id}</span>} />
-      {typeof player.gold === 'number' && <Row label="金币" value={<span style={{ color: '#ffe9a8', fontWeight: 700 }}>💰 {player.gold}</span>} />}
+      <Row label="ID"   value={<span style={{ color: c('#718096'), fontSize: 11 }}>{player.id}</span>} />
+      {typeof player.gold === 'number' && <Row label="金币" value={<span style={{ color: c('#ffe9a8'), fontWeight: 700 }}>💰 {player.gold}</span>} />}
       {(identity === 'achan' || player.agent_id === 'achan' || typeof player.dnd === 'boolean') && <DndRow playerId={player.id} dnd={!!player.dnd} tags={player.tags ?? []} />}
       <StairsRow position={position} />
-      {(() => { const r = rentText(player.rent); return r ? <Row label="房租" value={<span style={{ color: r.overdue ? '#fc8181' : '#a0aec0', fontSize: 11, fontWeight: r.overdue ? 700 : 400 }}>{r.text.replace(/^🏠 /, '')}</span>} /> : null })()}
-      {player.busy && <Row label="正在" value={<span style={{ color: '#9ae6b4', fontSize: 11 }}>{busyText(player.busy, gameNowMs(worldStateForHud))}</span>} />}
-      {dailyUseLines(player.daily_use).map(l => <Row key={l.key} label="今日" value={<span style={{ color: l.full ? '#fc8181' : '#a0aec0', fontSize: 11 }}>{l.text}</span>} />)}
+      {(() => { const r = rentText(player.rent); return r ? <Row label="房租" value={<span style={{ color: r.overdue ? c('#fc8181') : c('#a0aec0'), fontSize: 11, fontWeight: r.overdue ? 700 : 400 }}>{r.text.replace(/^🏠 /, '')}</span>} /> : null })()}
+      {player.busy && <Row label="正在" value={<span style={{ color: c('#9ae6b4'), fontSize: 11 }}>{busyText(player.busy, gameNowMs(worldStateForHud))}</span>} />}
+      {dailyUseLines(player.daily_use).map(l => <Row key={l.key} label="今日" value={<span style={{ color: l.full ? c('#fc8181') : c('#a0aec0'), fontSize: 11 }}>{l.text}</span>} />)}
 
       <Divider />
 
       {/* 位置与朝向 */}
-      <Row label="位置"   value={<span style={{ color: '#a0aec0', fontSize: 11 }}>{zoneLabel}</span>} />
+      <Row label="位置"   value={<span style={{ color: c('#a0aec0'), fontSize: 11 }}>{zoneLabel}</span>} />
       <Row label="坐标"   value={`(${position.x}, ${position.y})`} />
       <Row label="朝向"   value={{ up: '↑ 上', down: '↓ 下', left: '← 左', right: '→ 右' }[facing]} />
 
@@ -195,13 +196,13 @@ export default function HUD({ embedded = false }: { embedded?: boolean } = {}) {
       <Row
         label="状态"
         value={
-          <span style={{ color: state === 'using' ? '#68d391' : state === 'idle' ? '#a0aec0' : '#fbd38d' }}>
+          <span style={{ color: state === 'using' ? c('#68d391') : state === 'idle' ? c('#a0aec0') : c('#fbd38d') }}>
             {stateDisplay}
           </span>
         }
       />
       {usingObjectId && (
-        <Row label="使用中" value={<span style={{ color: '#68d391', fontSize: 11 }}>{usingObjectId}</span>} />
+        <Row label="使用中" value={<span style={{ color: c('#68d391'), fontSize: 11 }}>{usingObjectId}</span>} />
       )}
 
       <Divider />
@@ -212,17 +213,17 @@ export default function HUD({ embedded = false }: { embedded?: boolean } = {}) {
         return (
           <div key={k} style={{ marginBottom: 5 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-              <span style={{ color: '#a0aec0' }}>{NEED_LABELS[k]} {NEED_FULL[k]}</span>
+              <span style={{ color: c('#a0aec0') }}>{NEED_LABELS[k]} {NEED_FULL[k]}</span>
               <span style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.floor(v)} / 100</span>
             </div>
-            <Bar value={v} max={100} color={v < 25 ? '#e53e3e' : NEED_CSS[k]} />
+            <Bar value={v} max={100} color={v < 25 ? c('#e53e3e') : NEED_CSS[k]} />
           </div>
         )
       })}
       {emotionTags.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
           {emotionTags.map((t, i) => (
-            <span key={i} style={{ background: '#2a2d3e', color: '#fbd38d', borderRadius: 3, padding: '1px 6px', fontSize: 11 }}>
+            <span key={i} style={{ background: c('#2a2d3e'), color: c('#fbd38d'), borderRadius: 3, padding: '1px 6px', fontSize: 11 }}>
               {t.key}{t.remaining !== null ? ` ${(t.remaining / 1000).toFixed(0)}s` : ''}
             </span>
           ))}
@@ -233,22 +234,22 @@ export default function HUD({ embedded = false }: { embedded?: boolean } = {}) {
       {players.filter(p => p.controller === 'agent').map(p => {
         const v = playerVars[p.id]
         if (!v) return null
-        const band = (x: number) => x < 10 ? ['紧急', '#e53e3e'] : x < 15 ? ['很差', '#ed8936'] : x < 25 ? ['偏低', '#ecc94b'] : x < 60 ? ['一般', '#a0aec0'] : ['不错', '#68d391']
+        const band = (x: number) => x < 10 ? ['紧急', c('#e53e3e')] : x < 15 ? ['很差', c('#ed8936')] : x < 25 ? ['偏低', c('#ecc94b')] : x < 60 ? ['一般', c('#a0aec0')] : ['不错', c('#68d391')]
         return (
           <div key={p.id} style={{ marginTop: 6 }}>
             <Divider />
-            <div style={{ color: '#90cdf4', fontWeight: 600, marginBottom: 3 }}>🐳 {p.name}{p.online === false ? '（离线）' : ''}</div>
+            <div style={{ color: c('#90cdf4'), fontWeight: 600, marginBottom: 3 }}>🐳 {p.name}{p.online === false ? '（离线）' : ''}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '2px 8px', alignItems: 'center' }}>
               {NEED_KEYS.map(k => {
                 const [label, color] = band(v.vars[k])
                 return [
-                  <span key={k + 'l'} style={{ color: '#a0aec0' }}>{NEED_LABELS[k]} {NEED_FULL[k]}</span>,
+                  <span key={k + 'l'} style={{ color: c('#a0aec0') }}>{NEED_LABELS[k]} {NEED_FULL[k]}</span>,
                   <Bar key={k + 'b'} value={v.vars[k]} max={100} color={color} />,
                   <span key={k + 'v'} style={{ color, fontSize: 11, minWidth: 28, textAlign: 'right' }}>{label}</span>,
                 ]
               })}
             </div>
-            {v.emotion_tags.length > 0 && <div style={{ color: '#fbd38d', fontSize: 11, marginTop: 3 }}>{v.emotion_tags.map(t => t.key).join(' · ')}</div>}
+            {v.emotion_tags.length > 0 && <div style={{ color: c('#fbd38d'), fontSize: 11, marginTop: 3 }}>{v.emotion_tags.map(t => t.key).join(' · ')}</div>}
           </div>
         )
       })}
@@ -259,11 +260,11 @@ export default function HUD({ embedded = false }: { embedded?: boolean } = {}) {
           <Divider />
           {buffs.length > 0 && (
             <div style={{ marginBottom: 4 }}>
-              <div style={{ color: '#a0aec0', marginBottom: 3 }}>Buffs</div>
+              <div style={{ color: c('#a0aec0'), marginBottom: 3 }}>Buffs</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {buffs.map((b: Buff, i) => (
                   <span key={i} style={{
-                    background: '#2d5016', color: '#68d391',
+                    background: c('#2d5016'), color: c('#68d391'),
                     borderRadius: 3, padding: '1px 6px', fontSize: 11,
                   }}>
                     {b.key}{b.value ? ` ${b.value > 0 ? '+' : ''}${b.value}` : ''}
@@ -277,11 +278,11 @@ export default function HUD({ embedded = false }: { embedded?: boolean } = {}) {
           )}
           {tags.length > 0 && (
             <div>
-              <div style={{ color: '#a0aec0', marginBottom: 3 }}>Tags</div>
+              <div style={{ color: c('#a0aec0'), marginBottom: 3 }}>Tags</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {tags.map((tag, i) => (
                   <span key={i} style={{
-                    background: '#2a2d3e', color: '#90cdf4',
+                    background: c('#2a2d3e'), color: c('#90cdf4'),
                     borderRadius: 3, padding: '1px 6px', fontSize: 11,
                   }}>
                     {tag}

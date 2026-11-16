@@ -18,6 +18,7 @@ import KnockPanel from '../KnockPanel'
 import InteractionPanel from '../InteractionPanel'
 import ConnectionBadge from '../ConnectionBadge'
 import { panel } from './theme'
+import { setUiSkin } from '../uiPalette'
 
 /**
  * 操控页像素 RPG 菜单风外壳（主播 11-16 定稿 mockC1 / C2）：
@@ -28,6 +29,7 @@ export default function RpgShell({ playerId }: { playerId: string }) {
   const [open, setOpen] = useState<PanelKey | null>(null)
   const [dir, setDir] = useState<{ mode: 'self' | 'free' | 'follow'; follow: string | null }>({ mode: 'self', follow: null })
   const toggle = (k: PanelKey) => setOpen(o => (o === k ? null : k))
+  useEffect(() => { setUiSkin('rpg'); return () => setUiSkin('dark') }, [])
   useEffect(() => {
     const on = (s: typeof dir) => setDir(s)
     EventBus.on('director-state', on)
@@ -69,20 +71,18 @@ export default function RpgShell({ playerId }: { playerId: string }) {
         <div style={{ pointerEvents: 'auto' }}><KnockPanel anchor="bottom" skin="rpg" /></div>
         <div style={{ pointerEvents: 'auto' }}><InteractionPanel anchor="bottom" skin="rpg" /></div>
       </div>
-      {open && (
-        <PanelFrame title={title} onClose={() => setOpen(null)} width={open === 'people' ? 600 : open === 'map' ? 520 : open === 'settings' ? 520 : 560} dark={open === 'me' || open === 'bag' || open === 'log'}>
+      {open && open !== 'chat' && (
+        <PanelFrame title={title} onClose={() => setOpen(null)} width={open === 'people' ? 600 : open === 'map' ? 520 : open === 'settings' ? 520 : 560} dark={false}>
           {open === 'people' && <PeoplePanel follow={dir.mode === 'follow' ? dir.follow : null} />}
           {open === 'map' && <div style={{ display: 'flex', justifyContent: 'center' }}><Minimap inline large /></div>}
           {open === 'bag' && <BackpackPanel embedded />}
           {open === 'log' && <ActionLog embedded />}
           {open === 'me' && <HUD embedded />}
           {open === 'settings' && <SettingsPanel />}
-          {open === 'chat' && <div style={{ color: '#7A6A5A', fontSize: 12, textAlign: 'center' }}>聊天小卡 / 选人 / 聊天室在右侧（素材包到了一起收进这里）</div>}
         </PanelFrame>
       )}
-      {/* 聊天（旧布局，先只在按 5 时显示；聊天室进行中也显示） */}
-      <div style={{ pointerEvents: 'auto', display: open === 'chat' ? 'block' : 'none' }}><ChatPanel /></div>
-      <ChatRoomKeepAlive />
+      {/* 聊天：始终挂载（轮询 / 聊天室状态不丢），按 5 显示；来邀请 / 进聊天室自动打开 */}
+      <div style={{ pointerEvents: 'auto' }}><ChatPanel embedded visible={open === 'chat'} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} /></div>
       {/* 左下 QQ 手机图标 → 居中手机 */}
       <div style={{ pointerEvents: 'auto' }}><QQPanel playerId={playerId} readOnly={false} compact phone style={{ bottom: 16, left: 16, top: 'auto', right: 'auto' }} /></div>
       {/* 右下常态小地图 */}
@@ -92,6 +92,3 @@ export default function RpgShell({ playerId }: { playerId: string }) {
     </div>
   )
 }
-
-/** 聊天室进行中时即使没按 5 也要能看见：ChatPanel 自己管理 in_room 态，这里只在 room 态把容器显出来 */
-function ChatRoomKeepAlive() { return null }
