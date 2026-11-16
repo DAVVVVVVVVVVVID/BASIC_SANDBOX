@@ -15,7 +15,7 @@ function knockLabel(e: { type: string; payload: Record<string, unknown>; success
   return null
 }
 
-export default function ActionLog() {
+export default function ActionLog({ embedded = false }: { embedded?: boolean } = {}) {
   const log = useGameStore((s) => s.actionLog)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -39,6 +39,7 @@ export default function ActionLog() {
       userSelect: 'none',
       display: 'flex',
       flexDirection: 'column',
+      ...(embedded ? { position: 'static', top: 'auto', left: 'auto', right: 'auto', bottom: 'auto', width: 'auto', minWidth: 0, maxHeight: 'none', background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 } : {}),
     }}>
       <div style={{ marginBottom: 6, fontSize: 12, color: '#a0aec0', borderBottom: '1px solid #4a5568', paddingBottom: 4 }}>
         行为日志（最近 {log.length} 条）

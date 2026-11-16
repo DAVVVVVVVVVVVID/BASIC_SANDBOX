@@ -91,7 +91,7 @@ function DndRow({ playerId, dnd, tags }: { playerId: string; dnd: boolean; tags:
   )
 }
 
-export default function HUD() {
+export default function HUD({ embedded = false }: { embedded?: boolean } = {}) {
   const player  = useGameStore((s) => s.player)
   const identity = useGameStore((s) => s.identity)
   const speed   = useGameStore((s) => s.worldState?.speed ?? 1)
@@ -167,6 +167,7 @@ export default function HUD() {
       fontSize: 12,
       userSelect: 'none',
       minWidth: 200,
+      ...(embedded ? { position: 'static', top: 'auto', left: 'auto', right: 'auto', bottom: 'auto', width: 'auto', minWidth: 0, maxHeight: 'none', background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 } : {}),
     }}>
       {/* 档案 */}
       <div style={{ fontWeight: 'bold', marginBottom: 6, color: '#90cdf4', fontSize: 13 }}>

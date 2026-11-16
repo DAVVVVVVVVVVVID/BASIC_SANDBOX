@@ -14,6 +14,7 @@ import ChatPanel from './ui/ChatPanel'
 import ConnectionBadge from './ui/ConnectionBadge'
 import QQPanel from './ui/QQPanel'
 import DirectorPanel from './ui/DirectorPanel'
+import RpgShell from './ui/rpg/RpgShell'
 import BackpackPanel from './ui/BackpackPanel'
 import KnockPanel from './ui/KnockPanel'
 import SpectateApp from './spectate/SpectateApp'
@@ -74,6 +75,15 @@ function PlayApp() {
     return <JoinScreen onJoined={handleJoined} />
   }
 
+  const oldUi = new URLSearchParams(window.location.search).get('ui') === 'old'
+  if (!oldUi) {
+    return (
+      <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#0f1020' }}>
+        <div id="game-container" style={{ position: 'absolute', inset: 0 }} />
+        <RpgShell playerId={myPlayerId} />
+      </div>
+    )
+  }
   return (
     <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#0f1020' }}>
       <div id="game-container" style={{ position: 'absolute', inset: 0 }} />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { EventBus } from '../game/EventBus'
 
-export default function InteractionPanel() {
+export default function InteractionPanel({ anchor = 'free' }: { anchor?: 'free' | 'bottom' } = {}) {
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -23,10 +23,11 @@ export default function InteractionPanel() {
     <div
       onClick={() => setMessage(null)}
       style={{
-        position: 'absolute',
-        bottom: '24px',
+        position: anchor === 'bottom' ? 'relative' : 'absolute',
+        bottom: anchor === 'bottom' ? 'auto' : '24px',
         left: '50%',
         transform: 'translateX(-50%)',
+        ...(anchor === 'bottom' ? { margin: '6px 0' } : {}),
         backgroundColor: 'rgba(15, 15, 30, 0.92)',
         color: '#e2e8f0',
         padding: '16px 28px',

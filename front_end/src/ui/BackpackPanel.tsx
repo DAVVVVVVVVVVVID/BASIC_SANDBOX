@@ -10,7 +10,7 @@ import type { GameObject } from '../types'
  * 站在商店物品（柜台 / 卖鱼摊，带 `shop[]`）旁时列出可买的东西。动作全部 `POST /action {type: buy|eat|give|sell}`，
  * payload 字段名（item / object_id / target）是**假设**，B 的 api-spec 落地后对齐；成败以后端回包为准。
  */
-export default function BackpackPanel() {
+export default function BackpackPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const player = useGameStore((s) => s.player)
   const objects = useGameStore((s) => s.objects)
   const players = useGameStore((s) => s.players)
@@ -43,7 +43,7 @@ export default function BackpackPanel() {
   while (slots.length < 10) slots.push(null)
 
   return (
-    <div style={{ position: 'absolute', left: 330, bottom: 16, width: 300, background: 'rgba(15,15,30,0.9)', border: '1px solid #4a5568', borderRadius: 8, color: '#e2e8f0', fontSize: 12, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none' }}>
+    <div style={{ position: 'absolute', left: 330, bottom: 16, width: 300, background: 'rgba(15,15,30,0.9)', border: '1px solid #4a5568', borderRadius: 8, color: '#e2e8f0', fontSize: 12, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none', ...(embedded ? { position: 'static', top: 'auto', left: 'auto', right: 'auto', bottom: 'auto', width: 'auto', minWidth: 0, maxHeight: 'none', background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 } : {}), }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
         <b style={{ color: '#90cdf4' }}>🎒 背包</b><span style={{ color: inv.filter(i => itemMeta(i.type, i.name).kind !== 'key').length >= KINDS_MAX ? '#fc8181' : '#718096', fontSize: 10 }}>{inv.filter(i => itemMeta(i.type, i.name).kind !== 'key').length}/{KINDS_MAX} 种 · 每种 ≤{PER_MAX}</span>
         <span style={{ marginLeft: 'auto', color: '#ffe9a8', fontWeight: 700 }}>💰 {gold === null ? '—' : gold}</span>

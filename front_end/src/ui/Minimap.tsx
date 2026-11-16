@@ -26,9 +26,11 @@ interface Props {
   followId?: string | null
   /** 旁观页：在面板内部排版（不用 fixed 居右） */
   inline?: boolean
+  /** 「地图」面板：放大一倍 */
+  large?: boolean
 }
 
-export default function Minimap({ onClickTile, viewport, followId, inline }: Props = {}) {
+export default function Minimap({ onClickTile, viewport, followId, inline, large }: Props = {}) {
   const tiles  = useGameStore((s) => s.tiles)
   const player = useGameStore((s) => s.player)
   const players = useGameStore((s) => s.players)
@@ -38,8 +40,9 @@ export default function Minimap({ onClickTile, viewport, followId, inline }: Pro
   const mapW = tiles.length > 0 ? Math.max(...tiles.map(t => t.x)) + 1 : 0
   const mapH = tiles.length > 0 ? Math.max(...tiles.map(t => t.y)) + 1 : 0
 
-  const cellW = mapW > 0 ? Math.max(2, Math.floor(MINIMAP_MAX_W / mapW)) : 4
-  const cellH = mapH > 0 ? Math.max(2, Math.floor(MINIMAP_MAX_H / mapH)) : 4
+  const K = large ? 2 : 1
+  const cellW = mapW > 0 ? Math.max(2, Math.floor(MINIMAP_MAX_W * K / mapW)) : 4
+  const cellH = mapH > 0 ? Math.max(2, Math.floor(MINIMAP_MAX_H * K / mapH)) : 4
   const cell  = Math.min(cellW, cellH)
 
   const canvasW = mapW * cell

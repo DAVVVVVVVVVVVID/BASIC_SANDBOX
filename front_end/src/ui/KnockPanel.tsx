@@ -13,7 +13,7 @@ import type { MapDoor, PendingKnock, WsDoor, WsKnock } from '../types'
  * - 自己敲了别人家的门（player.door_request）→ 显示状态与屋里人的回话。
  * - 主播 11-16：站在别人家门外 ≤ 2 格 → 「🚪 敲 X 的门」→ POST /action knock {door_id}（有钥匙 / 不是家 / 太远按后端 reason 提示）。
  */
-export default function KnockPanel() {
+export default function KnockPanel({ anchor = 'top' }: { anchor?: 'top' | 'bottom' } = {}) {
   const player = useGameStore((s) => s.player)
   const myId = useGameStore((s) => s.myPlayerId)
   const mapExtras = useGameStore((s) => s.mapExtras)
@@ -91,7 +91,7 @@ export default function KnockPanel() {
   }
 
   return (
-    <div style={{ position: 'absolute', top: 104, left: '50%', transform: 'translateX(-50%)', width: 360, background: 'rgba(30,20,15,0.92)', border: '1px solid #b7791f', borderRadius: 10, color: '#fff7ed', fontSize: 13, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none', boxShadow: '0 4px 18px rgba(0,0,0,0.4)' }}>
+    <div style={{ position: anchor === 'bottom' ? 'relative' : 'absolute', top: anchor === 'bottom' ? 'auto' : 104, left: '50%', transform: 'translateX(-50%)', margin: anchor === 'bottom' ? '6px 0' : 0, width: 360, background: 'rgba(30,20,15,0.92)', border: '1px solid #b7791f', borderRadius: 10, color: '#fff7ed', fontSize: 13, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none', boxShadow: '0 4px 18px rgba(0,0,0,0.4)' }}>
       {knocks.map((k) => {
         const doorId = k.door?.door_id ?? k.door?.id
         const d = doors.find((x) => x.door_id === doorId) ?? doors.find((x) => k.door && x.x === k.door.x && x.y === k.door.y)

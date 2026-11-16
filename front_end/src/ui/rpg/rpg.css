@@ -1,0 +1,39 @@
+/* 操控页像素 RPG 菜单风（主播 11-16）：字体 + 按钮三态 + 像素渲染 */
+@font-face {
+  font-family: 'Fusion Pixel 12px';
+  src: url('/assets/ui/fonts/fusion-pixel-12px-proportional-zh_hans.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.rpg, .rpg button, .rpg input {
+  font-family: 'Fusion Pixel 12px', 'Zpix', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+.rpg img.px { image-rendering: pixelated; }
+
+/* 按钮三态：normal / hover（1px 白顶边更亮）/ pressed（下移 2px、阴影收起） */
+.rpg button.rb { transition: transform 40ms linear, filter 80ms linear; }
+.rpg button.rb:hover:not(:disabled) { filter: brightness(1.06); }
+.rpg button.rb:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 0 0 #D9C9B0 !important; }
+.rpg button.rb:disabled { opacity: 0.55; cursor: default; }
+.rpg button.rb.active { outline: 2px solid #F2B84B; outline-offset: -2px; }
+
+/* 底栏召唤键 */
+.rpg .summon { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 72px; height: 72px; justify-content: center; position: relative; }
+.rpg .summon .hk { position: absolute; left: 4px; top: 3px; width: 14px; height: 14px; font-size: 10px; line-height: 14px; text-align: center; background: #FFF8EC; border: 1px solid #7FB6E8; border-radius: 3px; color: #3B2F2F; }
+.rpg .summon .ic { font-size: 22px; line-height: 1; }
+
+/* 面板滑入 */
+@keyframes rpg-slide-up { from { transform: translate(-50%, 12px); opacity: 0 } to { transform: translate(-50%, 0); opacity: 1 } }
+.rpg .popup { animation: rpg-slide-up 120ms ease-out; }
+
+/* 属性条 */
+.rpg .bar { height: 8px; background: #EDE3D2; border-radius: 4px; overflow: hidden; border: 1px solid rgba(0,0,0,0.08); }
+.rpg .bar > i { display: block; height: 100%; border-radius: 4px; }
+
+/* 把旧暗色面板嵌进 cream 面板时的中性化 */
+.rpg .embed { color: #3B2F2F; }
+.rpg .embed input { background: #fff; color: #3B2F2F; border: 1px solid #7FB6E8; }
