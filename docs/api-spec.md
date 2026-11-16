@@ -1459,7 +1459,7 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 访客在**家门外侧**（离门外格 `a` 或所指的格 ≤ 2、不在这家里）：`{door_id}` / `{target_tile {x,y}}` / `{home: <sector>}`。家 = 带 owner 且没有 open_hours 的门所在的 sector（合租房 / 渔夫家 / 克劳蒂娜家 / 店主家）；商店 `not_a_home`。
 
-成功 `result {message: "咚咚咚。", request_id, expires_at(+90 游戏秒), home, door{id, name, x, y, inside{x,y}}, notified: [屋内清醒者 id], request}`；**notified = 这家 sector 内所有清醒（无 `sleeping`、`scene ≠ live`、在场）的玩家，不限 owner**（人类演阿蝉站在客厅就能收到）；他们 `pendingMessage`「X 在敲门。」、`GET /player` `pending_knocks[]`、perceive `knocks[]`。ws `{type:"knock", request_id, visitor, visitor_name, home, home_name, door, owners, expires_at, notified}`。日志 `knock`。
+成功 `result {message: "咚咚咚。", request_id, expires_at(+90 游戏秒), home, door{id, name, x, y, inside{x,y}}, notified: [屋内清醒者 id], request}`；**notified = 这家 sector 内所有清醒（无 `sleeping`、`scene ≠ live`、在场）的玩家，不限 owner**（人类演阿蝉站在客厅就能收到）；他们 `pendingMessage`「X 在敲门。」、`GET /player` `pending_knocks[]`、perceive `knocks[]`。ws `{type:"knock", request_id, visitor, visitor_name, home, home_name, door, owners, expires_at, notified}`。日志 `knock`。 **v1.3.22**：主人（owner）不在家时既不进 `notified`，也看不到 `pending_knocks` / `knocks`（旧版主人在外也能看到）；屋里没清醒的人 → 访客 90 游戏秒后 `no_answer`。
 
 失败：`unknown_door` / `missing_door_or_target` / `not_a_home` / `already_inside` / `has_key`（有钥匙不用敲）/ `no_door` / `too_far` / `already_knocking` / `walking`。 **world-v1.3** 新增 `busy`：屋里只有勿扰（`dnd`）的人（主播操控的阿蝉不在）→ 立刻拒，不挂 90 s 等 `no_answer`，`result {home, door_id, message, dnd: [player id]}`；屋里另有清醒的非勿扰者则照常受理（勿扰者不被通知）。
 
@@ -1477,8 +1477,8 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 
 | 哪里 | 字段 |
 |---|---|
-| `GET /player/{id}` | `door_request`（访客：`{id, home, home_name, status, expires_at, responded_by, answers[{by, text, at}], door}`）、`pending_knocks[]`（屋内 / 主人：`{id, visitor, visitor_name, home, home_name, door, status, expires_at}`）、`keys[]` |
-| `GET /agent/perceive` | `knocks[]`（`{id, visitor_name, home_name, expires_at}`）、`door_request`（`{id, home_name, status, expires_at}`） |
+| `GET /player/{id}` | `door_request`（访客：`{id, home, home_name, status, expires_at, responded_by, answers[{by, text, at}], door}`）、`pending_knocks[]`（**此刻在这家 sector 内、清醒、非勿扰**的人才有——主人不在家看不到，v1.3.22：`{id, visitor, visitor_name, home, home_name, door, status, expires_at}`）、`keys[]` |
+| `GET /agent/perceive` | `knocks[]`（同上可见性：只给此刻在家、清醒、非勿扰的人；`{id, visitor_name, home_name, expires_at}`）、`door_request`（`{id, home_name, status, expires_at}`） |
 | `GET /door/requests?player=` | `{pending_knocks, door_request, keys, open_doors[{door_id, open_until, by}]}` |
 
 检查点 meta `doors`：请求、敞开窗口、钥匙槽位（钥匙本身在玩家背包里）。常量 `doors.KNOCK_EXPIRE_S = 90`、`OPEN_S = 60`、`KNOCK_RANGE = 2`。

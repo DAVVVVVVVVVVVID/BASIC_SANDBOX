@@ -129,3 +129,30 @@ def test_doors_state_survives_checkpoint(client, v12, fake_clock):
     assert doors._issued["door_home"] == {"whale": whale}
     whale2 = _agent(client, "whale", "鲸仔2")
     assert client.get(f"/player/{whale2}").json()["keys"] == []                                        # 已发出的不重发
+
+
+def test_knock_only_heard_by_awake_people_inside_v1322(client, v12, fake_clock):
+    """v1.3.22：主人在外 → 不通知、pending_knocks / perceive.knocks 空；主人在屋 → 通知；屋内非主人清醒者 → 仍通知；访客 90 游戏秒后 no_answer。"""
+    _at(fake_clock, 10, 0)
+    cl = _agent(client, "claudine"); fisher = _agent(client, "npc_fisher"); whale = _agent(client, "whale")
+    place(cl, 5, 6, "down")                                                          # 在校园（教学楼门外）
+    place(fisher, 15, 26, "up")                                                      # 克劳蒂娜家门外
+    r = action(client, fisher, "knock", {"door_id": "door_claudine"})
+    assert r["success"] and r["result"]["notified"] == []
+    assert client.get(f"/player/{cl}").json()["pending_knocks"] == []
+    assert client.get("/agent/perceive", params={"entity_id": cl}).json()["knocks"] == []
+    for _ in range(95):
+        _tick(fake_clock, 1)
+    assert client.get(f"/player/{fisher}").json()["door_request"]["status"] == "no_answer"
+    # 主人在屋 → 通知
+    place(cl, 15, 23, "down")
+    _tick(fake_clock, 1)
+    r = action(client, fisher, "knock", {"door_id": "door_claudine"})
+    assert r["success"] and r["result"]["notified"] == [cl]
+    assert [k["visitor"] for k in client.get(f"/player/{cl}").json()["pending_knocks"]] == [fisher]
+    # 主人离家后就看不到了
+    place(cl, 5, 6, "down")
+    assert client.get(f"/player/{cl}").json()["pending_knocks"] == []
+    # 屋内非主人清醒者（鲸仔被带进克劳蒂娜家）→ 仍能看到
+    place(whale, 14, 22, "down")
+    assert [k["visitor"] for k in client.get(f"/player/{whale}").json()["pending_knocks"]] == [fisher]

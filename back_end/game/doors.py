@@ -360,10 +360,12 @@ def visitor_view(entity_id: str) -> dict | None:
 
 
 def pending_for_owner(player: dict) -> list[dict]:
-    """屋内的人（或这家主人）看到的待回应敲门。"""
+    """v1.3.22：只有**此刻在这家里、清醒、非勿扰**的人看到待回应敲门（与 knock 时的通知规则一致）。
+    主人不在家就听不到——旧版 `or _is_owner` 让在教学楼上课的小克也收到了阿蝉的敲门（11-16 主播：「她不在家怎么知道的」）。"""
+    from game import world_state as ws
     return [{"id": r["id"], "visitor": r["visitor"], "visitor_name": r["visitor_name"], "home": r["home"], "home_name": r["home_name"],
              "door": r["door"], "status": r["status"], "expires_at": r["expires_at"]}
-            for r in _requests.values() if r["status"] in ("pending", "answered") and (_inside(player, r["home"]) or _is_owner(player, r["home"]))]
+            for r in _requests.values() if r["status"] in ("pending", "answered") and _at_home_awake(player, r["home"]) and not ws.is_dnd(player)]
 
 
 def open_doors_view() -> list[dict]:
