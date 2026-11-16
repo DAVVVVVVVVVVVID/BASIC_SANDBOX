@@ -75,7 +75,7 @@
 约定：
 - `segments` 恰好 9 段（少于 9 段沙盒补占位、多于 9 段截断，都记日志）；`text` 是**会原样进笔记物品**的文字。
 - `lesson_id` = `<date>-<HHMM>-<course>`，全局唯一，作答 / 笔记 / 考勤都用它。
-- `questions`：课中 1 问（`phase: mid`）+ 课末 1–2 问（`phase: end`）；`answer` 给标准答案，作答后**当场公布**（和声学按设计稿；写作选修的 `answer` 可为空，评分由 A 事后读 answers.jsonl 打）。
+- `questions`：课中 1 问（`phase: mid`）+ 课末 1–2 问（`phase: end`）；`answer` 给标准答案，作答后**当场公布**（和声学按设计稿）。写作选修的作文题 `answer` 可为空：**不当堂打分，改下课后出分**（总控 11-16 定）——作文随 `answer` 落 answers.jsonl，A 的评分器下课后 10 分钟内出分，调沙盒 `POST /school/grade` 推给本人（见 §6）。
 - 作业讲评课（`review`）的段落由 A 读 `school/submissions.jsonl` 生成；沙盒不区分。
 
 ## 3. 上课过程
@@ -99,7 +99,7 @@
 
 - 新物品类型（instant、interactable），摆在教学楼 (8,4)（门内格 (5,4) 不挡；站 (8,3) 朝 down）。
 - `use {request_id}`（或不带 = 最近一张 final CD）→ 提交：校验是 final CD；`school/submissions.jsonl` 一行 `{ts, game_time, town, week, agent_id, request_id, title, meta 快照, late}`；**CD 不没收**（还能当面送 / 交委托）；回执 = `result {message, receipt_id, late, due}` + 背包一张 `homework_receipt`（meta 同行）。
-- 截止：本周 `fri 10:45`（配置）；之后提交 `late: true`。同一 `request_id` 同周重复提交 → `already_submitted`。非 final → `cd_not_final`；没 CD → `no_item`。
+- 截止：本周 `fri 10:45`（配置）；之后提交 `late: true`。**同一张 CD（`request_id`）只能交一次，跨周 / 跨课都拒** → `already_submitted`（总控 11-16 定）。非 final → `cd_not_final`；没 CD → `no_item`。
 - 评分在 A：读 submissions.jsonl + CD meta 里的创作单字段（建议 C 在 compose 时把创作单放进 meta：`title / genre / scene / mood / form / chords / lyrics / arrangement`）。
 
 ## 6. 接口一览（v1.4.0 目标）
@@ -114,7 +114,8 @@
 | `give` | 笔记 / CD 等带 meta 物品按本转交 |
 | `use homework_box {request_id?}` | 交作业 |
 | ws `lesson` 事件 | `{event: start / segment / question / end, lesson_id, …}`（不带段落正文，正文走 GET；同 qq 口径） |
-| 数据 | `school/answers.jsonl`、`attendance.jsonl`、`submissions.jsonl`（沙盒写），`syllabus.json`、`<日期>.json`（A 写） |
+| `POST /school/grade` | A 的评分器回写：`{agent_id, lesson_id?, qid?, receipt_id?, grade: A|B|C, comment ≤ 200 字, kind: writing|homework}` → 本人 `pendingMessage`「写作课成绩：B，评语…」/「作业成绩：…」、`school/grades.jsonl` 一行、ws `lesson {event: grade}`；作业成绩另按配置影响心情（A=+5 / B=0 / C=−3，可调）。不受 SANDBOX_SCENARIO 门控，用 SELF_TOKEN 鉴权 |
+| 数据 | `school/answers.jsonl`、`attendance.jsonl`、`submissions.jsonl`、`grades.jsonl`（沙盒写），`syllabus.json`、`<日期>.json`（A 写） |
 
 ## 7. 估工
 
@@ -130,6 +131,8 @@
 | **合计** | **≈ 2.4 d** |
 
 ## 8. 待定（请总控 / A / C 回）
+
+**总控 11-16 已拍**：① 提交 CD 不没收，只记快照 + 回执；同一张 CD 交两次（跨周 / 跨课）都拒。② 写作选修不做同步评分，下课后 10 分钟内由 A 出分经 `POST /school/grade` 推本人。③ 小克不打瞌睡（`doze.per_segment` 只给 whale 0.05）。剩 A 认课案 schema、C 认创作单字段名。
 
 1. 课案格式（§2）A 确认或改。
 2. 提交 CD 后不没收、只记快照 + 发回执——OK？
