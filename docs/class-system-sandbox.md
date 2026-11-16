@@ -95,12 +95,22 @@
 - **读**：新动作 `read_item {item: "class_notes", match: {lesson_id}}` → `result.message` 拼好的全文（睡着段「……（这段睡着了）」、没来段「（没来）」）；不占时间。
 - **借**：`give {target, item: "class_notes", lesson_id}` 转交整本（meta 跟着走——把 v1.3.10 给 CD 写的「按张转交、meta 随行」推广到所有带 meta 的物品，修掉现在通用 give 会丢 meta 的问题）。读完还不还随她。
 
-## 5. 作业提交箱 `homework_box`
+## 5. 作业提交箱 `homework_box`（11-16 夜按总控 whale-c2 口径改：Suno MCP 搁置）
 
-- 新物品类型（instant、interactable），摆在教学楼 (8,4)（门内格 (5,4) 不挡；站 (8,3) 朝 down）。
-- `use {request_id}`（或不带 = 最近一张 final CD）→ 提交：校验是 final CD；`school/submissions.jsonl` 一行 `{ts, game_time, town, week, agent_id, request_id, title, meta 快照, late}`；**CD 不没收**（还能当面送 / 交委托）；回执 = `result {message, receipt_id, late, due}` + 背包一张 `homework_receipt`（meta 同行）。
-- 截止：本周 `fri 10:45`（配置）；之后提交 `late: true`。**同一张 CD（`request_id`）只能交一次，跨周 / 跨课都拒** → `already_submitted`（总控 11-16 定）。非 final → `cd_not_final`；没 CD → `no_item`。
-- 评分在 A：读 submissions.jsonl + CD meta 里的创作单字段（建议 C 在 compose 时把创作单放进 meta：`title / genre / scene / mood / form / chords / lyrics / arrangement`）。
+背景：作业改为「创作单 + 歌词」交，每人每周只挑 1 首走主播代做出音频，其余没有音频、永远到不了 final——所以提交箱**不再只收 final**。
+
+- 新物品类型（instant、interactable），摆在教学楼 (8,4)（门内格 (5,4) 不挡；站 (8,3) 朝 down）；`/world.objects[]` 带 `hint`。
+- `use {request_id?}`（不带 = 本周还没交过的最近一张 CD）→ 提交：
+  - 收 `pending / delivered / final` 的 compose CD（meta 里有创作单即可）；`redo`（她自己判了重做的）→ `cd_redo`；没 CD → `no_item`。
+  - `school/submissions.jsonl` 一行 `{ts, game_time, town, week, agent_id, request_id, title, receipt_id, late, audio, creation_sheet_complete, meta 快照}`。
+  - `audio`：CD meta 有 `audio_ref`（或 status delivered / final）→ `final`；meta `proxy: true`（已选为本周代做那首）→ `pending`；否则 `none`。
+  - `creation_sheet_complete`：`title / genre / scene / mood / form / chords / arrangement` 齐（有词时再加 `lyrics`）。
+  - **CD 不没收**；回执 = `result {message, receipt_id, late, due, audio}` + 背包一张 `homework_receipt`（meta 同行）。
+- **同一 request_id 再 use = 更新这条**：只更新 `audio`（及 meta 快照），**沿用原 `receipt_id`、`late` 按首次提交时刻不变**；submissions.jsonl 追加一行 `action: update`（不改旧行），回执物品的 meta 同步更新；`result.updated: true`。同一张 CD 交到**另一周** → `already_submitted`。
+- 代做那首在管理口 `POST /admin/item/edit` 标 `delivered`（带 audio_ref）时，沙盒**顺带自动更新**它的提交记录为 `audio: final`（不用她再走一趟；她再 use 一次也一样）。
+- 标代做：她（agent）用 `edit_item {match: {request_id}, set: {proxy: true}}`（`proxy` 加进 edit_item 白名单）；C 侧每人周三 23:00 前挑一首，没挑默认第一首——逻辑在 C。
+- 截止：本周 `fri 10:45`（配置）；之后首次提交 `late: true`。
+- 评分在 A：只读创作单 + 歌词，不依赖音频；结果经 `POST /school/grade {kind: homework, receipt_id, …}` 推本人。
 
 ## 6. 接口一览（v1.4.0 目标）
 
@@ -151,6 +161,6 @@
 ## 10. agent 侧加项（会话 C 11-16，v1.4.0 一并给）
 
 1. perceive `lesson` / `GET /player.lesson` 加 `dozed_prev: bool`——刚推的这段的**前一段**睡着了（C 据此出「找小克借笔记」意图）；与 pendingMessage 前缀「（刚才走神睡着了）」同源。
-2. `GET /school/today?player=` 带本周作业状态 `homework {week, due, submitted: [{receipt_id, request_id, title, late, at}], count}`。
+2. `GET /school/today?player=` 带本周作业状态 `homework {week, due, submitted: [{receipt_id, request_id, title, late, audio, at}], count}`（`audio` 让待办显示「代做那首还没回来」）。
 3. compose 的 meta 透传白名单（v1.3.10）加创作单字段 `genre / scene / mood / form / chords / arrangement / homework_week`（`title / lyrics` 已有）；**字段名定稿**，E 按这套显示、A 评分直接读。
 4. **睡着那段正好是 `after_segment`：问题照推，人被叫醒**——这段讲授不推（笔记记 slept），问题推送前缀「（刚才走神睡着了）」，作答窗照常（到下一段推送 / 课末题到下课后 10 分钟）。打瞌睡只吞讲授，不吞问题。
