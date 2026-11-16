@@ -146,8 +146,15 @@ def seed_player(player: dict, game_ts: float) -> bool:
     ocean = doc.get("ocean") or {}
     if ocean:
         player["mood_base"] = mood_baseline(ocean.get("E", 50), ocean.get("N", 50))
-    if doc.get("scene") in ("sandbox", "live"):
-        player["scene"] = doc["scene"]
+    # v1.3.20：scene 由沙盒的物品使用决定——刚 join / spawn 的玩家什么都没在用，一律 sandbox；远端还记着 live（上一场下播通知晚到 / 没到）就补发一条 stop 对齐
+    # （11-16 C：bench S07b reset+spawn 后鲸仔第一帧 scene=live、usingObjectId 空，是从自我层种入了上一场的 live）。
+    player["scene"] = "sandbox"
+    if doc.get("scene") == "live":
+        try:
+            from game import external_effects
+            external_effects.live_stop(player, _iso(game_ts), None, "seed_reconcile")
+        except Exception:
+            pass
     tags = []
     for t in doc.get("emotion_tags") or []:
         try:

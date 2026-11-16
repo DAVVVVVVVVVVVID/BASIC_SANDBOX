@@ -1685,6 +1685,10 @@ Object 的 `effects` 列表支持三种 type，适用原型不同：
 - 存 `player.last_thought {text, kind, game_time}`（进检查点）。**只在导播 / 操控页可见**：`GET /world?view=admin` 的 `players[].last_thought` 带出，不传 `view` 为 `null`（旁观 / 直播布局）；`GET /player/{id}` 缺省不带。env `SANDBOX_THOUGHT_VISIBLE_TO=all` 时全带（缺省 `admin`）。
 - ws `/ws/world` 推 `{type: "thought", entity: <player id>, text, kind, game_time}`（定稿：带正文，旁观页自己不渲染）。actions 日志 `type: thought`（payload kind / text / game_time），给数据集。
 
+### 12.24 种入不继承 live（tag `world-v1.3.20`）
+
+join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用远端的 `scene`**：新玩家一律 `sandbox`（直播状态只能由 `use` 直播物品进入）；远端还记着 `live`（上一场的 live.stop 晚到 / 没到）就补发一条 `/self/live/stop`（reason `seed_reconcile`）对齐。背景：bench S07b 跑手 `reset` + `spawn` 后鲸仔第一帧 `scene=live`、`usingObjectId` 空。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

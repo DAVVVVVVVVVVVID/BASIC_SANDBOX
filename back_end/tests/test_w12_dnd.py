@@ -333,3 +333,22 @@ def test_thought_ws_event_carries_text(client, v12):
                 if m.get("type") == "thought":
                     got = m
             assert {k: got[k] for k in ("type", "entity", "text", "kind", "game_time")} == {"type": "thought", "entity": whale, "text": "去钓鱼", "kind": "wait", "game_time": "2026-11-16T10:00:00+08:00"}
+
+
+def test_seed_from_self_never_inherits_live_scene(client, v12, monkeypatch):
+    """v1.3.20：自我层还记着上一场 live 时，新 spawn / join 的玩家 scene 仍 sandbox（直播只能由 use 直播物品进入），并补发一条 live.stop 对齐（C：bench S07b 第一帧 scene=live）。"""
+    import httpx
+    from game import self_sync, external_effects
+    calls = []
+
+    def handler(req):
+        calls.append(req.url.path)
+        if req.url.path == "/self/state":
+            return httpx.Response(200, json={"vars": {"fullness": 70, "energy": 70, "social": 70, "fun": 70, "mood": 65}, "closeness": {}, "emotion_tags": [], "ocean": {}, "scene": "live", "last_tick_ts": "x"})
+        return httpx.Response(200, json={"ok": True})
+    self_sync.configure(url="http://self.test", enabled=True, snap=False, transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(external_effects, "SYNC_STOP", True)
+    whale = _agent(client, "whale")
+    p = world_state._players[whale]
+    assert p["scene"] == "sandbox" and "streaming" not in p["tags"] and p.get("usingObjectId") is None
+    assert "/self/live/stop" in calls                                                  # 补发下播对齐自我层
