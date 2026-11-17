@@ -96,6 +96,7 @@ function readOnlyDir(prefix: string, root: string): Plugin {
 //   VITE_PORT          开发端口，默认 5173（运行台）；自测用 `npm run dev -- --port 5174`
 //   VITE_OBSERVE_BASE  思考字幕请求前缀，默认 `/observe`（E8）
 //   VITE_OBSERVE_TARGET C 的只读观察面板，默认 http://127.0.0.1:8002（路径不改写：/observe/latest 原样转发）
+//   VITE_EXTRA_TOWNS   额外镇 "名=端口,…"（默认 bench_v1=8091），towns.yaml 同名优先
 //   VITE_TOWNS_YAML    多镇表（E14），默认 /home/shan-dw/Project/run/towns.yaml：/t/<town>/api → 127.0.0.1:(sandbox_port，或 8000+10k)
 //   VITE_DATASET_DIR   A 的每日导出目录（E13 回放页只读），默认 /home/shan-dw/Project/whale-self/data/dataset → /dataset/
 //   VITE_SANDBOX_DATA_DIR  主镇沙盒数据目录（行动 / 聊天 JSONL，只读），默认 /home/shan-dw/Project/run/data/sandbox → /sandboxdata/
@@ -109,7 +110,13 @@ export default defineConfig(({ mode }) => {
   const target = env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000'
   const observeBase = (env.VITE_OBSERVE_BASE || '/observe').replace(/\/$/, '')
   const observeTarget = env.VITE_OBSERVE_TARGET || 'http://127.0.0.1:8002'
-  const towns = readTowns(env.VITE_TOWNS_YAML || '/home/shan-dw/Project/run/towns.yaml')
+  // 额外镇（不在运行台 towns.yaml 里的开发 / 测试镇）：VITE_EXTRA_TOWNS="名=端口,名=端口"；默认带 bench_v1=8091（11-17 总控：T1 改在 B 的 8091 跑，主播用 5173 ?town=bench_v1 看）。towns.yaml 同名优先
+  const extraTowns: Record<string, number> = {}
+  for (const kv of (env.VITE_EXTRA_TOWNS ?? 'bench_v1=8091').split(',')) {
+    const m = /^\s*([A-Za-z0-9_-]+)\s*=\s*(\d+)\s*$/.exec(kv)
+    if (m) extraTowns[m[1]] = Number(m[2])
+  }
+  const towns = { ...extraTowns, ...readTowns(env.VITE_TOWNS_YAML || '/home/shan-dw/Project/run/towns.yaml') }
   const townProxy: Record<string, unknown> = {}
   for (const [name, port] of Object.entries(towns)) {
     if (port === 8000) continue                              // 主镇走 VITE_API_BASE
