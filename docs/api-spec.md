@@ -1693,7 +1693,7 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 
 ### 12.25 上课系统 v1（tag `world-v1.4.0`；方案 `docs/class-system-sandbox.md`，主播 11-16 拍板）
 
-**配置** `game/school.json`（`GET /school/timetable` 原样给 + 本周 `week / week_genre`）：开学 `term_start` 2026-11-23（env `SANDBOX_SCHOOL_TERM_START` 覆盖，bench 开学前跑课用）、八周类型 `weeks[]`、`courses {id: {name, required}}`、`timetable {mon..fri: [[HH:MM, course], …]}`、90 分钟 / 9 段 / 每段 10 分钟、迟到线 10 分钟、`students` [whale, claudine]、`elective_students {writing: [whale]}`、课桌 `classroom_desk_1/2`、`doze.per_segment {whale: 0.05}`、作业截止 `fri 10:45`、作业成绩心情 A+5 / B 0 / C−3。
+**配置** `game/school.json`（`GET /school/timetable` 原样给 + 本周 `week / week_genre`）：开学 `term_start` 2026-11-23（env `SANDBOX_SCHOOL_TERM_START` 覆盖，bench 开学前跑课用；**v1.4.2 起按开学日起算的第几天取课表：开学日 = 第 1 周周一**，与 A 的生成器 `--term-start` 同口径，正式开学日本就是周一所以生产不变；作业截止 = 每周第 5 天 10:45）；env `SANDBOX_SCHOOL_DOZE_SEED` 固定瞌睡种子、八周类型 `weeks[]`、`courses {id: {name, required}}`、`timetable {mon..fri: [[HH:MM, course], …]}`、90 分钟 / 9 段 / 每段 10 分钟、迟到线 10 分钟、`students` [whale, claudine]、`elective_students {writing: [whale]}`、课桌 `classroom_desk_1/2`、`doze.per_segment {whale: 0.05}`、作业截止 `fri 10:45`、作业成绩心情 A+5 / B 0 / C−3。
 
 **课案**（A 写，沙盒只读）`run/data/<town>/school/<YYYY-MM-DD>.json`（env `SANDBOX_SCHOOL_DIR` 覆盖）：`{schema 1, date, lessons[{lesson_id "<date>-<HHMM>-<course>", start, course, title, segments[9 × {i, text}], questions[{qid, phase mid|end, after_segment, text, answer, explanation}], homework_note}]}`。**每次推段前按文件 mtime 重载**，只替换还没推的段与题（讲评课截止后重写第 2–9 段）。缺课案 → 照常开课、讲授占位、external `school lesson_missing`。示例课案：`scripts/make_sample_lesson.py --date --dir [--term-start]`。
 

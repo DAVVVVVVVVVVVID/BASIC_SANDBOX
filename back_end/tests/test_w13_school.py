@@ -268,3 +268,20 @@ def test_qid_unique_only_within_lesson(client, v12, fake_clock, school_env, monk
     r = action(client, whale, "answer", {"qid": "q1", "text": "b"})
     assert r["success"] and r["result"]["lesson_id"] == "2026-11-23-1045-lyrics" and r["result"]["correct_answer"] == "歌词课答案"
     assert action(client, whale, "answer", {"qid": "q1", "text": "c", "lesson_id": "2026-11-23-0900-genre"})["reason"] in ("not_in_class", "question_closed")   # 那节已下课
+
+
+def test_term_start_day_is_week1_monday(monkeypatch):
+    """v1.4.2：bench 把开学日设成周三 11-18 → 当天按第 1 周周一排课（与 A 的生成器同口径）；作业截止 = 开学日起第 5 天 10:45。"""
+    monkeypatch.setenv("SANDBOX_SCHOOL_TERM_START", "2026-11-18")
+    school.reload_cfg()
+    assert [l["lesson_id"] for l in school.lessons_for_date("2026-11-18")] == ["2026-11-18-0900-genre", "2026-11-18-1045-lyrics"]
+    assert [l["course"] for l in school.lessons_for_date("2026-11-19")] == ["harmony", "genre", "writing"]
+    assert school.lessons_for_date("2026-11-23") == []                       # 开学日起第 6 天 = 「周六」
+    from datetime import datetime as _d
+    assert _d.fromtimestamp(school.due_ts_for_week("2026-11-19"), GAME_TZ).isoformat() == "2026-11-22T10:45:00+08:00"
+    monkeypatch.setenv("SANDBOX_SCHOOL_DOZE_SEED", "fixed-x")
+    school.reload_cfg()
+    assert school.cfg()["doze"]["seed"] == "fixed-x"
+    monkeypatch.delenv("SANDBOX_SCHOOL_TERM_START"); monkeypatch.delenv("SANDBOX_SCHOOL_DOZE_SEED")
+    school.reload_cfg()
+    assert school.day_index("2026-11-23") == 0 and [l["course"] for l in school.lessons_for_date("2026-11-27")] == ["harmony", "review"]   # 正式开学：日历一致

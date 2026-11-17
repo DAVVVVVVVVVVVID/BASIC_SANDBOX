@@ -43,6 +43,9 @@ def cfg() -> dict:
         ts = os.environ.get("SANDBOX_SCHOOL_TERM_START")
         if ts:
             _CFG["term_start"] = ts
+        seed = os.environ.get("SANDBOX_SCHOOL_DOZE_SEED")         # v1.4.2：bench 固定瞌睡种子（保证至少掷中一次）
+        if seed:
+            _CFG.setdefault("doze", {})["seed"] = seed
     return _CFG
 
 
@@ -138,13 +141,21 @@ def students_for(course: str) -> list[str]:
     return list(cfg().get("students") or [])
 
 
+def day_index(date: str) -> int | None:
+    """v1.4.2：按**开学日起算**的星期序号（开学日 = 周一 = 0）。正式开学日 2026-11-23 本就是周一，与日历一致；
+    bench 把 SANDBOX_SCHOOL_TERM_START 设成任意一天时，那天就按「第 1 周周一」排课（与 A 的课案生成器 --term-start 同口径）。"""
+    d0 = datetime.fromisoformat(cfg()["term_start"]).date()
+    d = datetime.fromisoformat(date).date()
+    return None if d < d0 else (d - d0).days % 7
+
+
 def lessons_for_date(date: str) -> list[dict]:
     """当天课表（开学前 / 周末为空）：[{lesson_id, date, start, end, start_ts, end_ts, course, course_name, students}]。"""
     from game.time_state import GAME_TZ
     if week_of(date) is None:
         return []
     d = datetime.fromisoformat(date).date()
-    wd = _WEEKDAYS[d.weekday()]
+    wd = _WEEKDAYS[day_index(date)]
     out = []
     mins = int(cfg().get("lesson_minutes", 90))
     for start, course in (cfg().get("timetable") or {}).get(wd, []):
@@ -163,7 +174,10 @@ def due_ts_for_week(date: str) -> float | None:
     spec = (cfg().get("homework") or {}).get("due", "fri 10:45")
     wd, hm = spec.split()
     d = datetime.fromisoformat(date).date()
-    target = d + timedelta(days=(_WEEKDAYS.index(wd) - d.weekday()))
+    di = day_index(date)
+    if di is None:
+        return None
+    target = d + timedelta(days=(_WEEKDAYS.index(wd) - di))            # v1.4.2：按开学日起算的周（同 lessons_for_date）
     h, m = (int(x) for x in hm.split(":"))
     return datetime(target.year, target.month, target.day, h, m, tzinfo=GAME_TZ).timestamp()
 
