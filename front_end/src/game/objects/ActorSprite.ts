@@ -72,6 +72,9 @@ export default class ActorSprite {
   private arrow: Phaser.GameObjects.Graphics | null = null
   private nameText: Phaser.GameObjects.Text
   private stateText: Phaser.GameObjects.Text
+  /** world-v1.4.0：名牌右侧「上课中」/ 打瞌睡 zZ 小药丸；不在课 null */
+  private lessonPill: Phaser.GameObjects.Text | null = null
+  private lessonKey = ''
   private bubble: Phaser.GameObjects.Container | null = null
   private bubbleText: Phaser.GameObjects.Text | null = null
   private bubbleBg: Phaser.GameObjects.Graphics | null = null
@@ -343,6 +346,7 @@ export default class ActorSprite {
       this.nameText.setPosition(x, head - 10 * u).setDepth(d + 2)
       this.namePlate?.setPosition(x, head - 10 * u + 5 * u).setDepth(d + 1.9).setScale(u)
       this.stateText.setPosition(x, head + 4 * u).setDepth(d + 2)
+      this.placePill(x, head - 10 * u, d + 2)
       if (this.bubble) this.bubble.setPosition(x, head - 34 * u).setDepth(d + 3)
       if (this.thought) this.thought.setPosition(x, head - (34 + (this.bubble ? this.bubbleHeight() + 10 : 0)) * u).setDepth(d + 3)
       if (this.bar) this.bar.setPosition(x - BAR_W / 2 * u, foot - 14 * u).setDepth(d + 2)
@@ -357,6 +361,7 @@ export default class ActorSprite {
     this.nameText.setPosition(x, y + NAME_Y * v).setDepth(d + 2)
     this.namePlate?.setPosition(x, y + NAME_Y * v + 5 * u).setDepth(d + 1.9).setScale(u)
     this.stateText.setPosition(x, y + STATE_Y * v).setDepth(d + 2)
+    this.placePill(x, y + NAME_Y * v, d + 2)
     if (this.bubble) this.bubble.setPosition(x, y + BUBBLE_Y * v).setDepth(d + 3)
     if (this.thought) this.thought.setPosition(x, y + BUBBLE_Y * v - (this.bubble ? this.bubbleHeight() + 10 : 0) * u).setDepth(d + 3)
     if (this.bar) this.bar.setPosition(x - BAR_W / 2 * u, y + BAR_Y * v).setDepth(d + 2)
@@ -396,10 +401,35 @@ export default class ActorSprite {
     this.uiScale = s
     this.nameText.setScale(s)
     this.stateText.setScale(s)
+    this.lessonPill?.setScale(s)
     this.bubble?.setScale(s)
     this.thought?.setScale(s)
     this.namePlate?.setScale(s)
     this.bar?.setScale(s)
+    this.layout()
+  }
+
+  /** 名牌右缘外 4px，底边与名字底边对齐 */
+  private placePill(x: number, nameBottom: number, depth: number) {
+    if (!this.lessonPill) return
+    const u = this.uiScale
+    const half = this.namePlate ? this.namePlate.width / 2 : this.nameText.width / 2
+    this.lessonPill.setPosition(x + (half + 4) * u, nameBottom - (this.namePlate ? 3 : 1) * u).setDepth(depth)
+  }
+
+  /** world-v1.4.0：上课中 → 「上课中」青绿药丸；这段睡着了 → 「zZ 打瞌睡」淡紫（不用 emoji：像素字体没有，部分机器画成方框）；null 撤掉。纯展示，数据来自 players[].lesson */
+  setLesson(l: { title?: string | null; dozing?: boolean } | null | undefined) {
+    const key = l ? (l.dozing ? 'z' : 'c') : ''
+    if (key === this.lessonKey) return
+    this.lessonKey = key
+    if (!l) { this.lessonPill?.destroy(); this.lessonPill = null; return }
+    if (!this.lessonPill) {
+      this.lessonPill = this.scene.add.text(0, 0, '', { fontFamily: '"Fusion Pixel 12px", system-ui, "PingFang SC", sans-serif', fontSize: '12px', padding: { x: 5, y: 2 } })
+        .setOrigin(0, 1).setResolution(2).setScale(this.uiScale)
+    }
+    if (l.dozing) this.lessonPill.setText('zZ 打瞌睡').setStyle({ color: '#44337a', backgroundColor: '#E4D8FB' })
+    else this.lessonPill.setText('上课中').setStyle({ color: '#ffffff', backgroundColor: '#3BB7A8' })
+    this.lessonPill.setVisible(!this.hidden).setAlpha(this.dimmed ? 0.45 : 1)
     this.layout()
   }
 
@@ -451,7 +481,7 @@ export default class ActorSprite {
     if (h === this.hidden) return
     this.hidden = h
     const v = !h
-    this.sprite.setVisible(v); this.nameText.setVisible(v); this.namePlate?.setVisible(v); this.stateText.setVisible(v && !!this.stateLabel)
+    this.sprite.setVisible(v); this.nameText.setVisible(v); this.namePlate?.setVisible(v); this.stateText.setVisible(v && !!this.stateLabel); this.lessonPill?.setVisible(v)
     this.arrow?.setVisible(v); this.bubble?.setVisible(v); this.bar?.setVisible(v)
   }
 
@@ -463,6 +493,7 @@ export default class ActorSprite {
     this.sprite.setAlpha(a)
     this.nameText.setAlpha(a)
     this.stateText.setAlpha(a)
+    this.lessonPill?.setAlpha(a)
     this.bar?.setAlpha(a)
   }
 
@@ -605,6 +636,7 @@ export default class ActorSprite {
     this.arrow?.destroy()
     this.nameText.destroy()
     this.stateText.destroy()
+    this.lessonPill?.destroy()
     this.progressBar?.destroy()
     this.bubble?.destroy(true)
     this.bar?.destroy()

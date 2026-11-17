@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { c } from './uiPalette'
 import { useGameStore } from '../store/gameStore'
 import { sendAction } from '../api/world'
-import { itemMeta, normalizeInventory, itemDisplayName, isPhysicalWork, type InventoryItem } from '../game/items'
+import { itemMeta, normalizeInventory, itemDisplayName, isPhysicalWork, isFreeSlot, type InventoryItem } from '../game/items'
+import { hasItemDetail } from '../game/school'
+import ItemDetail from './rpg/ItemDetail'
 import { gameNowMs, fridgeRows, fridgeTitle, supplyText, canEatHere, busyText, fmtMin, parseGameTime } from '../game/v11'
 import type { GameObject } from '../types'
 
@@ -17,6 +19,7 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
   const players = useGameStore((s) => s.players)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  const [detail, setDetail] = useState<InventoryItem | null>(null)
   const inv = useMemo(() => normalizeInventory(player?.inventory), [player?.inventory])
   const worldState = useGameStore((s) => s.worldState)
   if (!player) return null
@@ -46,7 +49,7 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
   return (
     <div style={{ position: 'absolute', left: 330, bottom: 16, width: 300, background: 'rgba(15,15,30,0.9)', border: '1px solid #4a5568', borderRadius: 8, color: c('#e2e8f0'), fontSize: 12, padding: '10px 12px', fontFamily: 'system-ui, "PingFang SC", sans-serif', userSelect: 'none', ...(embedded ? { position: 'static', top: 'auto', left: 'auto', right: 'auto', bottom: 'auto', width: 'auto', minWidth: 0, maxHeight: 'none', background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 } : {}), }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-        <b style={{ color: c('#90cdf4') }}>🎒 背包</b><span style={{ color: inv.filter(i => itemMeta(i.type, i.name).kind !== 'key').length >= KINDS_MAX ? c('#fc8181') : c('#718096'), fontSize: 10 }}>{inv.filter(i => itemMeta(i.type, i.name).kind !== 'key').length}/{KINDS_MAX} 种 · 每种 ≤{PER_MAX}</span>
+        <b style={{ color: c('#90cdf4') }}>🎒 背包</b><span style={{ color: inv.filter(i => !isFreeSlot(i)).length >= KINDS_MAX ? c('#fc8181') : c('#718096'), fontSize: 10 }}>{inv.filter(i => !isFreeSlot(i)).length}/{KINDS_MAX} 种 · 每种 ≤{PER_MAX}</span>
         <span style={{ marginLeft: 'auto', color: c('#ffe9a8'), fontWeight: 700 }}>💰 {gold === null ? '—' : gold}</span>
       </div>
       {gold === null && <div style={{ color: c('#718096'), fontSize: 10, marginTop: 2 }}>后端还没给 gold / inventory（B W10 任务 4）</div>}
@@ -54,7 +57,7 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
         {slots.map((it, i) => {
           const m = it ? itemMeta(it.type, it.name) : null
           return (
-            <div key={i} title={it ? `${m!.label} ×${it.count}` : '空'} style={{ height: 46, background: c('#1a1b2e'), border: '1px solid #2d3748', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+            <div key={i} title={it ? `${m!.label} ×${it.count}${hasItemDetail(it) ? ' · 点开看' : ''}` : '空'} onClick={it && hasItemDetail(it) ? () => setDetail(it) : undefined} style={{ cursor: it && hasItemDetail(it) ? 'pointer' : 'default', height: 46, background: c('#1a1b2e'), border: '1px solid #2d3748', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
               {it && <><span style={{ fontSize: 18, ...(isPhysicalWork(m!) ? { background: c('#2d3748'), border: '1px solid #90cdf4', borderRadius: 4, padding: '0 3px', lineHeight: 1.1 } : {}), ...(m!.spoiled ? { filter: 'grayscale(1)', opacity: 0.6 } : {}) }}>{m!.icon}</span><span style={{ fontSize: 10, color: c('#a0aec0') }}>{itemDisplayName(it).replace(/钥匙$/, '🔑').slice(0, 5)}</span>{it.count > 1 && <span style={{ position: 'absolute', right: 3, top: 1, fontSize: 10, color: it.count >= PER_MAX ? c('#fc8181') : c('#ffe9a8') }}>×{it.count}</span>}</>}
             </div>
           )
@@ -62,15 +65,16 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
       </div>
       {inv.length > 0 && (
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 140, overflowY: 'auto' }}>
-          {inv.map(it => {
-            const m = itemMeta(it.type, it.name); const key = it.id ?? it.type
+          {inv.map((it, idx) => {
+            const m = itemMeta(it.type, it.name); const key = `${it.id ?? it.type}-${idx}`
             return (
               <div key={key} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <span style={{ flex: 1 }}>{m.icon} {itemDisplayName(it)} ×{it.count}</span>
+                <span style={{ flex: 1 }}>{m.icon} {itemDisplayName(it)}{it.count > 1 ? ` ×${it.count}` : ''}</span>
+                {hasItemDetail(it) && <button data-testid={`bag-view-${it.type}`} onClick={() => setDetail(it)} style={sb()}>看</button>}
                 {(m.kind === 'food' || /^(ingredients?|fish)$/.test(it.type)) && (table && canEatHere(table, it.type) ? <button disabled={!!busy} onClick={() => act(`吃 ${m.label}`, 'eat', { item: it.type, item_id: it.id, object_id: table.id })} style={sb()}>吃</button> : <span title={table ? '这儿只能吃简餐' : 'world-v1.1：只能在餐桌 / 长椅旁吃'} style={{ fontSize: 10, color: c('#718096') }}>{table ? '这儿不能吃' : '到餐桌吃'}</span>)}
                 {fridge && (m.kind === 'food' || m.kind === 'material') && <button disabled={!!busy} onClick={() => act(`放 ${m.label}`, 'store', { item: it.type, qty: 1, object_id: fridge.id })} style={sb()}>放冰箱</button>}
                 {stove && !stove.cooking && (it.type === 'ingredients' || it.type === 'ingredient' || it.type === 'fish') && <button disabled={!!busy} onClick={() => act(`做 ${m.label}`, 'use', { objectId: stove.id, item: it.type, qty: 1 })} style={sb()}>下厨</button>}
-                {neighbours.map(n => <button key={n.id} disabled={!!busy} onClick={() => act(`送 ${itemDisplayName(it)} 给 ${n.name}`, 'give', { item: it.type, item_id: it.id, target: n.id, target_id: n.id, ...(typeof it.meta?.commission_id === 'string' ? { commission_id: it.meta.commission_id } : {}), ...(typeof it.meta?.door_id === 'string' ? { door_id: it.meta.door_id } : {}) })} style={sb()}>送{n.name.slice(0, 2)}</button>)}
+                {neighbours.map(n => <button key={n.id} disabled={!!busy} onClick={() => act(`送 ${itemDisplayName(it)} 给 ${n.name}`, 'give', { item: it.type, item_id: it.id, target: n.id, target_id: n.id, ...(typeof it.meta?.commission_id === 'string' ? { commission_id: it.meta.commission_id } : {}), ...(typeof it.meta?.door_id === 'string' ? { door_id: it.meta.door_id } : {}), ...pick(it.meta, ['lesson_id', 'receipt_id', 'request_id']) })} style={sb()}>送{n.name.slice(0, 2)}</button>)}
                 {shop && <button disabled={!!busy} onClick={() => act(`卖 ${m.label}`, 'sell', { item: it.type, item_id: it.id, object_id: shop.id })} style={sb()}>卖</button>}
               </div>
             )
@@ -118,7 +122,10 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
         </div>
       )}
       {msg && <div style={{ marginTop: 6, color: msg.startsWith('✓') ? c('#68d391') : c('#fc8181'), fontSize: 11 }}>{msg}</div>}
+      {detail && <ItemDetail item={detail} holder={player.agent_id} onClose={() => setDetail(null)} />}
     </div>
   )
 }
+/** v1.4.0：带 meta 的物品按本转交——把指定哪本的键原样带上（课堂笔记 lesson_id / 回执 receipt_id / CD request_id） */
+const pick = (meta: Record<string, unknown> | undefined, keys: string[]) => Object.fromEntries(keys.filter(k => typeof meta?.[k] === 'string').map(k => [k, meta![k]]))
 const sb = (): React.CSSProperties => ({ background: c('#2b6cb0'), border: 'none', borderRadius: 4, color: '#fff', padding: '2px 7px', cursor: 'pointer', fontSize: 11 })

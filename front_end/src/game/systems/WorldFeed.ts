@@ -187,6 +187,15 @@ export function startWorldFeed(opts: { preferWs?: boolean } = {}): WorldFeedHand
           EventBus.emit('thought-event', msg)
           break
         }
+        case 'lesson': {   // world-v1.4.0：{event: start|segment|question|doze|end|grade, lesson_id, entity?}；doze 先把他标睡着（下一个 upsert 会再校正）
+          const m = msg
+          if (m.event === 'doze' && typeof m.entity === 'string') {
+            const cur = useGameStore.getState().players.find(p => p.id === m.entity)
+            if (cur?.lesson) useGameStore.getState().patchPlayers([{ ...cur, lesson: { ...cur.lesson, dozing: true } }], undefined)
+          }
+          EventBus.emit('lesson-event', m)
+          break
+        }
         case 'produce':
           EventBus.emit('produce-event', msg)
           break

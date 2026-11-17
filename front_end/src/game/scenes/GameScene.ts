@@ -59,6 +59,9 @@ function snapZoom(z: number, mode: 'round' | 'floor' = 'round'): number {
 
 export { poseAnchorsFor, deriveStateLabel, iconize } from '../stateLabel'
 import { deriveStateLabel, poseAnchorsFor } from '../stateLabel'
+import { homeworkUseText } from '../school'
+/** 后端带了 sprite 名但美术还没出的物件：不去拉 assets/sprites/<名>.png（404 刷控制台），直接画图标色块 */
+const NO_SPRITE = new Set(['homework_box'])
 
 export default class GameScene extends Phaser.Scene {
   private mode!: 'play' | 'spectate'
@@ -154,7 +157,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.rpgSkin()) for (const [k, f] of [['kit_speech_m', 'speech_m'], ['kit_thought_m', 'thought_m'], ['kit_name_tag_a', 'name_tag_a']]) if (!this.textures.exists(k)) this.load.image(k, `assets/ui/kit/${f}.png`)   // 11-16 像素 RPG 风：画布内名牌 / 气泡
     preloadTileAssets(this, this.worldData.tiled)
     for (const obj of this.worldData.objects) {
-      if (obj.sprite && !this.textures.exists(`obj_${obj.sprite}`) && !aiHasObject(obj.type)) {
+      if (obj.sprite && !NO_SPRITE.has(obj.sprite) && !this.textures.exists(`obj_${obj.sprite}`) && !aiHasObject(obj.type)) {
         this.load.image(`obj_${obj.sprite}`, `assets/sprites/${obj.sprite}.png`)
       }
     }
@@ -218,6 +221,7 @@ export default class GameScene extends Phaser.Scene {
       const me = { id: player.id, name: player.profile?.name ?? '', position: player.position, facing: player.facing, state: player.state, stateLabel: player.stateLabel, tags: player.tags, usingObjectId: player.usingObjectId }
       this.self?.setStateLabel(deriveStateLabel(me, useGameStore.getState().objects))
       this.self?.setPoseAnchors(poseAnchorsFor(me, useGameStore.getState().objects))
+      if (this.mode === 'play') this.self?.setLesson(player.lesson ?? useGameStore.getState().players.find(p => p.id === player.id)?.lesson)
     })
     this.on('player-rejoined', ({ player }: { playerId: string; player: Player }) => {
       this.player = player
@@ -225,6 +229,8 @@ export default class GameScene extends Phaser.Scene {
       this.inputSystem?.reset(player.position, player.facing)
     })
     window.addEventListener('whale-walk-to', (e) => EventBus.emit('walk-to', (e as CustomEvent).detail))
+    // 物件提示条的「使用」按钮（手机没有 E 键）：等同按 E；payload 可带 request_id（交指定那张 CD）
+    this.on('do-use', (p?: { request_id?: string }) => { if (this.mode === 'play') this.handleUse(p?.request_id ? { request_id: p.request_id } : undefined) })
     this.on('walk-to', ({ x, y }: { x: number; y: number }) => {
       const n = this.inputSystem?.walkToAdjacent({ x, y }) ?? 0
       EventBus.emit('walk-to-result', { steps: n })
@@ -660,7 +666,7 @@ export default class GameScene extends Phaser.Scene {
   private rebuildMap() {
     const world = this.worldData
     const missing = (world.tiled?.tilesets ?? []).filter(ts => !this.textures.exists(ts.imageSource))
-    const missingObj = world.objects.filter(o => o.sprite && !this.textures.exists(`obj_${o.sprite}`) && !aiHasObject(o.type))
+    const missingObj = world.objects.filter(o => o.sprite && !NO_SPRITE.has(o.sprite) && !this.textures.exists(`obj_${o.sprite}`) && !aiHasObject(o.type))
     const beforeQueue = this.load.list.size
     preloadGodotMap(this, world.objects.map(o => o.type))   // 新物品类型的 Godot 图（幂等）
     if (missing.length === 0 && missingObj.length === 0 && this.load.list.size === beforeQueue) { this.buildMap(world); return }
@@ -810,6 +816,7 @@ export default class GameScene extends Phaser.Scene {
       if (op.busy) this.busyById.set(op.id, op.busy); else if (this.busyById.delete(op.id)) s.setProgress(null)
       s.setStateLabel(deriveStateLabel(op, objects))
       s.setPoseAnchors(poseAnchorsFor(op, objects))
+      if (this.mode === 'play') s.setLesson(op.lesson)   // world-v1.4.0：上课中 / zZ 药丸（操控页）
     }
     for (const [id, sprite] of this.others) {
       if (!seen.has(id)) { sprite.destroy(); this.others.delete(id); this.busyById.delete(id) }
@@ -860,9 +867,15 @@ export default class GameScene extends Phaser.Scene {
     } catch (err) { console.error('[Interact Error]', err) }
   }
 
-  private async handleUse() {
+  private async handleUse(payload?: Record<string, unknown>) {
     try {
-      const res = await sendAction(this.entityId(), 'use')
+      const res = await sendAction(this.entityId(), 'use', payload)
+      // world-v1.4.0：作业提交箱的回包（成功 / no_item / already_submitted / cd_redo）单独排成中文，带截止与音频状态
+      const oid = res.result?.objectId
+      if (oid && useGameStore.getState().objects.find(o => o.id === oid)?.type === 'homework_box') {
+        EventBus.emit('show-interaction', { message: homeworkUseText(res as unknown as Parameters<typeof homeworkUseText>[0]) })
+        return
+      }
       if (res.success) {
         EventBus.emit('show-interaction', { message: res.result?.message })
       } else if (res.reason === 'no_object_in_front') {
@@ -904,7 +917,7 @@ export default class GameScene extends Phaser.Scene {
     this.keys = this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,ESC') as Record<string, Phaser.Input.Keyboard.Key> | null
     this.input.keyboard?.on('keydown-ESC', () => {
       // 操控页：有面板 / QQ 窗开着时 Esc 先关它们（RpgShell 处理），不退出跟随
-      if (this.mode === 'play' && document.querySelector('[data-testid="rpg-popup"], [data-testid="qq-phone"]')) return
+      if (this.mode === 'play' && document.querySelector('[data-testid="rpg-popup"], [data-testid="qq-phone"], [data-testid="item-detail"]')) return
       this.freeCmd({ cmd: 'exit' })
     })
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { this.drag = { x: p.x, y: p.y, moved: false } })

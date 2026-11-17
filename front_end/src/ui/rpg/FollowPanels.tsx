@@ -3,7 +3,9 @@ import { useGameStore } from '../../store/gameStore'
 import { EventBus } from '../../game/EventBus'
 import { fetchPlayer } from '../../api/world'
 import { getChatHistory, type ChatHistoryRow } from '../../api/chat'
-import { normalizeInventory, itemMeta, itemDisplayName } from '../../game/items'
+import { normalizeInventory, itemMeta, itemDisplayName, isFreeSlot, type InventoryItem } from '../../game/items'
+import { hasItemDetail } from '../../game/school'
+import ItemDetail from './ItemDetail'
 import { rentText } from '../../game/v11'
 import type { Player, WsChatEvent } from '../../types'
 import { C, avatarUrl } from './theme'
@@ -33,6 +35,7 @@ export function FollowBanner({ name, what }: { name: string; what: string }) {
 /** 他的背包：inventory + 金币 + 房租，没有任何操作键 */
 export function FollowBag({ player, name }: { player: Player | null; name: string }) {
   const inv = useMemo(() => normalizeInventory(player?.inventory), [player?.inventory])
+  const [detail, setDetail] = useState<InventoryItem | null>(null)
   if (!player) return <div style={{ color: C.inkSoft }}>读取中…</div>
   const gold = typeof player.gold === 'number' ? player.gold : null
   const rent = rentText(player.rent)
@@ -41,19 +44,20 @@ export function FollowBag({ player, name }: { player: Player | null; name: strin
     <div>
       <FollowBanner name={name} what="背包" />
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
-        <b>🎒 {name} 的背包</b><span style={{ color: C.inkSoft, fontSize: 11 }}>{inv.length}/10 种</span>
+        <b>🎒 {name} 的背包</b><span style={{ color: C.inkSoft, fontSize: 11 }}>{inv.filter(i => !isFreeSlot(i)).length}/10 种</span>
         <span style={{ marginLeft: 'auto', color: '#8A6116', fontWeight: 700 }}>💰 {gold ?? '—'}</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
         {slots.map((it, i) => { const m = it ? itemMeta(it.type, it.name) : null; return (
-          <div key={i} title={it ? `${m!.label} ×${it.count}` : '空'} style={{ height: 50, background: '#fff', border: `1px solid ${C.sky}`, borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+          <div key={i} title={it ? `${m!.label} ×${it.count}` : '空'} onClick={it && hasItemDetail(it) ? () => setDetail(it) : undefined} style={{ cursor: it && hasItemDetail(it) ? 'pointer' : 'default', height: 50, background: '#fff', border: `1px solid ${C.sky}`, borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
             {it && <><span style={{ fontSize: 20 }}>{m!.icon}</span><span style={{ fontSize: 10, color: C.inkSoft }}>{itemDisplayName(it).slice(0, 5)}</span>{it.count > 1 && <span style={{ position: 'absolute', right: 3, top: 1, fontSize: 10, color: '#8A6116' }}>×{it.count}</span>}</>}
           </div>
         ) })}
       </div>
-      {inv.length > 0 && <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>{inv.map((it, i) => <div key={i}>{itemMeta(it.type, it.name).icon} {itemDisplayName(it)} ×{it.count}</div>)}</div>}
+      {inv.length > 0 && <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>{inv.map((it, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1 }}>{itemMeta(it.type, it.name).icon} {itemDisplayName(it)}{it.count > 1 ? ` ×${it.count}` : ''}</span>{hasItemDetail(it) && <button className="k" data-testid={`follow-bag-view-${it.type}`} onClick={() => setDetail(it)} style={{ fontSize: 12, padding: '1px 10px' }}>看</button>}</div>)}</div>}
       {rent && <div style={{ marginTop: 8, color: rent.overdue ? '#D9534F' : C.inkSoft, fontSize: 12 }}>🏠 {rent.text.replace(/^🏠 /, '')}</div>}
       {player.usingObjectId && <div style={{ marginTop: 4, color: C.inkSoft, fontSize: 12 }}>正在用：{player.usingObjectId}</div>}
+      {detail && <ItemDetail item={detail} holder={player.agent_id} onClose={() => setDetail(null)} />}
     </div>
   )
 }

@@ -2,7 +2,7 @@
  * W9：背包物品表（`docs/world-bible/03-objects.md` 3.2）。后端的物品类型名尚未定稿（B W10 任务 4），
  * 这里按中英文都认，认不出的用 📦 + 原名显示。
  */
-export interface ItemMeta { icon: string; label: string; kind: 'food' | 'material' | 'gift' | 'file' | 'key' | 'physical' | 'other'; price?: number; spoiled?: boolean }
+export interface ItemMeta { icon: string; label: string; kind: 'food' | 'material' | 'gift' | 'file' | 'key' | 'physical' | 'paper' | 'other'; price?: number; spoiled?: boolean }
 /** 实体作品（CD / 稿子）：背包里画带底框的图标 */
 export const isPhysicalWork = (m: ItemMeta) => m.kind === 'physical'
 
@@ -28,9 +28,12 @@ const META: Record<string, ItemMeta> = {
   fish_dish: { icon: '🍛', label: '鱼料理', kind: 'food' },
   spoiled_food: { icon: '🤢', label: '坏掉的食物', kind: 'food', spoiled: true },
   meal: { icon: '🍽', label: '餐厅一顿', kind: 'food', price: 20 },
-  cd: { icon: '🎵', label: '唱片', kind: 'physical' },   // §3.41：钥匙物品 {type:'key', meta:{door_id, name}}，显示 meta.name（合租房大门钥匙）；送钥匙走「送」带 door_id
+  cd: { icon: '🎵', label: '唱片', kind: 'physical' },
+  // world-v1.4.0 上课系统：纸类（与钥匙一样不占背包种类、不受每种 20 上限），每本 meta 不同、不叠
+  class_notes: { icon: '📓', label: '课堂笔记', kind: 'paper' },
+  homework_receipt: { icon: '🧾', label: '作业回执', kind: 'paper' },   // §3.41：钥匙物品 {type:'key', meta:{door_id, name}}，显示 meta.name（合租房大门钥匙）；送钥匙走「送」带 door_id
 }
-const CN: Record<string, string> = { 面包: 'bread', 甜食: 'sweet', 便当: 'bento', 食材: 'ingredient', 鱼: 'fish', 鱼饵: 'bait', 小礼物: 'gift', 礼物: 'gift', 歌: 'song', 电台文稿: 'script', 文稿: 'script', 图片: 'image', 钥匙: 'key', 家常菜: 'home_meal', 鱼料理: 'fish_dish', 坏掉的食物: 'spoiled_food', 唱片: 'cd', 稿子: 'script' }
+const CN: Record<string, string> = { 面包: 'bread', 甜食: 'sweet', 便当: 'bento', 食材: 'ingredient', 鱼: 'fish', 鱼饵: 'bait', 小礼物: 'gift', 礼物: 'gift', 歌: 'song', 电台文稿: 'script', 文稿: 'script', 图片: 'image', 钥匙: 'key', 家常菜: 'home_meal', 鱼料理: 'fish_dish', 坏掉的食物: 'spoiled_food', 唱片: 'cd', 稿子: 'script', 课堂笔记: 'class_notes', 作业回执: 'homework_receipt' }
 
 export function itemMeta(type: string | undefined | null, name?: string | null): ItemMeta {
   const k = (type ?? '').toLowerCase().replace(/[-\s]/g, '_')
@@ -59,4 +62,11 @@ export function normalizeInventory(raw: unknown): InventoryItem[] {
 }
 export const isFileItem = (it: InventoryItem) => it.kind === 'file' || itemMeta(it.type, it.name).kind === 'file'
 /** 条目显示名：钥匙等带 meta.name 的用 meta.name（「合租房大门钥匙」） */
-export const itemDisplayName = (it: InventoryItem) => (typeof it.meta?.name === 'string' && it.meta.name) || it.name || itemMeta(it.type, it.name).label
+export const itemDisplayName = (it: InventoryItem) => {
+  if (it.type === 'class_notes' && it.meta) return `笔记·${String(it.meta.course_name ?? it.meta.title ?? '')}${typeof it.meta.date === 'string' ? ` ${it.meta.date.slice(5)}` : ''}`
+  if (it.type === 'homework_receipt' && it.meta) return `回执·《${String(it.meta.title ?? it.meta.receipt_id ?? '')}》`
+  if (it.type === 'cd' && typeof it.meta?.title === 'string' && it.meta.title) return `《${it.meta.title}》`
+  return (typeof it.meta?.name === 'string' && it.meta.name) || it.name || itemMeta(it.type, it.name).label
+}
+/** 不占背包种类（钥匙 / 纸类） */
+export const isFreeSlot = (it: InventoryItem) => { const k = itemMeta(it.type, it.name).kind; return k === 'key' || k === 'paper' }

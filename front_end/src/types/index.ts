@@ -57,6 +57,8 @@ export interface GameObject {
   work?: boolean
   daily_limit_min?: number | null
   daily_used_min?: number | null
+  /** world-v1.4.0：物件交互提示（作业提交箱「带着 CD 使用 = 交作业，截止…」） */
+  hint?: string | null
 }
 /** world-v1.1：进食 / 下厨 / 烧着的持续动作（players[] / GET /player / state 一致都有）；不忙 null */
 export interface BusyState { kind: 'eating' | 'cooking' | 'burning' | string; item?: string; started_at?: string; ends_at?: string; remaining_s?: number; progress?: number; gain?: Record<string, number> | null }
@@ -110,7 +112,19 @@ export interface OtherPlayer {
   inventory?: unknown[]
   /** world-v1.3：勿扰 */
   dnd?: boolean
+  /** world-v1.4.0：在课桌上上课时的精简版；不在课 null */
+  lesson?: LessonBrief | null
 }
+/** world-v1.4.0 §12.25：/world.players[] / ws upsert 的 lesson */
+export interface LessonBrief { lesson_id: string; course: string; title?: string | null; dozing?: boolean }
+/** GET /player.lesson（全量，只在课桌上上课时有） */
+export interface PlayerLesson extends LessonBrief { course_name?: string; start?: string; end?: string; segment_i?: number; segment?: { i: number; text: string } | null; dozed_prev?: boolean; question?: { qid: string; text: string; phase: string; deadline?: string } | null; attendance?: 'present' | 'late' | string; next_segment_at?: string | null }
+export type Attendance = 'present' | 'late' | 'absent' | null
+export interface SchoolLesson { lesson_id: string; course: string; course_name: string; title: string; start: string; end: string; status: 'upcoming' | 'ongoing' | 'done' | string; mine: boolean; my_attendance: Attendance | string; attendance: Record<string, Attendance | string> }
+export interface SchoolHomework { week: number; due: string | null; count: number; submitted: { receipt_id: string; request_id: string; title?: string | null; late: boolean; audio: 'none' | 'pending' | 'final' | string; at?: string }[] }
+/** GET /school/today?player= */
+export interface SchoolToday { date: string; week: number | null; week_genre: string | null; lessons: SchoolLesson[]; homework: SchoolHomework | null }
+export interface WsLesson { type: 'lesson'; event: 'start' | 'segment' | 'question' | 'doze' | 'end' | 'grade' | string; lesson_id?: string; entity?: string; segment?: number; [k: string]: unknown }
 
 export interface TiledTilesetInfo {
   name: string
@@ -223,6 +237,8 @@ export interface Player extends Partial<NeedVars> {
   mood_base?: number
   /** world-v1.3：静态勿扰（主播操控的阿蝉）；tags 里同时有 dnd / working */
   dnd?: boolean
+  /** world-v1.4.0：上课中（只在课桌上） */
+  lesson?: PlayerLesson | null
 }
 
 /** GET /player/{id}/state（B13，只读，不刷心跳） */
@@ -322,7 +338,7 @@ export interface WsRent { type: 'rent'; event: 'due_soon' | 'paid' | 'overdue' |
 export interface WsCookCancelled { type: 'cook_cancelled'; entity?: string; object?: string; item?: string; portions?: number }
 /** B v1.3.19：想法事件（导播视角 💭）；字段名以 B 落地为准，前端按 entity / player_id / id 兼容 */
 export interface WsThought { type: 'thought'; entity?: string; player_id?: string; id?: string; text?: string; kind?: string; game_time?: string; thought?: PlayerThought }
-export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ | WsProduce | WsCommission | WsKnock | WsDoor | WsEatDone | WsSpoiled | WsDailyLimit | WsRent | WsCookCancelled | WsThought
+export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ | WsProduce | WsCommission | WsKnock | WsDoor | WsEatDone | WsSpoiled | WsDailyLimit | WsRent | WsCookCancelled | WsThought | WsLesson
 /** 屋内人视角的待回应敲门（GET /player.pending_knocks[]） */
 export interface PendingKnock { id: string; visitor?: string; visitor_name?: string; home?: string; home_name?: string; door?: DoorRef | null; status?: string; expires_at?: string }
 /** GET /world.map.doors[]：带 owner 的家门（x,y = 外侧格） */

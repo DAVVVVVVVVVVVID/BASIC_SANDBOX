@@ -7,6 +7,8 @@ import TopRight from './TopRight'
 import BottomBar, { SUMMON, type PanelKey } from './BottomBar'
 import PanelFrame from './PanelFrame'
 import PeoplePanel from './PeoplePanel'
+import SchoolCard from './SchoolCard'
+import ObjectHint from './ObjectHint'
 import SettingsPanel from './SettingsPanel'
 import HUD from '../HUD'
 import BackpackPanel from '../BackpackPanel'
@@ -78,10 +80,11 @@ export default function RpgShell({ playerId }: { playerId: string }) {
       <div style={{ position: 'absolute', left: 0, right: 0, ...(open ? { top: 64 } : { bottom: 96 }), pointerEvents: 'none' }}>
         <div style={{ pointerEvents: 'auto' }}><KnockPanel anchor="bottom" skin="rpg" /></div>
         <div style={{ pointerEvents: 'auto' }}><InteractionPanel anchor="bottom" skin="rpg" /></div>
+        {dir.mode === 'self' && <div style={{ pointerEvents: 'auto' }}><ObjectHint /></div>}
       </div>
       {open && (open !== 'chat' || followOther) && (
         <PanelFrame title={title} onClose={() => setOpen(null)} width={open === 'people' ? 760 : open === 'map' ? 520 : open === 'settings' ? 520 : open === 'chat' ? 600 : 600} dark={false}>
-          {open === 'people' && <PeoplePanel follow={dir.mode === 'follow' ? dir.follow : null} />}
+          {open === 'people' && <><SchoolCard follow={dir.mode === 'follow' ? dir.follow : null} /><PeoplePanel follow={dir.mode === 'follow' ? dir.follow : null} /></>}
           {open === 'map' && <div style={{ display: 'flex', justifyContent: 'center' }}><Minimap inline large /></div>}
           {open === 'bag' && (followOther ? <FollowBag player={followed} name={followName} /> : <BackpackPanel embedded />)}
           {open === 'log' && <ActionLog embedded />}

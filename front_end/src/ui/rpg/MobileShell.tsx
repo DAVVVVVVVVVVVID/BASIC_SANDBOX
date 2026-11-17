@@ -5,6 +5,8 @@ import { EventBus } from '../../game/EventBus'
 import { godotCharKeyFor } from '../../game/godotChars'
 import type { DirectorCmd } from '../../game/scenes/GameScene'
 import PeoplePanel from './PeoplePanel'
+import SchoolCard from './SchoolCard'
+import ObjectHint from './ObjectHint'
 import SettingsPanel from './SettingsPanel'
 import BackpackPanel from '../BackpackPanel'
 import ActionLog from '../ActionLog'
@@ -101,13 +103,14 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
               </div>
             ))}
             {followOther && <div style={{ fontSize: 12, color: '#5B4A8A' }}>🔒 只看 · 点右上「回阿蝉」回来</div>}
+            <SchoolCard follow={dir.mode === 'follow' ? dir.follow : null} compact />
           </div>
         )}
       </div>
       {/* toast / 门禁条：画布底部、Tab 栏上方（主播 11-16：别和右上圆钮重叠） */}
-      <div style={{ position: 'absolute', left: 8, right: 8, bottom: `calc(${SAFE_BOTTOM} + 64px)`, pointerEvents: 'auto', zIndex: 5 }}><div style={{ transform: 'scale(0.92)', transformOrigin: 'bottom center' }}><KnockPanel anchor="bottom" skin="rpg" /><InteractionPanel anchor="bottom" skin="rpg" /></div></div>
-      {/* 右上三枚圆钮 */}
-      <div style={{ position: 'absolute', right: 18, top: `calc(${SAFE_TOP} + 56px)`, display: 'flex', flexDirection: 'column', gap: 10, pointerEvents: 'auto' }}>
+      <div style={{ position: 'absolute', left: 8, right: 8, bottom: `calc(${SAFE_BOTTOM} + 64px)`, pointerEvents: 'auto', zIndex: 5 }}><div style={{ transform: 'scale(0.92)', transformOrigin: 'bottom center' }}><KnockPanel anchor="bottom" skin="rpg" /><InteractionPanel anchor="bottom" skin="rpg" />{dir.mode === 'self' && <ObjectHint compact />}</div></div>
+      {/* 右上三枚圆钮（顶条下拉展开时藏起来，别压住五条 / 课表卡） */}
+      <div style={{ display: chipOpen ? 'none' : 'flex', position: 'absolute', right: 18, top: `calc(${SAFE_TOP} + 56px)`, flexDirection: 'column', gap: 10, pointerEvents: 'auto' }}>
         {round('dir_back', '回阿蝉', dir.mode === 'self', () => send({ cmd: 'self' }), 'm-dir-self')}
         {round('dir_camera', '自由镜头', dir.mode === 'free', () => send({ cmd: 'free' }), 'm-dir-free')}
         {round('dir_thought', '想法', thoughts, () => { const on = !thoughts; setThoughts(on); EventBus.emit('director-thoughts', { on }) }, 'm-dir-thoughts')}
