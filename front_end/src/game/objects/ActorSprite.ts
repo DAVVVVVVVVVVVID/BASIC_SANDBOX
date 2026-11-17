@@ -60,6 +60,7 @@ export interface ActorOptions {
 }
 /** kit03 九宫格贴图键与切片边（素材 ≈3 px / 像素；尾巴在左下，切片把尾巴留在底边区） */
 export const KIT_TEX = { speech: 'kit_speech_m', thought: 'kit_thought_m', name: 'kit_name_tag_a' } as const
+const THOUGHT_WRAP = 200, THOUGHT_MAX_LINES = 4
 const NINE = { speech: [40, 22, 18, 34], thought: [44, 22, 20, 56], name: [16, 16, 14, 14] } as const
 
 /**
@@ -499,28 +500,48 @@ export default class ActorSprite {
 
   private bubbleHeight() { return this.bubbleText ? this.bubbleText.height + (this.rpgSkin ? 44 : 10 + 8) : 0 }
 
+  private thoughtRaw: string | null = null
+  /** rpg 想法云排版：最多 THOUGHT_MAX_LINES 行，超出截断加「…」；多行时云宽按换行宽度定（不按实测，防回落字体量窄）；文字四周留出云边凹凸的余量 */
+  private fitThoughtCloud(text: string) {
+    if (!this.thought || !this.thoughtText) return
+    const t = this.thoughtText, ns = this.thought.list[0] as Phaser.GameObjects.NineSlice
+    t.setText(text)
+    let lines = t.getWrappedText(text)
+    if (lines.length > THOUGHT_MAX_LINES) {
+      lines = lines.slice(0, THOUGHT_MAX_LINES)
+      const last = lines[THOUGHT_MAX_LINES - 1].replace(/\s+$/, '')
+      lines[THOUGHT_MAX_LINES - 1] = last.slice(0, Math.max(0, last.length - 1)) + '…'
+      t.setText(lines.join('\n'))
+    }
+    const tw = lines.length > 1 ? Math.max(t.width, THOUGHT_WRAP) : t.width
+    const TAIL = 30, PAD_X = 20, PAD_T = 16, PAD_B = 18          // TAIL = 三圆点尾巴；PAD = 云边凹凸
+    const w = Math.max(110, tw + PAD_X * 2), h = t.height + PAD_T + PAD_B + TAIL
+    const cx = w / 2 - 36                                          // 尾巴（左下）对着头顶：云身整体右移
+    ns.setSize(w, h); ns.setPosition(cx, 0)
+    t.setPosition(cx, -TAIL - PAD_B)
+    this.thoughtH = h
+    this.layout()
+  }
+
   /** 💭 想法（null 撤掉）。只由导播视角调用；旁观 / 直播不渲染 */
   setThought(text: string | null) {
     if (!text) {
-      if (this.thought) { this.thought.destroy(true); this.thought = null; this.thoughtText = null; this.thoughtH = 0; this.layout() }
+      if (this.thought) { this.thought.destroy(true); this.thought = null; this.thoughtText = null; this.thoughtH = 0; this.thoughtRaw = null; this.layout() }
       return
     }
-    if (this.thought && this.thoughtText && this.thoughtText.text === text) return
+    if (this.thought && this.thoughtText && this.thoughtRaw === text) return
+    this.thoughtRaw = text
     if (this.rpgSkin && this.scene.textures.exists(KIT_TEX.thought)) {
       // kit03 想法云（九宫格，尾巴三圆点在左下）：文字叠在云身里
       if (!this.thought) {
-        this.thoughtText = this.scene.add.text(0, 0, '', { fontFamily: '"Fusion Pixel 12px", system-ui, "PingFang SC", sans-serif', fontSize: '14px', color: '#44337a', wordWrap: { width: 200, useAdvancedWrap: true }, align: 'left' }).setOrigin(0.5, 1).setResolution(2)
+        this.thoughtText = this.scene.add.text(0, 0, '', { fontFamily: '"Fusion Pixel 12px", system-ui, "PingFang SC", sans-serif', fontSize: '14px', color: '#44337a', wordWrap: { width: THOUGHT_WRAP, useAdvancedWrap: true }, align: 'left' }).setOrigin(0.5, 1).setResolution(2)
         const [l, r, tt, b] = NINE.thought
         const ns = this.scene.add.nineslice(0, 0, KIT_TEX.thought, undefined, 120, 90, l, r, tt, b).setOrigin(0.5, 1)
         this.thought = this.scene.add.container(this.sprite.x, this.sprite.y + BUBBLE_Y, [ns, this.thoughtText]).setScale(this.uiScale)
       }
-      const t = this.thoughtText!, ns = this.thought.list[0] as Phaser.GameObjects.NineSlice
-      t.setText(text)
-      const w = Math.max(110, t.width + 44), h = t.height + 26 + 44   // 44 = 尾巴区
-      ns.setSize(w, h); ns.setPosition(w / 2 - 36, 0)                 // 尾巴（左下）对着头顶：云身整体右移
-      t.setPosition(w / 2 - 36, -44 - 13)
-      this.thoughtH = h
-      this.layout()
+      this.fitThoughtCloud(text)
+      // 像素字体异步加载：首次量宽可能用的是回落字体（更窄）→ 字体到了按原文重排一次（总控 11-17「想法文字溢出气泡」）
+      if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(() => { if (this.thought && this.thoughtRaw === text) this.fitThoughtCloud(text) })
       return
     }
     let g: Phaser.GameObjects.Graphics

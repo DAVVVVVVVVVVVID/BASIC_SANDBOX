@@ -41,3 +41,8 @@ export function buildTileIndex(tiles: Tile[]): Map<string, Tile> {
   for (const t of tiles) m.set(`${t.x},${t.y}`, t)
   return m
 }
+
+/** 想法 / 文案里漏出来的内部区域 id（「去 classroom 上课」）→ 中文名；只换 sector / arena 表里有的整词，BGM / CD 这类不动（总控 11-17，源头在 C 的文案，这里兜底） */
+export function humanizeZoneIds(text: string): string {
+  return text.replace(/[A-Za-z][A-Za-z0-9_]*/g, w => ZONE_NAMES.arena[w] ?? ZONE_NAMES.sector[w] ?? w)
+}

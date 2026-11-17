@@ -44,3 +44,11 @@ test('homeworkUseText：成功补截止与音频；失败按 reason 翻译、后
   assert.equal(homeworkUseText({ success: false, reason: 'cd_redo', result: { message: '这首判了重做，交重做后的那张。' } }), '📮 这首判了重做，交重做后的那张。')
   assert.match(homeworkUseText({ success: false, reason: 'already_submitted', result: { week: 1 } }), /第 1 周/)
 })
+
+test('humanizeZoneIds：想法里的 arena / sector id 换中文名，BGM / CD 不动', async () => {
+  const { humanizeZoneIds, setZoneNames } = await import('../src/game/map/zones')
+  setZoneNames({ arena: { classroom: '教学楼' } })
+  assert.equal(humanizeZoneIds('去上课：类型创作——classroom，课桌坐下'), '去上课：类型创作——教学楼，课桌坐下')
+  assert.equal(humanizeZoneIds('游戏 BGM 交 CD'), '游戏 BGM 交 CD')
+  assert.equal(humanizeZoneIds('回 achan_house 拿 classroom_desk_1'), '回 阿蝉家 拿 classroom_desk_1')
+})

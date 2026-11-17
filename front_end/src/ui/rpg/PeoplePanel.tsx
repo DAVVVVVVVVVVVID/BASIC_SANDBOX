@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useGameStore } from '../../store/gameStore'
 import { EventBus } from '../../game/EventBus'
 import { deriveStateLabel } from '../../game/stateLabel'
-import { zoneLabel } from '../../game/map/zones'
+import { zoneLabel, humanizeZoneIds } from '../../game/map/zones'
 import { godotCharKeyFor } from '../../game/godotChars'
 import { C, avatarUrl, pillColor, kit } from './theme'
 import { displayName } from './PlayerChip'
@@ -19,7 +19,7 @@ export default function PeoplePanel({ follow, cols }: { follow: string | null; c
   type Row = { id: string; key: string; name: string; zone: string; doing: string; dist: number; online: boolean; self: boolean; thought: string; lesson: string }
   const rows: Row[] = players.filter(p => p.id !== me.id).map(p => {
     const t = tileAt.get(`${p.position.x},${p.position.y}`)
-    const th = p.last_thought?.text?.trim() ?? ''
+    const th = humanizeZoneIds(p.last_thought?.text?.trim() ?? '')
     return { id: p.id, key: godotCharKeyFor(p.name, p.controller, p.agent_id), name: p.name, zone: zoneLabel(t) || (t ? '小镇' : '—'), doing: (deriveStateLabel(p, objects) ?? (p.state === 'walking' ? '🚶 走路' : '站着')).replace(/^[^一-龥A-Za-z]+/, ''), dist: Math.abs(p.position.x - me.position.x) + Math.abs(p.position.y - me.position.y), online: p.online !== false, self: false, thought: th, lesson: p.lesson ? (p.lesson.dozing ? '💤 打瞌睡' : `📖 ${p.lesson.title || '上课中'}`) : '' }
   })
   const myTile = tileAt.get(`${me.position.x},${me.position.y}`)

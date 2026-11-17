@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { EventBus } from '../game/EventBus'
 import { deriveStateLabel } from '../game/stateLabel'
-import { zoneLabel } from '../game/map/zones'
+import { zoneLabel, humanizeZoneIds } from '../game/map/zones'
 import type { DirectorCmd } from '../game/scenes/GameScene'
 import { fetchThoughts } from '../api/world'
 
@@ -45,7 +45,7 @@ export default function DirectorPanel() {
   const rows = players.filter(p => p.id !== me.id).map(p => {
     const t = tileAt.get(`${p.position.x},${p.position.y}`)
     const dist = Math.abs(p.position.x - me.position.x) + Math.abs(p.position.y - me.position.y)
-    const th = p.last_thought?.text?.trim()
+    const th = p.last_thought?.text ? humanizeZoneIds(p.last_thought.text.trim()) : ''
     return { p, zone: zoneLabel(t) || '—', doing: deriveStateLabel(p, objects) ?? (p.state === 'walking' ? '🚶 走路' : '站着'), dist, thought: th ? (th.length > 20 ? th.slice(0, 20) + '…' : th) : '' }
   })
   const modeLabel = state.mode === 'self' ? '跟随阿蝉' : state.mode === 'free' ? '自由镜头' : `跟随 ${players.find(p => p.id === state.follow)?.name ?? state.follow ?? ''}`

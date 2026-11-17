@@ -11,7 +11,7 @@ import { useGameStore } from '../../store/gameStore'
 import { resolveFollowTarget } from '../systems/TickSystem'
 import type { SpectateParams } from '../../spectate/params'
 import { preloadGenAssets, createGenAnimations, charKeyFor, objTextureKey } from '../assets'
-import { buildTileIndex, zoneLabel } from '../map/zones'
+import { buildTileIndex, zoneLabel, humanizeZoneIds } from '../map/zones'
 import SceneFocus, { ZOOM_MS } from '../systems/SceneFocus'
 import { preloadGodotChars, createGodotCharAnimations } from '../godotCharsLoad'
 import { preloadGodotMap, godotMapReady } from '../godotMapLoad'
@@ -1224,7 +1224,7 @@ export default class GameScene extends Phaser.Scene {
     }
     // 💭 想法气泡（导播视角，只在操控页）：players[].last_thought.text；关掉或旁观页一律撤
     if (this.mode === 'play') {
-      const byId = this.thoughtsOn ? new Map(store.players.map(p => [p.id, p.last_thought?.text ?? null])) : null
+      const byId = this.thoughtsOn ? new Map(store.players.map(p => [p.id, p.last_thought?.text ? humanizeZoneIds(p.last_thought.text) : null])) : null
       for (const [id, s] of this.others) s.setThought(byId ? byId.get(id) ?? null : null)
     }
     const bubbles = store.bubbles
