@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-/** 读 run/towns.yaml 里 towns.<name>.k（最小解析，不引 yaml 依赖）：沙盒端口 = 8000 + 10k */
+/** 读 run/towns.yaml 里各镇的沙盒端口（最小解析，不引 yaml 依赖）：有 `sandbox_port: N` 用 N（bench / bench2 这么写），否则 `k` → 8000 + 10k */
 function readTowns(file: string): Record<string, number> {
   const out: Record<string, number> = {}
   let text = ''
@@ -14,6 +14,7 @@ function readTowns(file: string): Record<string, number> {
   const lines = text.split('\n')
   let inTowns = false
   let cur: string | null = null
+  const ports: Record<string, boolean> = {}               // 显式 sandbox_port 优先于 k
   for (const raw of lines) {
     const line = raw.replace(/#.*$/, '')
     if (/^towns:\s*$/.test(line)) { inTowns = true; continue }
@@ -22,7 +23,9 @@ function readTowns(file: string): Record<string, number> {
     const m1 = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line)
     if (m1) { cur = m1[1]; continue }
     const m2 = /^ {4}k:\s*(\d+)/.exec(line)
-    if (m2 && cur) out[cur] = Number(m2[1])
+    if (m2 && cur && !(cur in ports)) out[cur] = 8000 + 10 * Number(m2[1])
+    const m3 = /^ {4}sandbox_port:\s*(\d+)/.exec(line)
+    if (m3 && cur) { out[cur] = Number(m3[1]); ports[cur] = true }
   }
   return out
 }
@@ -93,7 +96,7 @@ function readOnlyDir(prefix: string, root: string): Plugin {
 //   VITE_PORT          开发端口，默认 5173（运行台）；自测用 `npm run dev -- --port 5174`
 //   VITE_OBSERVE_BASE  思考字幕请求前缀，默认 `/observe`（E8）
 //   VITE_OBSERVE_TARGET C 的只读观察面板，默认 http://127.0.0.1:8002（路径不改写：/observe/latest 原样转发）
-//   VITE_TOWNS_YAML    多镇表（E14），默认 /home/shan-dw/Project/run/towns.yaml：/t/<town>/api → 127.0.0.1:(8000+10k)
+//   VITE_TOWNS_YAML    多镇表（E14），默认 /home/shan-dw/Project/run/towns.yaml：/t/<town>/api → 127.0.0.1:(sandbox_port，或 8000+10k)
 //   VITE_DATASET_DIR   A 的每日导出目录（E13 回放页只读），默认 /home/shan-dw/Project/whale-self/data/dataset → /dataset/
 //   VITE_SANDBOX_DATA_DIR  主镇沙盒数据目录（行动 / 聊天 JSONL，只读），默认 /home/shan-dw/Project/run/data/sandbox → /sandboxdata/
 //   VITE_GAME_RUNS_DIR D 的 runs 目录（游戏机小窗读回放 GIF，只读），默认 /home/shan-dw/Project/whale-game/runs → /gameruns/
@@ -108,9 +111,8 @@ export default defineConfig(({ mode }) => {
   const observeTarget = env.VITE_OBSERVE_TARGET || 'http://127.0.0.1:8002'
   const towns = readTowns(env.VITE_TOWNS_YAML || '/home/shan-dw/Project/run/towns.yaml')
   const townProxy: Record<string, unknown> = {}
-  for (const [name, k] of Object.entries(towns)) {
-    if (k === 0) continue
-    const port = 8000 + 10 * k
+  for (const [name, port] of Object.entries(towns)) {
+    if (port === 8000) continue                              // 主镇走 VITE_API_BASE
     townProxy[`/t/${name}/api`] = {
       target: `http://127.0.0.1:${port}`, changeOrigin: true, ws: true,
       rewrite: (p: string) => p.replace(new RegExp(`^/t/${name}/api`), '') || '/',
