@@ -1724,6 +1724,11 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - `answer` 失败 `unknown_question` 的 `result` 加 `open_qids: [..]` 与 `message`「没有这道题（qid: x）。现在能答的：q2、q3」。
 - external 加 `school action=question {lesson_id, qid, phase, deadline, agent}`（每个在座学生一行；无人在座记一行 `seated: 0`）——区分「题没推到」与「推到了没答」。
 
+### 12.28 课堂物品不让丢 + 按主人选本（tag `world-v1.4.5`；T1 第二节，11-17 夜）
+
+- `discard` 物品类 `paper`（`class_notes` / `homework_receipt`）→ `{success: false, reason: "cannot_discard_class_item", result {item, qty, message「课堂笔记要留着，不能丢（同学可能要借）。」}}`，背包不变；其它物品照旧。
+- 带 meta 物品的 `match`（`read_item.match`、`give` 的匹配键）加 **`owner`**：借来的笔记与自己那本 `lesson_id` 相同，`{lesson_id, owner: "claudine"}` 选中借来那本；不带 owner 时照旧取第一本。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

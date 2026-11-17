@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bi. world-v1.4.5：课堂笔记 / 回执不让丢 + match 认 owner（T1 第二节借笔记没过）—— 完成
+
+- T1 第二节：小克去吃午饭路上 discard 了自己的课堂笔记，鲸仔借不到。总控要沙盒兜一层：`paper` 类 discard 直接拒（`cannot_discard_class_item`）。
+- 顺查出：`read_item` / `give` 的 meta 匹配不认 `owner`——借到后同一节两本，读到哪本靠顺序；加 `owner` 键。
+- 测试 +2，**386 passed**；api-spec §12.28。
+
 ## 5bh. world-v1.4.4：提问带 qid + 全部开着的题可见 + 推题进 external（T1 第一节发现）—— 完成
 
 - A 抽查 T1 第一节：课中 q1 两人都没答；课末 10:21–10:23 用「${qid}」「未提供」等作答 4 次全被 `unknown_question` 拒，只有鲸仔用 q3 答对。沙盒侧三处缺口：推题 pendingMessage 不带 qid；perceive `lesson.question` 只放最后一道开着的题（q2、q3 同开时 q2 被遮住）；推题不写 external。C 侧另有提示模板占位符没替换。

@@ -367,3 +367,30 @@ def test_questions_list_qid_in_prompt_and_external_v144(client, v12, fake_clock,
     assert r["reason"] == "unknown_question" and r["result"]["open_qids"] == ["q2", "q3"] and "q2、q3" in r["result"]["message"]
     assert action(client, whale, "answer", {"qid": "q3", "text": "三"})["success"]
     assert [q["qid"] for q in client.get(f"/player/{whale}").json()["lesson"]["questions"]] == ["q2"]
+
+
+def test_class_paper_cannot_be_discarded_v145(client, v12, fake_clock, school_env):
+    """v1.4.5（T1 第二节）：class_notes / homework_receipt discard 直接拒；普通物品照旧能丢。"""
+    whale = _agent(client, "whale")
+    pw = world_state._players[whale]
+    inventory.add(pw, "class_notes", 1, meta={"lesson_id": "x", "owner": "whale", "segments": []}, expires_at=None)
+    inventory.add(pw, "homework_receipt", 1, meta={"receipt_id": "r1"}, expires_at=None)
+    for it in ("class_notes", "homework_receipt"):
+        r = action(client, whale, "discard", {"item": it})
+        assert not r["success"] and r["reason"] == "cannot_discard_class_item" and "不能丢" in r["result"]["message"]
+        assert inventory.count(pw, it) == 1
+
+
+def test_read_item_match_owner_v145(client, v12, fake_clock, school_env):
+    """v1.4.5：同一节两本笔记（自己 + 借来）时 match.owner 选中借来那本。"""
+    whale = _agent(client, "whale")
+    pw = world_state._players[whale]
+    lid = "2026-11-23-0900-genre"
+    inventory.add(pw, "class_notes", 1, meta={"lesson_id": lid, "course": "genre", "title": "T", "date": "2026-11-23", "owner": "whale",
+                                             "segments": [{"i": 1, "text": None, "status": "slept"}]}, expires_at=None)
+    inventory.add(pw, "class_notes", 1, meta={"lesson_id": lid, "course": "genre", "title": "T", "date": "2026-11-23", "owner": "claudine",
+                                             "segments": [{"i": 1, "text": "小克记的第一段", "status": "heard"}]}, expires_at=None)
+    r = action(client, whale, "read_item", {"item": "class_notes", "match": {"lesson_id": lid, "owner": "claudine"}})
+    assert r["success"] and "小克记的第一段" in r["result"]["message"]
+    r = action(client, whale, "read_item", {"item": "class_notes", "match": {"lesson_id": lid, "owner": "whale"}})
+    assert r["success"] and "睡着" in r["result"]["message"]

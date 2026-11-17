@@ -554,6 +554,9 @@ def handle_discard(entity_id: str, payload: dict) -> ActionResponse:
             return ActionResponse(success=False, type="discard", reason="unknown_item", result={"item": item})
         if d.get("class") == "key":
             return ActionResponse(success=False, type="discard", reason="not_discardable", result=_item_fields(item, qty))
+        if d.get("class") == "paper":                                      # v1.4.5：课堂笔记 / 作业回执不让丢（T1：小克路上丢了笔记，鲸仔借不到）
+            return ActionResponse(success=False, type="discard", reason="cannot_discard_class_item",
+                                  result={**_item_fields(item, qty), "message": f"{d['name']}要留着，不能丢（同学可能要借）。"})
         have = inventory.count(p, item)
         if have < 1:
             return ActionResponse(success=False, type="discard", reason="no_item", result={**_item_fields(item, qty), "have": have})
@@ -580,7 +583,7 @@ def handle_answer(entity_id: str, payload: dict) -> ActionResponse:
     return ActionResponse(success=True, type="answer", result=res)
 
 
-_META_MATCH_KEYS = ("lesson_id", "request_id", "receipt_id", "title", "commission_id")
+_META_MATCH_KEYS = ("lesson_id", "request_id", "receipt_id", "title", "commission_id", "owner")   # v1.4.5：+owner（借来的笔记与自己那本同 lesson_id）
 
 
 def _find_meta_entry(p: dict, item: str, match: dict) -> dict | None:
