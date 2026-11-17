@@ -1356,7 +1356,14 @@ def edge_block(edge: dict, mover: dict | None, game_ts: float, frm: tuple[int, i
 
 
 def arena_block(arena: str | None, mover: dict | None, game_ts: float) -> tuple[str, str | None] | None:
-    """进入某场所此刻是否被访问规则挡住：None=可进；否则 ("locked", opens_at)。"""
+    """进入某场所此刻是否被访问规则挡住：None=可进；否则 ("locked", opens_at) / v1.4.3 ("in_class", 下课 HH:MM)。"""
+    try:
+        from game import school as _school
+        cb = _school.room_block(arena, mover, game_ts)          # v1.4.3：上课窗口内教室只给本节学生
+        if cb is not None:
+            return cb
+    except Exception:
+        pass
     acc = _ACCESS.get(arena or "")
     if not acc:
         return None

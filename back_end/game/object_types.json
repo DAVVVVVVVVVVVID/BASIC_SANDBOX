@@ -1113,7 +1113,7 @@
     "sprite": "desk",
     "success_message": "开始工作吧！",
     "failure_message": "还不想工作",
-    "max_users": 4,
+    "max_users": 1,
     "use_state_label": "{entity} 在上课",
     "max_duration": 3600,
     "leave_message": "工作很久了，休息一下吧",

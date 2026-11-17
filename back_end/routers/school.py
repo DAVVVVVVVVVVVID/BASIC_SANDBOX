@@ -28,6 +28,26 @@ def get_today(player: Optional[str] = None):
         return school.today_view(p)
 
 
+class TermStartBody(BaseModel):
+    term_start: str                    # YYYY-MM-DD
+
+
+@router.post("/term_start")
+def post_term_start(body: TermStartBody, authorization: Optional[str] = Header(default=None)):
+    """v1.4.3：不重启改开学日（立即生效、进检查点；优先于 env SANDBOX_SCHOOL_TERM_START 与 school.json）。主镇 11-18 试跑、周五改回 11-23 用。鉴权同 /school/grade。"""
+    toks = [t for t in (os.environ.get("SANDBOX_ADMIN_TOKEN"), os.environ.get("SELF_TOKEN")) if t]
+    if toks and (authorization or "") not in {f"Bearer {t}" for t in toks}:
+        raise HTTPException(status_code=401, detail="bad token")
+    try:
+        with world_state.STATE_LOCK:
+            r = school.set_term_start(body.term_start)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="term_start must be YYYY-MM-DD")
+    from game import interventions
+    interventions.log("config_change", "controller", ["*"], f"开学日改为 {body.term_start}", payload={"term_start": body.term_start})
+    return {"ok": True, **r, "timetable": school.timetable_view()}
+
+
 class GradeBody(BaseModel):
     agent_id: str
     grade: str                         # A | B | C

@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bg. world-v1.4.3：教室规则四条 + 开学日热改（主播 11-17；明早 06:00 上主镇）—— 完成
+
+- 课桌一人一座（max_users 1）；课前 10 分钟 → 下课窗口内非本节学生进不了教室（`arena_block` 前置 `school.room_block`，blocked_reason `in_class` + 提示文案），已在里面的被移到门外 (5,6) 并推提示（含人类阿蝉）；上课中学生拒外人聊天邀请（`in_class`），同堂互邀放行；`POST /school/term_start` 不重启改开学日（进检查点）。
+- 测试 +2（四条规则全流程、热改开学日含检查点与鉴权），**383 passed**；api-spec §12.26。
+
 ## 5bf. world-v1.4.2：开学日 = 第 1 周周一 + 固定瞌睡种子（T1 准备）—— 完成
 
 - 总控定 T1 游戏日 11-18（周三）、开学日也设 11-18、当天按第 1 周周一排课；旧版按日历星期取课表会排出周三的课，与 A 的课案对不上。改为按开学日起算的第几天取课表（`day_index`），作业截止同口径；正式开学 11-23 是周一，生产不变。

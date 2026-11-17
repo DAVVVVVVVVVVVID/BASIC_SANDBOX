@@ -85,6 +85,9 @@ def _blocked_detail(start: tuple[int, int], goals: set[tuple[int, int]], mover: 
 
 def _no_path(action_type: str, start: tuple[int, int], goals: set[tuple[int, int]], mover: dict | None, extra: dict | None = None) -> ActionResponse:
     d = _blocked_detail(start, goals, mover)
+    if d.get("blocked_reason") == "in_class":                     # v1.4.3：上课窗口内非学生进教室
+        from game.school import ROOM_MSG
+        d["message"] = ROOM_MSG
     return ActionResponse(success=False, type=action_type, reason="no_path", result={**d, **(extra or {})})
 
 

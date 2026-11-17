@@ -70,6 +70,10 @@ def post_chat_request(body: ChatRequestBody):
     away = [t for t in body.to_entity_ids if t in _players_dict and not is_present(_players_dict[t])]
     if away:                                                    # W8 Q0e：away / 离线的人不接受邀请
         return {"request_id": None, "success": False, "reason": "target_away", "away": away}
+    from game import school as _school
+    busy = [t for t in body.to_entity_ids if _school.chat_blocked(from_player, _players_dict.get(t))]
+    if busy:                                                    # v1.4.3：上课中拒外人邀请（同堂学生互邀放行）
+        return {"request_id": None, "success": False, "reason": "in_class", "in_class": busy, "message": "上课中，下课再聊"}
     # B9 ③；W6 任务 4：human（作者 / 阿蝉）发起不受冷却约束（受邀 agent 的冷却也不拦人类的邀请）
     remaining = 0.0 if from_player.get("controller") == "human" else chat_state.chat_cooldown_remaining(body.from_entity_id, body.to_entity_ids)
     if remaining > 0:

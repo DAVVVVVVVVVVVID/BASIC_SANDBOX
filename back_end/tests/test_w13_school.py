@@ -285,3 +285,58 @@ def test_term_start_day_is_week1_monday(monkeypatch):
     monkeypatch.delenv("SANDBOX_SCHOOL_TERM_START"); monkeypatch.delenv("SANDBOX_SCHOOL_DOZE_SEED")
     school.reload_cfg()
     assert school.day_index("2026-11-23") == 0 and [l["course"] for l in school.lessons_for_date("2026-11-27")] == ["harmony", "review"]   # 正式开学：日历一致
+
+
+def test_classroom_rules_v143(client, v12, fake_clock, school_env):
+    """v1.4.3（主播 11-17）：课桌一人一座；课前 10 分钟起非学生不能进教室、已在里面的被移到门外；上课中拒外人聊天（同堂互邀放行）。"""
+    _set(fake_clock, 2026, 11, 23, 8, 40)
+    whale = _agent(client, "whale"); cl = _agent(client, "claudine"); fisher = _agent(client, "npc_fisher")
+    achan = client.post("/player/join", json={"name": "阿蝉", "controller": "human", "profile": {"agent_id": "achan"}}).json()["playerId"]
+    client.post(f"/admin/player/{achan}/dnd", json={"on": False})
+    # 窗口外：外人能进教室、坐空课桌；一张课桌只坐一人
+    place(fisher, 6, 3, "up"); assert action(client, fisher, "use")["success"]
+    place(cl, 6, 3, "up")
+    assert action(client, cl, "use")["reason"] == "object_full"
+    place(achan, 7, 4, "up")
+    # 08:50 起清场：老渔夫离座出门、阿蝉也被请出；学生不受影响
+    place(whale, 4, 3, "up"); assert action(client, whale, "use")["success"]
+    _run_until(fake_clock, 8, 51)
+    for pid in (fisher, achan):
+        p = world_state._players[pid]
+        assert (p["position"]["x"], p["position"]["y"]) == (5, 6) and p.get("usingObjectId") is None
+        assert "马上要上课啦" in (client.get(f"/player/{pid}").json()["pendingMessage"] or "")
+    assert world_state._players[whale]["usingObjectId"] == "classroom_desk_1"
+    # 窗口内：外人寻路 / 单步进教室都被拒；学生能进
+    r = action(client, fisher, "move", {"direction": "up"})
+    assert r["success"] is False and r["result"]["blocked_reason"] == "in_class" and r["result"]["message"] == "正在上课，不能打扰学生们上课" and r["result"]["opens_at"] == "10:30"
+    r = action(client, fisher, "move_to_area", {"area_type": "arena", "area_id": "classroom"})
+    assert r["success"] is False and r["result"]["blocked_reason"] == "in_class"
+    place(cl, 5, 6, "up"); assert action(client, cl, "move", {"direction": "up"})["success"]
+    _tick(fake_clock, 5)
+    place(cl, 6, 3, "up"); assert action(client, cl, "use")["success"]
+    _run_until(fake_clock, 9, 5)
+    # 聊天：外人邀请上课中的学生被拒；同堂两人互邀放行
+    place(fisher, 5, 6, "up")
+    r = client.post("/chat/request", json={"from_entity_id": fisher, "to_entity_ids": [whale], "greeting": "钓鱼去？"}).json()
+    assert r["success"] is False and r["reason"] == "in_class" and r["message"] == "上课中，下课再聊" and r["in_class"] == [whale]
+    r = client.post("/chat/request", json={"from_entity_id": cl, "to_entity_ids": [whale], "greeting": "这段讲的啥"}).json()
+    assert r["success"] is True
+    # 下课后外人又能进
+    _run_until(fake_clock, 10, 31)
+    assert action(client, fisher, "move", {"direction": "up"})["success"]
+
+
+def test_admin_term_start_hot_change(client, v12, fake_clock, school_env, monkeypatch):
+    """v1.4.3：POST /school/term_start 不重启改开学日，立即生效、进检查点，优先于 env。"""
+    from game import persistence
+    _set(fake_clock, 2026, 11, 18, 8, 0)
+    assert client.get("/school/today").json()["lessons"] == []                          # 默认开学 11-23
+    r = client.post("/school/term_start", json={"term_start": "2026-11-18"}).json()
+    assert r["ok"] and r["timetable"]["term_start"] == "2026-11-18" and r["timetable"]["term_start_source"] == "admin" and r["timetable"]["week"] == 1
+    assert [l["course"] for l in client.get("/school/today").json()["lessons"]] == ["genre", "lyrics"]
+    assert client.post("/school/term_start", json={"term_start": "11/18"}).status_code == 400
+    persistence.save_checkpoint(); school._reset_for_tests(); persistence.load_checkpoint()
+    assert school.cfg()["term_start"] == "2026-11-18"                                    # 重启后仍是热改值
+    monkeypatch.setenv("SELF_TOKEN", "tok")
+    assert client.post("/school/term_start", json={"term_start": "2026-11-23"}).status_code == 401
+    assert client.post("/school/term_start", json={"term_start": "2026-11-23"}, headers={"Authorization": "Bearer tok"}).json()["term_start"] == "2026-11-23"

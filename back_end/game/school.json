@@ -1,5 +1,5 @@
 {
-  "_doc": "上课系统 v1（world-v1.4.0）：课表与参数。方案 docs/class-system-sandbox.md；课案由 A 写 run/data/<town>/school/<YYYY-MM-DD>.json。",
+  "_doc": "上课系统 v1（world-v1.4.0）：课表与参数。方案 docs/class-system-sandbox.md；课案由 A 写 run/data/<town>/school/<YYYY-MM-DD>.json。 v1.4.3 教室规则（主播 11-17）：课桌一人一座；课前 clear_before_minutes 到下课，非本节学生不能进教室（寻路 / 移动 blocked_reason in_class），已在里面的被移到门外一格；上课中的学生拒外人聊天邀请（同堂互邀放行）。",
   "schema": 1,
   "term_start": "2026-11-23",
   "weeks": [
@@ -128,5 +128,6 @@
       "C": -3
     }
   },
-  "lesson_dir": "school"
+  "lesson_dir": "school",
+  "clear_before_minutes": 10
 }

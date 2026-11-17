@@ -1709,6 +1709,14 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 
 **评分回写** `POST /school/grade {agent_id, grade A|B|C, kind writing|homework, comment ≤ 200, lesson_id?, qid?, receipt_id?}`（沙盒设了 `SANDBOX_ADMIN_TOKEN` 或 `SELF_TOKEN` 时要 `Authorization: Bearer <其一>`）→ 本人 pendingMessage「写作课成绩：B，评语：…」/「作业成绩：…」、作业成绩按配置改心情、`school/grades.jsonl`、ws `lesson {event: grade}`；`{ok, delivered, …}`。检查点 meta `school`（进行中的课、已作答、提交记录）。
 
+### 12.26 教室规则（tag `world-v1.4.3`；主播 11-17）
+
+- **一人一座**：`classroom_desk` 的 `max_users` 4 → **1**（两张课桌 = 两个座位）；第二人 `use` → `object_full`。
+- **上课窗口内教室只给本节学生**：窗口 = 课前 `clear_before_minutes`（10）分钟 → 下课。非本节学生（含人类阿蝉、选修课的小克）寻路 / 单步移动进 `classroom` 一律拒：`reason no_path`、`result {blocked_reason: "in_class", opens_at: "<下课 HH:MM>", message: "正在上课，不能打扰学生们上课"}`；`/admin/path` 同样不可达。
+- **课前 10 分钟清场**：窗口开始起（每 tick 检查）仍在教室里的非学生——离开物品、停走、移到教室门外一格（`door_classroom` 门外 (5,6)），pendingMessage「马上要上课啦，先出去吧，不能打扰学生们上课。」，external `school clear_room`。
+- **上课中拒外人聊天**：`POST /chat/request` 的目标里有 tags 含 `in_class` 的学生 → `{success: false, reason: "in_class", in_class: [id], message: "上课中，下课再聊"}`；同一节课在座的两个学生互邀放行。QQ 不变（只记未读、不叫醒）。
+- **不重启改开学日** `POST /school/term_start {term_start: "YYYY-MM-DD"}`（鉴权同 /school/grade）：立即生效、进检查点、优先于 env `SANDBOX_SCHOOL_TERM_START` 与 school.json；`GET /school/timetable.term_start_source` = admin | env | config；记 interventions `config_change`。主镇 11-18 试跑、周五改回 11-23 用。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

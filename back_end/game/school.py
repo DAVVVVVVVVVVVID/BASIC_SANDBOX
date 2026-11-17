@@ -242,6 +242,90 @@ def _lesson_plan(meta: dict, quiet: bool = False) -> dict:
             "homework_note": plan.get("homework_note"), "missing": missing}
 
 
+# ── 教室规则（v1.4.3，主播 11-17）────────────────────────────────────────────
+ROOM_MSG = "正在上课，不能打扰学生们上课"
+CLEAR_MSG = "马上要上课啦，先出去吧，不能打扰学生们上课。"
+_term_override: str | None = None        # POST /admin/school/term_start 热改的开学日（进检查点，优先于 env / 文件）
+
+
+def set_term_start(date: str) -> dict:
+    """不重启改开学日（主镇 11-18 试跑、周五改回 11-23）。立即生效：之后的课表 / 周次 / 截止都按新开学日算。"""
+    global _term_override
+    datetime.fromisoformat(date)
+    _term_override = date
+    cfg()["term_start"] = date
+    from game import external_log
+    external_log.log("school", None, action="term_start", term_start=date)
+    return {"term_start": date}
+
+
+def room_window(gts: float) -> dict | None:
+    """此刻教室是否在「课前 clear_before_minutes → 下课」窗口内：返回那节的 meta，否则 None。"""
+    pre = int(cfg().get("clear_before_minutes", 10)) * 60
+    for meta in lessons_for_date(_dt(gts).strftime("%Y-%m-%d")):
+        if meta["start_ts"] - pre <= gts < meta["end_ts"]:
+            return meta
+    return None
+
+
+def room_block(arena: str | None, mover: dict | None, gts: float):
+    """寻路 / 移动进教室：窗口内非本节学生 → ("in_class", 下课 HH:MM)；否则 None。"""
+    if arena != cfg().get("room"):
+        return None
+    meta = room_window(gts)
+    if meta is None:
+        return None
+    if mover is not None and mover.get("agent_id") in meta["students"] and mover.get("controller") == "agent":
+        return None
+    return ("in_class", meta["end"])
+
+
+def _room_door_outside() -> tuple[int, int] | None:
+    from game import world_state as ws
+    room = cfg().get("room")
+    for e in ws._EDGES:
+        if e.get("kind") == "door" and e["b"].get("arena") == room:
+            return (e["a"]["x"], e["a"]["y"])
+    return None
+
+
+def _clear_room(gts: float, players: dict) -> None:
+    """窗口内仍在教室里的非学生（含人类阿蝉）→ 离开物品、停走、移到教室门外一格，推提示。"""
+    from game import world_state as ws, external_log
+    meta = room_window(gts)
+    if meta is None:
+        return
+    room = cfg().get("room")
+    out = _room_door_outside()
+    if out is None:
+        return
+    for p in list(players.values()):
+        pos = p.get("position") or {}
+        if ws.get_zone_at(pos.get("x", -1), pos.get("y", -1)).get("arena") != room:
+            continue
+        if p.get("agent_id") in meta["students"] and p.get("controller") == "agent":
+            continue
+        if p.get("usingObjectId"):
+            ws.leave_object(p["id"], "class_clear")
+        ws.stop_walk(p["id"], "stopped", "class_clear")
+        ws.update_player_position(p["id"], out[0], out[1], "down")
+        if p.get("state") in ("walking", "walking_over"):
+            p["state"] = "idle"
+        _say(p["id"], CLEAR_MSG)
+        external_log.log("school", p["id"], action="clear_room", lesson_id=meta["lesson_id"], to={"x": out[0], "y": out[1]})
+
+
+def chat_blocked(from_p: dict | None, target: dict | None) -> bool:
+    """上课中的学生拒外人聊天邀请；同一节课在座的两个学生互邀放行。"""
+    if not target or "in_class" not in (target.get("tags") or []):
+        return False
+    L = _lesson_for(target.get("agent_id"))
+    if L is None:
+        return False
+    fa = (from_p or {}).get("agent_id")
+    return not (fa and fa in L["seat"] and L["seat"][fa].get("left_early_at") is None)
+
+
 # ── 课桌 / 在座 ───────────────────────────────────────────────────────────────
 def _seated(players: dict) -> dict[str, str]:
     """agent_id -> player id：此刻坐在配置课桌上的人。"""
@@ -269,6 +353,7 @@ def _doze_roll(lesson_id: str, aid: str, i: int) -> bool:
 # ── tick ──────────────────────────────────────────────────────────────────────
 def on_tick(gts: float, players: dict) -> None:
     date = _dt(gts).strftime("%Y-%m-%d")
+    _clear_room(gts, players)                                            # v1.4.3：课前 10 分钟起清场
     for lid in [k for k, v in _done.items() if v["date"] != date]:      # 跨日清（课末题窗口最多到下课后 10 分钟）
         _done.pop(lid, None)
     for meta in lessons_for_date(date):
@@ -530,7 +615,8 @@ def timetable_view() -> dict:
     from game.time_state import game_now_ts
     date = _dt(game_now_ts()).strftime("%Y-%m-%d")
     w = week_of(date)
-    return {"schema": c.get("schema"), "term_start": c.get("term_start"), "weeks": c.get("weeks"), "week": w, "week_genre": week_genre(w),
+    return {"schema": c.get("schema"), "term_start": c.get("term_start"), "term_start_source": "admin" if _term_override else ("env" if os.environ.get("SANDBOX_SCHOOL_TERM_START") else "config"),
+            "weeks": c.get("weeks"), "week": w, "week_genre": week_genre(w),
             "courses": c.get("courses"), "timetable": c.get("timetable"), "lesson_minutes": c.get("lesson_minutes"),
             "segment_minutes": c.get("segment_minutes"), "segments_per_lesson": c.get("segments_per_lesson"),
             "late_after_minutes": c.get("late_after_minutes"), "students": c.get("students"), "elective_students": c.get("elective_students"),
@@ -702,11 +788,15 @@ def grade(players: dict, body: dict) -> tuple[dict | None, str | None]:
 # ── 检查点 ─────────────────────────────────────────────────────────────────────
 def export_state() -> dict:
     return {"active": {k: dict(v) for k, v in _active.items()}, "done": {k: dict(v) for k, v in _done.items()},
-            "answers": dict(_answers), "subs": {k: dict(v) for k, v in _subs.items()}}
+            "answers": dict(_answers), "subs": {k: dict(v) for k, v in _subs.items()}, "term_start_override": _term_override}
 
 
 def import_state(d: dict) -> None:
+    global _term_override
     _active.clear(); _done.clear(); _answers.clear(); _subs.clear()
+    _term_override = d.get("term_start_override")
+    if _term_override:
+        cfg()["term_start"] = _term_override
     _active.update({k: dict(v) for k, v in (d.get("active") or {}).items()})
     _done.update({k: dict(v) for k, v in (d.get("done") or {}).items()})
     _answers.update(d.get("answers") or {})
@@ -714,5 +804,7 @@ def import_state(d: dict) -> None:
 
 
 def _reset_for_tests() -> None:
+    global _term_override
     _active.clear(); _done.clear(); _answers.clear(); _subs.clear(); _lesson_cache.clear()
+    _term_override = None
     reload_cfg()
