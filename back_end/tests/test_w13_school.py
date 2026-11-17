@@ -71,7 +71,7 @@ def test_full_lesson_flow(client, v12, fake_clock, school_env, monkeypatch):
     assert p["pendingMessage"].startswith("（刚才走神睡着了）【类型创作】第4段讲授") and p["lesson"]["dozed_prev"] is True
     _run_until(fake_clock, 9, 41)                                                         # 第 5 段睡着，但课中题照推并叫醒
     p = client.get(f"/player/{whale}").json()
-    assert "第5段讲授" not in (p["pendingMessage"] or "") and "（刚才走神睡着了）【提问】战斗音乐常用什么速度？" in p["pendingMessage"]
+    assert "第5段讲授" not in (p["pendingMessage"] or "") and "（刚才走神睡着了）【提问 q1】战斗音乐常用什么速度？（用 answer 作答，qid: q1）" in p["pendingMessage"]
     assert p["lesson"]["question"]["qid"] == "q1" and p["lesson"]["dozing"] is False
     r = action(client, whale, "answer", {"qid": "q1", "text": "大概 140"})                 # 坐着上课也能答
     assert r["success"] and r["result"]["correct_answer"] == "快板 140 BPM 上下" and r["result"]["explanation"] == "紧张感"
@@ -84,7 +84,7 @@ def test_full_lesson_flow(client, v12, fake_clock, school_env, monkeypatch):
     assert les["status"] == "ongoing" and les["attendance"] == {"whale": "present", "claudine": "late"} and today["week"] == 1 and today["week_genre"] == "游戏 BGM"
     _run_until(fake_clock, 10, 21)                                                        # 第 9 段 + 课末题 + 作业提醒
     p = client.get(f"/player/{whale}").json()
-    assert "第9段讲授" in p["pendingMessage"] and "【作业提醒】本周作业" in p["pendingMessage"] and "【提问】Boss 战" in p["pendingMessage"]
+    assert "第9段讲授" in p["pendingMessage"] and "【作业提醒】本周作业" in p["pendingMessage"] and "【提问 q2】Boss 战" in p["pendingMessage"]
     _run_until(fake_clock, 10, 31)                                                        # 下课
     pw = world_state._players[whale]
     assert pw.get("usingObjectId") is None and "in_class" not in pw["tags"]
@@ -340,3 +340,30 @@ def test_admin_term_start_hot_change(client, v12, fake_clock, school_env, monkey
     monkeypatch.setenv("SELF_TOKEN", "tok")
     assert client.post("/school/term_start", json={"term_start": "2026-11-23"}).status_code == 401
     assert client.post("/school/term_start", json={"term_start": "2026-11-23"}, headers={"Authorization": "Bearer tok"}).json()["term_start"] == "2026-11-23"
+
+
+def test_questions_list_qid_in_prompt_and_external_v144(client, v12, fake_clock, school_env, monkeypatch):
+    """v1.4.4（T1 发现）：课末两题同开时 lesson.questions[] 全列、question 照旧给最后一道；题面带 qid；推题进 external；
+    unknown_question 回执带 open_qids。"""
+    L = json.loads((school_env / "2026-11-23.json").read_text(encoding="utf-8"))
+    L["lessons"][0]["questions"].append({"qid": "q3", "phase": "end", "after_segment": 9, "text": "第三题", "answer": "三", "explanation": ""})
+    (school_env / "2026-11-23.json").write_text(json.dumps(L, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(school, "_doze_roll", lambda lid, aid, i: False)
+    logged = []
+    from game import external_log
+    monkeypatch.setattr(external_log, "log", lambda kind, entity, **kw: logged.append((kind, entity, kw)))
+    _set(fake_clock, 2026, 11, 23, 8, 55)
+    whale = _agent(client, "whale")
+    place(whale, 4, 3, "up"); assert action(client, whale, "use")["success"]
+    _run_until(fake_clock, 10, 21)
+    p = client.get(f"/player/{whale}").json()
+    assert "【提问 q2】" in p["pendingMessage"] and "qid: q3" in p["pendingMessage"]
+    assert [q["qid"] for q in p["lesson"]["questions"]] == ["q2", "q3"] and p["lesson"]["question"]["qid"] == "q3"
+    pv = client.get("/agent/perceive", params={"entity_id": whale}).json()["lesson"]
+    assert [q["qid"] for q in pv["questions"]] == ["q2", "q3"]
+    qrows = [(e, kw["qid"]) for k, e, kw in logged if k == "school" and kw.get("action") == "question"]
+    assert qrows == [(whale, "q1"), (whale, "q2"), (whale, "q3")]
+    r = action(client, whale, "answer", {"qid": "${qid}", "text": "x"})
+    assert r["reason"] == "unknown_question" and r["result"]["open_qids"] == ["q2", "q3"] and "q2、q3" in r["result"]["message"]
+    assert action(client, whale, "answer", {"qid": "q3", "text": "三"})["success"]
+    assert [q["qid"] for q in client.get(f"/player/{whale}").json()["lesson"]["questions"]] == ["q2"]

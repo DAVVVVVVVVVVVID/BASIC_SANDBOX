@@ -1717,6 +1717,13 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - **上课中拒外人聊天**：`POST /chat/request` 的目标里有 tags 含 `in_class` 的学生 → `{success: false, reason: "in_class", in_class: [id], message: "上课中，下课再聊"}`；同一节课在座的两个学生互邀放行。QQ 不变（只记未读、不叫醒）。
 - **不重启改开学日** `POST /school/term_start {term_start: "YYYY-MM-DD"}`（鉴权同 /school/grade）：立即生效、进检查点、优先于 env `SANDBOX_SCHOOL_TERM_START` 与 school.json；`GET /school/timetable.term_start_source` = admin | env | config；记 interventions `config_change`。主镇 11-18 试跑、周五改回 11-23 用。
 
+### 12.27 提问可见性（tag `world-v1.4.4`；T1 发现，11-17 夜）
+
+- 推题 pendingMessage 改为「【提问 <qid>】<题面>（用 answer 作答，qid: <qid>）」（之前不带 qid，只看 pendingMessage 的 agent 拿不到）。
+- `GET /player.lesson` / perceive `lesson` 加 **`questions: [{qid, text, phase, deadline}]`**——此刻开着、她还没答的**全部**题，按课案顺序（课末两题同开时以前只露一道）；`question` 字段照旧（= `questions` 的最后一道 | null）。
+- `answer` 失败 `unknown_question` 的 `result` 加 `open_qids: [..]` 与 `message`「没有这道题（qid: x）。现在能答的：q2、q3」。
+- external 加 `school action=question {lesson_id, qid, phase, deadline, agent}`（每个在座学生一行；无人在座记一行 `seated: 0`）——区分「题没推到」与「推到了没答」。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

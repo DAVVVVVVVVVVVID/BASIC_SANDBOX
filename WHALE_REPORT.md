@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bh. world-v1.4.4：提问带 qid + 全部开着的题可见 + 推题进 external（T1 第一节发现）—— 完成
+
+- A 抽查 T1 第一节：课中 q1 两人都没答；课末 10:21–10:23 用「${qid}」「未提供」等作答 4 次全被 `unknown_question` 拒，只有鲸仔用 q3 答对。沙盒侧三处缺口：推题 pendingMessage 不带 qid；perceive `lesson.question` 只放最后一道开着的题（q2、q3 同开时 q2 被遮住）；推题不写 external。C 侧另有提示模板占位符没替换。
+- 修：题面带 qid；`lesson.questions[]` 全列（`question` 照旧）；`unknown_question` 回执带 `open_qids`；external `school action=question`。只加不删。测试 +1，**384 passed**；api-spec §12.27。
+
 ## 5bg. world-v1.4.3：教室规则四条 + 开学日热改（主播 11-17；明早 06:00 上主镇）—— 完成
 
 - 课桌一人一座（max_users 1）；课前 10 分钟 → 下课窗口内非本节学生进不了教室（`arena_block` 前置 `school.room_block`，blocked_reason `in_class` + 提示文案），已在里面的被移到门外 (5,6) 并推提示（含人类阿蝉）；上课中学生拒外人聊天邀请（`in_class`），同堂互邀放行；`POST /school/term_start` 不重启改开学日（进检查点）。

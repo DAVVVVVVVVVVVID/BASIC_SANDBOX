@@ -483,8 +483,18 @@ def _push_question(L: dict, q: dict, seated: dict, seg_s: int) -> None:
         slept = L["received"].get(aid, {}).get(str(q["after_segment"])) == "slept"
         if slept:
             L["dozing"][aid] = False                                    # 被叫醒：打瞌睡只吞讲授不吞问题
-        _say(pid, (DOZE_PREFIX if slept else "") + f"【提问】{q['text']}（用 answer 作答）")
+        _say(pid, (DOZE_PREFIX if slept else "") + f"【提问 {q['qid']}】{q['text']}（用 answer 作答，qid: {q['qid']}）")   # v1.4.4：题面带 qid
     _push({"event": "question", "lesson_id": L["lesson_id"], "qid": q["qid"], "phase": q["phase"], "deadline": _iso(deadline)})
+    try:                                                                # v1.4.4：推题进 external（之前只有 start / answer / doze / end）
+        from game import external_log
+        for aid, pid in seated.items():
+            external_log.log("school", pid, action="question", lesson_id=L["lesson_id"], qid=q["qid"], phase=q["phase"],
+                             deadline=_iso(deadline), agent=aid)
+        if not seated:
+            external_log.log("school", None, action="question", lesson_id=L["lesson_id"], qid=q["qid"], phase=q["phase"],
+                             deadline=_iso(deadline), seated=0)
+    except Exception:
+        pass
 
 
 def _finish(L: dict, players: dict, late_s: int) -> None:
@@ -543,7 +553,10 @@ def answer(player: dict, qid: str, text: str, lesson_id: str | None = None) -> t
     gts = _now_ts()
     L, q = _find_question(str(qid or ""), aid, lesson_id, gts)
     if L is None or q["qid"] not in L["q_open"]:
-        return None, "unknown_question", {"qid": qid}
+        mine = _lesson_for(aid) or next((x for x in reversed(list(_active.values())) if aid in x["seat"]), None)   # v1.4.4：告诉她现在能答哪几道
+        open_qids = [x["qid"] for x in _open_questions(mine, aid, gts)] if mine else []
+        return None, "unknown_question", {"qid": qid, "open_qids": open_qids,
+                                          "message": f"没有这道题（qid: {qid}）。" + (f"现在能答的：{'、'.join(open_qids)}" if open_qids else "现在没有开着的题。")}
     seated = _seated({player["id"]: player})
     attended = aid in L["seat"]
     if not (aid in seated and not L["finished"]) and not (q["phase"] == "end" and attended):
@@ -579,6 +592,13 @@ def _lesson_for(aid: str | None) -> dict | None:
     return None
 
 
+def _open_questions(L: dict, aid: str | None, gts: float) -> list[dict]:
+    """此刻开着、她还没答的题（按课案顺序）。"""
+    return [{"qid": q["qid"], "text": q["text"], "phase": q["phase"], "deadline": _iso(L["q_open"][q["qid"]])}
+            for q in L["questions"]
+            if q["qid"] in L["q_open"] and gts <= L["q_open"][q["qid"]] and f"{L['lesson_id']}|{q['qid']}|{aid}" not in _answers]
+
+
 def lesson_view(player: dict) -> dict | None:
     """GET /player.lesson / perceive lesson：此刻在课桌上上课才有，否则 None。"""
     aid = player.get("agent_id")
@@ -588,10 +608,8 @@ def lesson_view(player: dict) -> dict | None:
     gts = _now_ts()
     seg_s = int(cfg().get("segment_minutes", 10)) * 60
     last = (L.get("last_seg") or {}).get(aid)
-    pending_q = None
-    for q in L["questions"]:
-        if q["qid"] in L["q_open"] and gts <= L["q_open"][q["qid"]] and f"{L['lesson_id']}|{q['qid']}|{aid}" not in _answers:
-            pending_q = {"qid": q["qid"], "text": q["text"], "phase": q["phase"], "deadline": _iso(L["q_open"][q["qid"]])}
+    open_qs = _open_questions(L, aid, gts)
+    pending_q = open_qs[-1] if open_qs else None                       # 照旧：最后一道开着没答的；全部见 questions[]（v1.4.4）
     s = L["seat"].get(aid)
     late_s = int(cfg().get("late_after_minutes", 10)) * 60
     nxt = L["start_ts"] + L["pushed"] * seg_s
@@ -601,6 +619,7 @@ def lesson_view(player: dict) -> dict | None:
             "dozed_prev": bool(last and last.get("dozed_prev")),
             "dozing": bool(L["dozing"].get(aid)),
             "question": pending_q,
+            "questions": open_qs,
             "attendance": ("present" if s and s["first_ts"] <= L["start_ts"] + late_s else "late") if s else None,
             "next_segment_at": _iso(nxt) if L["pushed"] < len(L["segments"]) and nxt < L["end_ts"] else None}
 
