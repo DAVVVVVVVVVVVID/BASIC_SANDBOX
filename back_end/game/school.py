@@ -425,18 +425,24 @@ def _finish(L: dict, players: dict, late_s: int) -> None:
 
 
 # ── 作答 ──────────────────────────────────────────────────────────────────────
-def _find_question(qid: str, aid: str | None = None):
-    for L in list(_active.values()) + list(_done.values()):
-        for q in L["questions"]:
-            if q["qid"] == qid and (aid is None or aid in L["students"]):
-                return L, q
-    return None, None
+def _find_question(qid: str, aid: str | None = None, lesson_id: str | None = None, gts: float | None = None):
+    """qid 只要求**一节课内**唯一（A 的课案每节从 q1 编起）：带 lesson_id 就按它找；否则优先此刻窗口还开着的那题，再退到任一含此 qid 的课。"""
+    cands = [(L, q) for L in list(_active.values()) + list(_done.values()) for q in L["questions"]
+             if q["qid"] == qid and (aid is None or aid in L["students"]) and (lesson_id is None or L["lesson_id"] == lesson_id)]
+    if gts is not None:
+        open_now = [(L, q) for L, q in cands if q["qid"] in L["q_open"] and gts <= L["q_open"][q["qid"]]]
+        if open_now:
+            return max(open_now, key=lambda x: x[0]["start_ts"])
+        pushed = [(L, q) for L, q in cands if q["qid"] in L["q_open"]]
+        if pushed:
+            return max(pushed, key=lambda x: x[0]["start_ts"])
+    return cands[-1] if cands else (None, None)
 
 
-def answer(player: dict, qid: str, text: str) -> tuple[dict | None, str | None, dict | None]:
+def answer(player: dict, qid: str, text: str, lesson_id: str | None = None) -> tuple[dict | None, str | None, dict | None]:
     aid = player.get("agent_id")
     gts = _now_ts()
-    L, q = _find_question(str(qid or ""), aid)
+    L, q = _find_question(str(qid or ""), aid, lesson_id, gts)
     if L is None or q["qid"] not in L["q_open"]:
         return None, "unknown_question", {"qid": qid}
     seated = _seated({player["id"]: player})

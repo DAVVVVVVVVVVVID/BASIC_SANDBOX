@@ -45,6 +45,10 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5be. world-v1.4.1：qid 只需节内唯一（A 的 11-24 课案每节从 q1 编起）—— 完成
+
+- 离线用沙盒加载器校验 A 的 `run/data/bench_v1/school/2026-11-24.json`：三节都 9 段（224–327 字）、题与答案、作业提醒分布正确，无告警。发现 qid 每节从 q1 起、同一天重复，旧 `_find_question` 取第一个含该 qid 的课会跨节找错 → 改为优先此刻窗口开着的那题（再退到已推过的最新一节），`answer` 可带 `lesson_id` 指定。测试 +1，**380 passed**；api-spec §12.25 answer 行补注。
+
 ## 5bd. world-v1.4.0：上课系统 v1 沙盒侧（主播 11-16 拍板；方案 docs/class-system-sandbox.md）—— 完成，11-19 bench 冒烟、11-22 上主镇
 
 - 新 `game/school.py` + `game/school.json` + `routers/school.py`：课表 / 课案加载（mtime 重载）、上课中状态与 10 分钟分段推送、可复现打瞌睡、课中 / 课末提问与 `answer`、考勤、下课离座发 `class_notes`、`read_item`、作业提交箱 `homework_box`（地图 72 件）、`POST /school/grade` 评分回写；`give` 推广为带 meta 物品按本转交；新物品类 `paper` 不占背包上限；CD meta 透传创作单字段 + edit_item `proxy` + final 钩子；`GET /player.lesson`、perceive `lesson`、players[] 精简 lesson、物件 `hint`；检查点 meta `school`。

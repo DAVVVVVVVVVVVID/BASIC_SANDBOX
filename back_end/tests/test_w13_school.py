@@ -247,3 +247,24 @@ def test_plan_reloaded_midlesson_only_unpushed(client, v12, fake_clock, school_e
     _run_until(fake_clock, 10, 31)
     segs = next(e for e in inventory.ensure(world_state._players[whale]) if e["type"] == "class_notes")["meta"]["segments"]
     assert [s["text"] for s in segs] == ["第1段讲授", "第2段讲授"] + [f"重写第{i}段" for i in range(3, 10)]
+
+
+def test_qid_unique_only_within_lesson(client, v12, fake_clock, school_env, monkeypatch):
+    """A 的课案每节从 q1 编起：两节课都有 q1 时，answer 命中此刻开着的那节；也可带 lesson_id 指定。"""
+    monkeypatch.setattr(school, "_doze_roll", lambda *a: False)
+    doc = json.loads((school_env / "2026-11-23.json").read_text(encoding="utf-8"))
+    l2 = json.loads(json.dumps(doc["lessons"][0])); l2.update({"lesson_id": "2026-11-23-1045-lyrics", "start": "10:45", "course": "lyrics", "title": "歌词课"})
+    l2["questions"][0]["answer"] = "歌词课答案"
+    doc["lessons"].append(l2)
+    (school_env / "2026-11-23.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    _set(fake_clock, 2026, 11, 23, 8, 58)
+    whale = _agent(client, "whale")
+    place(whale, 4, 3, "up"); action(client, whale, "use")
+    _run_until(fake_clock, 9, 41)
+    assert action(client, whale, "answer", {"qid": "q1", "text": "a"})["result"]["lesson_id"] == "2026-11-23-0900-genre"
+    _run_until(fake_clock, 10, 44)
+    place(whale, 4, 3, "up"); action(client, whale, "use")
+    _run_until(fake_clock, 11, 26)
+    r = action(client, whale, "answer", {"qid": "q1", "text": "b"})
+    assert r["success"] and r["result"]["lesson_id"] == "2026-11-23-1045-lyrics" and r["result"]["correct_answer"] == "歌词课答案"
+    assert action(client, whale, "answer", {"qid": "q1", "text": "c", "lesson_id": "2026-11-23-0900-genre"})["reason"] in ("not_in_class", "question_closed")   # 那节已下课

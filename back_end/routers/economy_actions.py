@@ -574,7 +574,7 @@ def handle_answer(entity_id: str, payload: dict) -> ActionResponse:
         p = _players.get(entity_id)
         if p is None:
             return ActionResponse(success=False, type="answer", reason="player_not_found")
-        res, reason, extra = school.answer(p, payload.get("qid"), payload.get("text") or "")
+        res, reason, extra = school.answer(p, payload.get("qid"), payload.get("text") or "", payload.get("lesson_id"))
     if reason:
         return ActionResponse(success=False, type="answer", reason=reason, result=extra)
     return ActionResponse(success=True, type="answer", result=res)
