@@ -1729,6 +1729,16 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - `discard` 物品类 `paper`（`class_notes` / `homework_receipt`）→ `{success: false, reason: "cannot_discard_class_item", result {item, qty, message「课堂笔记要留着，不能丢（同学可能要借）。」}}`，背包不变；其它物品照旧。
 - 带 meta 物品的 `match`（`read_item.match`、`give` 的匹配键）加 **`owner`**：借来的笔记与自己那本 `lesson_id` 相同，`{lesson_id, owner: "claudine"}` 选中借来那本；不带 owner 时照旧取第一本。
 
+### 12.29 多人聊天 v1.1：中途加入 + 每人 15 条（tag `world-v1.4.6`；whale `docs/systems/group-chat.md`，主播 11-18）
+
+- **`POST /chat/join {entity_id, chat_room_id, greeting?}`**——中途加入的唯一入口，不需房内同意。
+  - 成功：`{success: true, chat_room_id, participants: [{entity_id, name}], messages: [最近 10 条，形状同 GET /chat/room], last_seq, my_count, my_limit}`；`greeting` 作加入者第一句（计条数）。房内 `events[]` 追加 `{seq, type: "player_join", entity_id, name, timestamp}`（与 `player_exit` 同口径，ws 照常按 seq 推）。申请人自己发出、还没成房的邀请作废（`request_expired reason joined_room`）。
+  - 失败 `{success: false, reason, message, …}`，按以下顺序判：`player_not_found` · `room_not_found` · `room_closed` · `already_in_room` · `in_other_room {chat_room_id}` · `busy {busy: live | sleeping | dnd}`（dnd 只挡 agent，人类玩家不受 dnd 限制）· `in_class` · `too_far {distance}`（与房内任一参与者曼哈顿 > 2）· `room_full {count}`（已 6 人）· `chat_cooldown {cooldown_remaining}`（申请人本人 cooldown_self + 与房内每人 cooldown_pair；人类免）· `speaker_limit {my_count, my_limit}`（退出后又加回、已说满）。**只看申请人自己的状态，不看房里的人。**
+- **附近房间**：perceive `needs.nearby_rooms[]` 与 `GET /chat/nearby.rooms[]`——≤ 4 格内开着、我不在其中的房间 `{chat_room_id, participants: [{entity_id, name}], count, last_message_preview（≤ 20 字，无消息 null）, can_join, reason?, message?}`；`can_join` / `reason` 与 `/chat/join` 同一判定（3–4 格 → `too_far`）。
+- **chat_profile `b10`**（主镇用；bench 门禁仍 b9）：`speaker_limit` 15——每位参与者最多 15 条（含招呼 / 接受回复 / 加入招呼），超了 `POST /chat/message` → `{success: false, reason: "speaker_limit", my_count, my_limit, message「你这次聊天已经说了 15 句了」}`；**不再按房间总数关房**（`max_messages` 0），仍在房内的人都到 15 条 → 关房 `reason speaker_limit_all`（发言回执 `room_closed: true`，或某人 `/chat/exit` 后剩下的都已到 15 时 exit 回执带）；全员退出照旧 `all_left`。两人房同样适用。其余参数同 b9。
+- `POST /chat/message` 成功回执加 `my_count`、`my_limit`（b9 / ait / nolimit 下 `my_limit` 为 null）。b9 下 `/chat/join` 也可用，关房仍按房间总数 16。
+- `/chat/exit` 形状不变。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

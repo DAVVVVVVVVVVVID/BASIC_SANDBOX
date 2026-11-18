@@ -9,6 +9,7 @@ routers/chat.py — 对话系统 API（Task 01）
   GET  /chat/room/{chat_room_id}
   POST /chat/message
   POST /chat/exit
+  POST /chat/join      （v1.4.6 多人聊天 v1.1：中途加入）
 """
 
 from fastapi import APIRouter, HTTPException
@@ -45,6 +46,12 @@ class ChatExitBody(BaseModel):
     chat_room_id: str
 
 
+class ChatJoinBody(BaseModel):
+    entity_id: str
+    chat_room_id: str
+    greeting: str | None = None
+
+
 # ── 1. 查询附近可对话 Player ──────────────────────────────────────────────────
 
 @router.get("/nearby")
@@ -54,7 +61,7 @@ def get_nearby(entity_id: str):
         raise HTTPException(status_code=404, detail=f"entity not found: {entity_id}")
     players = dict(_players_dict)
     nearby = chat_state.get_nearby_players(entity_id, players, _ZONE_LOOKUP)
-    return {"players": nearby}
+    return {"players": nearby, "rooms": chat_state.nearby_rooms(entity_id, players)}   # v1.4.6：≤ 4 格开着的房间
 
 
 # ── 2. 发起对话请求 ───────────────────────────────────────────────────────────
@@ -186,3 +193,14 @@ def exit_room(body: ChatExitBody):
     if result is None:
         raise HTTPException(status_code=404, detail=f"chat room not found: {body.chat_room_id}")
     return result
+
+
+# ── 8. 中途加入（v1.4.6） ─────────────────────────────────────────────────────
+
+@router.post("/join")
+def join_room(body: ChatJoinBody):
+    """走到正在聊天的人旁边插话：不需房内同意；条件与失败 reason 见 api-spec §12.29。"""
+    from game.world_state import mark_input, STATE_LOCK
+    mark_input(body.entity_id)
+    with STATE_LOCK:
+        return chat_state.join_room(body.entity_id, body.chat_room_id, (body.greeting or "")[:500] or None)

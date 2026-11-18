@@ -427,6 +427,10 @@ def post_message(entity_id: str, room_id: str, content: str) -> dict | None:
         awk = float(_P("awkward_timeout") or 0)
         if not creator_spoke and (awk <= 0 or now - room.get("opened_at", now) < awk):
             return {"seq": None, "room_closed": False, "error": "creator_first", "wait_s": round(max(0.0, awk - (now - room.get("opened_at", now))), 1) if awk > 0 else None}
+    lim = speaker_limit()
+    if lim and speaker_count(room, entity_id) >= lim:        # v1.4.6 b10：每人上限
+        return {"seq": None, "room_closed": False, "error": "speaker_limit", "my_count": speaker_count(room, entity_id), "my_limit": lim,
+                "message": f"你这次聊天已经说了 {lim} 句了"}
     seq = _next_seq(room_id)
     room["messages"].append({
         "seq":            seq,
@@ -437,11 +441,15 @@ def post_message(entity_id: str, room_id: str, content: str) -> dict | None:
     room["last_message_at"] = now
     from game.world_state import _players as players
     _log_msg(room_id, seq, entity_id, content, players)
+    mine = {"my_count": speaker_count(room, entity_id), "my_limit": lim or None}
     cap = int(_P("max_messages") or 0)
     if cap > 0 and len(room["messages"]) >= cap:             # B9 ④（0 = 无上限，X4 nolimit）
         _close_room(room, players, reason="room_limit")
-        return {"seq": seq, "room_closed": True, "reason": "room_limit"}
-    return {"seq": seq, "room_closed": False}
+        return {"seq": seq, "room_closed": True, "reason": "room_limit", **mine}
+    if lim and all(speaker_count(room, e) >= lim for e in room["participants"]):   # v1.4.6：仍在房内的人都到上限才关
+        _close_room(room, players, reason="speaker_limit_all")
+        return {"seq": seq, "room_closed": True, "reason": "speaker_limit_all", **mine}
+    return {"seq": seq, "room_closed": False, **mine}
 
 
 def _tick_rooms(now: float) -> None:
@@ -515,7 +523,154 @@ def exit_room(entity_id: str, room_id: str) -> dict | None:
         room["status"] = "closed"; room["closed_at"] = time.time()
         chat_log.log_event("room_close", room_id, [entity_id], reason="all_left")
         return {"room_closed": True}
+    lim = speaker_limit()
+    if lim and room["status"] == "active" and all(speaker_count(room, e) >= lim for e in room["participants"]):   # v1.4.6：没到上限的人走了、剩下的都到了
+        _close_room(room, players, reason="speaker_limit_all")
+        return {"room_closed": True, "reason": "speaker_limit_all"}
     return {"room_closed": False}
+
+
+# ── v1.4.6 多人聊天 v1.1：中途加入 / 每人条数 / 附近房间（whale docs/systems/group-chat.md，主播 11-18） ──
+
+JOIN_DISTANCE       = 2      # 申请人与房内任一参与者曼哈顿 ≤ 2（与敲门同一尺度）
+JOIN_MAX_PARTICIPANTS = 6    # 房间人数 < 6 才能加入
+NEARBY_ROOM_DISTANCE = 4     # perceive nearby_rooms：≤ 4 格
+JOIN_REASON_MSG = {
+    "room_not_found": "没有这个聊天。", "room_closed": "他们已经聊完了。", "too_far": "离他们太远了，走近一点（2 格内）再加入。",
+    "in_other_room": "你正在另一个聊天里。", "already_in_room": "你已经在这个聊天里了。", "room_full": "这个聊天已经 6 个人了。",
+    "in_class": "正在上课，下课再聊。", "chat_cooldown": "刚聊完，歇一会儿再加入。", "speaker_limit": "你在这个聊天里已经说够多了。",
+    "player_not_found": "找不到这个角色。", "busy": "现在不方便加入聊天。",
+}
+_BUSY_MSG = {"live": "正在直播，不能加入聊天。", "sleeping": "正在睡觉，不能加入聊天。", "dnd": "勿扰中，不能加入聊天。"}
+
+
+def speaker_limit() -> int:
+    return int(_P("speaker_limit") or 0)
+
+
+def speaker_count(room: dict, entity_id: str) -> int:
+    return sum(1 for m in room.get("messages") or [] if m.get("from_entity_id") == entity_id)
+
+
+def _busy_of(p: dict) -> str | None:
+    tags = p.get("tags") or []
+    if p.get("scene") == "live" or "streaming" in tags:
+        return "live"
+    if "sleeping" in tags:
+        return "sleeping"
+    if p.get("dnd") and p.get("controller") != "human":            # 总控 11-18：dnd 只挡 agent，人类（阿蝉）不受 dnd 限制
+        return "dnd"
+    return None
+
+
+def join_check(entity_id: str, room: dict | None, players: dict) -> tuple[str | None, dict]:
+    """可否加入：返回 (reason | None, extra)。只看申请人自己的状态，不看房里的人（总控 11-18）。perceive nearby_rooms 与 /chat/join 共用。"""
+    me = players.get(entity_id)
+    if me is None:
+        return "player_not_found", {}
+    if room is None:
+        return "room_not_found", {}
+    if room.get("status") != "active" or not room.get("participants"):
+        return "room_closed", {}
+    if entity_id in room["participants"]:
+        return "already_in_room", {}
+    other = room_of(entity_id)
+    if other is not None:
+        return "in_other_room", {"chat_room_id": other}
+    b = _busy_of(me)
+    if b:
+        return "busy", {"busy": b, "message": _BUSY_MSG[b]}
+    if "in_class" in (me.get("tags") or []):
+        return "in_class", {}
+    mx, my = me["position"]["x"], me["position"]["y"]
+    ds = [abs(players[e]["position"]["x"] - mx) + abs(players[e]["position"]["y"] - my) for e in room["participants"] if e in players]
+    dmin = min(ds) if ds else None
+    if dmin is None or dmin > JOIN_DISTANCE:
+        return "too_far", {"distance": dmin}
+    if len(room["participants"]) >= JOIN_MAX_PARTICIPANTS:
+        return "room_full", {"count": len(room["participants"])}
+    if me.get("controller") != "human":                                # 冷却照旧（人类免）：本人 cooldown_self + 与房内每个人的 cooldown_pair；房里的人正在聊，不看他们自己的冷却
+        now = time.time(); rem = 0.0
+        end = _last_chat_end.get(entity_id)
+        if end is not None:
+            rem = max(rem, _P("cooldown_self") - (now - end))
+        for e in room["participants"]:
+            end = _last_pair_end.get(frozenset((entity_id, e)))
+            if end is not None:
+                rem = max(rem, _P("cooldown_pair") - (now - end))
+        if rem > 0:
+            return "chat_cooldown", {"cooldown_remaining": round(rem, 1)}
+    lim = speaker_limit()
+    if lim and speaker_count(room, entity_id) >= lim:                   # 退出后又加回同一房，条数照算
+        return "speaker_limit", {"my_count": speaker_count(room, entity_id), "my_limit": lim}
+    return None, {}
+
+
+def _room_view_tail(room: dict, players: dict, n: int = 10) -> list[dict]:
+    return [{**m, "from_name": players.get(m["from_entity_id"], {}).get("name", m["from_entity_id"])} for m in room["messages"][-n:]]
+
+
+def join_room(entity_id: str, room_id: str, greeting: str | None = None) -> dict:
+    """POST /chat/join：条件见 join_check；不需房内同意；广播 player_join（进 events，与 player_exit 同口径）；greeting 作加入者第一句（计条数）。"""
+    from game.world_state import _players as players
+    room = _chat_rooms.get(room_id)
+    reason, extra = join_check(entity_id, room, players)
+    if reason:
+        return {"success": False, "reason": reason, "message": extra.pop("message", None) or JOIN_REASON_MSG.get(reason, reason), **extra}
+    me = players[entity_id]
+    # 申请人身上挂着的邀请（发出 / 收到、pending / walking_over）一并作废，免得进了房还被拉去另一段
+    for req in _chat_requests.values():                                  # 她自己发出、还没成房的邀请作废（免得进了房又被拉去另一段）
+        if req.get("status") in ("pending", "walking_over", "answered") and req.get("from_entity_id") == entity_id:
+            req["status"] = "expired"
+            chat_log.log_event("request_expired", None, req.get("participants") or req.get("to_entity_ids") or [], request_id=req["request_id"], reason="joined_room")
+    room["participants"].append(entity_id)
+    seq = _next_seq(room_id)
+    room["events"].append({"seq": seq, "type": "player_join", "entity_id": entity_id, "timestamp": _now_iso()})
+    _apply_chat_buff(entity_id, players)
+    if me.get("state") in ("walking_over", "requesting_talk", "walking"):
+        me["state"] = "talking"
+    chat_log.log_event("player_join", room_id, list(room["participants"]), entity=entity_id)
+    if greeting and greeting.strip():
+        s2 = _next_seq(room_id)
+        room["messages"].append({"seq": s2, "from_entity_id": entity_id, "content": greeting.strip(), "timestamp": _now_iso()})
+        room["last_message_at"] = time.time()
+        _log_msg(room_id, s2, entity_id, greeting.strip(), players)
+    try:
+        from game import external_log
+        external_log.log("chat", entity_id, action="join", chat_room_id=room_id, participants=list(room["participants"]), greeting=bool(greeting))
+    except Exception:
+        pass
+    lim = speaker_limit()
+    return {"success": True, "chat_room_id": room_id,
+            "participants": [{"entity_id": e, "name": players.get(e, {}).get("name", e)} for e in room["participants"]],
+            "messages": _room_view_tail(room, players), "last_seq": _MSG_SEQ_COUNTER.get(room_id, 0),
+            "my_count": speaker_count(room, entity_id), "my_limit": lim or None}
+
+
+def nearby_rooms(entity_id: str, players: dict) -> list[dict]:
+    """perceive / GET /chat/nearby：≤ 4 格内开着、我不在其中的房间（参与者名、最近一句 ≤ 20 字、can_join / reason）。"""
+    me = players.get(entity_id)
+    if me is None:
+        return []
+    mx, my = me["position"]["x"], me["position"]["y"]
+    out = []
+    for room in _chat_rooms.values():
+        if room.get("status") != "active" or not room.get("participants") or entity_id in room["participants"]:
+            continue
+        ds = [abs(players[e]["position"]["x"] - mx) + abs(players[e]["position"]["y"] - my) for e in room["participants"] if e in players]
+        if not ds or min(ds) > NEARBY_ROOM_DISTANCE:
+            continue
+        last = room["messages"][-1]["content"] if room.get("messages") else None
+        reason, extra = join_check(entity_id, room, players)
+        row = {"chat_room_id": room["chat_room_id"],
+               "participants": [{"entity_id": e, "name": players.get(e, {}).get("name", e)} for e in room["participants"]],
+               "count": len(room["participants"]),
+               "last_message_preview": (last if len(last) <= 20 else last[:19] + "…") if last else None,
+               "can_join": reason is None}
+        if reason:
+            row["reason"] = reason; row["message"] = extra.get("message") or JOIN_REASON_MSG.get(reason, reason)
+        out.append(row)
+    return out
 
 
 # ── 附近 Player 查询 ──────────────────────────────────────────────────────────

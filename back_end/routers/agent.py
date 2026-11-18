@@ -159,6 +159,8 @@ def perceive(
             closeness_view[pid] = {"name": other.get("name", pid),
                                    "tier": closeness_tier(float(player.get("closeness", {}).get(pid, 0.0)))}
     needs["closeness"] = closeness_view
+    from game import chat_state as _cs
+    needs["nearby_rooms"] = _cs.nearby_rooms(entity_id, _players)        # v1.4.6 多人聊天 v1.1
     needs["recent_uses"] = get_recent_uses(entity_id)
 
     return {

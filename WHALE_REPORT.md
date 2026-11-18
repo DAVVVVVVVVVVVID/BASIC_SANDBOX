@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bj. world-v1.4.6：多人聊天 v1.1——中途加入 + 每人 15 条（主播 11-18；总控 whale-0d 派，目标 11-20 聚会前上主镇）—— 完成
+
+- `POST /chat/join`：不需同意；条件按 group-chat.md（active / 2 格 / 不在别房 / 不直播睡觉勿扰上课 / < 6 人 / 冷却人类免），总控补定 dnd 只挡 agent、只看申请人；广播 `player_join`、greeting 计条数。perceive `needs.nearby_rooms` 与 `/chat/nearby.rooms`（≤ 4 格，can_join 与 join 同判定）。
+- chat_profile `b10`：每人 15 条 `speaker_limit`，全员到 15 或全员退出才关（`speaker_limit_all`），不按房间总数；b9 / ait / nolimit 不变。加入冷却只算申请人本人与配对冷却（房里的人在聊，不看他们自己的冷却）。
+- 测试 +6，**392 passed**；api-spec §12.29。
+
 ## 5bi. world-v1.4.5：课堂笔记 / 回执不让丢 + match 认 owner（T1 第二节借笔记没过）—— 完成
 
 - T1 第二节：小克去吃午饭路上 discard 了自己的课堂笔记，鲸仔借不到。总控要沙盒兜一层：`paper` 类 discard 直接拒（`cannot_discard_class_item`）。
