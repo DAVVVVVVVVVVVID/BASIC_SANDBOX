@@ -1790,7 +1790,7 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - **换鱼饵**（覆盖 v1.4.8 `exchange`）：杂货店柜台 `exchange {item, fish_id?, mode?: "pay" | "donate"}`；收 变质的鱼 / `spoiled_food` / `junk_*`，每件凭空产出 1 个鱼饵（永久保质，不动店里库存）。`pay`（默认）：付 1 金币进店主账户、鱼饵进自己背包（店主本人换不付钱）；`donate`：不付钱、鱼饵进 `counter.stock.bait`。都记 `grocery` 账本 `recycle`。失败 `not_exchangeable` / `not_spoiled` / `no_item` / `insufficient_funds` / `bad_mode`。
 - **变质物 ~2 游戏日消失**：`spoiled_food` 变质时带 `expires_at = 变质时刻 + 2 日`，到期从背包 / 冰箱移除（背包的推 pendingMessage「坏掉的食物放太久，扔掉了。」）；鱼常温日龄满 8 日（冰箱半速）移除。external `kind=spoil action=discard_auto`。
 - 旧检查点里鱼摊的计数库存（v1.4.8 以前的 `{"fish": N}`）读进来时清掉。
-- **管理口**（v1.4.12）`POST /admin/shop/stock {object?: "counter", item, qty, reason?}`：库存直写（主镇的数据修正；scenario 在主镇 403）。鉴权同 `/school/term_start`（SANDBOX_ADMIN_TOKEN 或 SELF_TOKEN）；记 interventions `data_edit`（reversible）与该店账本 `kind: adjust`；回 `{ok, object, item, before, after, stock}`。
+- **管理口**（v1.4.12；v1.4.17 起也支持冰箱类物件如 `fridge_rest`：按目标数补进 / 拿出，补进的带正常保质期）`POST /admin/shop/stock {object?: "counter", item, qty, reason?}`：库存直写（主镇的数据修正；scenario 在主镇 403）。鉴权同 `/school/term_start`（SANDBOX_ADMIN_TOKEN 或 SELF_TOKEN）；记 interventions `data_edit`（reversible）与该店账本 `kind: adjust`；回 `{ok, object, item, before, after, stock}`。
 
 ### 12.34 商店第二期：餐厅现点现做（tag `world-v1.4.13`；whale `shops-system.md`「主播 11-19 修改」第 3 条；配置 `shops.json` restaurant）
 
@@ -1820,6 +1820,13 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
   - 钱进店主账户、记该店账本 `sale`（`who` = 路人 id，`note` 「路人」）；路人**不开经济账户**、不进 `/admin/metrics.accounts`。
 - **失败**（说一句、账本 `lost`，`ref.reason`）：`closed` 没开门 · `out_of_stock` 没货 · `too_expensive` 超预算 · `table_full` 没位子 · `too_long` 走不到 / 等太久 · `unattended` 店主不在 · `no_ingredients` 没料 · `owner_not_in_kitchen` 后厨没人。
 - **规矩**：`controller: "script"`、`role: "passerby"`、`agent_id = player id = passerby_<YYYYMMDD>_<NN>`、`sprite`（§12.32）；不接自我层、不开 QQ（发给路人 → `unknown_recipient`）、不聊天（`/chat/request` 涉及路人 → `{success: false, reason: "passerby", message: "路人只是路过，不聊天。"}`）、不进任何人的家、不主动搭话；心跳超时不清理（脚本自管）；不进检查点的角色表（重启时在场的路人清掉，日程保留）。external `kind=passerby action=spawn|lost|leave|purge_on_restart`。
+
+### 12.36 对话走近：沙盒带受邀者走到发起者身边 · 超时隔得远不成房（tag `world-v1.4.17`；11-19 主镇克劳蒂娜 / 餐厅老板隔 10 格聊天）
+
+- 接受邀请进入 `walking_over` 后，沙盒给每个受邀者排一条走到**发起者相邻格**的路（走路队列，`action: walking_over`，期间 `state: walking_over`，可被本人新的移动指令替换）；走到相邻（曼哈顿 ≤ 1、同 arena）即建房。
+- `walking_over_timeout`（b9 / b10 为 30 s）到时：所有受邀者离发起者 ≤ 2 格 → 照常建房；**有人 > 2 格 → 不建房**，邀请 `status: expired`、`expired_reason: "too_far"`（`GET /chat/request/{id}` 可见），双方回 idle，chat 日志 `request_expired reason too_far far:[…]`。以前不看距离直接建房（B9 起的行为）。
+- chat 日志 `room_open` 起带 `request_id` 与 `distance {player: 离发起者格数}`。
+- 成房后 `chat_active` 照旧挡 move（canMove=false），不会边聊边走开。
 
 ### 12.7 地图 v1
 

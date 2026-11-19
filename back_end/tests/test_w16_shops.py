@@ -146,3 +146,14 @@ def test_admin_shop_stock_edit(client, v12, fake_clock, monkeypatch):
     r = client.post("/admin/shop/stock", json=body, headers={"Authorization": "Bearer t0k"}).json()
     assert r["before"] == 0 and r["after"] == 12 and world_state.get_object_by_id("counter")["stock"]["ingredients"] == 12
     assert shops.ledger_view("grocery")["entries"][-1]["kind"] == "adjust"
+
+
+def test_admin_stock_fridge_contents_v1417(client, v12, fake_clock, monkeypatch):
+    monkeypatch.setenv("SANDBOX_ADMIN_TOKEN", "t0k")
+    _at(fake_clock, 20, 10)
+    fr = world_state.get_object_by_id("fridge_rest"); fr["contents"] = []
+    H = {"Authorization": "Bearer t0k"}
+    r = client.post("/admin/shop/stock", json={"object": "fridge_rest", "item": "ingredients", "qty": 4, "reason": "测试"}, headers=H).json()
+    assert r["before"] == 0 and r["after"] == 4 and fr["stock"]["ingredients"] == 4 and fr["contents"][0]["expires_at"] is not None
+    r = client.post("/admin/shop/stock", json={"object": "fridge_rest", "item": "ingredients", "qty": 1}, headers=H).json()
+    assert r["after"] == 1 and shops.ledger_view("restaurant")["entries"][-1]["kind"] == "adjust"

@@ -2,7 +2,7 @@
 import json
 from datetime import datetime
 
-from game import world_state, ticker, chat_state
+from game import world_state, chat_state, ticker
 from game.action_log import read_log
 from game.time_state import GAME_TZ
 from tests.conftest import join, action, place, walk_done, BED_STAND, BED_ID
@@ -124,10 +124,14 @@ def test_chat_accept_mid_walk_stops_in_place(client, fake_clock):
     rid = client.post("/chat/request", json={"from_entity_id": b, "to_entity_ids": [a], "greeting": "hi"}).json()["request_id"]
     resp = client.post("/chat/respond", json={"entity_id": a, "request_id": rid, "accept": True, "message": "yo"}).json()
     assert resp["status"] in ("walking_over", "room_created")
-    _tick(fake_clock, 1.0)                                                                           # 下一 tick：走路队列发现状态变了 → 就地停
-    assert a not in world_state._walks and world_state._players[a]["position"] == {"x": 3, "y": 8}
+    # v1.4.17：接受后沙盒把受邀者带到发起者身边（原来那条路被替换），走到相邻就成房
     done = [x for x in read_log(entity=a) if x["type"] == "move_done"][-1]
-    assert done["payload"]["outcome"] == "stopped" and done["payload"]["reason"].startswith("state:") and done["payload"]["steps_done"] == 1
+    assert done["payload"]["outcome"] == "stopped" and done["payload"]["reason"] == "replaced"
+    walk_done(a, fake_clock)
+    pa, pb = world_state._players[a]["position"], world_state._players[b]["position"]
+    assert abs(pa["x"] - pb["x"]) + abs(pa["y"] - pb["y"]) <= 1
+    chat_state.tick()
+    assert chat_state._chat_requests[rid]["status"] == "active"
 
 
 def test_move_n_and_go_to_queue(client, fake_clock):

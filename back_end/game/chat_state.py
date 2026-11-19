@@ -198,12 +198,56 @@ def _start_walking_over(req: dict, participants: list[str], players: dict) -> di
         p = players.get(eid)
         if p is not None and p["state"] in ("idle", "walking"):
             p["state"] = "walking_over"
+    _walk_to_host(req, players)                                 # v1.4.17：沙盒把受邀者带到发起者身边（以前全靠 agent 自己走，走错就隔着老远成房）
     return {
         "chat_room_id":    None,
         "status":          "walking_over",
         "target_arena_id": req["target_arena_id"],
         "participants":    req["participants"],
     }
+
+
+MEET_MAX_DISTANCE = 2   # v1.4.17：走近超时时，离发起者 > 2 格（与 /chat/join 同一尺度）的不成房 → 邀请作废 too_far
+
+
+def _walk_to_host(req: dict, players: dict) -> None:
+    """给每个受邀者排一条走到发起者相邻格的路（走 world_state 的走路队列；不可达就留给超时判定）。"""
+    from game import world_state as ws
+    host = players.get(req["from_entity_id"])
+    if host is None:
+        return
+    hx, hy = host["position"]["x"], host["position"]["y"]
+    occupied = {(q["position"]["x"], q["position"]["y"]) for q in players.values()}
+    goals = {(hx + dx, hy + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+             if (ws._TILE_LOOKUP.get((hx + dx, hy + dy)) or {}).get("walkable") and (hx + dx, hy + dy) not in occupied}
+    for eid in req["participants"]:
+        if eid == req["from_entity_id"]:
+            continue
+        p = players.get(eid)
+        if p is None or not goals:
+            continue
+        pos = (p["position"]["x"], p["position"]["y"])
+        if abs(pos[0] - hx) + abs(pos[1] - hy) <= MEET_DISTANCE:
+            continue
+        if not p.get("canMove", True) or p.get("usingObjectId"):
+            continue
+        try:
+            path = ws.bfs_path(pos, goals, p)
+        except Exception:
+            path = None
+        if path:
+            ws.start_walk(eid, path, "walking_over", {"to": req["from_entity_id"], "request_id": req["request_id"]})
+            p["state"] = "walking_over"                       # 走路 tick 对 action walking_over 的路认这个状态
+            goals.discard(tuple(path[-1]))
+
+
+def _far_from_host(req: dict, players: dict) -> list[str]:
+    host = players.get(req["from_entity_id"])
+    if host is None:
+        return []
+    hx, hy = host["position"]["x"], host["position"]["y"]
+    return [eid for eid in req["participants"] if eid != req["from_entity_id"] and eid in players
+            and abs(players[eid]["position"]["x"] - hx) + abs(players[eid]["position"]["y"] - hy) > MEET_MAX_DISTANCE]
 
 
 def _all_met(req: dict, players: dict) -> bool:
@@ -240,6 +284,7 @@ def _finish_walking_over(req: dict, players: dict) -> str | None:
         greeting_from=req["from_entity_id"],
         greeting_text=req["greeting"],
         accept_msgs=req.get("accepted_messages", []),
+        request_id=req["request_id"],
     )
     req["chat_room_id"] = room_id
     req["status"] = "active"
@@ -267,8 +312,22 @@ def tick(now: float | None = None) -> None:
                 req["status"] = "expired"
                 chat_log.log_event("request_expired", None, [req["from_entity_id"], *req["to_entity_ids"]], request_id=req["request_id"])
         elif req["status"] == "walking_over":
-            if _all_met(req, players) or now - (req.get("walking_since") or now) >= _P("walking_over_timeout"):
+            if _all_met(req, players):
                 _finish_walking_over(req, players)
+            elif now - (req.get("walking_since") or now) >= _P("walking_over_timeout"):
+                far = _far_from_host(req, players)
+                if far:                                           # v1.4.17：超时还隔得远 → 不成房（以前不看距离直接建房：11-19 主镇克劳蒂娜 / 餐厅老板隔 10 格聊）
+                    from game import world_state as _ws
+                    req["status"] = "expired"; req["expired_reason"] = "too_far"
+                    for eid in req["participants"]:
+                        p = players.get(eid)
+                        if p is not None and p["state"] in ("walking_over", "walking"):
+                            if eid in _ws._walks:
+                                _ws.stop_walk(eid, "stopped", "chat_too_far")
+                            p["state"] = "idle"
+                    chat_log.log_event("request_expired", None, req["participants"], request_id=req["request_id"], reason="too_far", far=far)
+                else:
+                    _finish_walking_over(req, players)
     _tick_rooms(now)
     _purge_finished(now)
 
@@ -308,6 +367,7 @@ def _create_room(
     greeting_from: Optional[str] = None,
     greeting_text: Optional[str] = None,
     accept_msgs: Optional[list[dict]] = None,
+    request_id: Optional[str] = None,
 ) -> str:
     """创建聊天室，施加 chat_active buff，并写入招呼语和接受回复作为初始消息。"""
     room_id = _new_id()
@@ -323,7 +383,11 @@ def _create_room(
     }
     _MSG_SEQ_COUNTER[room_id] = 0
 
-    chat_log.log_event("room_open", room_id, participants)
+    from game import world_state as _ws
+    _host = players.get(greeting_from) if greeting_from else None
+    _dist = {e: abs(players[e]["position"]["x"] - _host["position"]["x"]) + abs(players[e]["position"]["y"] - _host["position"]["y"])
+             for e in participants if _host is not None and e in players and e != greeting_from}
+    chat_log.log_event("room_open", room_id, participants, request_id=request_id, distance=_dist or None)   # v1.4.17：带 request_id 与成房时离发起者的距离
     # 发起者的招呼语作为第一条消息
     if greeting_from and greeting_text:
         seq = _next_seq(room_id)

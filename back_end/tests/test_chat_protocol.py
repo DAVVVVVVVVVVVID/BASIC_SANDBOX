@@ -48,8 +48,9 @@ def test_walking_over_same_arena_but_not_adjacent_waits_then_times_out(client):
     _accept(client, b, rid)
     chat_state.tick()
     assert chat_state._chat_requests[rid]["status"] == "walking_over"
-    chat_state.tick(now=time.time() + chat_state.WALK_TIMEOUT + 1)   # 30 s 到 → 直接建房
-    assert chat_state._chat_requests[rid]["status"] == "active"
+    chat_state.tick(now=time.time() + chat_state.WALK_TIMEOUT + 1)   # v1.4.17：30 s 到还隔 > 2 格（这里没跑走路 tick）→ 不成房，作废 too_far
+    assert chat_state._chat_requests[rid]["status"] == "expired" and chat_state._chat_requests[rid]["expired_reason"] == "too_far"
+    assert world_state._players[a]["state"] == "idle" and world_state._players[b]["state"] == "idle"
 
 
 def test_walking_over_participant_removed_expires(client):

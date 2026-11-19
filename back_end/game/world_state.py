@@ -1605,7 +1605,7 @@ def walk_tick(gts: float) -> int:
         p = _players.get(pid)
         if p is None:
             _walks.pop(pid, None); continue
-        if p["state"] != "walking":                                   # 聊天接受（walking_over）/ use / talking 等改了状态 → 就地停
+        if p["state"] != "walking" and not (p["state"] == "walking_over" and w.get("action") == "walking_over"):   # 聊天接受 / use / talking 等改了状态 → 就地停；v1.4.17：沙盒带去赴约的路（action walking_over）照走
             _walks.pop(pid, None); _finish_walk(pid, w, "stopped", f"state:{p['state']}"); continue
         while gts >= w["next_gts"] and w["i"] < w["path_len"]:
             if not p.get("canMove", True):
