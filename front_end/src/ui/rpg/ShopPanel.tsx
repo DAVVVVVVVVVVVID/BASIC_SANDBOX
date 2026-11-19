@@ -8,6 +8,7 @@ import { C } from './theme'
 import { Chip } from './MetaChips'
 import LedgerView, { SHOP_DEMO } from './LedgerView'
 import { GroceryExtras, RestaurantMenu } from './ShopExtras'
+import { useObjectRefresh, refreshObjects } from '../../game/objectRefresh'
 import { normalizeWarehouse, demoWarehouse, etaText } from '../../game/ledger'
 import { itemMeta } from '../../game/items'
 
@@ -26,6 +27,7 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
   const [tabSel, setTab] = useState<'menu' | 'goods' | 'ledger' | null>(null)
   const today = useGameStore((s) => s.worldState?.date)
   const inv = useMemo(() => normalizeInventory(player?.inventory), [player?.inventory])
+  useObjectRefresh(4000)   // 库存 / 挂单 / 菜单 / 后厨 ws 不推，面板开着时补拉
   if (!obj || !player) return <div style={{ color: C.inkSoft, padding: 12 }}>找不到这家店</div>
   const goods = goodsRows(obj), selling = sellRows(obj, inv)
   const dist = distanceTo(player.position, obj)
@@ -46,7 +48,7 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
       if (r.success) setMsg({ ok: true, text: `${label}${typeof res.gold === 'number' ? ` · 余额 ${res.gold}` : ''}${typeof res.message === 'string' && res.message ? ` · ${res.message}` : ''}` })
       else setMsg({ ok: false, text: `${label}没成 · ${shopFailText(r.reason, res)}` })
     } catch (e) { setMsg({ ok: false, text: `${label}没成 · ${(e as Error).message}` }) }
-    finally { setBusy(null) }
+    finally { setBusy(null); void refreshObjects() }   // 买完立刻拉一次库存
   }
   // 商店第一期：库房库存 + 明早到货（字段待 B 定；?shopdemo=1 用样例）
   const wh = normalizeWarehouse(obj as unknown as Record<string, unknown>) ?? (SHOP_DEMO && obj.type === 'shop_counter' ? demoWarehouse(today ?? new Date().toISOString().slice(0, 10)) : null)

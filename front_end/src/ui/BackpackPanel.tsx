@@ -6,6 +6,7 @@ import { itemMeta, normalizeInventory, itemDisplayName, isPhysicalWork, isFreeSl
 import { hasItemDetail } from '../game/school'
 import ItemDetail from './rpg/ItemDetail'
 import MetaChips from './rpg/MetaChips'
+import { useObjectRefresh, refreshObjects } from '../game/objectRefresh'
 import { gameNowMs, fridgeRows, fridgeTitle, supplyText, canEatHere, busyText, fmtMin, parseGameTime } from '../game/v11'
 import type { GameObject } from '../types'
 
@@ -21,6 +22,7 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [detail, setDetail] = useState<InventoryItem | null>(null)
+  useObjectRefresh(5000)   // 冰箱 contents / 灶台 cooking / 商店库存 ws 不推，背包开着时补拉
   const inv = useMemo(() => normalizeInventory(player?.inventory), [player?.inventory])
   const worldState = useGameStore((s) => s.worldState)
   if (!player) return null
@@ -42,7 +44,7 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
       const text = r.message ?? r.result?.message ?? r.result?.reason ?? ''
       setMsg(`${r.success ? '✓' : '✗'} ${label}${text ? ` · ${text}` : ''}${!r.success && /insufficient_funds/i.test(JSON.stringify(r)) ? ' · 💸 钱不够' : ''}`)
     } catch (e) { setMsg(`✗ ${label} · ${(e as Error).message}`) }
-    finally { setBusy(null) }
+    finally { setBusy(null); void refreshObjects() }
   }
   const slots: (InventoryItem | null)[] = [...inv.slice(0, 10)]
   while (slots.length < 10) slots.push(null)
