@@ -31,6 +31,11 @@ const META: Record<string, ItemMeta> = {
   cd: { icon: '🎵', label: '唱片', kind: 'physical' },
   // world-v1.4.0 上课系统：纸类（与钥匙一样不占背包种类、不受每种 20 上限），每本 meta 不同、不叠
   class_notes: { icon: '📓', label: '课堂笔记', kind: 'paper' },
+  // 钓鱼 v1（§12.31）钓上来的垃圾：杂货店能换鱼饵
+  junk_boot: { icon: '🥾', label: '旧靴子', kind: 'other' },
+  junk_can: { icon: '🥫', label: '易拉罐', kind: 'other' },
+  junk_bag: { icon: '🛍', label: '塑料袋', kind: 'other' },
+  junk_line: { icon: '🧵', label: '断鱼线', kind: 'other' },
   homework_receipt: { icon: '🧾', label: '作业回执', kind: 'paper' },   // §3.41：钥匙物品 {type:'key', meta:{door_id, name}}，显示 meta.name（合租房大门钥匙）；送钥匙走「送」带 door_id
 }
 const CN: Record<string, string> = { 面包: 'bread', 甜食: 'sweet', 便当: 'bento', 食材: 'ingredient', 鱼: 'fish', 鱼饵: 'bait', 小礼物: 'gift', 礼物: 'gift', 歌: 'song', 电台文稿: 'script', 文稿: 'script', 图片: 'image', 钥匙: 'key', 家常菜: 'home_meal', 鱼料理: 'fish_dish', 坏掉的食物: 'spoiled_food', 唱片: 'cd', 稿子: 'script', 课堂笔记: 'class_notes', 作业回执: 'homework_receipt' }

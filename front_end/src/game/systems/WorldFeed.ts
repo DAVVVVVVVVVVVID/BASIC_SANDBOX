@@ -203,6 +203,10 @@ export function startWorldFeed(opts: { preferWs?: boolean } = {}): WorldFeedHand
           EventBus.emit('fishing-event', msg)
           break
         }
+        case 'order':   // 商店第二期：{type:"order", event:"ready", entity, order_id, dish}——上菜冒一句（自己的另有 pendingMessage）
+          if ((msg as { event?: string }).event === 'ready' && typeof msg.entity === 'string') useGameStore.getState().pushBubble(msg.entity, '🍽 上菜了', 4000)
+          EventBus.emit('order-event', msg)
+          break
         case 'stall_spoiled':
           EventBus.emit('stall_spoiled-event', msg)
           break

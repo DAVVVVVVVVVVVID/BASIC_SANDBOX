@@ -7,6 +7,7 @@ import { goodsRows, sellRows, distanceTo, NEAR_ENOUGH, shopFailText, type MetaCh
 import { C } from './theme'
 import { Chip } from './MetaChips'
 import LedgerView, { SHOP_DEMO } from './LedgerView'
+import { GroceryExtras, RestaurantMenu } from './ShopExtras'
 import { normalizeWarehouse, demoWarehouse, etaText } from '../../game/ledger'
 import { itemMeta } from '../../game/items'
 
@@ -22,7 +23,7 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
   const player = useGameStore((s) => s.player)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const [tab, setTab] = useState<'goods' | 'ledger'>('goods')
+  const [tabSel, setTab] = useState<'menu' | 'goods' | 'ledger' | null>(null)
   const today = useGameStore((s) => s.worldState?.date)
   const inv = useMemo(() => normalizeInventory(player?.inventory), [player?.inventory])
   if (!obj || !player) return <div style={{ color: C.inkSoft, padding: 12 }}>找不到这家店</div>
@@ -32,8 +33,12 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
   const gold = typeof player.gold === 'number' ? player.gold : null
   const hours = (obj.openHours ?? []).map(h => h.join('–')).join('、')
   const closed = obj.open === false
+  // 商店第二期：吧台（带 menu）多「菜单」页，打开默认就是菜单
+  const isBar = Array.isArray((obj as unknown as { menu?: unknown }).menu)   // 只有后端真带了 menu 才出菜单页：② 上线前吧台照旧开货架
+  const tabs = (isBar ? ['menu', 'goods', 'ledger'] : ['goods', 'ledger']) as ('menu' | 'goods' | 'ledger')[]
+  const tab = tabSel && tabs.includes(tabSel) ? tabSel : tabs[0]
 
-  const act = async (key: string, label: string, type: 'buy' | 'sell', payload: Record<string, unknown>) => {
+  const act = async (key: string, label: string, type: string, payload: Record<string, unknown>) => {
     setBusy(key); setMsg(null)
     try {
       const r = await sendAction(player.id, type, { ...payload, object_id: obj.id, objectId: obj.id, qty: 1 }, { logLabel: label }) as unknown as { success?: boolean; reason?: string; result?: Record<string, unknown> }
@@ -51,9 +56,13 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
   return (
     <div data-testid="shop-panel" style={{ display: 'flex', flexDirection: 'column', gap: 10, color: C.ink, fontSize: 14 }}>
       <div style={{ display: 'flex', gap: 6 }}>
-        {(['goods', 'ledger'] as const).map(t => <button key={t} data-testid={`shop-tab-${t}`} className={`k${tab === t ? ' teal' : ''}`} onClick={() => setTab(t)} style={{ minHeight: 32, fontSize: 13 }}>{t === 'goods' ? '🛒 货架' : '📒 账本'}</button>)}
+        {tabs.map(t => <button key={t} data-testid={`shop-tab-${t}`} className={`k${tab === t ? ' teal' : ''}`} onClick={() => setTab(t)} style={{ minHeight: 32, fontSize: 13 }}>{t === 'menu' ? '🍲 菜单' : t === 'goods' ? '🛒 货架' : '📒 账本'}</button>)}
       </div>
       {tab === 'ledger' && <LedgerView shopId={obj.id} />}
+      {tab === 'menu' && <>
+        <RestaurantMenu obj={obj} busy={busy} act={act} />
+        {msg && <div data-testid="shop-msg" style={{ fontSize: 13, color: msg.ok ? '#1F7A6F' : '#B23B2E' }}>{msg.ok ? '✓ ' : '✗ '}{msg.text}</div>}
+      </>}
       {tab === 'goods' && <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: closed ? '#B23B2E' : C.inkSoft }} data-testid="shop-hours">
@@ -78,7 +87,7 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
                 <span style={{ fontSize: 20 }}>{g.icon}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}><b>{g.name}</b>{g.chips.map(chip)}</div>
-                  <div style={{ fontSize: 12, color: C.inkSoft }}>{g.stock === null ? '' : soldOut ? '卖完了' : `余 ${g.stock}`}</div>
+                  <div style={{ fontSize: 12, color: C.inkSoft }}>{g.stock === null ? '' : soldOut ? (obj.type === 'shop_counter' ? '卖完了，等进货' : '卖完了') : `余 ${g.stock}`}</div>
                 </div>
                 <span style={{ fontWeight: 700, color: '#8A6116', whiteSpace: 'nowrap' }}>{g.price} 金币</span>
                 <button className="k teal" data-testid={`shop-buy-${g.item}`} disabled={!!busy || soldOut} onClick={() => act(g.key, `买 ${g.name}`, 'buy', { item: g.item, ...(g.listingId ? { listing_id: g.listingId } : {}), ...(g.itemId ? { item_id: g.itemId } : {}) })} style={{ minWidth: 56, minHeight: 36 }}>{busy === g.key ? '…' : '买'}</button>
@@ -101,6 +110,7 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
           )}
         </section>
       )}
+      {obj.type === 'shop_counter' && <GroceryExtras busy={busy} act={act} />}
       <section>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>我能卖给这家的</div>
         {selling.length === 0 && <div style={{ color: C.inkSoft, fontSize: 13 }}>{(obj.shop ?? []).some(s => typeof s.sell === 'number') ? '背包里没有这家收的东西' : '这家不收东西'}</div>}

@@ -63,3 +63,24 @@ test('跟随看钓鱼纪录：GET /player.fishing', async () => {
   assert.equal(fishingView(null), null)
   assert.equal(fishingView({ record: { best: null, by_species: {} }, recent_casts: [] }), null)
 })
+
+test('商店第一期：换鱼饵候选 / 进货单', async () => {
+  const { exchangeRows, orderRows, shopFailText } = await import('../src/game/shop')
+  const inv = [{ type: 'fish', count: 1, meta: { fish_id: 'f1', name: '鲫鱼', freshness: 'spoiled' } }, { type: 'fish', count: 1, meta: { fish_id: 'f2', freshness: 'fresh' } }, { type: 'junk_boot', count: 1 }, { type: 'spoiled_food', count: 2 }, { type: 'bread', count: 1 }]
+  assert.deepEqual(exchangeRows(inv).map(r => [r.name, r.fishId ?? null]), [['鲫鱼', 'f1'], ['旧靴子', null], ['坏掉的食物', null]])
+  const o = orderRows({ orders: [{ order_id: 'po-1', status: 'confirmed', items: [{ item: 'bread', name: '面包', qty: 10 }, { item: 'ingredients', qty: 12 }], total: 118, ordered_by: 'claudine', deliver_at: '2026-11-21T07:30:00+08:00' }, { order_id: 'po-0', status: 'expired', items: [], quoted_at: '2026-11-19T20:00:00' }] })!
+  assert.equal(o[0].statusZh, '已下单'); assert.equal(o[0].items, '面包 ×10、食材 ×12'); assert.equal(o[1].tone, 'bad')
+  assert.equal(orderRows({ foo: 1 }), null)
+  assert.equal(shopFailText('out_of_stock', {}), '卖完了，等进货')
+})
+
+test('商店第二期：菜单 / 等菜', async () => {
+  const { menuRows, waitingText, shopFailText } = await import('../src/game/shop')
+  const rows = menuRows([{ dish: 'home_rice', name: '家常饭', price: 18, uses: [{ item: 'ingredients', qty: 1, name: '食材' }], available: true }, { dish: 'catch_of_day', name: '今日鲜鱼', price: 20, price_note: '按鱼', available: false, reason: 'no_ingredients', message: '没有鱼了' }])
+  assert.deepEqual(rows.map(r => [r.name, r.price, r.available, r.why]), [['家常饭', 18, true, ''], ['今日鲜鱼', 20, false, '没有鱼了']])
+  assert.equal(rows[0].uses, '食材'); assert.equal(rows[1].priceNote, '按鱼')
+  const parse = (s?: string) => (s ? Date.parse(s) : null)
+  assert.equal(waitingText({ kind: 'waiting_order', name: '家常饭', ends_at: '2026-11-20T12:01:00Z' }, Date.parse('2026-11-20T12:00:20Z'), parse), '🍳 等菜中 · 家常饭 · 还有 40 秒')
+  assert.equal(waitingText({ kind: 'eating' }, 0, parse), null)
+  assert.equal(shopFailText('no_ingredients', { message: '没有番茄了' }), '没有番茄了')
+})

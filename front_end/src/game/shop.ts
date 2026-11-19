@@ -89,7 +89,62 @@ export function shopFailText(reason: string | null | undefined, result: Record<s
     case 'not_buying': return '这家不收这个'
     case 'no_item': return '背包里没有了'
     case 'inventory_full': return '背包满了'
-    case 'out_of_stock': return '卖完了'
+    case 'out_of_stock': return '卖完了，等进货'
+    case 'not_exchangeable': return '这个不收'
+    case 'not_at_table': return '先坐到餐厅的餐桌上再点'
+    case 'owner_not_in_kitchen': return '老板不在后厨'
+    case 'no_ingredients': return '没料了'
+    case 'already_eating': return '已经在吃或在等菜了'
+    case 'unknown_dish': return '没有这道菜'
+    case 'not_spoiled': return '这条鱼还没坏，不能换'
+    case 'spoiled': return '已经变质了'
     default: return reason ? `没成（${reason}）` : '没成'
   }
+}
+
+/** 换鱼饵（商店第一期 §3，杂货店柜台）：背包里可换的候选——变质的鱼、变质食物、钓上来的垃圾；能不能换以后端为准 */
+export interface ExchangeRow { key: string; item: string; fishId?: string; name: string; icon: string; count: number; chips: MetaChip[] }
+export function exchangeRows(inv: InventoryItem[]): ExchangeRow[] {
+  return inv.flatMap((it, i) => {
+    const spoiledFish = it.type === 'fish' && it.meta?.freshness === 'spoiled'
+    if (!spoiledFish && it.type !== 'spoiled_food' && !it.type.startsWith('junk_')) return []
+    const m = itemMeta(it.type, it.name)
+    const fishId = typeof it.meta?.fish_id === 'string' ? it.meta.fish_id : undefined
+    return [{ key: `${it.id ?? fishId ?? it.type}-${i}`, item: it.type, fishId, name: (typeof it.meta?.name === 'string' && it.meta.name) || it.name || m.label, icon: m.icon, count: it.count, chips: metaChips(it.meta) }]
+  })
+}
+
+/** 进货单（§1：GET /shop/orders?shop=grocery） */
+export interface OrderRow { id: string; status: string; statusZh: string; tone: 'wait' | 'ok' | 'done' | 'bad'; items: string; total: number | null; by: string; when: string }
+const ORDER_ZH: Record<string, [string, OrderRow['tone']]> = { quoted: ['报价待确认', 'wait'], confirmed: ['已下单', 'ok'], delivered: ['已到货', 'done'], expired: ['没确认，作废', 'bad'], failed: ['钱不够，没成', 'bad'] }
+export function orderRows(raw: unknown): OrderRow[] | null {
+  const r = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null
+  const list = Array.isArray(raw) ? raw : Array.isArray(r?.orders) ? r!.orders as unknown[] : null
+  if (!list) return null
+  return list.map(x => {
+    const o = (x ?? {}) as Record<string, unknown>
+    const st = String(o.status ?? '')
+    const [zh, tone] = ORDER_ZH[st] ?? [st || '未知', 'wait']
+    const items = (Array.isArray(o.items) ? o.items as Record<string, unknown>[] : []).map(l => `${String(l.name ?? itemMeta(String(l.item)).label)} ×${Number(l.qty ?? 1)}`).join('、')
+    const when = st === 'confirmed' ? String(o.deliver_at ?? '') : st === 'quoted' ? String(o.expires_at ?? '') : st === 'delivered' ? String(o.delivered_at ?? o.deliver_at ?? '') : String(o.quoted_at ?? '')
+    return { id: String(o.order_id ?? o.id ?? ''), status: st, statusZh: zh, tone, items, total: typeof o.total === 'number' ? o.total : null, by: String(o.ordered_by_name ?? o.ordered_by ?? ''), when }
+  }).sort((a, b) => b.when.localeCompare(a.when))
+}
+
+/** 餐厅菜单（商店第二期，B 草案 11-19：objects[bar].menu） */
+export interface MenuRow { dish: string; name: string; price: number | null; priceNote: string; uses: string; available: boolean; why: string }
+export function menuRows(menu: unknown): MenuRow[] {
+  if (!Array.isArray(menu)) return []
+  return menu.map(x => {
+    const m = (x ?? {}) as Record<string, unknown>
+    const uses = (Array.isArray(m.uses) ? m.uses as Record<string, unknown>[] : []).map(u => `${String(u.name ?? itemMeta(String(u.item)).label)}${Number(u.qty ?? 1) > 1 ? ` ×${u.qty}` : ''}`).join(' + ')
+    return { dish: String(m.dish ?? ''), name: String(m.name ?? m.dish ?? ''), price: typeof m.price === 'number' ? m.price : null, priceNote: typeof m.price_note === 'string' ? m.price_note : '', uses, available: m.available !== false, why: String(m.message ?? m.reason ?? '') }
+  })
+}
+/** 等菜：players[].busy {kind: "waiting_order", name, ends_at} → 「等菜中 · 家常饭 · 还有 40 秒」 */
+export function waitingText(busy: { kind?: string; name?: string; dish?: string; ends_at?: string } | null | undefined, nowMs: number | null, parse: (s?: string) => number | null): string | null {
+  if (!busy || busy.kind !== 'waiting_order') return null
+  const end = parse(busy.ends_at)
+  const left = end !== null && nowMs !== null ? Math.max(0, Math.round((end - nowMs) / 1000)) : null
+  return `🍳 等菜中 · ${busy.name ?? busy.dish ?? '菜'}${left !== null ? (left > 0 ? ` · 还有 ${left} 秒` : ' · 马上好') : ''}`
 }

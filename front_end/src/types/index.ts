@@ -136,7 +136,7 @@ export interface SchoolLesson { lesson_id: string; course: string; course_name: 
 export interface SchoolHomework { week: number; due: string | null; count: number; submitted: { receipt_id: string; request_id: string; title?: string | null; late: boolean; audio: 'none' | 'pending' | 'final' | string; at?: string }[] }
 /** GET /school/today?player= */
 export interface SchoolToday { date: string; week: number | null; week_genre: string | null; lessons: SchoolLesson[]; homework: SchoolHomework | null }
-export interface WsFishing { type: 'fishing' | 'stall_spoiled'; entity?: string; cast?: import('../game/fishing').FishingCast; [k: string]: unknown }
+export interface WsFishing { type: 'fishing' | 'stall_spoiled' | 'order'; entity?: string; cast?: import('../game/fishing').FishingCast; [k: string]: unknown }
 export interface WsLesson { type: 'lesson'; event: 'start' | 'segment' | 'question' | 'doze' | 'end' | 'grade' | string; lesson_id?: string; entity?: string; segment?: number; [k: string]: unknown }
 
 export interface TiledTilesetInfo {
