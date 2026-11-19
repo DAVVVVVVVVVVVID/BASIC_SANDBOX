@@ -264,6 +264,11 @@ def handle_use(entity_id: str, payload: dict) -> ActionResponse:
         result = {"message": obj.get("successMessage"), "objectId": obj["id"]}
         if obj.get("stock") is not None:
             result["stock"] = dict(obj["stock"])
+        if obj["type"] == "fish_stall":                                          # v1.4.8：鱼摊货架逐条
+            from game import fishing
+            result["listings"] = fishing.stall_listings(obj)
+            result["message"] = ("摊上的鱼：" + "；".join(f"{l['name']} {l['weight']:.2f} kg（{fishing._fresh_cn(l['freshness'])}）{l['price']} 金币" for l in result["listings"])
+                                 + "。buy {item: fish, listing_id} 买指定那条。") if result["listings"] else "摊上现在没有鱼，等老渔夫上货。"
         if obj["type"] == "notice_board":                                        # W11 ①：公告栏读到委托
             from game import commissions
             result["commissions"] = commissions.open_items()
@@ -582,6 +587,7 @@ _HANDLERS = {
     "store":        economy_actions.handle_store,
     "take":         economy_actions.handle_take,
     "discard":      economy_actions.handle_discard,
+    "exchange":     economy_actions.handle_exchange,            # v1.4.8：杂货店换鱼饵
     "copy_key":     economy_actions.handle_copy_key,
     "deliver":      economy_actions.handle_deliver,
     "burn_cd":      economy_actions.handle_burn_cd,

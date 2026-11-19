@@ -54,6 +54,21 @@ def stove_plan(player: dict, obj: dict, payload: dict | None) -> tuple[dict | No
     qty = min(qty, int(sc.get("max_portions", 6)))
     if item not in recipes:
         return None, "not_cookable", {"item": item, "cookable": sorted(recipes)}
+    if item == "fish":                                           # v1.4.8：一次做一条，按条选（fish_id）；变质不能做
+        from game import fishing
+        from game.world_state import game_now_ts
+        now = game_now_ts()
+        for e in inventory.ensure(player):
+            if e.get("type") == "fish" and e.get("meta"):
+                fishing._settle(e["meta"], now)
+        fid = (payload or {}).get("fish_id")
+        entry = fishing.pick_fish(inventory.ensure(player), fid, allow_spoiled=bool(fid))
+        if entry is None:
+            return None, "no_ingredients", {"item": "fish", "have": 0, "need": 1, "fish_id": fid}
+        if entry["meta"].get("freshness") == "spoiled":
+            return None, "spoiled", {"item": "fish", "fish_id": fid, "message": f"这条{entry['meta']['name']}已经变质了，做不了菜。"}
+        minutes = float(sc.get("minutes_first", 20))
+        return {"item": "fish", "qty": 1, "product": "fish_dish", "minutes": minutes, "free": False, "entry": entry}, None, None
     free_owner = (sc.get("free_for_owner") or {}).get(obj["id"])
     free = bool(free_owner) and (player.get("agent_id") == free_owner)
     have = inventory.count(player, item)
@@ -74,10 +89,15 @@ def on_enter(player: dict, obj: dict, gts: float, payload: dict | None = None) -
         if reason:
             player["_use_err"] = extra or {}
             return reason
-        if not plan["free"]:
+        fish_meta = None
+        if plan.get("entry") is not None:                        # v1.4.8：做鱼——扣这一条，鱼的 meta 跟着到出菜
+            fish_meta = dict(plan["entry"]["meta"]); inventory.remove_entry(player, plan["entry"], 1)
+        elif not plan["free"]:
             inventory.remove(player, plan["item"], plan["qty"])
         _stove[player["id"]] = {"start_gts": gts, "done": False, "object": obj["id"], "item": plan["item"], "qty": plan["qty"],
                                 "product": plan["product"], "minutes": plan["minutes"], "ready_gts": gts + plan["minutes"] * 60.0}
+        if fish_meta is not None:
+            _stove[player["id"]]["fish_meta"] = fish_meta
     return None
 
 
@@ -155,21 +175,15 @@ def on_tick(gts: float, players: dict) -> None:
     """调用方持 STATE_LOCK。"""
     from game import inventory
     pc = cfg()
-    fc = pc.get("fishing", {})
-    for pid, st in list(_fish.items()):
+    from game import fishing
+    for pid, st in list(_fish.items()):                                   # v1.4.8：每 interval_min 一竿（空竿 / 垃圾 / 鱼，见 game/fishing.py）
         p = players.get(pid)
         if p is None or p.get("usingObjectId") != st["object"]:
             _fish.pop(pid, None); continue
-        interval = float(fc.get("interval_min", 40)) * 60.0
+        interval = float(fishing.cfg().get("interval_min", 20)) * 60.0
         while gts - st["last_roll_gts"] >= interval:
             st["last_roll_gts"] += interval; st["rolls"] += 1
-            bait = fc.get("bait"); has_bait = bool(bait) and inventory.count(p, bait) > 0
-            if has_bait:
-                inventory.remove(p, bait, 1)
-            prob = float(fc.get("p_bait", 0.8) if has_bait else fc.get("p", 0.5))
-            hit = _rng("fish", pid, st["object"], st["rolls"]).random() < prob
-            if hit and inventory.add(p, fc.get("item", "fish"), 1) is None:
-                _notify(p, "fishing", fc.get("item", "fish"), 1, object=st["object"], roll=st["rolls"], bait=has_bait, p=prob)
+            fishing.cast(p, st["object"], st["rolls"], st["last_roll_gts"])
     for pid, b in list(_burn.items()):                                   # 刻盘
         p = players.get(pid)
         if p is None or p.get("usingObjectId") != b["object"]:
@@ -191,9 +205,19 @@ def on_tick(gts: float, players: dict) -> None:
         if not st["done"] and gts >= st.get("ready_gts", st["start_gts"] + st.get("minutes", 20) * 60.0):
             st["done"] = True
             item, n = st.get("product", "home_meal"), int(st.get("qty", 1))
-            err = inventory.add(p, item, n, now_gts=gts)
+            if st.get("fish_meta"):                                    # v1.4.8：鱼料理——菜名 / 新鲜度跟用料，保质 dish_shelf_days
+                from game import fishing
+                dm = fishing.dish_meta(st["fish_meta"], gts)
+                err = inventory.add(p, item, 1, meta=dm, expires_at=gts + float(fishing.cfg().get("dish_shelf_days", 1)) * 86400.0)
+                ok_extra = {"dish": dm["name"], "species": dm["species"], "freshness": dm["freshness"]}
+                n = 1
+            else:
+                err = inventory.add(p, item, n, now_gts=gts); ok_extra = {}
             if err is None:
-                _notify(p, "stove", item, n, object=st["object"], portions=n)
+                _notify(p, "stove", item, n, object=st["object"], portions=n, **ok_extra)
+                if ok_extra:
+                    from game import world_state as _ws
+                    _ws._pending_messages[pid] = f"做好了一份{ok_extra['dish']}。"
             else:
                 from game import world_state
                 world_state._pending_messages[pid] = f"做好了 {n} 份，可是背包放不下（{err}）。"

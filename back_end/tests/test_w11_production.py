@@ -46,27 +46,26 @@ def _external():
 
 # ── ① 钓位 ──
 def test_fishing_rolls_every_interval_and_bait(client, v12, fake_clock, monkeypatch):
+    """v1.4.8：每 20 游戏分钟一竿（结果见 test_w15_fishing）；鱼饵每竿消耗 1；external kind=fishing action=cast。"""
+    from game import fishing
     _at(fake_clock, 10, 0)
     whale = _agent(client, "whale")
     place(whale, 45, 3, "up")
-    cfg = economy.cfg()["production"]["fishing"]
-    monkeypatch.setitem(cfg, "p", 1.0); monkeypatch.setitem(cfg, "p_bait", 1.0)
+    oc = fishing.cfg()["outcome"]["default"]
+    monkeypatch.setitem(oc, "empty", 0.0); monkeypatch.setitem(oc, "junk", 0.0); monkeypatch.setitem(oc, "fish", 1.0)
     assert action(client, whale, "use")["success"]
     _tick(fake_clock, 1)
     p = world_state._players[whale]
     assert inventory.count(p, "fish") == 0
-    fake_clock.advance(40 * 60); _tick(fake_clock, 1)                                    # 40 分钟：掷一次（p=1 必中）
+    fake_clock.advance(20 * 60); _tick(fake_clock, 1)                                    # 20 分钟：一竿（fish=1 必中）
     assert inventory.count(p, "fish") == 1
-    assert world_state._pending_messages[whale] == "钓到一条鱼！"
-    rows = [r for r in _external() if r["kind"] == "produce"]
-    assert rows and rows[-1]["via"] == "fishing" and rows[-1]["item"] == "fish" and rows[-1]["bait"] is False
+    assert "钓到一条" in world_state._pending_messages[whale] and " kg 的" in world_state._pending_messages[whale]
+    rows = [r for r in _external() if r["kind"] == "fishing" and r.get("action") == "cast"]
+    assert rows and rows[-1]["outcome"] == "fish" and rows[-1]["bait"] is False and rows[-1]["species"]
     inventory.add(p, "bait", 1)
-    fake_clock.advance(40 * 60); _tick(fake_clock, 1)                                    # 有鱼饵：消耗 1，走 p_bait
+    fake_clock.advance(20 * 60); _tick(fake_clock, 1)
     assert inventory.count(p, "fish") == 2 and inventory.count(p, "bait") == 0
-    assert [r for r in _external() if r["kind"] == "produce"][-1]["bait"] is True
-    monkeypatch.setitem(cfg, "p", 0.0)
-    fake_clock.advance(40 * 60); _tick(fake_clock, 1)
-    assert inventory.count(p, "fish") == 2                                               # p=0 不中
+    assert [r for r in _external() if r["kind"] == "fishing" and r.get("action") == "cast"][-1]["bait"] is True
     assert action(client, whale, "leave")["success"] and whale not in production._fish
 
 

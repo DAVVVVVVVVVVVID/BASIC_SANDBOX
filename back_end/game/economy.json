@@ -90,14 +90,11 @@
       "buys": [
         "fish"
       ],
-      "stock": {
-        "fish": 6
-      },
+      "stock": {},
       "restock_at": "08:00",
-      "daily_supply": {
-        "fish": 6
-      },
-      "restock_mode": "reset"
+      "daily_supply": {},
+      "restock_mode": "reset",
+      "_doc": "v1.4.8：不再每日刷鱼，只卖老渔夫上货的鱼（obj.listings 逐条定价，见 game/fishing.json）"
     },
     "bar": {
       "owner": "npc_rest_owner",

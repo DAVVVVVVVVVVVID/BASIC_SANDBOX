@@ -177,8 +177,16 @@ def perceive(
         "knocks":          _knocks_view(entity_id),     # §3.40：主人——我家待回应的敲门 [{id, visitor_name, home_name, expires_at}]
         "door_request":    _door_request_view(entity_id),   # §3.40：访客——我最近一次敲门的状态
         "game":            _game_view(entity_id),       # B18：游戏机局内状态（无则 null）
+        "fishing":         _fishing_view(entity_id),    # v1.4.8：钓鱼 {spot, last_cast, recent_casts, record, …}
         "lesson":          _lesson_view(entity_id),     # v1.4.0：上课中 {lesson_id, course, title, segment{i,text}, dozed_prev, question, attendance, …}，不在课 null
     }
+
+
+def _fishing_view(entity_id: str) -> dict | None:
+    from game import fishing
+    from game.world_state import game_now_ts
+    p = _players.get(entity_id)
+    return fishing.view(p, game_now_ts()) if p else None
 
 
 def _lesson_view(entity_id: str) -> dict | None:

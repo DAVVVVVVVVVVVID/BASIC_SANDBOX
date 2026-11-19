@@ -62,17 +62,18 @@
   "fish": {
     "name": "鱼",
     "class": "material",
-    "price": 15,
+    "price": null,
     "sell": 10,
     "eat": {
       "fullness": 10,
       "minutes": 5
     },
-    "spoil_days": 5,
     "cook": "fish_dish",
     "give": {
       "closeness": 3
-    }
+    },
+    "max_stack": 40,
+    "_doc": "v1.4.8 钓鱼：逐条物品，meta {fish_id, species, name, tier, weight, caught_at, caught_by, freshness, age_days, in_fridge}；价格按 game/fishing.json 底价 × 重量 × 新鲜度；生吃 / 料理效果按鱼种（eat / 灶台），不再用下面的 eat / cook。"
   },
   "bait": {
     "name": "鱼饵",
@@ -142,10 +143,11 @@
       "mood": 3,
       "minutes": 15
     },
-    "spoil_days": 3,
+    "spoil_days": 1,
     "give": {
       "closeness": 3
-    }
+    },
+    "_doc": "v1.4.8：每鱼种一道菜，meta {dish, name「清蒸鲈鱼（不新鲜）」, species, weight, freshness, made_at}；效果按鱼种 × 重量（不新鲜 ×0.7）；保质 1 日。"
   },
   "spoiled_food": {
     "name": "坏掉的食物",
@@ -179,5 +181,33 @@
     "price": null,
     "sell": null,
     "_doc": "上课系统 v1：作业提交箱回执，meta {receipt_id, week, request_id, title, late, audio, due, submitted_at}。"
+  },
+  "junk_boot": {
+    "name": "旧靴子",
+    "class": "junk",
+    "price": null,
+    "sell": null,
+    "_doc": "v1.4.8 钓鱼垃圾：可 discard，或在杂货店 exchange 换 1 个鱼饵。"
+  },
+  "junk_can": {
+    "name": "易拉罐",
+    "class": "junk",
+    "price": null,
+    "sell": null,
+    "_doc": "v1.4.8 钓鱼垃圾：可 discard，或在杂货店 exchange 换 1 个鱼饵。"
+  },
+  "junk_bag": {
+    "name": "塑料袋",
+    "class": "junk",
+    "price": null,
+    "sell": null,
+    "_doc": "v1.4.8 钓鱼垃圾：可 discard，或在杂货店 exchange 换 1 个鱼饵。"
+  },
+  "junk_line": {
+    "name": "断鱼线",
+    "class": "junk",
+    "price": null,
+    "sell": null,
+    "_doc": "v1.4.8 钓鱼垃圾：可 discard，或在杂货店 exchange 换 1 个鱼饵。"
   }
 }

@@ -108,6 +108,10 @@ def handle_buy(entity_id: str, payload: dict) -> ActionResponse:
         if d is None:
             return ActionResponse(success=False, type="buy", reason="unknown_item", result={"objectId": obj["id"], "item": item})
         shop = economy.shop_for(obj["type"])
+        if item == "fish" and obj["type"] == _fishing_cfg()["stall"]["type"]:                # v1.4.8：鱼摊逐条挂单
+            r = _buy_fish(p, obj, shop, payload)
+            mark_input(entity_id)
+            return r
         if item not in shop.get("sells", []) or d.get("price") is None:
             return ActionResponse(success=False, type="buy", reason="not_for_sale", result={"objectId": obj["id"], **_item_fields(item, qty)})
         total = int(d["price"]) * qty
@@ -138,6 +142,142 @@ def handle_buy(entity_id: str, payload: dict) -> ActionResponse:
             "gold_delta": -total, "gold": p["gold"], "inventory": inventory.view(p)})
 
 
+def _fishing_cfg() -> dict:
+    from game import fishing
+    return fishing.cfg()
+
+
+def _sell_fish(p: dict, obj: dict, shop: dict, payload: dict, qty: int) -> ActionResponse:
+    """v1.4.8 卖鱼（调用方持 STATE_LOCK）：老渔夫在自家鱼摊 = 上货（不付钱，逐条挂单）；别人卖给鱼摊 = 按挂单价 × sell_ratio 收、进挂单；
+    其它收鱼的店（餐厅吧台）照旧按 items.json sell 收（不新鲜 ×0.5）。变质的都不收。"""
+    from game import fishing
+    from game.time_state import game_now_ts
+    now = game_now_ts(); fc = fishing.cfg()
+    ents = [e for e in inventory.ensure(p) if e.get("type") == "fish" and e.get("meta")]
+    for e in ents:
+        fishing._settle(e["meta"], now)
+    fid = payload.get("fish_id") or (payload.get("match") or {}).get("fish_id")
+    is_stall = obj["type"] == fc["stall"]["type"]
+    if fid:
+        picked = [e for e in ents if e["meta"].get("fish_id") == fid]
+        if not picked:
+            return ActionResponse(success=False, type="sell", reason="no_item", result={"objectId": obj["id"], "item": "fish", "fish_id": fid})
+        if picked[0]["meta"]["freshness"] == "spoiled":
+            return ActionResponse(success=False, type="sell", reason="spoiled", result={"objectId": obj["id"], "item": "fish", "fish_id": fid,
+                                  "message": "变质的鱼不能卖了（可以丢掉，或在杂货店换鱼饵）。"})
+    else:
+        ok = sorted([e for e in ents if e["meta"]["freshness"] != "spoiled"], key=lambda e: -float(e["meta"].get("age_s", 0)))
+        own_list = is_stall and _is_own_shop(p, shop.get("owner"))
+        picked = ok if (own_list and not payload.get("qty")) else ok[:max(1, qty)]
+        if not picked:
+            return ActionResponse(success=False, type="sell", reason="no_item", result={"objectId": obj["id"], "item": "fish", "have": len(ents),
+                                  "message": "背包里没有能卖的鱼（变质的不收）。"})
+    if is_stall and _is_own_shop(p, shop.get("owner")):                                   # 上货
+        listed = []
+        for e in picked:
+            m = dict(e["meta"]); fishing.set_in_fridge(m, False, now)
+            obj.setdefault("listings", []).append(m); inventory.remove_entry(p, e, 1); listed.append(fishing.listing_view(m))
+        refresh_shop_views()
+        from game import external_log
+        external_log.log("fishing", p["id"], action="list", object=obj["id"], fish=[l["fish_id"] for l in listed], qty=len(listed))
+        return ActionResponse(success=True, type="sell", result={"message": f"上货 {len(listed)} 条鱼到{obj['name']}。", "objectId": obj["id"], "item": "fish",
+                              "listed": listed, "listings": fishing.stall_listings(obj), "gold_delta": 0, "gold": p["gold"], "inventory": inventory.view(p)})
+    if not is_stall and "fish" not in shop.get("buys", []):
+        return ActionResponse(success=False, type="sell", reason="not_buying", result={"objectId": obj["id"], "item": "fish"})
+    total = 0; sold = []
+    for e in picked:
+        m = e["meta"]
+        if is_stall:
+            price = max(1, int(round((fishing.price_of(m) or 0) * float(fc["stall"]["sell_ratio"]))))
+            mm = dict(m); fishing.set_in_fridge(mm, False, now); obj.setdefault("listings", []).append(mm)
+        else:
+            price = max(1, int(round(int((inventory.item_def("fish") or {}).get("sell") or 10) * (fishing.fresh_factor(m["freshness"]) or 0))))
+        inventory.remove_entry(p, e, 1); total += price
+        sold.append({"fish_id": m["fish_id"], "species": m["species"], "name": m["name"], "weight": m["weight"], "freshness": m["freshness"], "price": price})
+    economy.ledger("sell", p, total, item="fish", qty=len(sold), price=None, shop=obj["id"], shop_type=obj["type"], fish=[x["fish_id"] for x in sold])
+    _credit_owner(obj["type"], p, -total, source="shop_purchase", item="fish", qty=len(sold), shop=obj["id"])
+    if is_stall:
+        refresh_shop_views()
+    return ActionResponse(success=True, type="sell", result={"message": f"卖了 {len(sold)} 条鱼，得 {total} 金币。", "objectId": obj["id"], "item": "fish", "qty": len(sold),
+                          "sold": sold, "total": total, "gold_delta": total, "gold": p["gold"], "inventory": inventory.view(p)})
+
+
+def _buy_fish(p: dict, obj: dict, shop: dict, payload: dict) -> ActionResponse:
+    """v1.4.8 鱼摊买鱼：buy {item: fish, listing_id?}（不带 = 最便宜那条）；价 = 底价 × 重量 × 新鲜度系数；老渔夫取回自家货不花钱。"""
+    from game import fishing
+    from game.time_state import game_now_ts
+    now = game_now_ts()
+    lst = obj.get("listings") or []
+    for m in lst:
+        fishing._settle(m, now)
+    lid = payload.get("listing_id") or payload.get("fish_id") or (payload.get("match") or {}).get("listing_id")
+    cands = [m for m in lst if m.get("freshness") != "spoiled"]
+    m = next((x for x in cands if x["fish_id"] == lid), None) if lid else (min(cands, key=lambda x: fishing.price_of(x) or 0) if cands else None)
+    if m is None:
+        return ActionResponse(success=False, type="buy", reason="out_of_stock", result={"objectId": obj["id"], "item": "fish", "listing_id": lid,
+                              "listings": fishing.stall_listings(obj), "message": "摊上现在没有这条鱼。" if lid else "摊上现在没有鱼，等老渔夫上货。"})
+    price = int(fishing.price_of(m) or 0)
+    own = _is_own_shop(p, shop.get("owner"))
+    if own:
+        price = 0
+    if int(p.get("gold", 0)) < price:
+        return ActionResponse(success=False, type="buy", reason="insufficient_funds", result={"objectId": obj["id"], "item": "fish", "price": price, "gold": int(p.get("gold", 0)),
+                              "message": f"钱不够：这条{m['name']}要 {price} 金币，身上只有 {int(p.get('gold', 0))}。"})
+    err = inventory.add(p, "fish", 1, meta=dict(m))
+    if err:
+        return ActionResponse(success=False, type="buy", reason=err, result={"objectId": obj["id"], "item": "fish"})
+    obj["listings"] = [x for x in lst if x is not m]
+    if price:
+        economy.ledger("buy", p, -price, item="fish", qty=1, price=price, shop=obj["id"], shop_type=obj["type"], fish_id=m["fish_id"])
+        _credit_owner(obj["type"], p, price, source="shop_sale", item="fish", qty=1, shop=obj["id"])
+    refresh_shop_views()
+    return ActionResponse(success=True, type="buy", result={"message": f"买了一条 {m['weight']:.2f} kg 的{m['name']}（{fishing._fresh_cn(m['freshness'])}），花了 {price} 金币。",
+                          "objectId": obj["id"], "item": "fish", "qty": 1, "fish": fishing.listing_view(m), "total": price, "gold_delta": -price, "gold": p["gold"],
+                          "listings": fishing.stall_listings(obj), "inventory": inventory.view(p)})
+
+
+def handle_exchange(entity_id: str, payload: dict) -> ActionResponse:
+    """v1.4.8：杂货店柜台 exchange {item: "fish"（变质的）| junk_*, fish_id?} → 1 个鱼饵。"""
+    from game import fishing
+    from game.time_state import game_now_ts
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="exchange", reason="player_not_found")
+        obj, err = _shop_object(p, payload)
+        if err:
+            return ActionResponse(success=False, type="exchange", reason=err, result={"objectId": obj["id"]} if obj else None)
+        ex = fishing.cfg()["exchange"]
+        if obj["type"] != ex["object"]:
+            return ActionResponse(success=False, type="exchange", reason="not_exchanging", result={"objectId": obj["id"], "message": "这里不收这个，去杂货店柜台换鱼饵。"})
+        item = _item(payload)
+        now = game_now_ts()
+        if item == "fish":
+            ents = [e for e in inventory.ensure(p) if e.get("type") == "fish" and e.get("meta")]
+            for e in ents:
+                fishing._settle(e["meta"], now)
+            fid = payload.get("fish_id") or (payload.get("match") or {}).get("fish_id")
+            entry = next((e for e in ents if e["meta"]["freshness"] == "spoiled" and (not fid or e["meta"]["fish_id"] == fid)), None)
+            if entry is None:
+                return ActionResponse(success=False, type="exchange", reason="not_spoiled" if ents else "no_item",
+                                      result={"item": "fish", "fish_id": fid, "message": "只收变质的鱼换鱼饵；新鲜的鱼去鱼摊卖。"})
+            inventory.remove_entry(p, entry, 1); gave = {"fish_id": entry["meta"]["fish_id"], "name": entry["meta"]["name"]}
+        elif item in fishing.cfg()["junk"]:
+            if inventory.count(p, item) < 1:
+                return ActionResponse(success=False, type="exchange", reason="no_item", result=_item_fields(item, 1))
+            inventory.remove(p, item, 1); gave = {"item": item, "name": (inventory.item_def(item) or {}).get("name", item)}
+        else:
+            return ActionResponse(success=False, type="exchange", reason="not_exchangeable", result={"item": item, "message": "只收变质的鱼和钓上来的垃圾，换鱼饵。"})
+        err2 = inventory.add(p, ex["gives"], int(ex["qty"]))
+        if err2:
+            return ActionResponse(success=False, type="exchange", reason=err2, result={"item": item})
+        from game import external_log
+        external_log.log("fishing", p["id"], action="exchange", object=obj["id"], gave=gave, got={ex["gives"]: int(ex["qty"])})
+        mark_input(entity_id)
+        return ActionResponse(success=True, type="exchange", result={"message": f"用{gave['name']}换了 {ex['qty']} 个鱼饵。", "objectId": obj["id"], "gave": gave,
+                              "got": {"item": ex["gives"], "qty": int(ex["qty"])}, "inventory": inventory.view(p)})
+
+
 def handle_sell(entity_id: str, payload: dict) -> ActionResponse:
     with STATE_LOCK:
         p = _players.get(entity_id)
@@ -156,6 +296,10 @@ def handle_sell(entity_id: str, payload: dict) -> ActionResponse:
         if d is None:
             return ActionResponse(success=False, type="sell", reason="unknown_item", result={"objectId": obj["id"], "item": item})
         shop = economy.shop_for(obj["type"])
+        if item == "fish" and any(e.get("type") == "fish" and e.get("meta") for e in inventory.ensure(p)):   # v1.4.8：鱼按条
+            r = _sell_fish(p, obj, shop, payload, qty)
+            mark_input(entity_id)
+            return r
         if item not in shop.get("buys", []) or d.get("sell") is None:
             return ActionResponse(success=False, type="sell", reason="not_buying", result={"objectId": obj["id"], **_item_fields(item, qty)})
         if inventory.count(p, item) < qty:
@@ -209,6 +353,35 @@ def handle_eat(entity_id: str, payload: dict) -> ActionResponse:
                 _credit_account(mc.get("owner") or "npc_rest_owner", p, price, source="restaurant_meal", shop=obj["id"], item="meal", qty=1)
             gain = {k: float(v) for k, v in (mc.get("gain") or {}).items()}; minutes = float(mc.get("minutes", 30))
             name = "一顿饭"; fields = {"item": item, "item_name": name, "qty": 1, "price": price, "gold_delta": -price, "gold": p["gold"]}
+        elif item in ("fish", "fish_dish") and any(e.get("type") == item and e.get("meta") for e in inventory.ensure(p)):   # v1.4.8：鱼生吃 / 鱼料理（按条，效果按鱼种 × 重量 × 新鲜度）；旧的无 meta 鱼走通用
+            from game import fishing
+            allow = rule.get("allow")
+            if allow is not None and item not in allow:
+                return ActionResponse(success=False, type="eat", reason="not_allowed_here",
+                                      result={"message": f"{obj['name']}这儿只能吃简餐。", "allowed": list(allow), **_item_fields(item, 1), "objectId": obj["id"]})
+            fid = payload.get("fish_id") or payload.get("dish_id") or (payload.get("match") or {}).get("fish_id") or (payload.get("match") or {}).get("dish_id")
+            ents = [e for e in inventory.ensure(p) if e.get("type") == item and e.get("meta")]
+            if item == "fish":
+                for e in ents:
+                    fishing._settle(e["meta"], gts)
+                entry = fishing.pick_fish(ents, fid, allow_spoiled=bool(fid))
+            else:
+                entry = next((e for e in ents if not fid or e["meta"].get("dish_id") == fid), None)
+            if entry is None:
+                return ActionResponse(success=False, type="eat", reason="no_item", result={**_item_fields(item, 1), "fish_id": fid})
+            if item == "fish":
+                plan, why, extra = fishing.raw_plan(p, entry, gts)
+                if why:
+                    return ActionResponse(success=False, type="eat", reason=why, result={**_item_fields(item, 1), **extra})
+            else:
+                plan = fishing.dish_plan(entry)
+            inventory.remove_entry(p, entry, 1)
+            gain = dict(plan["gain"]); minutes = plan["minutes"]; name = plan["name"]
+            fields = {**_item_fields(item, 1), **({"fish": plan["fish"]} if "fish" in plan else {"dish": plan.get("dish")})}
+            if plan.get("sick"):
+                for k, v in fishing.cfg()["freshness"]["sick"].items():
+                    add_var(p, k, float(v))
+                fields["sick"] = True; fields["sick_effects"] = dict(fishing.cfg()["freshness"]["sick"])
         else:
             d = inventory.item_def(item)
             if d is None:
@@ -227,7 +400,7 @@ def handle_eat(entity_id: str, payload: dict) -> ActionResponse:
         busy = food.start_eating(p, obj, item, gain, minutes, gts)
         mark_input(entity_id)
         return ActionResponse(success=True, type="eat", result={
-            "message": f"开始吃{name}，{minutes:.0f} 分钟吃完。", **fields, "duration_s": int(minutes * 60), "ends_at": busy["ends_at"],
+            "message": f"开始吃{name}，{minutes:.0f} 分钟吃完。" + ("……肚子有点不舒服（不新鲜的鱼生吃坏肚子了，精力 −10）。" if fields.get("sick") else ""), **fields, "duration_s": int(minutes * 60), "ends_at": busy["ends_at"],
             "gain": gain, "busy": busy, "objectId": obj["id"], "inventory": inventory.view(p)})
 
 
@@ -485,6 +658,22 @@ def handle_store(entity_id: str, payload: dict) -> ActionResponse:
         if room <= 0:
             return ActionResponse(success=False, type="store", reason="storage_full", result={"objectId": obj["id"], "capacity": food.capacity(obj), "used": food.used(obj)})
         qty = min(qty, room)
+        if item == "fish" and any(e.get("type") == "fish" and e.get("meta") for e in inventory.ensure(p)):   # v1.4.8：鱼逐条进冰箱，新鲜度半速
+            from game import fishing
+            from game.time_state import game_now_ts as _gn
+            now = _gn(); fid = payload.get("fish_id") or (payload.get("match") or {}).get("fish_id")
+            ents = [e for e in inventory.ensure(p) if e.get("type") == "fish" and e.get("meta") and (not fid or e["meta"].get("fish_id") == fid)]
+            if not ents:
+                return ActionResponse(success=False, type="store", reason="no_item", result={"objectId": obj["id"], "item": "fish", "fish_id": fid})
+            moved_f = []
+            for e in ents[:qty]:
+                m = dict(e["meta"]); fishing.set_in_fridge(m, True, now)
+                obj.setdefault("contents", []).append({"item": "fish", "count": 1, "expires_at": None, "meta": m})
+                inventory.remove_entry(p, e, 1); moved_f.append(m["fish_id"])
+            food.refresh_stock(obj); mark_input(entity_id)
+            return ActionResponse(success=True, type="store", result={"message": f"把 {len(moved_f)} 条鱼放进了{obj['name']}（冰箱里新鲜度掉得慢一半）。",
+                                  "objectId": obj["id"], "item": "fish", "qty": len(moved_f), "fish": moved_f, "stock": dict(obj["stock"]),
+                                  "contents": food.contents_view(obj, now), "storage": {"capacity": food.capacity(obj), "used": food.used(obj)}, "inventory": inventory.view(p)})
         # 按叠搬：先搬最早到期的，保质期跟着走
         moved = 0
         for e in sorted([e for e in inventory.ensure(p) if e.get("type") == item], key=lambda e: (e.get("expires_at") is None, e.get("expires_at") or 0.0)):
@@ -516,6 +705,26 @@ def handle_take(entity_id: str, payload: dict) -> ActionResponse:
         item = _item(payload); qty = _qty(payload)
         if not item or inventory.item_def(item) is None:
             return ActionResponse(success=False, type="take", reason="unknown_item", result={"objectId": obj["id"], "item": item})
+        if item == "fish" and any(c.get("item") == "fish" and c.get("meta") for c in obj.get("contents") or []):   # v1.4.8：鱼逐条拿出
+            from game import fishing
+            from game.time_state import game_now_ts as _gn
+            now = _gn(); fid = payload.get("fish_id") or (payload.get("match") or {}).get("fish_id")
+            cs = [c for c in obj["contents"] if c.get("item") == "fish" and c.get("meta") and (not fid or c["meta"].get("fish_id") == fid)]
+            if not cs:
+                return ActionResponse(success=False, type="take", reason="not_in_storage", result={"objectId": obj["id"], "item": "fish", "fish_id": fid})
+            got = []
+            for c in cs[:qty]:
+                m = dict(c["meta"]); fishing.set_in_fridge(m, False, now)
+                err2 = inventory.add(p, "fish", 1, meta=m)
+                if err2:
+                    if not got:
+                        return ActionResponse(success=False, type="take", reason=err2, result={"objectId": obj["id"], "item": "fish"})
+                    break
+                obj["contents"].remove(c); got.append(m["fish_id"])
+            food.refresh_stock(obj); mark_input(entity_id)
+            return ActionResponse(success=True, type="take", result={"message": f"从{obj['name']}拿出 {len(got)} 条鱼。", "objectId": obj["id"], "item": "fish", "qty": len(got),
+                                  "fish": got, "stock": dict(obj["stock"]), "contents": food.contents_view(obj, now),
+                                  "storage": {"capacity": food.capacity(obj), "used": food.used(obj)}, "inventory": inventory.view(p)})
         have = int((obj.get("stock") or {}).get(item, 0))
         if have < 1:
             return ActionResponse(success=False, type="take", reason="not_in_storage", result={"objectId": obj["id"], **_item_fields(item, qty), "stock": dict(obj["stock"])})

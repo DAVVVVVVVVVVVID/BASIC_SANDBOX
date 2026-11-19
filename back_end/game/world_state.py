@@ -913,6 +913,8 @@ def get_player(player_id: str) -> dict | None:
     from game import production as _prod
     data["busy"] = food.busy_view(player_id) or _prod.busy_view(player_id)   # world-v1.1：进食 / 刻盘 {kind, item, started_at, ends_at, remaining_s, progress, gain?}，否则 null
     data["daily_use"] = daily_use_view(player_id)             # world-v1.1 I-1：{obj_type: {used_min, limit_min}}
+    from game import fishing as _fishing
+    data["fishing"] = _fishing.view(player, game_now_ts())   # v1.4.8：{spot, casts_today, minutes_today, limit_min, last_cast, recent_casts[10], record}
     data["rent"] = _rent_view_safe(player)                    # world-v1.1 §3.3：{amount, items, due_at, due_in_days, overdue, owed, landlord, balance}，人类 null
     data["dnd"] = is_dnd(player)                               # world-v1.3
     data["tags"] = view_tags(player)
@@ -1106,6 +1108,9 @@ def _object_view(obj: dict, game_ts: float, viewer: str | None = None) -> dict:
     view["opensAt"] = opens_at
     if viewer and obj.get("daily_limit_min"):
         view["daily_used_min"] = round(daily_used_s(viewer, obj["type"], game_ts) / 60.0, 1)
+    if obj.get("type") == "fish_stall":                     # v1.4.8：鱼摊逐条挂单
+        from game import fishing as _fishing
+        view["listings"] = _fishing.stall_listings(obj)
     if obj.get("contents") is not None:                     # world-v1.1：冰箱内容（带保质期）
         from game import food
         view["contents"] = food.contents_view(obj, game_ts)
@@ -1161,8 +1166,13 @@ def daily_key(gts: float) -> str:
     return (datetime.fromtimestamp(gts, GAME_TZ) - timedelta(hours=4)).strftime("%Y-%m-%d")
 
 
-def daily_limit_s(obj_type: str) -> float | None:
+def daily_limit_s(obj_type: str, player_id: str | None = None) -> float | None:
     v = OBJECT_TYPES.get(obj_type, {}).get("daily_limit_min")
+    if v and obj_type == "fishing_spot":                      # v1.4.8：老渔夫钓位每日 10 h（其他人仍按 object_types）
+        from game import fishing
+        o = fishing.daily_limit_min_for(player_id)
+        if o:
+            v = o
     return float(v) * 60.0 if v else None
 
 
@@ -1176,7 +1186,7 @@ def daily_used_s(entity_id: str, obj_type: str, gts: float | None = None) -> flo
 
 def daily_limit_check(entity_id: str, obj: dict, gts: float | None = None) -> dict | None:
     """到上限返回 {resets_at, used_min, limit_min}，否则 None。"""
-    lim = daily_limit_s(obj["type"])
+    lim = daily_limit_s(obj["type"], entity_id)
     if lim is None:
         return None
     used = daily_used_s(entity_id, obj["type"], gts)
@@ -1215,7 +1225,7 @@ def _daily_use_tick(delta_ms: float, gts: float) -> None:
         obj = get_object_by_id(oid)
         if obj is None:
             continue
-        lim = daily_limit_s(obj["type"])
+        lim = daily_limit_s(obj["type"], pid)
         if lim is None:
             continue
         rec = _daily_use.setdefault(pid, {}).get(obj["type"])
@@ -1243,7 +1253,7 @@ def daily_use_view(entity_id: str, gts: float | None = None) -> dict:
     out = {}
     for t, d in OBJECT_TYPES.items():
         if d.get("daily_limit_min"):
-            out[t] = {"used_min": round(daily_used_s(entity_id, t, gts) / 60.0, 1), "limit_min": float(d["daily_limit_min"])}
+            out[t] = {"used_min": round(daily_used_s(entity_id, t, gts) / 60.0, 1), "limit_min": round((daily_limit_s(t, entity_id) or 0) / 60.0, 1)}
     from game.production import cfg as _pcfg
     dm = (_pcfg().get("compose") or {}).get("daily_max")
     if dm:                                                   # 闭测 §6：每日写歌首数（计数类，与上面的分钟类并列）
@@ -2096,6 +2106,8 @@ def _run_buff_tick_all(delta: float) -> None:
         if economy.restock_tick(gts, _OBJECTS):         # W11 ④：商店 / 冰箱每日补货
             refresh_shop_views()
         production.on_tick(gts, _players)               # W11 ①：钓位出鱼、灶台按份出菜
+        from game import fishing as _fishing
+        _fishing.refresh(gts, _players, _OBJECTS)        # v1.4.8：每游戏小时刷鱼的新鲜度、鱼摊变质下架
         from game import food, social
         food.on_tick(gts, _players)                     # world-v1.1：吃完
         food.spoil_tick(gts, _players, _OBJECTS)        # world-v1.1：到期变坏食

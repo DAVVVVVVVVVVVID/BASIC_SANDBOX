@@ -45,6 +45,14 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bl. world-v1.4.8：钓鱼 + 鱼摊 v1（主播 11-19「OK 开工」；随 11-20 12:00 重置上）—— 完成
+
+- `game/fishing.py` + `fishing.json`：20 分钟一竿、两套概率（老渔夫 1:9）、品级与鱼种、统一截断正态重量、奖励 / P90 / 空竿、老渔夫 10 h 上限与社交 +1/h、个人纪录（初值按表、破纪录事件）、新鲜度三段（冰箱半速、每游戏小时刷）、生吃 / 料理按表 × 重量 × 新鲜度、鱼摊逐条挂单 / 上货 / 买 / 变质下架退回、杂货店兑换鱼饵。
+- 冰箱、背包、灶台、吃、买卖接上逐条鱼；鱼摊去掉每日刷 6 条（economy.json，sha 变）。
+- 总控 11-19：第三种传说鱼用「星斑鳇」，不用「老船长」。A 的钓获统计按 external 字段对上。
+- 测试 +6、旧钓鱼测试按新口径改，**402 passed**；api-spec §12.31。
+- 放到重置后：鲟鱼宴分份 / 火锅同吃、餐厅按重量收鱼、垃圾卖钱。
+
 ## 5bk. world-v1.4.7：closeness 键统一 agent id + 全镇重置脚本（主播 11-19 定 11-20 12:00 重置）—— 完成，8091 演练过
 
 - closeness：所有写入经 `add_closeness` 统一换成对方 agent id；perceive 分档 / 送礼回执按 agent id 读；自我层播种与检查点载入时把旧 player id 键并进 agent id。

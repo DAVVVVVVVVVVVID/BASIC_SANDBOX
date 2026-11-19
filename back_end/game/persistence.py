@@ -123,6 +123,7 @@ def save_checkpoint(path: Path | None = None) -> dict:
                  ("qq_contacts", json.dumps({"contacts": qqs["contacts"], "seq": qqs["seq"], "purged_ids": qqs.get("purged_ids") or []})),   # v1.3.14：清理名单
                  ("economy", json.dumps(__import__("game.economy", fromlist=["x"]).export_state())),
                  ("production", json.dumps(__import__("game.production", fromlist=["x"]).export_state())),
+                ("fishing", json.dumps(__import__("game.fishing", fromlist=["x"]).export_state(), ensure_ascii=False)),   # v1.4.8
                  ("commissions", json.dumps(__import__("game.commissions", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("doors", json.dumps(__import__("game.doors", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("food", json.dumps(__import__("game.food", fromlist=["x"]).export_state(), ensure_ascii=False)),
@@ -196,6 +197,8 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         if pruned:
             log.info("pruned orphan accounts: %s", pruned)
         production.import_state(json.loads(meta.get("production") or "{}"))
+        from game import fishing as _fishing
+        _fishing.import_state(json.loads(meta.get("fishing") or "{}"))      # v1.4.8：纪录 / 最近几竿 / 鱼摊挂单（旧检查点没有 = 纪录按初始表）
         commissions.import_state(json.loads(meta.get("commissions") or "{}"))
         from game import doors, food, social
         doors.import_state(json.loads(meta.get("doors") or "{}"))

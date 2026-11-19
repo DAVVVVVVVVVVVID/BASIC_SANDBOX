@@ -86,11 +86,11 @@ def store(obj: dict, item: str, qty: int, expires_at: float | None) -> int:
 
 
 def take(obj: dict, item: str, qty: int) -> list[tuple[int, float | None]]:
-    """拿 qty 份出来，先拿最早到期的；返回 [(count, expires_at)]（不够就拿到多少算多少）。"""
+    """拿 qty 份出来，先拿最早到期的；返回 [(count, expires_at)]（不够就拿到多少算多少）。带 meta 的（v1.4.8 鱼）不在这里拿。"""
     contents = obj.get("contents") or []
     out: list[tuple[int, float | None]] = []
     left = qty
-    for c in sorted([c for c in contents if c["item"] == item], key=lambda c: (c.get("expires_at") is None, c.get("expires_at") or 0.0)):
+    for c in sorted([c for c in contents if c["item"] == item and not c.get("meta")], key=lambda c: (c.get("expires_at") is None, c.get("expires_at") or 0.0)):
         if left <= 0:
             break
         n = min(left, int(c["count"]))
@@ -110,6 +110,10 @@ def contents_view(obj: dict, now_gts: float) -> list[dict]:
         row = {"item": c["item"], "name": d.get("name", c["item"]), "count": int(c["count"]), "spoiled": c["item"] == "spoiled_food",
                "expires_at": _iso(float(c["expires_at"])) if c.get("expires_at") is not None else None,
                "expires_in_days": days_left(c.get("expires_at"), now_gts)}
+        if c.get("meta"):                                       # v1.4.8：鱼逐条（species / weight / freshness …）
+            m = c["meta"]
+            row["meta"] = {k: v for k, v in m.items() if k not in ("age_s", "age_at")}
+            row["name"] = m.get("name", row["name"]); row["spoiled"] = m.get("freshness") == "spoiled"
         rows.append(row)
     return rows
 

@@ -35,6 +35,11 @@ def counts_toward_kinds(item: str) -> bool:
     return d.get("class") not in ("key", "paper")
 
 
+def max_stack(item: str) -> int:
+    """每种叠加上限：items.json max_stack（v1.4.8 鱼 40），缺省 MAX_PER_KIND。"""
+    return int((_ITEMS.get(item) or {}).get("max_stack") or MAX_PER_KIND)
+
+
 def spoil_days(item: str) -> float | None:
     d = _ITEMS.get(item) or {}
     v = d.get("spoil_days")
@@ -81,7 +86,7 @@ def add(player: dict, item: str, qty: int = 1, meta: dict | None = None, *, expi
     if counts_toward_kinds(item):
         if item not in kinds(player) and len(kinds(player)) >= MAX_KINDS:
             return "inventory_full"
-        if count(player, item) + qty > MAX_PER_KIND:
+        if count(player, item) + qty > max_stack(item):
             return "stack_full"
     for e in inv:
         if e.get("type") == item and (meta is None or e.get("meta") == meta) and (meta is not None or not e.get("meta")) and _same_day(e.get("expires_at"), expires_at):

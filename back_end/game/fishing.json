@@ -1,0 +1,50 @@
+{
+  "_doc": "钓鱼 + 鱼摊 v1（world-v1.4.8；whale docs/systems/fishing-system.md「主播 11-19 修改」「鱼摊与新鲜度」「初始个人纪录」三段）。price_per_kg / 星斑鳇效果为会话B 初值（规格未给；总控 11-19：第三种传说鱼用星斑鳇，不用「老船长」——像人名），待主播看。",
+  "interval_min": 20,
+  "bait": "bait",
+  "outcome": {
+    "default":    {"empty": 0.45, "junk": 0.15, "fish": 0.40, "bait_bonus": 0.15},
+    "npc_fisher": {"empty": 0.10, "junk": 0.00, "fish": 0.90, "bait_bonus": 0.05}
+  },
+  "tier_p": {
+    "default":    {"common": 0.938, "rare": 0.06, "legend": 0.002},
+    "npc_fisher": {"common": 0.87,  "rare": 0.12, "legend": 0.01}
+  },
+  "weight": {"mean": 1.2, "sd": 0.4, "min": 0.3, "max": 3.0, "p90": 1.713, "scale_ref": 1.2},
+  "tier_names": {"common": "普通", "rare": "稀有", "legend": "传说"},
+  "species": {
+    "crucian":        {"name": "鲫鱼",   "tier": "common", "price_per_kg": 12,  "raw": {"fullness": 6, "mood": -2},  "dish": {"name": "鲫鱼汤",     "gain": {"fullness": 25, "mood": 3}}},
+    "bleak":          {"name": "白条",   "tier": "common", "price_per_kg": 10,  "raw": {"fullness": 5},             "dish": {"name": "炸白条",     "gain": {"fullness": 20, "fun": 3}}},
+    "small_bass":     {"name": "小鲈鱼", "tier": "common", "price_per_kg": 14,  "raw": {"fullness": 8},             "dish": {"name": "清蒸鲈鱼",   "gain": {"fullness": 28, "mood": 4}}},
+    "eel":            {"name": "黄鳝",   "tier": "common", "price_per_kg": 16,  "raw": null,                        "dish": {"name": "鳝丝面",     "gain": {"fullness": 32, "energy": 5}}},
+    "golden_carp":    {"name": "金鳞鲤", "tier": "rare",   "price_per_kg": 40,  "raw": {"fullness": 10, "mood": 3}, "dish": {"name": "红烧金鳞鲤", "gain": {"fullness": 35, "mood": 8}}},
+    "largemouth":     {"name": "大口鲈", "tier": "rare",   "price_per_kg": 38,  "raw": {"fullness": 12},            "dish": {"name": "烤大口鲈",   "gain": {"fullness": 38, "fun": 6}}},
+    "silver_cod":     {"name": "银鳕",   "tier": "rare",   "price_per_kg": 45,  "raw": {"fullness": 14, "mood": 6}, "dish": {"name": "香煎银鳕",   "gain": {"fullness": 36, "mood": 6}}},
+    "river_sturgeon": {"name": "河神鲟", "tier": "legend", "price_per_kg": 150, "raw": {"fullness": 20, "mood": 15},"dish": {"name": "鲟鱼宴",     "gain": {"fullness": 50, "mood": 20, "fun": 10}}},
+    "moon_catfish":   {"name": "月光鲶", "tier": "legend", "price_per_kg": 140, "raw": null,                        "dish": {"name": "月光鲶火锅", "gain": {"fullness": 45, "social": 15}}},
+    "star_kaluga":    {"name": "星斑鳇", "tier": "legend", "price_per_kg": 160, "raw": {"fullness": 18, "mood": 10},"dish": {"name": "红烧星斑鳇", "gain": {"fullness": 48, "mood": 15}}}
+  },
+  "junk": ["junk_boot", "junk_can", "junk_bag", "junk_line"],
+  "rewards": {
+    "common": {"mood": 1},
+    "rare":   {"mood": 4, "fun": 5},
+    "legend": {"mood": 10, "fun": 10, "emotion": "excited", "emotion_h": 2},
+    "big_extra": {"mood": 3},
+    "junk": {"mood": -1},
+    "empty_fisher": {"mood": -1},
+    "record": {"mood": 8, "emotion": "excited", "emotion_h": 4}
+  },
+  "fisher": {"agent": "npc_fisher", "daily_limit_min": 600, "social_per_h": 1.0},
+  "freshness": {"stale_days": 3, "spoiled_days": 6, "fridge_rate": 0.5, "stale_sell": 0.5, "stale_dish": 0.7, "stale_raw_sick_p": 0.5, "sick": {"energy": -10}},
+  "dish_shelf_days": 1,
+  "eat_minutes": {"raw": 5, "dish": 15},
+  "stall": {"type": "fish_stall", "owner": "npc_fisher", "sell_ratio": 0.6667},
+  "exchange": {"object": "shop_counter", "gives": "bait", "qty": 1},
+  "records_initial": {
+    "npc_fisher":     {"species": "golden_carp", "weight": 2.2, "at": null, "note": "多年前"},
+    "whale":          {"species": "crucian",     "weight": 1.5, "at": null},
+    "claudine":       {"species": "small_bass",  "weight": 1.3, "at": null},
+    "npc_grocer":     {"species": "bleak",       "weight": 0.9, "at": null},
+    "npc_rest_owner": {"species": "small_bass",  "weight": 1.1, "at": null}
+  }
+}

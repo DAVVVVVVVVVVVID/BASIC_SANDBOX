@@ -1745,6 +1745,19 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - **`POST /admin/player/restore {player_id, name, controller, profile?: {agent_id}, dnd?, online?: false}`**（鉴权：`SANDBOX_ADMIN_TOKEN` 或 `SELF_TOKEN`，同 /school/term_start）：在新世界里按**原 player id** 建角色，初始位置 / 钥匙 / 金币与正常 join 相同，agent 照常从自我层播种；主播的阿蝉（human + dnd_auto）建好即停靠回自家（dnd、离线）。已存在 → 409。之后 agent 用原 id `POST /player/rejoin` 续接。第一次调用时 interventions 记一条 `config_change`（closeness 键统一 + 按原 id 重建）。
 - 脚本 `back_end/scripts/town_reset.py roster | archive | restore | verify`（见文件头）。
 
+### 12.31 钓鱼 + 鱼摊 v1（tag `world-v1.4.8` = v1.4.7 + 本节；whale `docs/systems/fishing-system.md` 主播 11-19 三段；配置 `back_end/game/fishing.json`）
+
+- **每一竿**：坐在钓位上每 `interval_min`（20）游戏分钟一竿。普通人 空 45 / 垃圾 15 / 鱼 40，老渔夫 空 10 / 垃圾 0 / 鱼 90；有鱼饵每竿扣 1，鱼概率 +15（老渔夫 +5，从空竿里扣）。鱼再掷品级（普通人 93.8 / 6 / 0.2，老渔夫 87 / 12 / 1），该品级等概率挑鱼种（普通 鲫鱼 / 白条 / 小鲈鱼 / 黄鳝，稀有 金鳞鲤 / 大口鲈 / 银鳕，传说 河神鲟 / 月光鲶 / 星斑鳇）；重量统一截断正态 N(1.2, 0.4) ∈ [0.3, 3.0] kg，与品级无关。
+- **奖励**（立即）：普通 心情 +1；稀有 心情 +4 乐趣 +5；传说 心情 +10 乐趣 +10、情绪 excited 2 h；超 P90（1.713 kg）再心情 +3；垃圾 心情 −1；老渔夫空竿 心情 −1。老渔夫钓鱼时社交 +1/h（每竿 +1/3），钓位每日上限 600 分钟（其他人 180，`daily_use.fishing_spot.limit_min` 按人给）。
+- **一竿的记录** `cast`：`{cast_no, at, result: empty|junk|fish, spot, bait, item?（垃圾 id）, item_name?, fish?: {fish_id, species, name, tier: common|rare|legend, weight}, tier_name?, big, record_break, species_record, record?: {old, new}, effects}`。看得到的地方：`GET /player.fishing` 与 perceive `fishing` = `{spot, casts_today, minutes_today, limit_min, last_cast, recent_casts[最近 10], record}`；pendingMessage（鱼 / 垃圾 / 破纪录各一句，空竿不推）；ws `{type: "fishing", entity, cast}`；external `kind=fishing action=cast`（另带平铺 `outcome / species / tier / weight / record_broken / prev_record`），破纪录另一行 `action=record {old, new}`。
+- **个人纪录** `record = {best: {species, name, weight, at, initial?} | null, by_species: {species: weight}}`，按 agent id 记；新世界初值按表（老渔夫 金鳞鲤 2.2 / 鲸仔 鲫鱼 1.5 / 小克 小鲈鱼 1.3 / 杂货店老板 白条 0.9 / 餐厅老板 小鲈鱼 1.1 / 阿蝉 null），进检查点、之后不清零。总纪录被破：`record_break: true`、心情 +8、excited 4 h。
+- **鱼物品**：每条一个条目 `{type: "fish", count: 1, meta: {fish_id, species, name, tier, weight, caught_at, caught_by（agent id）, freshness: fresh|stale|spoiled, age_days, in_fridge}}`（另有内部 `age_s / age_at`）。鱼一种最多 40 条。垃圾：`junk_boot` 旧靴子 / `junk_can` 易拉罐 / `junk_bag` 塑料袋 / `junk_line` 断鱼线。
+- **新鲜度**：按游戏日龄 < 3 新鲜 / < 6 不新鲜 / 之后变质；冰箱里时间半速（`store / take {item: "fish", fish_id?}` 逐条进出，冰箱 `contents[]` 带 `meta`）；每游戏小时刷新。
+- **吃**（须在餐桌）：`eat {item: "fish", fish_id?}` 生吃（不带 = 最不新鲜但能吃的那条），效果按鱼种表 × (重量 / 1.2)；黄鳝 / 月光鲶 → `cannot_eat_raw`；变质 → `spoiled`；不新鲜 50% 坏肚子（精力 −10，回执 `sick: true`）。`use 灶台 {item: "fish", fish_id?}` 做料理（一次一条，变质 → `spoiled`），出 `fish_dish` `meta {dish, name「清蒸鲈鱼（新鲜）」, species, weight, freshness, made_at, dish_id}`，保质 1 游戏日；`eat {item: "fish_dish", dish_id?}` 效果按菜表 × 重量（不新鲜 ×0.7）。
+- **鱼摊**（不再每日刷鱼）：老渔夫在自家 `fish_stall` `sell {item: "fish", fish_id?}` = **上货**（不带 fish_id = 背包里全部不变质的鱼；不付钱），回执 `listed[]`；他人卖给鱼摊按挂单价 × 2/3 收、进挂单；其它收鱼的店（餐厅吧台）照旧按 10 金币 / 条（不新鲜 ×0.5）。变质的都不收（`spoiled`）。货架：`GET /world objects[fish_stall].listings` 与 `use fish_stall` 的 `result.listings` = `[{listing_id（= fish_id）, species, name, tier, weight, freshness, age_days, price}]`，price = 底价/kg × 重量 × 新鲜度系数（新鲜 1 / 不新鲜 0.5）。`buy {item: "fish", listing_id?}`（不带 = 最便宜那条；老渔夫取回自家货不花钱）。挂单不清空，变质自动下架退回老渔夫背包（pendingMessage、ws `{type: "stall_spoiled"}`、external `action=stall_spoiled`）。
+- **兑换**：杂货店柜台 `exchange {item: "fish"（变质的）| junk_*, fish_id?}` → 1 个鱼饵；新鲜的鱼回 `not_spoiled`。
+- 底价/kg 与星斑鳇效果为初值（规格未给），见 fishing.json `_doc`。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。
