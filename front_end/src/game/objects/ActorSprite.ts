@@ -55,6 +55,8 @@ export interface ActorOptions {
   /** 11-14 Godot 同步：按 agent_id / 控制者选六角色外观（同 Actor.gd key_for） */
   controller?: string | null
   agentId?: string | null
+  /** 路人顾客的形象（players[].sprite） */
+  sprite?: string | null
   /** 11-16 像素 RPG 风（操控页）：名牌 / 说话 / 想法气泡用 kit03 九宫格图；旁观页不传 */
   skin?: 'dark' | 'rpg'
 }
@@ -130,7 +132,7 @@ export default class ActorSprite {
     this.name   = opts.name
     this.isSelf = !!opts.isSelf
     this.charKey = resolveCharKey(opts.charKey)
-    const gkey = godotCharKeyFor(opts.name, opts.controller, opts.agentId)
+    const gkey = godotCharKeyFor(opts.name, opts.controller, opts.agentId, opts.sprite)
     const gm = godotCharReady(scene, gkey) ? godotCharManifest(gkey) : null
     const aiBase = aiCharBase(this.charKey)
     const aiTex = aiCharKey(aiBase)

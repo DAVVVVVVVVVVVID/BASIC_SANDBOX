@@ -803,7 +803,7 @@ export default class GameScene extends Phaser.Scene {
       seen.add(op.id)
       let s = this.others.get(op.id)
       if (!s) {
-        s = new OtherPlayerSprite(this, op.position, op.facing, op.name, charKeyFor(op.name, op.controller), { controller: op.controller, agentId: op.agent_id, skin: this.rpgSkin() ? 'rpg' : 'dark' })
+        s = new OtherPlayerSprite(this, op.position, op.facing, op.name, charKeyFor(op.name, op.controller), { controller: op.controller, agentId: op.agent_id, sprite: op.sprite, skin: this.rpgSkin() ? 'rpg' : 'dark' })
         this.others.set(op.id, s)
       } else {
         const end = s.getPathEnd()

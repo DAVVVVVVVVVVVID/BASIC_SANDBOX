@@ -123,6 +123,9 @@ export interface OtherPlayer {
   dnd?: boolean
   /** world-v1.4.0：在课桌上上课时的精简版；不在课 null */
   lesson?: LessonBrief | null
+  /** 路人顾客（B §12.32）：sprite passer01…06（主角 / 常驻 NPC 为 null）、role passerby、controller script */
+  sprite?: string | null
+  role?: string | null
 }
 /** world-v1.4.0 §12.25：/world.players[] / ws upsert 的 lesson */
 export interface LessonBrief { lesson_id: string; course: string; title?: string | null; dozing?: boolean }

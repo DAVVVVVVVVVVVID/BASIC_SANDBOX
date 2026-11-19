@@ -75,7 +75,7 @@ export default function RpgShell({ playerId }: { playerId: string }) {
   const myId = useGameStore((s) => s.myPlayerId)
   const followOther = dir.mode === 'follow' && dir.follow && dir.follow !== myId ? players.find(p => p.id === dir.follow) ?? null : null
   const followName = followOther ? displayName(followOther.name, null) : ''
-  const followKey = followOther ? godotCharKeyFor(followOther.name, followOther.controller, followOther.agent_id) : 'achan'
+  const followKey = followOther ? godotCharKeyFor(followOther.name, followOther.controller, followOther.agent_id, followOther.sprite) : 'achan'
   // 导播跟随（director-follow.md）：每 2 s GET /player/{他}，左上卡 / 背包 / 聊天切到他（只读）；镇上的人 / 地图 / 设置 / QQ 不切
   const followed = useFollowedPlayer(followOther ? followOther.id : null)
   return (

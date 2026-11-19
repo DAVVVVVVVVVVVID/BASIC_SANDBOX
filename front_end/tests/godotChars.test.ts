@@ -34,3 +34,13 @@ test('清单解析：anchor / 动画条', () => {
   assert.equal(m!.animations.walk.frames, 6)
   assert.equal(parseGodotCharManifest({ frame_w: 1 }), null)
 })
+
+test('路人顾客：sprite 优先，否则 agent_id passerby_<日期>_<NN> 占位推算；isPasserby', async () => {
+  const { godotCharKeyFor, isPasserby } = await import('../src/game/godotChars')
+  assert.equal(godotCharKeyFor('张大爷', 'script', 'passerby_20261121_03', 'passer05'), 'passer05')
+  assert.equal(godotCharKeyFor('张大爷', 'script', 'passerby_20261121_03', null), 'passer03')
+  assert.equal(godotCharKeyFor('路人', 'script', 'passerby_20261121_08'), 'passer02')
+  assert.equal(godotCharKeyFor('鲸仔', 'agent', 'whale', null), 'whale')
+  assert.equal(isPasserby({ role: 'passerby' }), true)
+  assert.equal(isPasserby({ agent_id: 'whale', controller: 'agent' }), false)
+})

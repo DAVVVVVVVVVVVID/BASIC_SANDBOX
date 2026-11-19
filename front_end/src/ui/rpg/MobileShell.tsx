@@ -55,7 +55,7 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
   const send = (c: DirectorCmd) => EventBus.emit('director-cmd', c)
   const followOther = dir.mode === 'follow' && dir.follow && dir.follow !== myId ? players.find(p => p.id === dir.follow) ?? null : null
   const followName = followOther ? displayName(followOther.name, null) : ''
-  const followKey = followOther ? godotCharKeyFor(followOther.name, followOther.controller, followOther.agent_id) : 'achan'
+  const followKey = followOther ? godotCharKeyFor(followOther.name, followOther.controller, followOther.agent_id, followOther.sprite) : 'achan'
   const followed = useFollowedPlayer(followOther ? followOther.id : null)
   const shown = followOther ? (followed ?? null) : player
   const myKey = player ? godotCharKeyFor(player.profile?.name ?? player.id, 'human', identity ?? player.agent_id ?? null) : 'achan'

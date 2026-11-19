@@ -4,7 +4,7 @@
  * 素材不复制进仓库：vite 的 /art 只读路由指向 whale-godot/assets/ext（见 vite.config.ts，VITE_ART_DIR 可覆盖）。
  */
 export const ART_BASE = '/art'
-export const GODOT_CHAR_KEYS = ['whale', 'achan', 'claudine', 'cook', 'grocer', 'fisher'] as const
+export const GODOT_CHAR_KEYS = ['whale', 'achan', 'claudine', 'cook', 'grocer', 'fisher', 'passer01', 'passer02', 'passer03', 'passer04', 'passer05', 'passer06'] as const
 export type GodotCharKey = typeof GODOT_CHAR_KEYS[number]
 
 export interface GodotCharAnim { file: string; frames: number; fps: number; loop: boolean }
@@ -37,7 +37,12 @@ export function parseGodotCharManifest(raw: unknown): GodotCharManifest | null {
 }
 
 /** 同 Actor.gd key_for：agent_id 优先（claudine = 原小千 npc_xiaoqian），再按名字，再按控制者，最后名字哈希落到路人池 */
-export function godotCharKeyFor(name: string, controller?: string | null, agentId?: string | null): GodotCharKey {
+export function godotCharKeyFor(name: string, controller?: string | null, agentId?: string | null, sprite?: string | null): GodotCharKey {
+  // 路人顾客（B §12.32，商店第 ③ 期）：以 players[].sprite（passer01…06）为准；没有就按 agent_id passerby_<YYYYMMDD>_<NN> 的 NN 占位推算
+  if (sprite && /^passer0[1-6]$/.test(sprite)) return sprite as GodotCharKey
+  const pm = /^passerby_(?:.*_)?(\d+)$/.exec(agentId ?? '')
+  if (pm) return `passer0${((Number(pm[1]) - 1) % 6 + 6) % 6 + 1}` as GodotCharKey
+  if (controller === 'script') return 'passer01'
   switch (agentId ?? '') {
     case 'whale': return 'whale'
     case 'achan': return 'achan'
@@ -74,3 +79,7 @@ export function godotPoseFor(stateText: string | null | undefined, has: (anim: s
   if (/坐|吃|看|工作|直播|电脑|练琴|休息/.test(t) && has('sit')) return 'sit'
   return null
 }
+
+/** 路人顾客（脚本角色）：role passerby / agent_id passerby_* / controller script——不进「镇上的人」、没有 QQ */
+export const isPasserby = (p: { role?: string | null; agent_id?: string | null; controller?: string | null }) =>
+  p.role === 'passerby' || /^passerby_/.test(p.agent_id ?? '') || p.controller === 'script'
