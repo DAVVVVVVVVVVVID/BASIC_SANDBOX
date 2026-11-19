@@ -1775,8 +1775,8 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 ### 12.33 商店第一期：进货 · 账本 · 换鱼饵 · 变质物消失（tag `world-v1.4.11`；whale `docs/systems/shops-system.md`「主播 11-19 修改」；草案 `docs/shops-phase1-sandbox.md`；配置 `back_end/game/shops.json`）
 
 - **周叔进货**：系统 QQ 账号 `supplier_zhou`（「镇外批发 · 周叔」），在杂货店老板与克劳蒂娜的通讯录里。`POST /qq/send {to: "supplier_zhou", text}`：
-  - 自然语言下单（规则读单：「面包 10、食材×12」「六袋甜食」「鱼饵十五」；货名 面包 / 甜食 / 食材 / 礼物·小礼物 / 鱼饵）→ 周叔立刻回确认单（QQ 正文 + `meta.order`）；读不出 → 「没看懂…按『面包 10』这样写」；其他人发 → 「我只跟杂货店做生意。」。
-  - `meta.order = {order_id, status: quoted|confirmed|delivered|expired|failed, shop: "grocery", items: [{item, name, qty, unit_cost}], goods, freight, total, ordered_by, payer: "npc_grocer", quoted_at, expires_at, deliver_at, confirmed_at?, delivered_at?, delivered?}`。
+  - 自然语言下单（规则读单：「面包 10、食材×12」「六袋甜食」「鱼饵十五」；货名 面包 / 甜食 / 食材 / 礼物·小礼物 / 鱼饵）→ 周叔立刻回确认单（QQ 正文 + `meta.order`）；读不出 → 「没看懂…按『面包 10』这样写」；其他人发 → 「我只跟杂货店做生意。」。v1.4.18：读单前按句（逗号分句、括号内不切）滤掉报库存 / 已订 / 不进的分句（含「库存 / 目前 / 剩 / 还有 / 还够 / 不进 / 已确认 / 上限 / 卖了」等，或「15/40」式写法）；读不出货而带「不确认 / 先不 / 取消 / 算了 / 不要了」→ 作废本人最近一张 quoted（`status: cancelled`，周叔回「那张单就不算了」）。
+  - `meta.order = {order_id, status: quoted|confirmed|delivered|expired|failed|cancelled, shop: "grocery", items: [{item, name, qty, unit_cost}], goods, freight, total, ordered_by, payer: "npc_grocer", quoted_at, expires_at, deliver_at, confirmed_at?, delivered_at?, delivered?}`。
   - 回「确认」（也认 确定 / 好 / 好的 / 下单 / 可以 / 行 / ok，标点空格不计）→ 确认本人最近一张 quoted 单：当场从**店主账户**扣 goods 与 freight（小克代下单也扣店主），`confirmed`；余额不足 → `failed`。报价 30 游戏分钟内不确认 → `expired`。
   - 截单 22:00：之前确认 → 次日 07:30 送达；之后 → 后天 07:30。送达：进 `objects[counter].stock`，每种上限 40，超出部分按进价退回店主账户（账本 `refund`）；周叔给下单人与店主发「货到了：…」。
   - 进价（`shops.json` costs）：面包 3 / 甜食 3 / 食材 4 / 小礼物 15 / 鱼饵 1；运费每单 10。店主不能改价（零售价在 items.json）。

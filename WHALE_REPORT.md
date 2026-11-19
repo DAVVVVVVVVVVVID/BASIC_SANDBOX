@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bv. world-v1.4.18：周叔读单滤掉报库存的句子 + 认「先不确认 / 取消」（bench 全天走查第 3 段发现幽灵单被确认扣 263）—— 完成
+
+- 走查：杂货店老板给周叔报「目前库存 面包 15/40、食材 18/40…」被规则读成 263 的单；她回「今天这单先不确认了」沙盒不认 → 仍 quoted；随后一句「确认」把它确认扣款。修：分句（括号内不切）跳过报库存 / 已订 / 不进的分句与「x/40」；读不出货而带取消字样 → cancelled。
+- 测试 +1，**423 passed**；api-spec §12.33。
+
 ## 5bu. world-v1.4.17：对话走近由沙盒带路 + 超时隔得远不成房；admin 补库存支持冰箱（11-19 晚主镇问题）—— 完成
 
 - 根因：walking_over 30 s 超时不看距离直接建房（B9 4369ee5 起），沙盒不带人走、全靠 agent；20:31 克劳蒂娜「去广场」时本就在广场 → 原地不动 → 隔 10 格成房。成房后 canMove=false 挡得住，不是边聊边走；与 v1.4.6 群聊无关。room_open 的 request_id 一直没记（不是来路不明）。

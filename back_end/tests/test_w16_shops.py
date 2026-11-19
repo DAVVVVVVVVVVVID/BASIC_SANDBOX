@@ -157,3 +157,18 @@ def test_admin_stock_fridge_contents_v1417(client, v12, fake_clock, monkeypatch)
     assert r["before"] == 0 and r["after"] == 4 and fr["stock"]["ingredients"] == 4 and fr["contents"][0]["expires_at"] is not None
     r = client.post("/admin/shop/stock", json={"object": "fridge_rest", "item": "ingredients", "qty": 1}, headers=H).json()
     assert r["after"] == 1 and shops.ledger_view("restaurant")["entries"][-1]["kind"] == "adjust"
+
+
+def test_stock_report_not_an_order_and_cancel_v1418(client, v12, fake_clock):
+    """11-19 bench：店主给周叔报库存「面包 15/40、食材 18/40…」被读成 263 的单，回「先不确认了」没作废，后一句「确认」把它确认了。"""
+    _at(fake_clock, 20, 10)
+    grocer = _agent(client, "npc_grocer")
+    _qq(client, grocer, "周叔，我这边的情况跟您说一下：这次就订小礼物×5（¥85，已确认），明早 07:30 送到杂货店。目前库存：面包 15/40、食材 18/40、甜食 7/40、鱼饵 10/40、小礼物 2/40（到货后会补上）。面包和食材够用，暂时不进。")
+    assert "没看懂" in _last_from_zhou(client, grocer)["text"] and not shops.orders_view()
+    _qq(client, grocer, "面包 10，甜食还有 5 个先不要")
+    o = _last_from_zhou(client, grocer)["meta"]["order"]
+    assert [(i["item"], i["qty"]) for i in o["items"]] == [("bread", 10)]
+    _qq(client, grocer, "今天这单先不确认了")
+    assert shops.orders_view()[0]["status"] == "cancelled" and "不算了" in _last_from_zhou(client, grocer)["text"]
+    _qq(client, grocer, "确认")
+    assert "没有等你确认" in _last_from_zhou(client, grocer)["text"]

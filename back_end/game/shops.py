@@ -179,13 +179,38 @@ def _num(tok: str) -> int | None:
     return None
 
 
+_SKIP_CLAUSE = ("库存", "目前", "现在有", "现有", "还有", "剩", "还够", "够用", "不进", "不用进", "暂时不", "已确认", "已经订", "上限", "卖了", "卖掉", "卖出")
+_CANCEL = ("不确认", "先不", "取消", "算了", "不要了", "不订了", "别送", "先别")
+
+
+def _order_text(text: str) -> str:
+    """v1.4.18：只留像下单的分句——跳过汇报库存 / 已订 / 不进的句子（11-19 bench：店主报「面包 15/40…」被读成一张 263 的单）。"""
+    parts, cur, depth = [], "", 0
+    for ch in text or "":                                          # 括号里的逗号不切（「小礼物×5（¥85，已确认）」是一句）
+        if ch in "（(【[":
+            depth += 1
+        elif ch in "）)】]":
+            depth = max(0, depth - 1)
+        if ch in "。！？!?；;\n" or (ch in "，," and depth == 0):
+            parts.append(cur); cur = ""
+        else:
+            cur += ch
+    parts.append(cur)
+    keep = [c for c in parts if c.strip() and not any(w in c for w in _SKIP_CLAUSE) and not re.search(r"\d+\s*/\s*\d+", c)]
+    return "，".join(keep)
+
+
+def _is_cancel(text: str) -> bool:
+    return any(w in (text or "") for w in _CANCEL)
+
+
 def parse_order(text: str) -> list[dict]:
-    """规则读单：「面包 10、食材×12」「10 个面包」「面包十份」。返回 [{item, qty}]（同货合并）。"""
+    """规则读单：「面包 10、食材×12」「10 个面包」「面包十份」。返回 [{item, qty}]（同货合并）。v1.4.18：先滤掉报库存的分句。"""
     aliases = sorted(sup()["aliases"].items(), key=lambda kv: -len(kv[0]))
     num = r"(\d+|[零一二两三四五六七八九十]{1,3})"
     unit = r"(?:个|份|袋|只|包|盒|斤|件|条|箱)?"
     got: dict[str, int] = {}
-    t = text
+    t = _order_text(text)
     for alias, item in aliases:
         for m in list(re.finditer(re.escape(alias) + r"\s*[×xX*]?\s*" + num + unit, t)) + list(re.finditer(num + r"\s*" + unit + r"\s*" + re.escape(alias), t)):
             n = _num(m.group(1))
@@ -229,6 +254,14 @@ def on_supplier_message(player: dict, msg: dict) -> None:
         _reply(me, "我只跟杂货店做生意。", None); return
     gts = _gts()
     _expire(gts)
+    if _is_cancel(text) and not _is_confirm(text) and not parse_order(text):   # v1.4.18：读不出货、又说「先不确认了 / 取消 / 算了」→ 作废本人最近一张 quoted
+        q = sorted([o for o in _orders.values() if o["ordered_by"] == me and o["status"] == "quoted"], key=lambda o: o["quoted_at_gts"])
+        if q:
+            q[-1]["status"] = "cancelled"; q[-1]["cancelled_at"] = _iso(gts)
+            _reply(me, f"好，那张单（¥{q[-1]['total']}）就不算了。要订货再告诉我。", q[-1]); _log_order(q[-1], "cancelled")
+        else:
+            _reply(me, "好的，有需要再说。", None)
+        return
     if _is_confirm(text):
         q = sorted([o for o in _orders.values() if o["ordered_by"] == me and o["status"] == "quoted"], key=lambda o: o["quoted_at_gts"])
         if not q:
