@@ -33,7 +33,7 @@
 
 **截单**：每天 22:00。22:00 之后才确认的单，`deliver_at` 是后天 07:30。
 
-**送达**：到 `deliver_at` 自动进杂货店库房，也就是 `objects[counter].stock`。
+**送达**：到 `deliver_at` 自动进杂货店库房，也就是 `objects[counter].stock`（同时在 `objects[counter].warehouse` 里展示，形状见下）。
 - 每种货上限 40，超出的退款到店主账户，并记一笔账。
 - 周叔给下单人和店主各发一条 QQ「货到了：面包 ×10…」，带 `meta.order`，此时 `status` 为 `delivered`。
 
@@ -41,6 +41,10 @@
 - 重置时的初始库存按配置给。
 
 **查单**：`GET /shop/orders?shop=grocery&status=` 返回订单列表；perceive 给店主和小克带 `orders_pending[]`，内容是 `quoted` 和 `confirmed` 的单。
+
+**库房视图**（会话 E 11-19 定的版式，沙盒照这个给）：`/world.objects[]` 的商店物件带
+`warehouse: {stock: {item: n}, capacity: 40, incoming: [{order_id, items: [{item, qty}], eta: ISO}]}`。
+`incoming` 只列 `confirmed`、还没送达的单。
 
 **价格**：零售价和进价都写在配置里，店主改不了（没有 `set_price`）。进价初值：面包 3 / 甜食 3 / 食材 4 / 小礼物 15 / 鱼饵 1，运费每单 10。
 
@@ -52,15 +56,18 @@
 | `restaurant` | 餐厅（`bar`、点餐） | 餐厅老板 |
 | `fish_stall` | 鱼摊 | 老渔夫 |
 
-**每一笔**：`{ts, game_time, kind, who, who_name, item, qty, unit_price, amount, note?, ref?}`。
-- `kind` 取值：`sale`（卖出）、`purchase`（进货货款）、`freight`（运费）、`refund`（超上限退款）、`exchange`（换鱼饵）、`list`（鱼摊上货）、`spoiled`（摊上变质下架）。
+**每一笔**：`{ts, game_time, kind, who, who_name, item, item_name, qty, unit_price, amount, note?, ref?}`。
+- `kind` 取值：`sale`（卖出）、`purchase`（进货货款）、`freight`（运费）、`refund`（超上限退款）、`recycle`（换鱼饵）、`list`（鱼摊上货）、`spoiled`（摊上变质下架）。第三期加 `lost`（路人流失）。改价已取消，没有 `price`。
 - `amount`：对店主是收入记正，支出记负。
 
-**动作** `read_ledger {shop, days?=1}`（不占时间、不用站在店里）：
-- 结果 `{shop, name, days: [{date, income, cost, gross, entries: [...]}], stock}`，按游戏日（04:00 换日）汇总。
-- 没有权限 → `no_permission`。
+**返回形状**（agent 动作和导播接口一样）：
+`{shop, name, days: [{date, revenue, cost, gross, stock: {item: n}}], entries: [...]}`。
+- `days` 按游戏日汇总，04:00 换日；`stock` 是当天结束时的库存，今天就是当前库存。
+- `entries` 是这几天的全部流水，按时间排序。
 
-**导播视角**：`GET /admin/ledger?shop=&days=`，三本都能看，供页面面板用（公开开播前加 token，见公开前待办）。
+**agent 动作** `read_ledger {shop, days?=1}`：不占时间，不用站在店里。没有权限 → `no_permission`。
+
+**导播视角**：`GET /shops/{shop_id}/ledger?days=7`，`shop_id` 用物件 id（`counter` / `bar` / `fish_stall`），三本都能看，不经过权限检查、不写动作日志（会话 E 11-19 定；公开开播前加 token，见公开前待办）。
 
 ## 3. 换鱼饵（覆盖 v1.4.8 的 `exchange`）
 
@@ -68,7 +75,7 @@
 - **收什么**：变质的鱼（`fish` 且 `freshness: spoiled`）、变质食物（`spoiled_food`）、钓上来的垃圾（`junk_*`）。每件换 1 个鱼饵。鱼饵永久保质，凭空产出，不消耗店里的库存。
 - `pay`：换的人付 1 金币进店主账户，鱼饵进换的人背包。
 - `donate`：不付钱，鱼饵进杂货店库存（`stock.bait` +1），店主可以直接卖。
-- 两种都记杂货店账本 `kind: exchange`。
+- 两种都记杂货店账本 `kind: recycle`。
 - 失败：`not_exchangeable`（不收这个）、`not_spoiled`（鱼还没坏）、`no_item`、`insufficient_funds`（`pay` 时连 1 金币都没有）。
 
 ## 4. 变质物 2 日消失
