@@ -28,6 +28,8 @@ test('可卖：背包里这家收的类型', () => {
 test('meta 中英文都认；距离取最近一格；失败文案', () => {
   assert.deepEqual(metaChips({ grade: '传说', freshness: '变质' }).map(c => c.tone), ['legendary', 'spoiled'])
   assert.deepEqual(metaChips(null), [])
+  // B 鱼 meta 草案：tier 品级、name 中文名（有 name 不再出品种标签）
+  assert.deepEqual(metaChips({ fish_id: 'f9', species: 'golden_carp', name: '金鳞鲤', tier: 'rare', weight: 1.6, freshness: 'fresh' }).map(c => `${c.label}:${c.value}`), ['重量:1.6 kg', '品级:稀有', '新鲜度:新鲜'])
   assert.equal(distanceTo({ x: 36, y: 12 }, { position: { x: 37, y: 11 }, tiles: [{ x: 37, y: 11 }, { x: 38, y: 11 }] }), 2)
   assert.equal(shopFailText('shop_closed', { opens_at: '09:00' }), '已经打烊了，09:00 开门')
   assert.equal(shopFailText('insufficient_funds', { message: '钱不够，还差 3' }), '钱不够，还差 3')

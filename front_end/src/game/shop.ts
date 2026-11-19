@@ -21,11 +21,12 @@ const FRESH: Record<string, { zh: string; tone: MetaChip['tone'] }> = {
 export function metaChips(meta: Record<string, unknown> | null | undefined): MetaChip[] {
   if (!meta) return []
   const out: MetaChip[] = []
-  const species = meta.species_name ?? meta.species ?? meta.kind_name
+  // B 草案（11-19）：{fish_id, species, name（中文名）, tier, weight, caught_at, caught_by, freshness}——有 name 时标题已显示中文名，不再重复出品种标签（species 多半是英文 id）
+  const species = meta.species_name ?? (typeof meta.name === 'string' && meta.name ? null : meta.species ?? meta.kind_name)
   if (typeof species === 'string' && species) out.push({ label: '品种', value: species })
   const w = meta.weight_kg ?? meta.weight
   if (typeof w === 'number' && isFinite(w)) out.push({ label: '重量', value: `${w >= 10 ? w.toFixed(0) : w.toFixed(1)} kg` })
-  const g = meta.grade ?? meta.rarity
+  const g = meta.tier ?? meta.grade ?? meta.rarity
   if (typeof g === 'string' && g) { const m = GRADE[g.toLowerCase()] ?? GRADE[g]; out.push({ label: '品级', value: m?.zh ?? g, tone: m?.tone }) }
   const f = meta.freshness ?? meta.fresh
   if (typeof f === 'string' && f) { const m = FRESH[f.toLowerCase()] ?? FRESH[f]; out.push({ label: '新鲜度', value: m?.zh ?? f, tone: m?.tone }) }
