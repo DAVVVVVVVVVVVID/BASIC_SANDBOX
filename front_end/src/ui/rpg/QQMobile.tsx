@@ -40,7 +40,7 @@ const I = {
 }
 const Icon = ({ d, color = '#333', size = 22 }: { d: ReactNode; color?: string; size?: number }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 
-export default function QQMobile(p: QQDesktopProps & { fullscreen?: boolean; kb?: number }) {
+export default function QQMobile(p: QQDesktopProps & { fullscreen?: boolean; kb?: number; banner?: string | null }) {
   const [tab, setTab] = useState<'msg' | 'contacts'>('msg')
   const [menu, setMenu] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -86,6 +86,7 @@ export default function QQMobile(p: QQDesktopProps & { fullscreen?: boolean; kb?
       <div onClick={e => e.stopPropagation()} data-testid="qq-phone" style={p.fullscreen ? { position: 'absolute', inset: 0, color: '#000', fontSize: 15, userSelect: 'none' } : { width: 374, height: 'min(720px, 92vh)', position: 'relative', color: '#000', fontSize: 14, userSelect: 'none' }}>
         {!p.fullscreen && <div style={{ position: 'absolute', inset: 0, borderWidth: 28, borderStyle: 'solid', borderColor: 'transparent', borderImage: 'url(assets/ui/kit/phone_shell.png) 60 fill / 28px stretch', imageRendering: 'pixelated', pointerEvents: 'none' }} />}
         <div style={p.fullscreen ? { position: 'absolute', inset: 0, paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: `calc(env(safe-area-inset-bottom, 0px) + ${p.kb ?? 0}px)`, background: '#F5F6F7', overflow: 'hidden', display: 'flex', flexDirection: 'column' } : { position: 'absolute', left: 14, right: 14, top: 18, bottom: 22, background: '#F5F6F7', borderRadius: 18, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {p.banner && <div data-testid="qq-view-banner" style={{ background: '#EFE7FF', color: '#5B4A8A', fontSize: 13, padding: '6px 12px', textAlign: 'center', borderBottom: '1px solid #DCCFF7', flexShrink: 0 }}>{p.banner}</div>}
           {p.available === false && <div style={{ padding: 16, color: '#999' }}>QQ 还没开通</div>}
           {/* ── 消息 / 联系人 页 ── */}
           {!peerC && (

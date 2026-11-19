@@ -104,3 +104,4 @@ export function sendFile(from: string, peer: string, item: { id?: string; type: 
 export function markRead(player: string, peer: string, group = false) {
   return apiPost<unknown>('/qq/read', { player, [group ? 'group' : 'from']: peer })
 }
+

@@ -146,7 +146,9 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
           : <ErrorBoundary name="聊天"><ChatPanel embedded frame="plain" visible={false} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} /></ErrorBoundary>}
       </div>
       {/* QQ 全屏（去壳） */}
-      <div style={{ pointerEvents: 'auto' }}><ErrorBoundary name="QQ"><QQPanel playerId={playerId} readOnly={false} compact phone fullscreen forceOpen={open === 'qq'} onClosed={() => setOpen(null)} style={{ display: 'none' }} kb={kb} /></ErrorBoundary></div>
+      <div style={{ pointerEvents: 'auto' }}><ErrorBoundary name="QQ" resetKey={followOther?.id ?? 'me'}>{followOther
+        ? <QQPanel key={`view-${followOther.id}`} viewOf={{ name: followName, key: followKey }} playerId={followOther.id} readOnly compact phone fullscreen forceOpen={open === 'qq'} onClosed={() => setOpen(null)} style={{ display: 'none' }} kb={kb} />
+        : <QQPanel key="me" playerId={playerId} readOnly={false} compact phone fullscreen forceOpen={open === 'qq'} onClosed={() => setOpen(null)} style={{ display: 'none' }} kb={kb} />}</ErrorBoundary></div>
       {/* 底部 Tab */}
       <div data-testid="m-tabs" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingBottom: SAFE_BOTTOM, background: 'rgba(255,248,236,0.96)', borderTop: `2px solid ${C.sky}`, display: 'flex', pointerEvents: 'auto' }}>
         {tabs.map(t => {

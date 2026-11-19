@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { qqSetContacts, qqMerge, qqReplaceThread } from '../game/qqState'
 import type {
   Player, WorldState, ActionLogEntry, Tile, OtherPlayer, GameObject,
   PlayerStateVars, ChatBubble, ConnectionStatus, TiledRenderData, Transport,
@@ -147,21 +148,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
   }),
   patchWorldState: (partial) => set((s) => ({ worldState: s.worldState ? { ...s.worldState, ...partial } : (partial as WorldState) })),
   qq: { contacts: [], messages: [], available: null },
-  setQQContacts: (c) => set((s) => ({ qq: { ...s.qq, contacts: c ?? s.qq.contacts, available: c !== null } })),
-  mergeQQMessages: (m) => set((s) => {
-    if (!m.length) return {}
-    const byId = new Map(s.qq.messages.map(x => [x.id, x]))
-    for (const x of m) byId.set(x.id, { ...byId.get(x.id), ...x })
-    const all = [...byId.values()].sort((a, b) => a.ts.localeCompare(b.ts)).slice(-500)
-    return { qq: { ...s.qq, messages: all, available: true } }
-  }),
-  replaceQQThread: (belongs, m) => set((s) => {
-    const keep = s.qq.messages.filter(x => !belongs(x))
-    const byId = new Map(keep.map(x => [x.id, x]))
-    for (const x of m) byId.set(x.id, x)
-    const all = [...byId.values()].sort((a, b) => a.ts.localeCompare(b.ts)).slice(-1000)
-    return { qq: { ...s.qq, messages: all, available: true } }
-  }),
+  setQQContacts: (c) => set((s) => ({ qq: qqSetContacts(s.qq, c) })),
+  mergeQQMessages: (m) => set((s) => (m.length ? { qq: qqMerge(s.qq, m) } : {})),
+  replaceQQThread: (belongs, m) => set((s) => ({ qq: qqReplaceThread(s.qq, belongs, m) })),
   markQQRead: (peer) => set((s) => ({ qq: { ...s.qq, messages: s.qq.messages.map(x => (x.from === peer || x.group === peer) && !x.readAt ? { ...x, readAt: new Date().toISOString() } : x), contacts: s.qq.contacts.map(c => c.id === peer ? { ...c, unread: 0 } : c) } })),
   setConnection: (connection) => set((s) => ({
     connection,
