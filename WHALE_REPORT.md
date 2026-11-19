@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bq. world-v1.4.13：商店第二期——餐厅现点现做（主播 11-19）—— 完成
+
+- shops.py：菜单五道（价 / 用料 / 效果在 shops.json）、`order {dish}`（餐厅桌 + 营业 + 老板在 rest_kitchen + 料（fridge_rest + 老板背包）+ 钱）→ 1 游戏分钟后自动开吃；今日鲜鱼按鱼价 × 2 + 10、效果按料理表；bar 物件 menu / orders、GET /shop/menu、busy waiting_order、账本 sale。
+- 测试 +2，**413 passed**；api-spec §12.34。
+
 ## 5bp. world-v1.4.12：`POST /admin/shop/stock`（主镇补料用；总控 11-19 要 17:30 窗后把杂货店食材补到 12）—— 完成
 
 - 鉴权同 term_start；interventions data_edit + 账本 adjust。测试 +1，**411 passed**；api-spec §12.33 补一行。

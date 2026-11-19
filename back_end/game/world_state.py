@@ -911,7 +911,8 @@ def get_player(player_id: str) -> dict | None:
     data["keys"] = doors.keys_of(player)                      # §3.41：持有的钥匙 [{door_id, name}]（也在 inventory 里，type key）
     from game import food
     from game import production as _prod
-    data["busy"] = food.busy_view(player_id) or _prod.busy_view(player_id)   # world-v1.1：进食 / 刻盘 {kind, item, started_at, ends_at, remaining_s, progress, gain?}，否则 null
+    from game import shops as _shops
+    data["busy"] = food.busy_view(player_id) or _prod.busy_view(player_id) or _shops.waiting_view(player_id)   # world-v1.1：进食 / 刻盘 / v1.4.13 等菜 {kind, …}，否则 null
     data["daily_use"] = daily_use_view(player_id)             # world-v1.1 I-1：{obj_type: {used_min, limit_min}}
     from game import fishing as _fishing
     data["fishing"] = _fishing.view(player, game_now_ts())   # v1.4.8：{spot, casts_today, minutes_today, limit_min, last_cast, recent_casts[10], record}
@@ -1021,7 +1022,8 @@ def _rent_view_safe(p: dict) -> dict | None:
 def _busy_view_safe(pid: str) -> dict | None:
     from game.food import busy_view
     from game.production import busy_view as _pb
-    return busy_view(pid) or _pb(pid)
+    from game.shops import waiting_view as _wv
+    return busy_view(pid) or _pb(pid) or _wv(pid)
 
 
 def _inv_view_safe(p: dict) -> list[dict]:
@@ -1108,6 +1110,10 @@ def _object_view(obj: dict, game_ts: float, viewer: str | None = None) -> dict:
     view["opensAt"] = opens_at
     if viewer and obj.get("daily_limit_min"):
         view["daily_used_min"] = round(daily_used_s(viewer, obj["type"], game_ts) / 60.0, 1)
+    if obj.get("type") == "bar":                            # v1.4.13：餐厅菜单（此刻能不能点）+ 后厨待做
+        from game import shops as _shops
+        view["menu"] = _shops.menu_view(_players, _OBJECTS, game_ts)
+        view["orders"] = _shops.kitchen_orders_view()
     if obj.get("type") == "shop_counter":                   # v1.4.11：杂货店库房 {stock, capacity, incoming}
         from game import shops as _shops
         view["warehouse"] = _shops.warehouse_view(obj)

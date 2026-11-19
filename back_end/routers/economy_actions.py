@@ -306,6 +306,21 @@ def handle_exchange(entity_id: str, payload: dict) -> ActionResponse:
                               "got": {"item": ex_obj["gives"], "qty": int(ex_obj["qty"])} if mode == "pay" else None, "inventory": inventory.view(p)})
 
 
+def handle_order(entity_id: str, payload: dict) -> ActionResponse:
+    """v1.4.13 餐厅现点现做：order {dish}——须正坐在餐厅餐桌；老板在后厨、料够、钱够；cook_minutes 后自动开吃。"""
+    from game import shops
+    from game.time_state import game_now_ts
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="order", reason="player_not_found")
+        res, reason, extra = shops.order(p, str(payload.get("dish") or ""), game_now_ts())
+        if reason:
+            return ActionResponse(success=False, type="order", reason=reason, result=extra or None)
+        mark_input(entity_id)
+        return ActionResponse(success=True, type="order", result={**res, "busy": shops.waiting_view(entity_id)})
+
+
 def handle_read_ledger(entity_id: str, payload: dict) -> ActionResponse:
     """v1.4.11：read_ledger {shop: grocery|restaurant|fish_stall, days?=1}——不占时间、不用在店里；只有 viewers 能看。"""
     from game import shops

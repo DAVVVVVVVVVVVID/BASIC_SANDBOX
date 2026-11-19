@@ -1792,6 +1792,23 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - 旧检查点里鱼摊的计数库存（v1.4.8 以前的 `{"fish": N}`）读进来时清掉。
 - **管理口**（v1.4.12）`POST /admin/shop/stock {object?: "counter", item, qty, reason?}`：库存直写（主镇的数据修正；scenario 在主镇 403）。鉴权同 `/school/term_start`（SANDBOX_ADMIN_TOKEN 或 SELF_TOKEN）；记 interventions `data_edit`（reversible）与该店账本 `kind: adjust`；回 `{ok, object, item, before, after, stock}`。
 
+### 12.34 商店第二期：餐厅现点现做（tag `world-v1.4.13`；whale `shops-system.md`「主播 11-19 修改」第 3 条；配置 `shops.json` restaurant）
+
+- **菜单**：`objects[bar].menu` 与 `GET /shop/menu?shop=restaurant`（另带 `orders`）= `[{dish, name, price, price_note?, uses: [{item, qty, name}], available, reason?, message?}]`；`available` 按此刻（营业中、老板在后厨、料够）。
+  | dish | 名 | 价 | 用料 | 效果（吃完） |
+  |---|---|---|---|---|
+  | home_rice | 家常饭 | 18 | 食材 ×1 | 饱腹 +40、心情 +3 |
+  | tomato_noodle | 番茄蛋面 | 22 | 食材 ×1 + 面包 ×1 | 饱腹 +45、心情 +4 |
+  | fish_soup | 鲜鱼汤 | 28 | 普通鱼 ×1 + 食材 ×1 | 饱腹 +45、心情 +5（鱼不新鲜 ×0.7） |
+  | catch_of_day | 今日鲜鱼 | 鱼价 × 2 + 10 | 鱼 ×1（任意品级，旧的先用） | 按钓鱼系统的料理表 × 重量（§12.31） |
+  | dessert | 甜品 | 10 | 甜食 ×1 | 心情 +6 |
+  用料从后厨冰箱 `fridge_rest` 与老板背包里扣（鱼不变质的才用）。价格写在配置里，老板不能改。
+- **点单** `order {dish}`：须正坐在餐厅餐桌（`dining.meal`，营业 11:00–14:00 / 17:00–21:00）；老板（餐厅老板）须在后厨（arena `rest_kitchen`，在线）。当场扣客人钱、进老板账户（账本 `restaurant` `sale`；老板自己点不付钱）、扣料。回执 `{order_id, dish, name, price, ready_at, eat_minutes, message, gold, busy}`。
+  - **1 游戏分钟**后菜好 → 自动开吃（`busy` 从 `{kind: "waiting_order", order_id, dish, name, ends_at, …}` 变成 `{kind: "eating", …}`），pendingMessage「X 上来了。」；客人中途离开餐桌 → 「X 做好了，可是你已经走了。」（不退钱）。
+  - 失败（都带中文 `message`）：`not_at_table`、`shop_closed {opens_at}`、`owner_not_in_kitchen`、`no_ingredients {missing: [{item, name, need, have}]}`、`insufficient_funds {price, gold}`、`unknown_dish {dishes}`、`already_eating`。
+  - `objects[bar].orders = [{order_id, by, by_name, dish, name, ready_at}]`（后厨视角）；ws `{type: "order", event: placed|ready|abandoned, entity, order_id, dish, name}`；external `kind=restaurant action=order|ready|abandoned`。
+- 旧的 `eat {item: "meal"}`（餐厅一顿 20）暂时保留，供 agent 切换期使用；不出菜单、不扣料。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

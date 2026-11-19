@@ -51,7 +51,11 @@ def _dt(gts: float) -> datetime:
 
 def _item_name(item: str) -> str:
     from game.inventory import item_def
-    return (item_def(item) or {}).get("name", item)
+    d = item_def(item)
+    if d:
+        return d.get("name", item)
+    dd = next((x for x in cfg().get("restaurant", {}).get("menu", []) if x["dish"] == item), None)
+    return dd["name"] if dd else item
 
 
 # ── 账本 ─────────────────────────────────────────────────────────────────────
@@ -276,7 +280,8 @@ def _expire(gts: float) -> None:
 
 
 def on_tick(gts: float, players: dict, objects: list[dict]) -> None:
-    """调用方持 STATE_LOCK：报价过期、到点送货。"""
+    """调用方持 STATE_LOCK：报价过期、到点送货、餐厅出菜。"""
+    restaurant_tick(gts, players)
     _expire(gts)
     for o in list(_orders.values()):
         if o["status"] == "confirmed" and gts >= o["deliver_at_gts"]:
@@ -341,16 +346,232 @@ def warehouse_view(obj: dict) -> dict | None:
     return {"stock": {k: int(v) for k, v in (obj.get("stock") or {}).items()}, "capacity": int(sup()["storeroom_cap"]), "incoming": inc}
 
 
+# ── 第二期：餐厅现点现做 ─────────────────────────────────────────────────────
+_waiting: dict[str, dict] = {}          # 客人 player id → 点的单（做菜中）
+
+
+def rcfg() -> dict:
+    return cfg()["restaurant"]
+
+
+def dish_def(dish: str) -> dict | None:
+    return next((d for d in rcfg()["menu"] if d["dish"] == dish), None)
+
+
+def _owner(players: dict) -> dict | None:
+    from game.qq import account_of
+    return next((p for p in players.values() if account_of(p) == rcfg()["owner"]), None)
+
+
+def _in_kitchen(owner: dict | None) -> bool:
+    if owner is None or not owner.get("online", True) or owner.get("away"):
+        return False
+    from game.world_state import get_zone_at
+    return get_zone_at(owner["position"]["x"], owner["position"]["y"]).get("arena") == rcfg()["kitchen_arena"]
+
+
+def _fridges(objects: list[dict]) -> list[dict]:
+    ids = set(rcfg()["kitchen_fridges"])
+    return [o for o in objects if o["id"] in ids]
+
+
+def _have(item: str, owner: dict | None, objects: list[dict]) -> int:
+    from game import inventory
+    n = sum(int(c.get("count", 0)) for f in _fridges(objects) for c in (f.get("contents") or []) if c["item"] == item and not c.get("meta"))
+    return n + (inventory.count(owner, item) if owner is not None and item != "fish" else 0)
+
+
+def _fish_candidates(owner: dict | None, objects: list[dict], tier: str | None, gts: float) -> list[tuple[str, dict, dict]]:
+    """[(where, holder, entry)]：后厨冰箱 + 老板背包里不变质的鱼（按日龄，旧的先用）。"""
+    from game import fishing
+    out = []
+    for f in _fridges(objects):
+        for c in f.get("contents") or []:
+            if c.get("item") == "fish" and c.get("meta"):
+                fishing._settle(c["meta"], gts); out.append(("fridge", f, c))
+    if owner is not None:
+        for e in owner.get("inventory") or []:
+            if e.get("type") == "fish" and e.get("meta"):
+                fishing._settle(e["meta"], gts); out.append(("inventory", owner, e))
+    out = [x for x in out if x[2]["meta"]["freshness"] != "spoiled" and (tier is None or x[2]["meta"]["tier"] == tier)]
+    return sorted(out, key=lambda x: -float(x[2]["meta"].get("age_s", 0)))
+
+
+def _plan_dish(d: dict, owner: dict | None, objects: list[dict], gts: float) -> tuple[dict | None, str | None, dict]:
+    """能不能做这道菜：返回 (plan{price, gain, name, fish?}, reason, extra)。"""
+    from game import fishing
+    missing = []; fish = None
+    for u in d["uses"]:
+        if u["item"] == "fish":
+            c = _fish_candidates(owner, objects, u.get("tier"), gts)
+            if not c:
+                missing.append({"item": "fish", "name": "普通鱼" if u.get("tier") == "common" else "鱼", "need": 1, "have": 0})
+            else:
+                fish = c[0]
+        else:
+            h = _have(u["item"], owner, objects)
+            if h < int(u["qty"]):
+                missing.append({"item": u["item"], "name": _item_name(u["item"]), "need": int(u["qty"]), "have": h})
+    if missing:
+        return None, "no_ingredients", {"missing": missing, "message": "后厨没料了：" + "、".join(m["name"] for m in missing) + "。"}
+    name = d["name"]; gain = dict(d.get("gain") or {}); price = d.get("price")
+    if d["dish"] == "catch_of_day":
+        m = fish[2]["meta"]
+        dm = fishing.dish_meta(dict(m), gts)
+        gain = fishing.dish_plan({"meta": dm})["gain"]; name = f"今日鲜鱼 · {dm['name']}"
+        price = int((fishing.price_of(m) or 0) * 2 + 10)
+    elif fish is not None and fish[2]["meta"].get("freshness") == "stale":
+        gain = {k: round(v * float(fishing.cfg()["freshness"]["stale_dish"]), 2) for k, v in gain.items()}; name = f"{name}（鱼不新鲜）"
+    return {"price": int(price), "gain": gain, "name": name, "fish": fish}, None, {}
+
+
+def menu_view(players: dict, objects: list[dict], gts: float) -> list[dict]:
+    from game.world_state import open_state
+    owner = _owner(players); kitchen = _in_kitchen(owner)
+    table = next((o for o in objects if o.get("type") == "restaurant_table"), None)
+    is_open = open_state(table, gts)[0] if table is not None else True
+    rows = []
+    for d in rcfg()["menu"]:
+        plan, why, extra = _plan_dish(d, owner, objects, gts)
+        row = {"dish": d["dish"], "name": d["name"], "price": plan["price"] if plan else d.get("price"),
+               "uses": [{"item": u["item"], "qty": int(u["qty"]), "name": ("普通鱼" if u.get("tier") == "common" else "鱼") if u["item"] == "fish" else _item_name(u["item"])} for u in d["uses"]],
+               "available": bool(plan) and kitchen and is_open}
+        if d.get("price_rule"):
+            row["price_note"] = "按鱼（鱼价 × 2 + 10）"
+        if not is_open:
+            row["reason"] = "shop_closed"; row["message"] = "餐厅现在不营业。"
+        elif not kitchen:
+            row["reason"] = "owner_not_in_kitchen"; row["message"] = "老板不在后厨，点不了菜。"
+        elif why:
+            row["reason"] = why; row["message"] = extra.get("message")
+        rows.append(row)
+    return rows
+
+
+def _consume(d: dict, plan: dict, owner: dict | None, objects: list[dict]) -> None:
+    from game import inventory, food
+    for u in d["uses"]:
+        if u["item"] == "fish":
+            where, holder, entry = plan["fish"]
+            if where == "fridge":
+                holder["contents"].remove(entry); food.refresh_stock(holder)
+            else:
+                inventory.remove_entry(holder, entry, 1)
+            continue
+        left = int(u["qty"])
+        for f in _fridges(objects):
+            if left <= 0:
+                break
+            got = sum(n for n, _ in food.take(f, u["item"], left)); left -= got
+        if left > 0 and owner is not None:
+            inventory.remove(owner, u["item"], left)
+
+
+def order(player: dict, dish: str, gts: float) -> tuple[dict | None, str | None, dict]:
+    """点单（调用方持 STATE_LOCK）：须正坐在 dining.meal 餐桌；当场扣钱、扣料；cook_minutes 后自动开吃。"""
+    from game import food, world_state, economy
+    from game.qq import account_of
+    obj = world_state.get_object_by_id(player.get("usingObjectId") or "") if player.get("usingObjectId") else None
+    rule = food.dining_rule(obj)
+    if not rule or not rule.get("meal"):
+        return None, "not_at_table", {"message": "先在餐厅的餐桌坐下（use 餐桌）再点菜。"}
+    if food.is_busy(player["id"]) or player["id"] in _waiting:
+        return None, "already_eating", {"message": "已经在吃或在等菜了。"}
+    is_open, opens_at = world_state.open_state(obj, gts)
+    if not is_open:
+        return None, "shop_closed", {"opens_at": opens_at, "message": f"餐厅现在不营业（{opens_at} 开）。" if opens_at else "餐厅现在不营业。"}
+    d = dish_def(dish)
+    if d is None:
+        return None, "unknown_dish", {"dish": dish, "dishes": [x["dish"] for x in rcfg()["menu"]], "message": "菜单上没有这道菜。"}
+    owner = _owner(world_state._players)
+    if not _in_kitchen(owner):
+        return None, "owner_not_in_kitchen", {"message": "老板不在后厨，点不了菜。"}
+    plan, why, extra = _plan_dish(d, owner, world_state._OBJECTS, gts)
+    if why:
+        return None, why, extra
+    own = account_of(player) == rcfg()["owner"]
+    price = 0 if own else plan["price"]
+    if int(player.get("gold", 0)) < price:
+        return None, "insufficient_funds", {"price": price, "gold": int(player.get("gold", 0)), "message": f"{plan['name']}要 {price} 金币，身上只有 {int(player.get('gold', 0))}。"}
+    _consume(d, plan, owner, world_state._OBJECTS)
+    if price:
+        economy.ledger("buy", player, -price, item=dish, qty=1, price=price, shop=obj["id"], shop_type=obj["type"], dish=plan["name"])
+        from routers.economy_actions import _credit_account
+        _credit_account(rcfg()["owner"], player, price, source="restaurant_order", shop=obj["id"], item=dish, qty=1, price=price, dish=plan["name"])
+    oid = "ro-" + uuid.uuid4().hex[:8]
+    ready = gts + float(rcfg()["cook_minutes"]) * 60.0
+    o = {"order_id": oid, "by": player["id"], "by_name": player.get("name"), "dish": dish, "name": plan["name"], "price": price, "object": obj["id"],
+         "gain": plan["gain"], "eat_minutes": float(d.get("eat_minutes", 20)), "ordered_gts": gts, "ready_gts": ready, "ready_at": _iso(ready)}
+    _waiting[player["id"]] = o
+    try:
+        from game import external_log
+        external_log.log("restaurant", player["id"], action="order", **{k: v for k, v in o.items() if not k.endswith("_gts") and k != "gain"})
+        from routers.ws import hub
+        hub.push_event({"type": "order", "event": "placed", "entity": player["id"], "order_id": oid, "dish": dish, "name": plan["name"], "ready_at": o["ready_at"]})
+    except Exception:
+        pass
+    return {"order_id": oid, "dish": dish, "name": plan["name"], "price": price, "ready_at": o["ready_at"], "eat_minutes": o["eat_minutes"],
+            "message": f"点了{plan['name']}（{price} 金币），{int(rcfg()['cook_minutes'])} 分钟后上菜。", "gold": int(player.get("gold", 0))}, None, {}
+
+
+def _serve(o: dict, players: dict, gts: float) -> None:
+    from game import food, world_state
+    p = players.get(o["by"])
+    if p is None:
+        return
+    obj = world_state.get_object_by_id(o["object"])
+    if p.get("usingObjectId") != o["object"] or obj is None:
+        world_state._pending_messages[p["id"]] = f"{o['name']}做好了，可是你已经走了。"
+        _log_order_event(o, "abandoned"); return
+    food.start_eating(p, obj, "meal", o["gain"], o["eat_minutes"], gts)
+    food._busy[p["id"]]["dish"] = o["name"]
+    world_state._pending_messages[p["id"]] = f"{o['name']}上来了。"
+    _log_order_event(o, "ready")
+
+
+def _log_order_event(o: dict, event: str) -> None:
+    try:
+        from game import external_log
+        external_log.log("restaurant", o["by"], action=event, order_id=o["order_id"], dish=o["dish"], name=o["name"])
+        from routers.ws import hub
+        hub.push_event({"type": "order", "event": event, "entity": o["by"], "order_id": o["order_id"], "dish": o["dish"], "name": o["name"]})
+    except Exception:
+        pass
+
+
+def restaurant_tick(gts: float, players: dict) -> None:
+    for pid, o in list(_waiting.items()):
+        if gts >= o["ready_gts"]:
+            _waiting.pop(pid, None)
+            _serve(o, players, gts)
+
+
+def waiting_view(pid: str, gts: float | None = None) -> dict | None:
+    o = _waiting.get(pid)
+    if o is None:
+        return None
+    gts = _gts() if gts is None else gts
+    return {"kind": "waiting_order", "order_id": o["order_id"], "dish": o["dish"], "name": o["name"], "item": "meal", "object": o["object"],
+            "started_at": _iso(o["ordered_gts"]), "ends_at": o["ready_at"], "remaining_s": max(0, round(o["ready_gts"] - gts)),
+            "progress": round(min(1.0, max(0.0, (gts - o["ordered_gts"]) / max(1e-6, o["ready_gts"] - o["ordered_gts"]))), 3)}
+
+
+def kitchen_orders_view() -> list[dict]:
+    return [{"order_id": o["order_id"], "by": o["by"], "by_name": o["by_name"], "dish": o["dish"], "name": o["name"], "ready_at": o["ready_at"]}
+            for o in sorted(_waiting.values(), key=lambda o: o["ready_gts"])]
+
+
 # ── 检查点 ───────────────────────────────────────────────────────────────────
 def export_state() -> dict:
-    return {"orders": json.loads(json.dumps(_orders)), "ledger": json.loads(json.dumps(_ledger)), "seq": _seq["n"]}
+    return {"orders": json.loads(json.dumps(_orders)), "ledger": json.loads(json.dumps(_ledger)), "seq": _seq["n"], "waiting": json.loads(json.dumps(_waiting))}
 
 
 def import_state(d: dict | None) -> None:
-    _orders.clear(); _ledger.clear(); _seq["n"] = 0
+    _orders.clear(); _ledger.clear(); _seq["n"] = 0; _waiting.clear()
     if not d:
         return
     _orders.update(d.get("orders") or {}); _ledger.update(d.get("ledger") or {}); _seq["n"] = int(d.get("seq") or 0)
+    _waiting.update(d.get("waiting") or {})
 
 
 def post_load(objects: list[dict]) -> None:

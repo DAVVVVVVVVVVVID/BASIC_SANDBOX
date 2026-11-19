@@ -26,6 +26,16 @@ def get_orders(shop: Optional[str] = None, status: Optional[str] = None):
         return {"orders": shops.orders_view(shop, status)}
 
 
+@router.get("/shop/menu")
+def get_menu(shop: str = "restaurant"):
+    """v1.4.13：餐厅菜单（与 objects[bar].menu 同）。"""
+    if shop != "restaurant":
+        raise HTTPException(status_code=404, detail=f"no menu for {shop}")
+    with world_state.STATE_LOCK:
+        return {"shop": "restaurant", "menu": shops.menu_view(world_state._players, world_state._OBJECTS, world_state.game_now_ts()),
+                "orders": shops.kitchen_orders_view()}
+
+
 class StockEdit(BaseModel):
     object: str = "counter"
     item: str
