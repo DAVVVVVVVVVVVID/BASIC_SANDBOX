@@ -187,6 +187,20 @@ def cmd_verify(a):
             got = {k: round(float(v), 3) for k, v in (p.get("closeness") or {}).items()}
             diff = {k: (want.get(k, 0.0), got.get(k, 0.0)) for k in set(want) | set(got) if abs(want.get(k, 0.0) - got.get(k, 0.0)) > a.tol}
             check(not diff, f"{r['name']} closeness 与表一致" + (f"：差异 {diff}（表, 沙盒）" if diff else f" {got}"))
+    try:                                                               # v1.4.8 钓鱼个人纪录 = 初始表（只读 agent 的 GET /player；对人类那是心跳）
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from game import fishing as _f
+        ini = _f.cfg().get("records_initial") or {}
+        for r in roster:
+            if r["controller"] != "agent":
+                continue
+            st, pp = _http(a.base, "GET", f"/player/{r['player_id']}")
+            best = ((pp or {}).get("fishing") or {}).get("record", {}).get("best") if st == 200 else None
+            want = ini.get(r.get("agent_id"))
+            ok = (best is None and want is None) or (best and want and best.get("species") == want["species"] and abs(float(best["weight"]) - float(want["weight"])) < 1e-6)
+            check(bool(ok), f"{r['name']} 钓鱼纪录 = 初始表（{(best or {}).get('name')} {(best or {}).get('weight')}）")
+    except Exception as e:
+        check(False, f"钓鱼纪录核对出错：{e}")
     print("verify:", "全过" if not bad else f"{len(bad)} 项不过")
     sys.exit(1 if bad else 0)
 
