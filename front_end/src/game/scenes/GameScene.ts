@@ -60,6 +60,8 @@ function snapZoom(z: number, mode: 'round' | 'floor' = 'round'): number {
 export { poseAnchorsFor, deriveStateLabel, iconize } from '../stateLabel'
 import { deriveStateLabel, poseAnchorsFor } from '../stateLabel'
 import { homeworkUseText } from '../school'
+import { isShop } from '../shop'
+import { pixelToTile } from '../map/TileMap'
 /** 后端带了 sprite 名但美术还没出的物件：不去拉 assets/sprites/<名>.png（404 刷控制台），直接画图标色块 */
 const NO_SPRITE = new Set(['homework_box'])
 
@@ -772,6 +774,12 @@ export default class GameScene extends Phaser.Scene {
             // 手机：点到角色 → 弹动作条（聊天 / 看看他 / 跟随），不走路
             for (const [id, s] of this.others) if (s.containsPoint(wx, wy)) { const cam = this.cameras.main; const px = s.getPixelPosition(); EventBus.emit('actor-tap', { id, name: useGameStore.getState().players.find(p => p.id === id)?.name ?? id, x: (px.x - cam.worldView.x) * cam.zoom, y: (px.y - cam.worldView.y) * cam.zoom }); return true }
             if (this.self?.containsPoint(wx, wy)) return true
+          }
+          // 主播 11-19：点商店物件（鱼摊 / 杂货店柜台 / 餐厅吧台，带 shop[]）直接弹商店面板，不走路；图比占地高，算上占地上方一格
+          if (this.mode === 'play') {
+            const t = pixelToTile(wx, wy)
+            const shop = t ? useGameStore.getState().objects.find(o => isShop(o) && (o.tiles?.length ? o.tiles : [o.position]).some(p => p.x === t.x && (p.y === t.y || p.y - 1 === t.y))) : undefined
+            if (shop) { EventBus.emit('shop-open', { id: shop.id }); return true }
           }
           if (this.director === 'self') return false
           for (const [id, s] of this.others) if (s.containsPoint(wx, wy)) { this.directorCmd({ cmd: 'follow', id }); return true }

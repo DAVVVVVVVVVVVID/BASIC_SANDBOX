@@ -44,7 +44,11 @@ export interface GameObject {
   /** W11：库存（商店 / 冰箱 {item: n}，其余 null） */
   stock?: Record<string, number> | null
   /** W10：商店物品（shop_counter / fish_stall / bar）；price = 卖价（null 不卖）、sell = 收购价、stock W11 起是实数 */
-  shop?: { type?: string; item?: string; name?: string; price?: number | null; sell?: number | null; stock?: number | null }[] | null
+  shop?: ShopEntry[] | null
+  /** 营业：后端按游戏时间给的此刻开没开、下次开门、营业时段（前端只显示） */
+  open?: boolean
+  opensAt?: string | null
+  openHours?: string[][] | null
   /** world-v1.1-a（B 11-13）：冰箱存储内容与容量；柜台 / 鱼摊每日供应与补货时刻（stock = 今日剩余）；餐桌 dining / 允许物品；灶台在做的饭 */
   contents?: { item: string; count: number; expires_at?: string | null; expires_in_days?: number | null; spoiled?: boolean }[] | null
   storage?: { capacity: number; used: number } | null
@@ -60,6 +64,8 @@ export interface GameObject {
   /** world-v1.4.0：物件交互提示（作业提交箱「带着 CD 使用 = 交作业，截止…」） */
   hint?: string | null
 }
+/** 商店货品条目；钓鱼系统（主播 11-19）起鱼会逐条上架：id + meta {species, weight, grade, freshness, …}，前端照 meta 显示 */
+export interface ShopEntry { type?: string; item?: string; name?: string; price?: number | null; sell?: number | null; stock?: number | null; id?: string; item_id?: string; meta?: Record<string, unknown> | null }
 /** world-v1.1：进食 / 下厨 / 烧着的持续动作（players[] / GET /player / state 一致都有）；不忙 null */
 export interface BusyState { kind: 'eating' | 'cooking' | 'burning' | string; item?: string; started_at?: string; ends_at?: string; remaining_s?: number; progress?: number; gain?: Record<string, number> | null }
 /** world-v1.1-b：每日使用时长（分钟）按物品类型 */

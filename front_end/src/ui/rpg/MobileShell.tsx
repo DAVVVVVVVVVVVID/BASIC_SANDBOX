@@ -7,6 +7,7 @@ import type { DirectorCmd } from '../../game/scenes/GameScene'
 import PeoplePanel from './PeoplePanel'
 import SchoolCard from './SchoolCard'
 import ObjectHint from './ObjectHint'
+import ShopPanel from './ShopPanel'
 import ErrorBoundary from '../ErrorBoundary'
 import SettingsPanel from './SettingsPanel'
 import BackpackPanel from '../BackpackPanel'
@@ -58,7 +59,15 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
   const followed = useFollowedPlayer(followOther ? followOther.id : null)
   const shown = followOther ? (followed ?? null) : player
   const myKey = player ? godotCharKeyFor(player.profile?.name ?? player.id, 'human', identity ?? player.agent_id ?? null) : 'achan'
-  const toggle = (t: Tab) => { setOpen(o => (o === t ? null : t)); setTall(false) }
+  const toggle = (t: Tab) => { setShopId(null); setOpen(o => (o === t ? null : t)); setTall(false) }
+  // 主播 11-19：点商店物件 → 商店抽屉（与其他抽屉互斥）
+  const [shopId, setShopId] = useState<string | null>(null)
+  useEffect(() => {
+    const on = ({ id }: { id: string }) => { setOpen(null); setShopId(id); setTall(false) }
+    EventBus.on('shop-open', on)
+    return () => { EventBus.off('shop-open', on) }
+  }, [])
+  const shopObj = useGameStore((s) => (shopId ? s.objects.find(o => o.id === shopId) ?? null : null))
   const bars: [string, string, number, string][] = shown ? [
     ['饱腹', C.bar.fullness, Number(shown.fullness ?? shown.hp ?? 0), 'mi_bread'], ['精力', C.bar.energy, Number(shown.energy ?? 0), 'mi_bolt'],
     ['社交', C.bar.social, Number(shown.social ?? 0), 'mi_people'], ['乐趣', C.bar.fun, Number(shown.fun ?? 0), 'mi_star'], ['心情', C.bar.mood, Number(shown.mood ?? 0), 'mi_happy'],
@@ -127,6 +136,7 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
         </div>
       )}
       {/* 抽屉 */}
+      {shopId && shopObj && <BottomSheet title={`🛒 ${shopObj.name}`} tall={tall} onTall={setTall} onClose={() => setShopId(null)} kb={kb}><ShopPanel objectId={shopId} /></BottomSheet>}
       {open === 'people' && sheet(sheetTitle.people, <PeoplePanel follow={dir.mode === 'follow' ? dir.follow : null} cols={1} />)}
       {open === 'map' && sheet(sheetTitle.map, <div style={{ display: 'flex', justifyContent: 'center', padding: 4 }}><Minimap inline large /></div>)}
       {open === 'bag' && sheet(sheetTitle.bag, followOther ? <FollowBag player={followed} name={followName} /> : <BackpackPanel embedded />)}

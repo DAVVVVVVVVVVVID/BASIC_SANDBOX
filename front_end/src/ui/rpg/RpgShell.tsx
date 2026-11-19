@@ -9,6 +9,7 @@ import PanelFrame from './PanelFrame'
 import PeoplePanel from './PeoplePanel'
 import SchoolCard from './SchoolCard'
 import ObjectHint from './ObjectHint'
+import ShopPanel from './ShopPanel'
 import ErrorBoundary from '../ErrorBoundary'
 import SettingsPanel from './SettingsPanel'
 import HUD from '../HUD'
@@ -34,7 +35,15 @@ import { displayName } from './PlayerChip'
 export default function RpgShell({ playerId }: { playerId: string }) {
   const [open, setOpen] = useState<PanelKey | null>(null)
   const [dir, setDir] = useState<{ mode: 'self' | 'free' | 'follow'; follow: string | null }>({ mode: 'self', follow: null })
-  const toggle = (k: PanelKey) => setOpen(o => (o === k ? null : k))
+  const toggle = (k: PanelKey) => { setShopId(null); setOpen(o => (o === k ? null : k)) }
+  // 主播 11-19：点商店物件 → 商店面板（与其他面板互斥）
+  const [shopId, setShopId] = useState<string | null>(null)
+  useEffect(() => {
+    const on = ({ id }: { id: string }) => { setOpen(null); setShopId(id) }
+    EventBus.on('shop-open', on)
+    return () => { EventBus.off('shop-open', on) }
+  }, [])
+  const shopObj = useGameStore((s) => (shopId ? s.objects.find(o => o.id === shopId) ?? null : null))
   useEffect(() => { setUiSkin('rpg'); return () => setUiSkin('dark') }, [])
   useEffect(() => {
     const on = (s: typeof dir) => setDir(s)
@@ -48,11 +57,12 @@ export default function RpgShell({ playerId }: { playerId: string }) {
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
       const s = SUMMON.find(x => x.hk === e.key)
       if (s) { toggle(s.key); e.preventDefault(); return }
+      if (e.key === 'Escape' && shopId) { setShopId(null); return }
       if (e.key === 'Escape' && open) setOpen(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, shopId])
   // 主播 11-16（2552 宽屏）：所有控件按视口统一放大，基准 1920 = 1.0，上限 1.6
   const [uiScale, setUiScale] = useState(() => Math.min(1.6, Math.max(1, window.innerWidth / 1920)))
   useEffect(() => {
@@ -83,6 +93,11 @@ export default function RpgShell({ playerId }: { playerId: string }) {
         <div style={{ pointerEvents: 'auto' }}><InteractionPanel anchor="bottom" skin="rpg" /></div>
         {dir.mode === 'self' && <div style={{ pointerEvents: 'auto' }}><ObjectHint /></div>}
       </div>
+      {shopId && shopObj && (
+        <PanelFrame title={`🛒 ${shopObj.name}`} onClose={() => setShopId(null)} width={520} dark={false}>
+          <ShopPanel objectId={shopId} />
+        </PanelFrame>
+      )}
       {open && (open !== 'chat' || followOther) && (
         <PanelFrame title={title} onClose={() => setOpen(null)} width={open === 'people' ? 760 : open === 'map' ? 520 : open === 'settings' ? 520 : open === 'chat' ? 600 : 600} dark={false}>
           {open === 'people' && <><SchoolCard follow={dir.mode === 'follow' ? dir.follow : null} /><PeoplePanel follow={dir.mode === 'follow' ? dir.follow : null} /></>}
