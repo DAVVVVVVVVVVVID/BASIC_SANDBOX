@@ -280,10 +280,17 @@ def on_supplier_message(player: dict, msg: dict) -> None:
          "ordered_by": me, "payer": sup()["payer"], "quoted_at": _iso(gts), "quoted_at_gts": gts,
          "expires_at": _iso(gts + float(sup()["quote_ttl_min"]) * 60), "expires_at_gts": gts + float(sup()["quote_ttl_min"]) * 60,
          "deliver_at": _iso(_deliver_gts(gts)), "deliver_at_gts": _deliver_gts(gts)}
+    voided = []
+    for old in _orders.values():                                    # v1.4.20：同一个店同时只留一张待确认的报价（总控 11-19）
+        if old["shop"] == o["shop"] and old["status"] == "quoted":
+            old["status"] = "cancelled"; old["cancelled_at"] = _iso(gts); old["cancelled_reason"] = "superseded"; voided.append(old)
+            _log_order(old, "cancelled")
     _orders[oid] = o
     when = "明早" if _dt(o["deliver_at_gts"]).date() == (_dt(gts) - timedelta(hours=4)).date() + timedelta(days=1) else "后天早上"
     body = "、".join(f"{l['name']} ×{l['qty']}" for l in lines)
-    _reply(me, f"收到：{body}，货款 ¥{goods} + 运费 ¥{freight} = ¥{o['total']}，{when} {sup()['deliver_at']} 前送到。回复「确认」就下单（30 分钟内有效）。", o)
+    head = f"【¥{o['total']}】" if o["total"] > int(sup().get("big_order", 150)) else ""
+    tail = "".join(f"（上一张 ¥{v['total']} 的报价已作废。）" for v in voided)
+    _reply(me, f"{head}收到：{body}，货款 ¥{goods} + 运费 ¥{freight} = ¥{o['total']}，{when} {sup()['deliver_at']} 前送到。回复「确认」就下单（30 分钟内有效）。{tail}", o)
     _log_order(o, "quoted")
 
 

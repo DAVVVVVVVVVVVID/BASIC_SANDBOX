@@ -195,3 +195,17 @@ def test_real_1120_messages_never_create_orders_v1419(client, v12, fake_clock):
     assert all(o["status"] != "quoted" for o in shops.orders_view()) and not [o for o in shops.orders_view() if o["status"] == "confirmed"]
     _qq(client, grocer, "面包 10、食材 12")                                      # 正常下单照旧
     assert _last_from_zhou(client, grocer)["meta"]["order"]["status"] == "quoted"
+
+
+def test_one_open_quote_per_shop_and_big_total_first_v1420(client, v12, fake_clock):
+    _at(fake_clock, 20, 11)
+    grocer, cl = _agent(client, "npc_grocer"), _agent(client, "claudine")
+    _qq(client, grocer, "面包 10")
+    first = _last_from_zhou(client, grocer)["meta"]["order"]
+    _qq(client, cl, "食材 40")                                                 # 小克报一张大单 → 杂货店老板那张作废
+    m = _last_from_zhou(client, cl)
+    assert m["text"].startswith("【¥170】") and "上一张 ¥40 的报价已作废" in m["text"]
+    st = {o["order_id"]: o["status"] for o in shops.orders_view()}
+    assert st[first["order_id"]] == "cancelled" and list(st.values()).count("quoted") == 1
+    _qq(client, grocer, "确认")                                                # 她自己那张已作废 → 不扣
+    assert "没有等你确认" in _last_from_zhou(client, grocer)["text"]
