@@ -124,6 +124,7 @@ def save_checkpoint(path: Path | None = None) -> dict:
                  ("economy", json.dumps(__import__("game.economy", fromlist=["x"]).export_state())),
                  ("production", json.dumps(__import__("game.production", fromlist=["x"]).export_state())),
                 ("fishing", json.dumps(__import__("game.fishing", fromlist=["x"]).export_state(), ensure_ascii=False)),   # v1.4.8
+                ("shops", json.dumps(__import__("game.shops", fromlist=["x"]).export_state(), ensure_ascii=False)),       # v1.4.11
                  ("commissions", json.dumps(__import__("game.commissions", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("doors", json.dumps(__import__("game.doors", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("food", json.dumps(__import__("game.food", fromlist=["x"]).export_state(), ensure_ascii=False)),
@@ -199,6 +200,9 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         production.import_state(json.loads(meta.get("production") or "{}"))
         from game import fishing as _fishing
         _fishing.import_state(json.loads(meta.get("fishing") or "{}"))      # v1.4.8：纪录 / 最近几竿 / 鱼摊挂单（旧检查点没有 = 纪录按初始表）
+        from game import shops as _shops
+        _shops.import_state(json.loads(meta.get("shops") or "{}"))          # v1.4.11：进货单 / 账本
+        _shops.post_load(world_state._OBJECTS)                              # 旧鱼摊计数库存清掉
         commissions.import_state(json.loads(meta.get("commissions") or "{}"))
         from game import doors, food, social
         doors.import_state(json.loads(meta.get("doors") or "{}"))

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import world, player, actions, events, history, time_control, agent, chat, ws, scenario, qq, door, school
+from routers import world, player, actions, events, history, time_control, agent, chat, ws, scenario, qq, door, school, shops as shops_router
 from game import persistence, ticker, time_state, self_sync
 
 log = logging.getLogger("sandbox")
@@ -75,3 +75,4 @@ app.include_router(scenario.router)
 app.include_router(qq.router)                    # W10 ③
 app.include_router(door.router)                  # §3.40
 app.include_router(school.router)                # v1.4.0 上课系统
+app.include_router(shops_router.router)          # v1.4.11 商店（账本 / 进货 / 菜单）

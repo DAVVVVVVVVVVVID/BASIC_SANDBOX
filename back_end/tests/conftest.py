@@ -40,6 +40,7 @@ def isolated_state(tmp_path, monkeypatch):
     chat_state._reset_for_tests()
     qq._reset_for_tests(); economy._reset_for_tests(); production._reset_for_tests(); commissions._reset_for_tests(); doors._reset_for_tests(); speech._reset_for_tests(); chat_profile._reset_for_tests()
     __import__('game.fishing', fromlist=['x'])._reset_for_tests()
+    __import__('game.shops', fromlist=['x'])._reset_for_tests()
     monkeypatch.setitem(economy.cfg()["commissions"], "daily_p", 0.0)     # W11：测试里默认不随机出委托（要的测试自己 setitem 1.0）
     time_state._reset_for_tests()
     time_state.set_clock(None)
@@ -50,6 +51,7 @@ def isolated_state(tmp_path, monkeypatch):
     chat_state._reset_for_tests()
     qq._reset_for_tests(); economy._reset_for_tests(); production._reset_for_tests(); commissions._reset_for_tests(); doors._reset_for_tests(); speech._reset_for_tests(); chat_profile._reset_for_tests()
     __import__('game.fishing', fromlist=['x'])._reset_for_tests()
+    __import__('game.shops', fromlist=['x'])._reset_for_tests()
     time_state._reset_for_tests()
     time_state.set_clock(None)
     action_log._reset_for_tests()

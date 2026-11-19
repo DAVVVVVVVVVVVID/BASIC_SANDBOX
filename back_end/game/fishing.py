@@ -326,15 +326,25 @@ def refresh(now: float, players: dict, objects: list[dict], force: bool = False)
         return 0
     _last_refresh["hour"] = hour
     n = 0
+    from game import shops as _shops
+    gone_age = (float(cfg()["freshness"]["spoiled_days"]) + float(_shops.cfg().get("spoiled_vanish_days", 2))) * DAY_S   # v1.4.11：变质后 ~2 日自动消失
     for p in players.values():
-        for e in p.get("inventory") or []:
+        for e in list(p.get("inventory") or []):
             if e.get("type") == "fish" and e.get("meta"):
                 _settle(e["meta"], now); n += 1
+                if e["meta"].get("age_s", 0) >= gone_age:
+                    p["inventory"].remove(e)
+                    _vanish_note(p, e["meta"], "inventory")
     owner = next((p for p in players.values() if is_fisher(p)), None)
     for o in objects:
-        for c in o.get("contents") or []:
+        for c in list(o.get("contents") or []):
             if c.get("item") == "fish" and c.get("meta"):
                 _settle(c["meta"], now); n += 1
+                if c["meta"].get("age_s", 0) >= gone_age:
+                    o["contents"].remove(c)
+                    _vanish_note(None, c["meta"], "fridge", o["id"])
+                    from game.food import refresh_stock
+                    refresh_stock(o)
         if o.get("type") == cfg()["stall"]["type"] and o.get("listings"):
             keep = []
             for m in o["listings"]:
@@ -347,6 +357,19 @@ def refresh(now: float, players: dict, objects: list[dict], force: bool = False)
     return n
 
 
+def _vanish_note(player: dict | None, meta: dict, where: str, obj_id: str | None = None) -> None:
+    from game import world_state
+    if player is not None:
+        msg = f"那条变质的{meta['name']}放太久，扔掉了。"
+        prev = world_state._pending_messages.get(player["id"])
+        world_state._pending_messages[player["id"]] = (prev + "\n" + msg) if isinstance(prev, str) and prev else msg
+    try:
+        from game import external_log
+        external_log.log("spoil", player["id"] if player else None, action="discard_auto", item="fish", fish_id=meta.get("fish_id"), species=meta.get("species"), where=where, object=obj_id)
+    except Exception:
+        pass
+
+
 def _delist_spoiled(obj: dict, meta: dict, owner: dict | None) -> None:
     from game import inventory, world_state
     if owner is not None:
@@ -357,6 +380,8 @@ def _delist_spoiled(obj: dict, meta: dict, owner: dict | None) -> None:
     try:
         from game import external_log
         external_log.log("fishing", owner["id"] if owner else None, action="stall_spoiled", object=obj["id"], fish_id=meta["fish_id"], species=meta["species"], weight=meta["weight"])
+        from game import shops as _shops
+        _shops.record("fish_stall", "spoiled", who=owner, item="fish", qty=1, amount=0, note=f"{meta['name']} {meta['weight']:.2f} kg 变质下架，退回老渔夫", ref={"fish_id": meta["fish_id"]})
         from routers.ws import hub
         hub.push_event({"type": "stall_spoiled", "entity": owner["id"] if owner else None, "object": obj["id"], "fish": listing_view(meta)})
     except Exception:

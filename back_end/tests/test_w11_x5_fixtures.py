@@ -107,7 +107,7 @@ def test_full_game_day_at_x6_triggers_restock_wages_and_hours(client, v12, fake_
             timeline[hm] = {"fridge": fridge["stock"].get("ingredients", 0), "bread": counter["stock"]["bread"],
                             "achan": world_state._players[achan]["gold"], "xq": world_state._players[xq]["gold"], "grocer": world_state._players[grocer]["gold"]}
     assert timeline["07:59"]["fridge"] == 0 and timeline["08:01"]["fridge"] == 2 and timeline["06:59"]["fridge"] == 2          # 08:00 +2，当日只一次
-    assert timeline["07:59"]["bread"] == 4 and timeline["08:01"]["bread"] == 8                                               # v1.1：固定上新到 daily_supply
+    assert timeline["07:59"]["bread"] == 4 and timeline["08:01"]["bread"] == 4                                               # v1.4.11：杂货店不再每日刷新（只靠周叔进货）
     assert timeline["18:29"]["achan"] == 3000 and timeline["18:31"]["achan"] == 3200 and timeline["06:59"]["achan"] == 3200     # 阿蝉 18:30 一次 200
     assert timeline["06:59"]["xq"] == 3000 + 48 and timeline["06:59"]["grocer"] == 3000 + 20 - 48                             # 克劳蒂娜 4 小时（店主付）、老板娘 22:00 日薪 20
     transitions = [(hm, s) for hm, s in opens]
@@ -234,11 +234,11 @@ def test_set_gold_op_and_v11_fixture_preconditions(client, v12, bench_env, fake_
                       {"op": "set_gold", "player": whale, "gold": 120}])
     assert r["ok"] and r["steps"][-1]["detail"] == {"player": whale, "gold": 120, "delta": -2880}
     objs = {o["id"]: o for o in client.get("/world", params={"fields": "objects"}).json()["objects"]}
-    assert objs["fridge_home"]["contents"] == [] and objs["counter"]["stock"]["bread"] == 0 and objs["counter"]["daily_supply"]["bread"] == 0 and objs["counter"]["daily_supply"]["sweets"] == 6 and objs["table_rest_1"]["open"] is True
-    # 08:00 补货按物品上的 daily_supply：面包今天不上、甜食补到 6
+    assert objs["fridge_home"]["contents"] == [] and objs["counter"]["stock"]["bread"] == 0 and objs["counter"]["daily_supply"]["bread"] == 0 and objs["table_rest_1"]["open"] is True
+    # v1.4.11：杂货店 restock_mode none——08:00 不补，库存停在夹具设的值
     _run(client, [{"op": "set_time", "date": "2026-11-11", "time": "08:01"}]); ticker.tick_once(checkpoint=False); fake_clock.advance(1); ticker.tick_once(checkpoint=False)
     counter = world_state.get_object_by_id("counter")
-    assert counter["stock"]["bread"] == 0 and counter["stock"]["sweets"] == 6 and counter["stock"]["ingredients"] == 12
+    assert counter["stock"]["bread"] == 0 and counter["stock"]["sweets"] == 6 and counter["stock"]["ingredients"] == 0
     _run(client, [{"op": "set_time", "date": "2026-11-10", "time": "12:10"}])
     p = client.get(f"/player/{whale}").json()
     assert p["gold"] == 120 and p["rent"]["amount"] == 300 and p["rent"]["balance"] == 120 and p["rent"]["overdue"] is False
@@ -248,5 +248,5 @@ def test_set_gold_op_and_v11_fixture_preconditions(client, v12, bench_env, fake_
     _run(client, [{"op": "set_time", "date": "2026-12-01", "time": "08:01"}]); ticker.tick_once(checkpoint=False); fake_clock.advance(1); ticker.tick_once(checkpoint=False)
     rv = client.get(f"/player/{whale}").json()["rent"]
     assert rv["overdue"] is True and rv["owed"] == 300 and world_state._players[whale]["gold"] == 120
-    _run(client, [{"op": "reset"}])                                                            # reset 把 daily_supply 回配置（x7_reset「商店满货」依赖）
-    assert world_state.get_object_by_id("counter")["daily_supply"]["bread"] == 8 and world_state.get_object_by_id("counter")["stock"]["bread"] == 8
+    _run(client, [{"op": "reset"}])                                                            # reset 把库存回配置初值（x7_reset「商店满货」依赖）
+    assert world_state.get_object_by_id("counter")["stock"]["bread"] == 8

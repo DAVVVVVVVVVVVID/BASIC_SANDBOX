@@ -188,6 +188,8 @@ def restock_tick(gts: float, objects: list[dict]) -> int:
         if o.get("stock") is None:
             continue
         s = shop_for(o["type"])
+        if s is not None and (s.get("restock_mode") or "reset") == "none":       # v1.4.11：杂货店只靠进货，不刷新
+            continue
         if s is not None:
             at = s.get("restock_at", "08:00"); target = o.get("daily_supply") if o.get("daily_supply") is not None else (s.get("daily_supply") or s.get("stock") or {})
         elif o["type"] == "fridge":

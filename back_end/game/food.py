@@ -123,15 +123,23 @@ def spoil_tick(gts: float, players: dict, objects: list[dict]) -> int:
     """到期的叠变 spoiled_food。调用方持 STATE_LOCK。返回变坏的叠数。"""
     from game import inventory, external_log
     n = 0
+    from game import shops as _shops
+    vanish = float(_shops.cfg().get("spoiled_vanish_days", 2)) * 86400.0      # v1.4.11：坏掉的东西 ~2 日不拿去换就自动消失
     for p in players.values():
         inv = inventory.ensure(p)
         for e in list(inv):
             exp = e.get("expires_at")
+            if e["type"] == "spoiled_food" and exp is not None and float(exp) <= gts:
+                inv.remove(e); n += 1
+                external_log.log("spoil", p["id"], action="discard_auto", item="spoiled_food", qty=int(e.get("count", 0)), where="inventory")
+                from game import world_state
+                world_state._pending_messages[p["id"]] = "坏掉的食物放太久，扔掉了。"
+                continue
             if exp is None or float(exp) > gts or e["type"] == "spoiled_food":
                 continue
             qty = int(e.get("count", 0)); item = e["type"]
             inv.remove(e)
-            inventory.add(p, "spoiled_food", qty, expires_at=None)
+            inventory.add(p, "spoiled_food", qty, expires_at=gts + vanish)
             n += 1
             external_log.log("spoiled", p["id"], item=item, qty=qty, where="inventory")
             _push({"type": "spoiled", "entity": p["id"], "item": item, "qty": qty})
@@ -143,15 +151,19 @@ def spoil_tick(gts: float, players: dict, objects: list[dict]) -> int:
         changed = False
         for c in list(o["contents"]):
             exp = c.get("expires_at")
+            if c["item"] == "spoiled_food" and exp is not None and float(exp) <= gts:
+                o["contents"].remove(c); changed = True; n += 1
+                external_log.log("spoil", None, action="discard_auto", object=o["id"], item="spoiled_food", qty=int(c["count"]), where="fridge")
+                continue
             if exp is None or float(exp) > gts or c["item"] == "spoiled_food":
                 continue
             qty = int(c["count"]); item = c["item"]
             o["contents"].remove(c)
             for s in o["contents"]:
-                if s["item"] == "spoiled_food":
+                if s["item"] == "spoiled_food" and s.get("expires_at") is not None and int(float(s["expires_at"]) // 86400) == int((gts + vanish) // 86400):
                     s["count"] += qty; break
             else:
-                o["contents"].append({"item": "spoiled_food", "count": qty, "expires_at": None})
+                o["contents"].append({"item": "spoiled_food", "count": qty, "expires_at": gts + vanish})
             changed = True; n += 1
             external_log.log("spoiled", None, object=o["id"], item=item, qty=qty, where="fridge")
             _push({"type": "spoiled", "object": o["id"], "object_type": o["type"], "position": dict(o["position"]), "item": item, "qty": qty})

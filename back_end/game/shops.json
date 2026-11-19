@@ -1,0 +1,43 @@
+{
+  "_doc": "商店系统（world-v1.4.11 起；whale docs/systems/shops-system.md「主播 11-19 修改」；沙盒侧草案 docs/shops-phase1-sandbox.md）。价格写在这里与 items.json，店主不能改。",
+  "supplier": {
+    "account": "supplier_zhou",
+    "name": "镇外批发 · 周叔",
+    "allowed": ["npc_grocer", "claudine"],
+    "payer": "npc_grocer",
+    "shop": "grocery",
+    "object_type": "shop_counter",
+    "costs": {"bread": 3, "sweets": 3, "ingredients": 4, "gift": 15, "bait": 1},
+    "freight": 10,
+    "quote_ttl_min": 30,
+    "cutoff": "22:00",
+    "deliver_at": "07:30",
+    "storeroom_cap": 40,
+    "aliases": {"面包": "bread", "甜食": "sweets", "甜点": "sweets", "零食": "sweets", "食材": "ingredients", "菜": "ingredients",
+                "小礼物": "gift", "礼物": "gift", "礼品": "gift", "鱼饵": "bait", "饵": "bait"},
+    "confirm_words": ["确认", "确定", "好", "好的", "下单", "可以", "行", "ok", "OK"],
+    "haiku_fallback": false
+  },
+  "ledgers": {
+    "grocery":    {"name": "杂货店", "owner": "npc_grocer",     "viewers": ["npc_grocer", "claudine"], "objects": ["counter"]},
+    "restaurant": {"name": "餐厅",   "owner": "npc_rest_owner", "viewers": ["npc_rest_owner"],         "objects": ["bar"]},
+    "fish_stall": {"name": "鱼摊",   "owner": "npc_fisher",     "viewers": ["npc_fisher"],             "objects": ["fish_stall"]}
+  },
+  "ledger_keep_days": 14,
+  "exchange": {"fee": 1, "accepts": ["spoiled_food", "junk_boot", "junk_can", "junk_bag", "junk_line"], "accepts_spoiled_fish": true},
+  "spoiled_vanish_days": 2,
+  "restaurant": {
+    "_doc": "第二期：现点现做。点单须坐在 dining.meal 的餐桌；老板（owner）须在后厨 arena；用料从后厨冰箱（kitchen_fridges）+ 老板背包里扣；做菜 cook_minutes 游戏分钟后自动开吃。",
+    "owner": "npc_rest_owner",
+    "kitchen_arena": "rest_kitchen",
+    "kitchen_fridges": ["fridge_rest"],
+    "cook_minutes": 1,
+    "menu": [
+      {"dish": "home_rice",     "name": "家常饭",   "price": 18, "uses": [{"item": "ingredients", "qty": 1}], "gain": {"fullness": 40, "mood": 3}, "eat_minutes": 20},
+      {"dish": "tomato_noodle", "name": "番茄蛋面", "price": 22, "uses": [{"item": "ingredients", "qty": 1}, {"item": "bread", "qty": 1}], "gain": {"fullness": 45, "mood": 4}, "eat_minutes": 20},
+      {"dish": "fish_soup",     "name": "鲜鱼汤",   "price": 28, "uses": [{"item": "fish", "qty": 1, "tier": "common"}, {"item": "ingredients", "qty": 1}], "gain": {"fullness": 45, "mood": 5}, "eat_minutes": 20},
+      {"dish": "catch_of_day",  "name": "今日鲜鱼", "price": null, "price_rule": "fish_x2_plus_10", "uses": [{"item": "fish", "qty": 1}], "gain": null, "eat_minutes": 20},
+      {"dish": "dessert",       "name": "甜品",     "price": 10, "uses": [{"item": "sweets", "qty": 1}], "gain": {"mood": 6}, "eat_minutes": 5}
+    ]
+  }
+}

@@ -178,8 +178,15 @@ def perceive(
         "door_request":    _door_request_view(entity_id),   # §3.40：访客——我最近一次敲门的状态
         "game":            _game_view(entity_id),       # B18：游戏机局内状态（无则 null）
         "fishing":         _fishing_view(entity_id),    # v1.4.8：钓鱼 {spot, last_cast, recent_casts, record, …}
+        "orders_pending":  _orders_pending(entity_id),  # v1.4.11：杂货店老板 / 小克：周叔那边 quoted / confirmed 的单；其他人 null
         "lesson":          _lesson_view(entity_id),     # v1.4.0：上课中 {lesson_id, course, title, segment{i,text}, dozed_prev, question, attendance, …}，不在课 null
     }
+
+
+def _orders_pending(entity_id: str) -> list | None:
+    from game import shops
+    p = _players.get(entity_id)
+    return shops.pending_for(p) if p else None
 
 
 def _fishing_view(entity_id: str) -> dict | None:

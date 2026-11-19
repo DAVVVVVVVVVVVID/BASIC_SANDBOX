@@ -9,7 +9,8 @@
     "npc_rest_owner": "餐厅老板",
     "npc_grocer": "杂货店老板",
     "npc_fisher": "老渔夫",
-    "town_hall": "镇公所"
+    "town_hall": "镇公所",
+    "supplier_zhou": "镇外批发 · 周叔"
   },
   "contacts": {
     "whale": [
@@ -26,7 +27,11 @@
       "npc_fisher"
     ],
     "claudine": [
-      "npc_grocer"
+      "npc_grocer",
+      "supplier_zhou"
+    ],
+    "npc_grocer": [
+      "supplier_zhou"
     ]
   },
   "groups": [
@@ -46,7 +51,8 @@
   },
   "read_reply_bonus": 1.0,
   "system_accounts": [
-    "town_hall"
+    "town_hall",
+    "supplier_zhou"
   ],
   "aliases": {
     "claudine": [

@@ -1108,6 +1108,9 @@ def _object_view(obj: dict, game_ts: float, viewer: str | None = None) -> dict:
     view["opensAt"] = opens_at
     if viewer and obj.get("daily_limit_min"):
         view["daily_used_min"] = round(daily_used_s(viewer, obj["type"], game_ts) / 60.0, 1)
+    if obj.get("type") == "shop_counter":                   # v1.4.11：杂货店库房 {stock, capacity, incoming}
+        from game import shops as _shops
+        view["warehouse"] = _shops.warehouse_view(obj)
     if obj.get("type") == "fish_stall":                     # v1.4.8：鱼摊逐条挂单
         from game import fishing as _fishing
         view["listings"] = _fishing.stall_listings(obj)
@@ -2108,6 +2111,8 @@ def _run_buff_tick_all(delta: float) -> None:
         production.on_tick(gts, _players)               # W11 ①：钓位出鱼、灶台按份出菜
         from game import fishing as _fishing
         _fishing.refresh(gts, _players, _OBJECTS)        # v1.4.8：每游戏小时刷鱼的新鲜度、鱼摊变质下架
+        from game import shops as _shops
+        _shops.on_tick(gts, _players, _OBJECTS)          # v1.4.11：周叔报价过期、到点送货
         from game import food, social
         food.on_tick(gts, _players)                     # world-v1.1：吃完
         food.spoil_tick(gts, _players, _OBJECTS)        # world-v1.1：到期变坏食

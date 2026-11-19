@@ -241,12 +241,11 @@ def test_shop_stock_out_of_stock_and_daily_restock(client, fake_clock):
     assert r["success"] is False and r["reason"] == "out_of_stock" and r["result"]["stock"] == 0
     shop = {x["type"]: x for x in next(o for o in client.get("/world", params={"fields": "objects"}).json()["objects"] if o["id"] == "counter_grocer")["shop"]}
     assert shop["gift"]["stock"] == 0 and shop["bread"]["stock"] == 8
-    _at(fake_clock, 8, 30); _tick(fake_clock, 1)                                          # 次日（这里直接拨到 08:30，另一天的 key）→ 补到水位
-    assert counter["stock"]["gift"] == 3
-    _at(fake_clock, 9, 0); _tick(fake_clock, 1)
-    assert counter["stock"]["gift"] == 3                                                  # 同日只补一次（买走的不会再补）
+    assert "等进货" in r["result"]["message"]                                              # v1.4.11：杂货店不再每日刷新，只靠周叔进货
+    _at(fake_clock, 8, 30); _tick(fake_clock, 1)                                          # 次日 08:30：不补
+    assert counter["stock"]["gift"] == 0
     o = next(o for o in client.get("/world", params={"fields": "objects"}).json()["objects"] if o["id"] == "counter_grocer")
-    assert o["stock"]["gift"] == 3 and {x["type"]: x for x in o["shop"]}["gift"]["stock"] == 3
+    assert o["stock"]["gift"] == 0 and {x["type"]: x for x in o["shop"]}["gift"]["stock"] == 0
 
 
 def test_fridge_stock_empty_store_and_restock(client, fake_clock, monkeypatch):

@@ -73,14 +73,9 @@
         "gift": 3
       },
       "restock_at": "08:00",
-      "daily_supply": {
-        "ingredients": 12,
-        "bread": 8,
-        "sweets": 6,
-        "bait": 10,
-        "gift": 3
-      },
-      "restock_mode": "reset"
+      "daily_supply": {},
+      "restock_mode": "none",
+      "_doc": "v1.4.11：不再每日刷新，库存不清空；只靠周叔进货（game/shops.json），卖完就是卖完"
     },
     "fish_stall": {
       "owner": "npc_fisher",

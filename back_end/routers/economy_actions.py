@@ -66,6 +66,8 @@ def _credit_account(account: str | None, payer: dict, delta: int, **fields) -> N
     economy.credit_account(account, int(delta), "income" if delta >= 0 else "expense", peer=payer["id"], **fields)
     if delta > 0:
         economy.record_sale(account, payer, int(delta), fields)
+    from game import shops as _shops
+    _shops.on_credit(account, payer, int(delta), fields)            # v1.4.11：三本账本（按店主账户归属）
 
 
 def _credit_owner(obj_type: str, payer: dict, delta: int, **fields) -> None:
@@ -119,7 +121,7 @@ def handle_buy(entity_id: str, payload: dict) -> ActionResponse:
         if stock is not None and int(stock.get(item, 0)) < qty:                      # W11 ④：库存
             return ActionResponse(success=False, type="buy", reason="out_of_stock",
                                   result={"objectId": obj["id"], **_item_fields(item, qty, total), "stock": int(stock.get(item, 0)),
-                                          "message": f"{d['name']}卖完了，明早补货。"})
+                                          "message": (f"{d['name']}卖完了，等进货。" if (economy.shop_for(obj["type"]) or {}).get("restock_mode") == "none" else f"{d['name']}卖完了，明早补货。")})
         if int(p.get("gold", 0)) < total:
             return ActionResponse(success=False, type="buy", reason="insufficient_funds",
                                   result={"objectId": obj["id"], **_item_fields(item, qty, total), "gold": int(p.get("gold", 0)),
@@ -180,6 +182,9 @@ def _sell_fish(p: dict, obj: dict, shop: dict, payload: dict, qty: int) -> Actio
         refresh_shop_views()
         from game import external_log
         external_log.log("fishing", p["id"], action="list", object=obj["id"], fish=[l["fish_id"] for l in listed], qty=len(listed))
+        from game import shops as _shops
+        for l in listed:
+            _shops.record("fish_stall", "list", who=p, item="fish", qty=1, unit_price=l["price"], amount=0, note=f"{l['name']} {l['weight']:.2f} kg", ref={"fish_id": l["fish_id"]})
         return ActionResponse(success=True, type="sell", result={"message": f"上货 {len(listed)} 条鱼到{obj['name']}。", "objectId": obj["id"], "item": "fish",
                               "listed": listed, "listings": fishing.stall_listings(obj), "gold_delta": 0, "gold": p["gold"], "inventory": inventory.view(p)})
     if not is_stall and "fish" not in shop.get("buys", []):
@@ -237,8 +242,9 @@ def _buy_fish(p: dict, obj: dict, shop: dict, payload: dict) -> ActionResponse:
 
 
 def handle_exchange(entity_id: str, payload: dict) -> ActionResponse:
-    """v1.4.8：杂货店柜台 exchange {item: "fish"（变质的）| junk_*, fish_id?} → 1 个鱼饵。"""
-    from game import fishing
+    """v1.4.11（覆盖 v1.4.8）：杂货店柜台 exchange {item, fish_id?, mode?: pay|donate}——变质的鱼 / 坏掉的食物 / 钓上来的垃圾 → 凭空产出 1 个鱼饵（永久保质）。
+    pay（默认）：付 1 金币给店主、鱼饵进自己背包；donate：不付钱、鱼饵进杂货店库存。两种都记杂货店账本 recycle。"""
+    from game import fishing, shops
     from game.time_state import game_now_ts
     with STATE_LOCK:
         p = _players.get(entity_id)
@@ -247,12 +253,15 @@ def handle_exchange(entity_id: str, payload: dict) -> ActionResponse:
         obj, err = _shop_object(p, payload)
         if err:
             return ActionResponse(success=False, type="exchange", reason=err, result={"objectId": obj["id"]} if obj else None)
-        ex = fishing.cfg()["exchange"]
-        if obj["type"] != ex["object"]:
+        ex_obj = fishing.cfg()["exchange"]; sx = shops.cfg()["exchange"]
+        if obj["type"] != ex_obj["object"]:
             return ActionResponse(success=False, type="exchange", reason="not_exchanging", result={"objectId": obj["id"], "message": "这里不收这个，去杂货店柜台换鱼饵。"})
+        mode = (payload.get("mode") or "pay").lower()
+        if mode not in ("pay", "donate"):
+            return ActionResponse(success=False, type="exchange", reason="bad_mode", result={"mode": mode, "message": "mode 只能是 pay（付 1 金币、鱼饵归你）或 donate（不付钱、鱼饵归店里）。"})
         item = _item(payload)
         now = game_now_ts()
-        if item == "fish":
+        if item == "fish" and sx.get("accepts_spoiled_fish", True):
             ents = [e for e in inventory.ensure(p) if e.get("type") == "fish" and e.get("meta")]
             for e in ents:
                 fishing._settle(e["meta"], now)
@@ -261,21 +270,58 @@ def handle_exchange(entity_id: str, payload: dict) -> ActionResponse:
             if entry is None:
                 return ActionResponse(success=False, type="exchange", reason="not_spoiled" if ents else "no_item",
                                       result={"item": "fish", "fish_id": fid, "message": "只收变质的鱼换鱼饵；新鲜的鱼去鱼摊卖。"})
-            inventory.remove_entry(p, entry, 1); gave = {"fish_id": entry["meta"]["fish_id"], "name": entry["meta"]["name"]}
-        elif item in fishing.cfg()["junk"]:
+            gave = {"item": "fish", "fish_id": entry["meta"]["fish_id"], "name": entry["meta"]["name"]}
+            take = lambda: inventory.remove_entry(p, entry, 1)
+        elif item in sx["accepts"]:
             if inventory.count(p, item) < 1:
                 return ActionResponse(success=False, type="exchange", reason="no_item", result=_item_fields(item, 1))
-            inventory.remove(p, item, 1); gave = {"item": item, "name": (inventory.item_def(item) or {}).get("name", item)}
+            gave = {"item": item, "name": (inventory.item_def(item) or {}).get("name", item)}
+            take = lambda: inventory.remove(p, item, 1)
         else:
-            return ActionResponse(success=False, type="exchange", reason="not_exchangeable", result={"item": item, "message": "只收变质的鱼和钓上来的垃圾，换鱼饵。"})
-        err2 = inventory.add(p, ex["gives"], int(ex["qty"]))
-        if err2:
-            return ActionResponse(success=False, type="exchange", reason=err2, result={"item": item})
+            return ActionResponse(success=False, type="exchange", reason="not_exchangeable", result={"item": item, "message": "只收变质的鱼、坏掉的食物和钓上来的垃圾，换鱼饵。"})
+        fee = int(sx.get("fee", 1)); owner = (economy.shop_for(obj["type"]) or {}).get("owner")
+        own = _is_own_shop(p, owner)
+        if mode == "pay" and not own and int(p.get("gold", 0)) < fee:
+            return ActionResponse(success=False, type="exchange", reason="insufficient_funds", result={"price": fee, "gold": int(p.get("gold", 0)), "message": f"换一个鱼饵要付 {fee} 金币。"})
+        if mode == "pay":
+            err2 = inventory.add(p, ex_obj["gives"], int(ex_obj["qty"]))
+            if err2:
+                return ActionResponse(success=False, type="exchange", reason=err2, result={"item": item})
+            take()
+            if not own:
+                economy.ledger("buy", p, -fee, item="bait", qty=1, price=fee, shop=obj["id"], shop_type=obj["type"], source="recycle")
+                economy.credit_account(owner, fee, "income", peer=p["id"], source="recycle", shop=obj["id"], item="bait", qty=1)
+            shops.record("grocery", "recycle", who=p, item=gave["item"], qty=1, unit_price=0 if own else fee, amount=0 if own else fee, note="换鱼饵（付钱，鱼饵归换的人）")
+            msg = f"用{gave['name']}换了 1 个鱼饵" + ("。" if own else f"，付了 {fee} 金币。")
+        else:
+            take()
+            st = obj.setdefault("stock", {}); st[ex_obj["gives"]] = int(st.get(ex_obj["gives"], 0)) + int(ex_obj["qty"])
+            refresh_shop_views()
+            shops.record("grocery", "recycle", who=p, item=gave["item"], qty=1, unit_price=0, amount=0, note="换鱼饵（不付钱，鱼饵归店里）")
+            msg = f"把{gave['name']}交给店里，换出的鱼饵归店里卖。"
         from game import external_log
-        external_log.log("fishing", p["id"], action="exchange", object=obj["id"], gave=gave, got={ex["gives"]: int(ex["qty"])})
+        external_log.log("fishing", p["id"], action="exchange", object=obj["id"], gave=gave, got={ex_obj["gives"]: int(ex_obj["qty"])}, mode=mode)
         mark_input(entity_id)
-        return ActionResponse(success=True, type="exchange", result={"message": f"用{gave['name']}换了 {ex['qty']} 个鱼饵。", "objectId": obj["id"], "gave": gave,
-                              "got": {"item": ex["gives"], "qty": int(ex["qty"])}, "inventory": inventory.view(p)})
+        return ActionResponse(success=True, type="exchange", result={"message": msg, "objectId": obj["id"], "gave": gave, "mode": mode,
+                              "got": {"item": ex_obj["gives"], "qty": int(ex_obj["qty"])} if mode == "pay" else None, "inventory": inventory.view(p)})
+
+
+def handle_read_ledger(entity_id: str, payload: dict) -> ActionResponse:
+    """v1.4.11：read_ledger {shop: grocery|restaurant|fish_stall, days?=1}——不占时间、不用在店里；只有 viewers 能看。"""
+    from game import shops
+    with STATE_LOCK:
+        p = _players.get(entity_id)
+        if p is None:
+            return ActionResponse(success=False, type="read_ledger", reason="player_not_found")
+        shop = payload.get("shop") or shops.shop_of_account(__import__("game.qq", fromlist=["x"]).account_of(p))
+        if shop not in shops.cfg()["ledgers"]:
+            return ActionResponse(success=False, type="read_ledger", reason="unknown_shop", result={"shop": shop, "shops": sorted(shops.cfg()["ledgers"])})
+        if not shops.can_read(p, shop):
+            return ActionResponse(success=False, type="read_ledger", reason="no_permission", result={"shop": shop, "message": "这本账不归你看。"})
+        v = shops.ledger_view(shop, int(payload.get("days") or 1))
+        d = v["days"][-1]
+        v["message"] = f"{v['name']}今天：收入 {d['revenue']}、支出 {d['cost']}、毛利 {d['gross']}，共 {len(v['entries'])} 笔。"
+        return ActionResponse(success=True, type="read_ledger", result=v)
 
 
 def handle_sell(entity_id: str, payload: dict) -> ActionResponse:

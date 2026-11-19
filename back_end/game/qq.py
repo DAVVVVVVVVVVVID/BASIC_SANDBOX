@@ -35,8 +35,9 @@ _penalty_day: dict[str, float] = {}     # "<from>:<to>:<day>" -> 已扣总量
 _purged_ids: set[str] = set()           # v1.3.14：被管理口清掉的消息 id（进检查点；/admin/export 的 qq 行按它过滤，本机 jsonl 原样保留）
 
 
-def system_send(from_acc: str, to_acc: str, text: str) -> dict:
-    """world-v1.1 §3.3：系统账号（镇公所 town_hall）给某账号发一条文字（收件人不必在线）。调用方持 STATE_LOCK。"""
+def system_send(from_acc: str, to_acc: str, text: str, meta: dict | None = None) -> dict:
+    """world-v1.1 §3.3：系统账号（镇公所 town_hall / v1.4.11 周叔 supplier_zhou）给某账号发一条文字（收件人不必在线）。调用方持 STATE_LOCK。
+    meta（v1.4.11）：结构化附带（周叔的确认单 meta.order），原样进消息。"""
     from game.time_state import game_now_iso
     global _SEQ
     with _LOCK:
@@ -44,6 +45,8 @@ def system_send(from_acc: str, to_acc: str, text: str) -> dict:
         msg = {"id": f"q{_SEQ:06d}_{uuid.uuid4().hex[:6]}", "ts": datetime.now().isoformat(timespec="milliseconds"),
                "game_time": game_now_iso(), "from": from_acc, "from_name": display_name(from_acc), "to": to_acc, "group": None,
                "kind": "text", "text": text, "file_ref": None, "read_at": None, "read_by": {}, "system": True}
+        if meta:
+            msg["meta"] = meta
         _messages.append(msg)
         if len(_messages) > _MEM_MAX:
             del _messages[: len(_messages) - _MEM_MAX]
@@ -234,6 +237,10 @@ def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: 
         except Exception:
             pass
         _push(_msg_event(msg))
+        if to_acc:
+            from game import shops as _shops
+            if to_acc == _shops.sup()["account"]:                     # v1.4.11：发给周叔 = 下单 / 确认（他立刻回）
+                _shops.on_supplier_message(p, msg)
         return _public(msg, me), None
 
 

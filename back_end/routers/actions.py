@@ -587,7 +587,8 @@ _HANDLERS = {
     "store":        economy_actions.handle_store,
     "take":         economy_actions.handle_take,
     "discard":      economy_actions.handle_discard,
-    "exchange":     economy_actions.handle_exchange,            # v1.4.8：杂货店换鱼饵
+    "exchange":     economy_actions.handle_exchange,            # v1.4.8：杂货店换鱼饵（v1.4.11 pay / donate）
+    "read_ledger":  economy_actions.handle_read_ledger,         # v1.4.11：三本账本
     "copy_key":     economy_actions.handle_copy_key,
     "deliver":      economy_actions.handle_deliver,
     "burn_cd":      economy_actions.handle_burn_cd,

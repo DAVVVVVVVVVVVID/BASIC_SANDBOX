@@ -1772,6 +1772,25 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
   - 分配规则：按可复现种子 `sha256(seed | 游戏日 | 序号)` 从「此刻场上没人在用的形象」里挑；6 套都在用时（晚市可能同时 7 人），挑离场最久没出现的那套，并且不让同一套形象的两个人同时进同一家店。
   - 主角和常驻 NPC 的 `players[]` 不带 `sprite` 字段（或为 null），照旧按 agent_id 认形象。
 
+### 12.33 商店第一期：进货 · 账本 · 换鱼饵 · 变质物消失（tag `world-v1.4.11`；whale `docs/systems/shops-system.md`「主播 11-19 修改」；草案 `docs/shops-phase1-sandbox.md`；配置 `back_end/game/shops.json`）
+
+- **周叔进货**：系统 QQ 账号 `supplier_zhou`（「镇外批发 · 周叔」），在杂货店老板与克劳蒂娜的通讯录里。`POST /qq/send {to: "supplier_zhou", text}`：
+  - 自然语言下单（规则读单：「面包 10、食材×12」「六袋甜食」「鱼饵十五」；货名 面包 / 甜食 / 食材 / 礼物·小礼物 / 鱼饵）→ 周叔立刻回确认单（QQ 正文 + `meta.order`）；读不出 → 「没看懂…按『面包 10』这样写」；其他人发 → 「我只跟杂货店做生意。」。
+  - `meta.order = {order_id, status: quoted|confirmed|delivered|expired|failed, shop: "grocery", items: [{item, name, qty, unit_cost}], goods, freight, total, ordered_by, payer: "npc_grocer", quoted_at, expires_at, deliver_at, confirmed_at?, delivered_at?, delivered?}`。
+  - 回「确认」（也认 确定 / 好 / 好的 / 下单 / 可以 / 行 / ok，标点空格不计）→ 确认本人最近一张 quoted 单：当场从**店主账户**扣 goods 与 freight（小克代下单也扣店主），`confirmed`；余额不足 → `failed`。报价 30 游戏分钟内不确认 → `expired`。
+  - 截单 22:00：之前确认 → 次日 07:30 送达；之后 → 后天 07:30。送达：进 `objects[counter].stock`，每种上限 40，超出部分按进价退回店主账户（账本 `refund`）；周叔给下单人与店主发「货到了：…」。
+  - 进价（`shops.json` costs）：面包 3 / 甜食 3 / 食材 4 / 小礼物 15 / 鱼饵 1；运费每单 10。店主不能改价（零售价在 items.json）。
+  - **杂货店不再每日刷新、库存不清空**（economy.json `shop_counter.restock_mode: "none"`）；卖完 `buy` → `out_of_stock`「X 卖完了，等进货。」。
+  - `GET /shop/orders?shop=grocery&status=` 订单列表；perceive `orders_pending`（杂货店老板 / 克劳蒂娜：quoted + confirmed 的单；其他人 null）；`objects[counter].warehouse = {stock, capacity: 40, incoming: [{order_id, items: [{item, qty}], eta}]}`；ws `{type: "supplier_order", event, order}`；external `kind=supplier action=quoted|confirmed|expired|failed|delivered`。
+- **账本**（三本，按店主账户归属）：`grocery`（杂货店 counter；看：杂货店老板、克劳蒂娜）、`restaurant`（餐厅 bar 与点餐；看：餐厅老板）、`fish_stall`（鱼摊；看：老渔夫）。
+  - 每笔 `{seq, ts, game_time, kind, who, who_name, item, item_name, qty, unit_price, amount, note?, ref?}`；`kind` = `sale` / `purchase` / `freight` / `refund` / `recycle` / `list` / `spoiled`（第三期加 `lost`）；`amount` 对店主收入正、支出负。所有进出店主账户的买卖自动记（含鱼摊收鱼、餐厅收鱼 = `purchase`）。保留 14 游戏日。
+  - 返回形状 `{shop, name, days: [{date, revenue, cost, gross, stock}], entries: [...]}`（04:00 换日；`stock` 只在今天那格给）。
+  - 动作 `read_ledger {shop?, days?=1}`（不带 shop = 自己是店主的那本；不占时间、不用在店里）→ 结果 + `message` 今日摘要；无权 → `no_permission`；未知 → `unknown_shop`。
+  - 导播 `GET /shops/{shop_id}/ledger?days=7`（shop_id = 物件 id `counter` / `bar` / `fish_stall` 或账本名）：不做权限、不写动作日志（公开开播前加 token）。
+- **换鱼饵**（覆盖 v1.4.8 `exchange`）：杂货店柜台 `exchange {item, fish_id?, mode?: "pay" | "donate"}`；收 变质的鱼 / `spoiled_food` / `junk_*`，每件凭空产出 1 个鱼饵（永久保质，不动店里库存）。`pay`（默认）：付 1 金币进店主账户、鱼饵进自己背包（店主本人换不付钱）；`donate`：不付钱、鱼饵进 `counter.stock.bait`。都记 `grocery` 账本 `recycle`。失败 `not_exchangeable` / `not_spoiled` / `no_item` / `insufficient_funds` / `bad_mode`。
+- **变质物 ~2 游戏日消失**：`spoiled_food` 变质时带 `expires_at = 变质时刻 + 2 日`，到期从背包 / 冰箱移除（背包的推 pendingMessage「坏掉的食物放太久，扔掉了。」）；鱼常温日龄满 8 日（冰箱半速）移除。external `kind=spoil action=discard_auto`。
+- 旧检查点里鱼摊的计数库存（v1.4.8 以前的 `{"fish": N}`）读进来时清掉。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

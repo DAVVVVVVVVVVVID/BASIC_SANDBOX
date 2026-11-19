@@ -54,6 +54,9 @@ class GameObject(BaseModel):
     daily_used_min: Optional[float] = None          # 按 ?player= 请求者（旁观页无 player 为 null）
     empty: Optional[bool] = None                    # v1.3.18：冰箱空标记（非存储类 null）
     hint: Optional[str] = None                      # v1.4.0：物件交互提示（作业提交箱）
+    warehouse: Optional[dict] = None                # v1.4.11 杂货店库房 {stock, capacity, incoming[{order_id, items, eta}]}
+    menu: Optional[List[dict]] = None               # v1.4.12 餐厅菜单
+    orders: Optional[List[dict]] = None             # v1.4.12 餐厅后厨待做
     listings: Optional[List[dict]] = None           # v1.4.8 鱼摊逐条挂单 [{listing_id, fish_id, species, name, tier, weight, freshness, age_days, price}]
     storage: Optional[dict] = None                  # 冰箱 {capacity, used}
     contents: Optional[List[dict]] = None           # 冰箱 [{item, name, count, expires_at, expires_in_days, spoiled}]
