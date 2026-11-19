@@ -1759,6 +1759,19 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - 底价/kg 与星斑鳇效果为初值（规格未给），见 fishing.json `_doc`。
 - 冒烟用 scenario op（v1.4.9，仅 `SANDBOX_SCENARIO=1`）：`set_fishing_record {player, species?, weight, clear?}` 摆个人总纪录（`clear: true` 回初始表）。
 
+### 12.32 路人顾客：身份命名与形象分配（**规划，第三期，未实现**；总控 11-19 定命名，会话 B 补规则）
+
+> 本节只定命名与形象的口径，供 E 先做显示；接口全貌随第三期实现补齐。实现前沙盒不会产生路人。
+
+- **身份**：路人是沙盒脚本角色（不跑大模型、不接自我层）。`controller: "script"`，`role: "passerby"`。
+  - `agent_id = passerby_<游戏日 YYYYMMDD>_<当天序号 01..>`，例如 `passerby_20261121_03`；player id 与 agent_id 相同。
+  - 每天新生成，离场即删：不进 roster，不进检查点的角色表，不开经济账户、QQ、亲密度，自我层也不同步。
+  - `name` 从普通镇外人名池取（`game/passerby.json`，第三期给）。同一天内不重名。
+- **形象**：`/world.players[]` 与 ws upsert 带 `sprite: "passer01" … "passer06"`（素材 `characters/town-chibi/h128/passerNN_{idle,walk,sit,eat}.png`）。
+  - 页面**只认 `sprite` 字段**，不要从 agent_id 推算。E 现有的按序号推算 `passer0((NN−1)%6+1)` 只是占位，第三期上线后改读 `sprite`。
+  - 分配规则：按可复现种子 `sha256(seed | 游戏日 | 序号)` 从「此刻场上没人在用的形象」里挑；6 套都在用时（晚市可能同时 7 人），挑离场最久没出现的那套，并且不让同一套形象的两个人同时进同一家店。
+  - 主角和常驻 NPC 的 `players[]` 不带 `sprite` 字段（或为 null），照旧按 agent_id 认形象。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。
