@@ -45,6 +45,12 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5br. world-v1.4.14：商店第三期——路人顾客（主播 11-19；随明早重置上主镇）—— 完成
+
+- `game/passerby.py`：按时段日程（种子可复现）从南门进镇 → 走到店 → 杂货 / 鱼 / 吃饭一笔交易 → 走回南门消失；失败八种说一句 + 账本 lost；sprite / 名字按 §12.32 分配。
+- 脚本角色：controller script、role passerby；不开经济账户（economy.on_leave 也不留）、不接自我层 / QQ / 聊天、心跳不清理、不进检查点角色表。开关：主镇或 SANDBOX_PASSERSBY=1；scenario spawn_passerby；GET /admin/passersby。
+- 测试 +6，ws 字段集 +sprite / role，**419 passed**；api-spec §12.35（§12.32 标已实现）。
+
 ## 5bq. world-v1.4.13：商店第二期——餐厅现点现做（主播 11-19）—— 完成
 
 - shops.py：菜单五道（价 / 用料 / 效果在 shops.json）、`order {dish}`（餐厅桌 + 营业 + 老板在 rest_kitchen + 料（fridge_rest + 老板背包）+ 钱）→ 1 游戏分钟后自动开吃；今日鲜鱼按鱼价 × 2 + 10、效果按料理表；bar 物件 menu / orders、GET /shop/menu、busy waiting_order、账本 sale。

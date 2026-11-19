@@ -1759,9 +1759,9 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - 底价/kg 与星斑鳇效果为初值（规格未给），见 fishing.json `_doc`。
 - 冒烟用 scenario op（v1.4.9，仅 `SANDBOX_SCENARIO=1`）：`set_fishing_record {player, species?, weight, clear?}` 摆个人总纪录（`clear: true` 回初始表）。
 
-### 12.32 路人顾客：身份命名与形象分配（**规划，第三期，未实现**；总控 11-19 定命名，会话 B 补规则）
+### 12.32 路人顾客：身份命名与形象分配（总控 11-19 定命名，会话 B 补规则；**v1.4.14 已实现，行为见 §12.35**）
 
-> 本节只定命名与形象的口径，供 E 先做显示；接口全貌随第三期实现补齐。实现前沙盒不会产生路人。
+> 本节定命名与形象的口径；行为（时段、交易、失败、开关）见 §12.35。
 
 - **身份**：路人是沙盒脚本角色（不跑大模型、不接自我层）。`controller: "script"`，`role: "passerby"`。
   - `agent_id = passerby_<游戏日 YYYYMMDD>_<当天序号 01..>`，例如 `passerby_20261121_03`；player id 与 agent_id 相同。
@@ -1808,6 +1808,18 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
   - 失败（都带中文 `message`）：`not_at_table`、`shop_closed {opens_at}`、`owner_not_in_kitchen`、`no_ingredients {missing: [{item, name, need, have}]}`、`insufficient_funds {price, gold}`、`unknown_dish {dishes}`、`already_eating`。
   - `objects[bar].orders = [{order_id, by, by_name, dish, name, ready_at}]`（后厨视角）；ws `{type: "order", event: placed|ready|abandoned, entity, order_id, dish, name}`；external `kind=restaurant action=order|ready|abandoned`。
 - 旧的 `eat {item: "meal"}`（餐厅一顿 20）暂时保留，供 agent 切换期使用；不出菜单、不扣料。
+
+### 12.35 商店第三期：路人顾客（tag `world-v1.4.14`；whale `shops-system.md` §5 + 主播 11-19；配置 `shops.json` passersby；命名 / 形象 §12.32）
+
+- **开关**：自动出现只在主镇（进程显式 `SANDBOX_TOWN=main`）或 env `SANDBOX_PASSERSBY=1`；`SANDBOX_PASSERSBY=0` 强制关。bench / 测试镇默认不出现（门禁不受干扰）。scenario op `spawn_passerby {purpose: grocery|fish_stall|restaurant, x?, y?}` 手动放一个（不看开关），回 `{id, name, sprite, purpose, gold}`。
+- **时段**（每游戏日按种子排好，`GET /admin/passersby` 可看 `{enabled, day, scheduled[{at, purpose, done}], active}`）：08–11 杂货 2–4 人；11–14 餐厅 3–6；13–17 鱼摊 / 杂货 2–4；17–21 餐厅 4–7；场上同时最多 7 人。
+- **流程**：从南门 (25,36) 走到店 → 到店说一句（模板，`speech` 气泡）→ 一笔交易 → 说一句 → 走回南门消失。预算：杂货 8–30、鱼 15–70、餐厅 15–45（`gold` 字段即预算）。
+  - 杂货：随机挑一样有货的（面包 / 甜食 / 食材 / 小礼物 / 鱼饵）买 1–2 个；店主不在杂货店里时 50% 直接走（`unattended`）。
+  - 鱼摊：预算内挑最贵的一条挂单买走。
+  - 餐厅：坐一张有空位的餐厅桌 → 按 §12.34 规则 `order`（预算内随机一道能点的菜）→ 吃完离桌。
+  - 钱进店主账户、记该店账本 `sale`（`who` = 路人 id，`note` 「路人」）；路人**不开经济账户**、不进 `/admin/metrics.accounts`。
+- **失败**（说一句、账本 `lost`，`ref.reason`）：`closed` 没开门 · `out_of_stock` 没货 · `too_expensive` 超预算 · `table_full` 没位子 · `too_long` 走不到 / 等太久 · `unattended` 店主不在 · `no_ingredients` 没料 · `owner_not_in_kitchen` 后厨没人。
+- **规矩**：`controller: "script"`、`role: "passerby"`、`agent_id = player id = passerby_<YYYYMMDD>_<NN>`、`sprite`（§12.32）；不接自我层、不开 QQ（发给路人 → `unknown_recipient`）、不聊天（`/chat/request` 涉及路人 → `{success: false, reason: "passerby", message: "路人只是路过，不聊天。"}`）、不进任何人的家、不主动搭话；心跳超时不清理（脚本自管）；不进检查点的角色表（重启时在场的路人清掉，日程保留）。external `kind=passerby action=spawn|lost|leave|purge_on_restart`。
 
 ### 12.7 地图 v1
 

@@ -198,7 +198,7 @@ def send(entity_id: str, *, to: str | None, group: str | None, kind: str, text: 
                 return None, "not_member"
         else:
             to_acc = resolve_account(to)
-            if to_acc is None:
+            if to_acc is None or (_players_by_account().get(to_acc) or {}).get("role") == "passerby":   # v1.4.14：路人没有 QQ
                 return None, "unknown_recipient"
             if to_acc == me:
                 return None, "self_message"

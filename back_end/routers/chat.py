@@ -77,6 +77,8 @@ def post_chat_request(body: ChatRequestBody):
     away = [t for t in body.to_entity_ids if t in _players_dict and not is_present(_players_dict[t])]
     if away:                                                    # W8 Q0e：away / 离线的人不接受邀请
         return {"request_id": None, "success": False, "reason": "target_away", "away": away}
+    if any((_players_dict.get(t) or {}).get("role") == "passerby" for t in body.to_entity_ids) or from_player.get("role") == "passerby":
+        return {"request_id": None, "success": False, "reason": "passerby", "message": "路人只是路过，不聊天。"}   # v1.4.14
     from game import school as _school
     busy = [t for t in body.to_entity_ids if _school.chat_blocked(from_player, _players_dict.get(t))]
     if busy:                                                    # v1.4.3：上课中拒外人邀请（同堂学生互邀放行）

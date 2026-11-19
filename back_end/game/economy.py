@@ -81,7 +81,7 @@ def opened_at(account: str) -> float | None:
 
 def on_leave(player: dict) -> None:
     from game.qq import account_of
-    if not player.get("agent_id"):                        # v1.3.6：没身份的人类（账号 = player id）离开不留账——人走账消，/admin/metrics 不积垃圾行
+    if not player.get("agent_id") or player.get("role") == "passerby":   # v1.3.6：没身份的人类离开不留账；v1.4.14：路人同样不留
         _balances.pop(player["id"], None); _debts.pop(player["id"], None); _opened.pop(player["id"], None)
         return
     _balances[account_of(player)] = int(player.get("gold", 0))

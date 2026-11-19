@@ -114,6 +114,8 @@ class OtherPlayer(BaseModel):
     chat_room_id: Optional[str] = None # v1.3.13：当前 active 聊天房 id，不在房 null
     last_thought: Optional[dict] = None # v1.3.19：思考气泡 {text, kind, game_time, ts}，只在 /world?view=admin 带
     lesson: Optional[dict] = None       # v1.4.0：{lesson_id, course, title, dozing}
+    sprite: Optional[str] = None        # v1.4.14：路人形象 passer01–06
+    role: Optional[str] = None          # v1.4.14："passerby"
 
 
 class WorldData(BaseModel):

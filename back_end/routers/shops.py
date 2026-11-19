@@ -36,6 +36,14 @@ def get_menu(shop: str = "restaurant"):
                 "orders": shops.kitchen_orders_view()}
 
 
+@router.get("/admin/passersby")
+def get_passersby():
+    """v1.4.14：路人日程与在场状态（导播 / 冒烟用）。"""
+    from game import passerby
+    with world_state.STATE_LOCK:
+        return passerby.view()
+
+
 class StockEdit(BaseModel):
     object: str = "counter"
     item: str

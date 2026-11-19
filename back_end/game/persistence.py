@@ -83,7 +83,7 @@ def save_checkpoint(path: Path | None = None) -> dict:
                   json.dumps({"last_used": r.get("last_used", {}), "use_history": r.get("use_history", []),
                               "pre_use_pos": r.get("pre_use_pos"), "daily_use": r.get("daily_use", {}),
                               "use_start_game_ts": r.get("use_start_game_ts")}))      # v1.1：每日用量；v1.3.18：use 起始游戏时刻
-                 for pid, r in rt["players"].items()],
+                 for pid, r in rt["players"].items() if (r["player"] or {}).get("role") != "passerby"],     # v1.4.14：路人不进角色表
             )
             conn.execute("DELETE FROM object_runtime")
             conn.executemany(
@@ -125,6 +125,7 @@ def save_checkpoint(path: Path | None = None) -> dict:
                  ("production", json.dumps(__import__("game.production", fromlist=["x"]).export_state())),
                 ("fishing", json.dumps(__import__("game.fishing", fromlist=["x"]).export_state(), ensure_ascii=False)),   # v1.4.8
                 ("shops", json.dumps(__import__("game.shops", fromlist=["x"]).export_state(), ensure_ascii=False)),       # v1.4.11
+                ("passerby", json.dumps(__import__("game.passerby", fromlist=["x"]).export_state(), ensure_ascii=False)), # v1.4.14
                  ("commissions", json.dumps(__import__("game.commissions", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("doors", json.dumps(__import__("game.doors", fromlist=["x"]).export_state(), ensure_ascii=False)),
                  ("food", json.dumps(__import__("game.food", fromlist=["x"]).export_state(), ensure_ascii=False)),
@@ -203,6 +204,9 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         from game import shops as _shops
         _shops.import_state(json.loads(meta.get("shops") or "{}"))          # v1.4.11：进货单 / 账本
         _shops.post_load(world_state._OBJECTS)                              # 旧鱼摊计数库存清掉
+        from game import passerby as _pb
+        _pb.import_state(json.loads(meta.get("passerby") or "{}"))           # v1.4.14：路人日程（路人本身不进角色表）
+        _pb.purge_on_load(world_state._players)
         commissions.import_state(json.loads(meta.get("commissions") or "{}"))
         from game import doors, food, social
         doors.import_state(json.loads(meta.get("doors") or "{}"))

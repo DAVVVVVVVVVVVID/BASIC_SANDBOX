@@ -22,6 +22,7 @@ op 一览（player 字段可填 id 或唯一的 name）：
   clear_cooldowns {player?}                          清物品冷却、每日使用时长（v1.1）与对话冷却
   set_gold       {player, gold}                      把余额写成 gold（流水 adjust，账户同步；v1.1 验收 S12）
   set_supply     {shop, item, qty}                   写商店当日上新量 daily_supply（08:00 补货按它；S11 清零杂货店食物）
+  spawn_passerby {purpose: grocery|fish_stall|restaurant, x?, y?}   v1.4.14：手动放一个路人（不受 SANDBOX_PASSERSBY 开关影响）
   set_fishing_record {player, species?, weight?, clear?:false}   v1.4.8：摆个人钓鱼总纪录（冒烟用；species 缺省沿用原纪录鱼种；clear=true 回初始表）
 """
 
@@ -541,6 +542,18 @@ def op_restore_object(step: dict) -> dict:
     return world_state.restore_object(step.get("id") or step.get("object"))
 
 
+def op_spawn_passerby(step: dict) -> dict:
+    from game import passerby
+    at = (int(step["x"]), int(step["y"])) if step.get("x") is not None and step.get("y") is not None else None
+    try:
+        p = passerby.spawn(step.get("purpose") or "grocery", world_state.game_now_ts(), at)
+    except ValueError as e:
+        raise StepError(f"bad purpose: {e}")
+    if p is None:
+        raise StepError("passerby limit reached")
+    return {"id": p["id"], "name": p["name"], "sprite": p["sprite"], "purpose": step.get("purpose") or "grocery", "gold": p["gold"]}
+
+
 def op_set_fishing_record(step: dict) -> dict:
     from game import fishing
     p = _player(step.get("player"))
@@ -563,7 +576,7 @@ def op_set_fishing_record(step: dict) -> dict:
 
 OPS = {
     "reset": op_reset, "set_time": op_set_time, "spawn": op_spawn, "remove": op_remove, "teleport": op_teleport,
-    "set_vars": op_set_vars, "set_fishing_record": op_set_fishing_record, "effects": op_effects, "occupy": op_occupy, "release": op_release,
+    "set_vars": op_set_vars, "set_fishing_record": op_set_fishing_record, "spawn_passerby": op_spawn_passerby, "effects": op_effects, "occupy": op_occupy, "release": op_release,
     "invite": op_invite, "respond": op_respond, "say": op_say, "exit_chat": op_exit_chat, "clear_cooldowns": op_clear_cooldowns,
     "give_item": op_give_item, "produce": op_produce,          # W11 维护
     "move_object": op_move_object, "remove_object": op_remove_object, "restore_object": op_restore_object,   # X1 N5

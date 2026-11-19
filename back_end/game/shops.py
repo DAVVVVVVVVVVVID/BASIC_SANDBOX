@@ -494,7 +494,11 @@ def order(player: dict, dish: str, gts: float) -> tuple[dict | None, str | None,
     if int(player.get("gold", 0)) < price:
         return None, "insufficient_funds", {"price": price, "gold": int(player.get("gold", 0)), "message": f"{plan['name']}要 {price} 金币，身上只有 {int(player.get('gold', 0))}。"}
     _consume(d, plan, owner, world_state._OBJECTS)
-    if price:
+    if price and player.get("role") == "passerby":                 # v1.4.14：路人不开经济账户——钱直接进老板账户、记账本
+        player["gold"] = int(player.get("gold", 0)) - price
+        economy.credit_account(rcfg()["owner"], price, "income", peer=player["id"], source="passerby", item=dish, qty=1)
+        record("restaurant", "sale", who=player, item=dish, qty=1, unit_price=price, amount=price, note="路人")
+    elif price:
         economy.ledger("buy", player, -price, item=dish, qty=1, price=price, shop=obj["id"], shop_type=obj["type"], dish=plan["name"])
         from routers.economy_actions import _credit_account
         _credit_account(rcfg()["owner"], player, price, source="restaurant_order", shop=obj["id"], item=dish, qty=1, price=price, dish=plan["name"])

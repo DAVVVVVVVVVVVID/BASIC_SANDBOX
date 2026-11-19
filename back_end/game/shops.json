@@ -3,41 +3,357 @@
   "supplier": {
     "account": "supplier_zhou",
     "name": "镇外批发 · 周叔",
-    "allowed": ["npc_grocer", "claudine"],
+    "allowed": [
+      "npc_grocer",
+      "claudine"
+    ],
     "payer": "npc_grocer",
     "shop": "grocery",
     "object_type": "shop_counter",
-    "costs": {"bread": 3, "sweets": 3, "ingredients": 4, "gift": 15, "bait": 1},
+    "costs": {
+      "bread": 3,
+      "sweets": 3,
+      "ingredients": 4,
+      "gift": 15,
+      "bait": 1
+    },
     "freight": 10,
     "quote_ttl_min": 30,
     "cutoff": "22:00",
     "deliver_at": "07:30",
     "storeroom_cap": 40,
-    "aliases": {"面包": "bread", "甜食": "sweets", "甜点": "sweets", "零食": "sweets", "食材": "ingredients", "菜": "ingredients",
-                "小礼物": "gift", "礼物": "gift", "礼品": "gift", "鱼饵": "bait", "饵": "bait"},
-    "confirm_words": ["确认", "确定", "好", "好的", "下单", "可以", "行", "ok", "OK"],
+    "aliases": {
+      "面包": "bread",
+      "甜食": "sweets",
+      "甜点": "sweets",
+      "零食": "sweets",
+      "食材": "ingredients",
+      "菜": "ingredients",
+      "小礼物": "gift",
+      "礼物": "gift",
+      "礼品": "gift",
+      "鱼饵": "bait",
+      "饵": "bait"
+    },
+    "confirm_words": [
+      "确认",
+      "确定",
+      "好",
+      "好的",
+      "下单",
+      "可以",
+      "行",
+      "ok",
+      "OK"
+    ],
     "haiku_fallback": false
   },
   "ledgers": {
-    "grocery":    {"name": "杂货店", "owner": "npc_grocer",     "viewers": ["npc_grocer", "claudine"], "objects": ["counter"]},
-    "restaurant": {"name": "餐厅",   "owner": "npc_rest_owner", "viewers": ["npc_rest_owner"],         "objects": ["bar"]},
-    "fish_stall": {"name": "鱼摊",   "owner": "npc_fisher",     "viewers": ["npc_fisher"],             "objects": ["fish_stall"]}
+    "grocery": {
+      "name": "杂货店",
+      "owner": "npc_grocer",
+      "viewers": [
+        "npc_grocer",
+        "claudine"
+      ],
+      "objects": [
+        "counter"
+      ]
+    },
+    "restaurant": {
+      "name": "餐厅",
+      "owner": "npc_rest_owner",
+      "viewers": [
+        "npc_rest_owner"
+      ],
+      "objects": [
+        "bar"
+      ]
+    },
+    "fish_stall": {
+      "name": "鱼摊",
+      "owner": "npc_fisher",
+      "viewers": [
+        "npc_fisher"
+      ],
+      "objects": [
+        "fish_stall"
+      ]
+    }
   },
   "ledger_keep_days": 14,
-  "exchange": {"fee": 1, "accepts": ["spoiled_food", "junk_boot", "junk_can", "junk_bag", "junk_line"], "accepts_spoiled_fish": true},
+  "exchange": {
+    "fee": 1,
+    "accepts": [
+      "spoiled_food",
+      "junk_boot",
+      "junk_can",
+      "junk_bag",
+      "junk_line"
+    ],
+    "accepts_spoiled_fish": true
+  },
   "spoiled_vanish_days": 2,
   "restaurant": {
     "_doc": "第二期：现点现做。点单须坐在 dining.meal 的餐桌；老板（owner）须在后厨 arena；用料从后厨冰箱（kitchen_fridges）+ 老板背包里扣；做菜 cook_minutes 游戏分钟后自动开吃。",
     "owner": "npc_rest_owner",
     "kitchen_arena": "rest_kitchen",
-    "kitchen_fridges": ["fridge_rest"],
+    "kitchen_fridges": [
+      "fridge_rest"
+    ],
     "cook_minutes": 1,
     "menu": [
-      {"dish": "home_rice",     "name": "家常饭",   "price": 18, "uses": [{"item": "ingredients", "qty": 1}], "gain": {"fullness": 40, "mood": 3}, "eat_minutes": 20},
-      {"dish": "tomato_noodle", "name": "番茄蛋面", "price": 22, "uses": [{"item": "ingredients", "qty": 1}, {"item": "bread", "qty": 1}], "gain": {"fullness": 45, "mood": 4}, "eat_minutes": 20},
-      {"dish": "fish_soup",     "name": "鲜鱼汤",   "price": 28, "uses": [{"item": "fish", "qty": 1, "tier": "common"}, {"item": "ingredients", "qty": 1}], "gain": {"fullness": 45, "mood": 5}, "eat_minutes": 20},
-      {"dish": "catch_of_day",  "name": "今日鲜鱼", "price": null, "price_rule": "fish_x2_plus_10", "uses": [{"item": "fish", "qty": 1}], "gain": null, "eat_minutes": 20},
-      {"dish": "dessert",       "name": "甜品",     "price": 10, "uses": [{"item": "sweets", "qty": 1}], "gain": {"mood": 6}, "eat_minutes": 5}
+      {
+        "dish": "home_rice",
+        "name": "家常饭",
+        "price": 18,
+        "uses": [
+          {
+            "item": "ingredients",
+            "qty": 1
+          }
+        ],
+        "gain": {
+          "fullness": 40,
+          "mood": 3
+        },
+        "eat_minutes": 20
+      },
+      {
+        "dish": "tomato_noodle",
+        "name": "番茄蛋面",
+        "price": 22,
+        "uses": [
+          {
+            "item": "ingredients",
+            "qty": 1
+          },
+          {
+            "item": "bread",
+            "qty": 1
+          }
+        ],
+        "gain": {
+          "fullness": 45,
+          "mood": 4
+        },
+        "eat_minutes": 20
+      },
+      {
+        "dish": "fish_soup",
+        "name": "鲜鱼汤",
+        "price": 28,
+        "uses": [
+          {
+            "item": "fish",
+            "qty": 1,
+            "tier": "common"
+          },
+          {
+            "item": "ingredients",
+            "qty": 1
+          }
+        ],
+        "gain": {
+          "fullness": 45,
+          "mood": 5
+        },
+        "eat_minutes": 20
+      },
+      {
+        "dish": "catch_of_day",
+        "name": "今日鲜鱼",
+        "price": null,
+        "price_rule": "fish_x2_plus_10",
+        "uses": [
+          {
+            "item": "fish",
+            "qty": 1
+          }
+        ],
+        "gain": null,
+        "eat_minutes": 20
+      },
+      {
+        "dish": "dessert",
+        "name": "甜品",
+        "price": 10,
+        "uses": [
+          {
+            "item": "sweets",
+            "qty": 1
+          }
+        ],
+        "gain": {
+          "mood": 6
+        },
+        "eat_minutes": 5
+      }
     ]
+  },
+  "passersby": {
+    "_doc": "第三期：路人顾客（脚本角色）。只在 SANDBOX_TOWN=main 或 env SANDBOX_PASSERSBY=1 时自动出现（bench 门禁不受干扰）；scenario op spawn_passerby 可手动放一个。命名 / 形象见 api-spec §12.32。",
+    "gate": {
+      "x": 25,
+      "y": 36
+    },
+    "max_concurrent": 7,
+    "slots": [
+      {
+        "from": "08:00",
+        "to": "11:00",
+        "purposes": [
+          "grocery"
+        ],
+        "n": [
+          2,
+          4
+        ]
+      },
+      {
+        "from": "11:00",
+        "to": "14:00",
+        "purposes": [
+          "restaurant"
+        ],
+        "n": [
+          3,
+          6
+        ]
+      },
+      {
+        "from": "13:00",
+        "to": "17:00",
+        "purposes": [
+          "fish_stall",
+          "grocery"
+        ],
+        "n": [
+          2,
+          4
+        ]
+      },
+      {
+        "from": "17:00",
+        "to": "21:00",
+        "purposes": [
+          "restaurant"
+        ],
+        "n": [
+          4,
+          7
+        ]
+      }
+    ],
+    "budget": {
+      "grocery": [
+        8,
+        30
+      ],
+      "fish_stall": [
+        15,
+        70
+      ],
+      "restaurant": [
+        15,
+        45
+      ]
+    },
+    "patience_min": {
+      "grocery": 10,
+      "fish_stall": 10,
+      "restaurant": 20
+    },
+    "grocery_wants": [
+      "bread",
+      "sweets",
+      "ingredients",
+      "gift",
+      "bait"
+    ],
+    "unattended_fail_p": 0.5,
+    "sprites": [
+      "passer01",
+      "passer02",
+      "passer03",
+      "passer04",
+      "passer05",
+      "passer06"
+    ],
+    "names": [
+      "李建国",
+      "王秀兰",
+      "张伟",
+      "刘芳",
+      "陈静",
+      "杨洋",
+      "赵磊",
+      "黄敏",
+      "周婷",
+      "吴强",
+      "徐丽",
+      "孙浩",
+      "马超",
+      "朱红",
+      "胡军",
+      "郭霞",
+      "何平",
+      "林涛",
+      "高娟",
+      "罗斌",
+      "郑芳",
+      "梁勇",
+      "谢雨",
+      "宋佳",
+      "唐亮",
+      "韩梅",
+      "冯刚",
+      "邓婷",
+      "曹阳",
+      "彭静"
+    ],
+    "say": {
+      "arrive": {
+        "grocery": [
+          "老板，来点东西。",
+          "路过，买点吃的。",
+          "你们这儿有面包吗？"
+        ],
+        "fish_stall": [
+          "今天有什么鱼？",
+          "听说码头这边鱼新鲜。",
+          "来看看鱼。"
+        ],
+        "restaurant": [
+          "吃个饭。",
+          "还有位子吗？",
+          "饿了，点个菜。"
+        ]
+      },
+      "done": {
+        "grocery": [
+          "谢啦。",
+          "好嘞，走了。"
+        ],
+        "fish_stall": [
+          "这鱼不错，走了。",
+          "谢谢老板。"
+        ],
+        "restaurant": [
+          "吃饱了，走了。",
+          "味道不错。"
+        ]
+      },
+      "fail": {
+        "closed": "没开门啊，下次再来。",
+        "out_of_stock": "没货了啊，算了。",
+        "too_expensive": "有点贵，算了。",
+        "too_long": "等太久了，不吃了。",
+        "unattended": "怎么没人看店……走了。",
+        "no_ingredients": "说是没料了，那算了。",
+        "owner_not_in_kitchen": "厨房没人？那我走了。",
+        "table_full": "没位子了，换一家吧。"
+      }
+    }
   }
 }

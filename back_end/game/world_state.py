@@ -860,7 +860,7 @@ def _cleanup_stale_players() -> None:
     """清除超过 _PLAYER_TIMEOUT 秒未心跳的玩家。由后台 ticker 调用（B8）。"""
     now = time.time()
     with STATE_LOCK:
-        stale = [pid for pid, ts in _last_seen.items() if now - ts > _PLAYER_TIMEOUT]
+        stale = [pid for pid, ts in _last_seen.items() if now - ts > _PLAYER_TIMEOUT and (_players.get(pid) or {}).get("controller") != "script"]   # v1.4.14：路人不靠心跳
         for pid in stale:
             p = _players.get(pid)
             if p is not None and p.get("dnd_auto"):
@@ -990,6 +990,8 @@ def get_all_players_snapshot(include_thought: bool = False) -> list[dict]:
             "busy":          _busy_view_safe(p["id"]),  # world-v1.1：进食进度（E 旁观页从 players[] 读）
             "daily_use":     daily_use_view(p["id"]),   # world-v1.1 I-1
             "rent":          _rent_view_safe(p),        # world-v1.1 §3.3
+            "sprite":        p.get("sprite"),            # v1.4.14：路人形象 passer01–06（其他人 null）
+            "role":          p.get("role"),              # v1.4.14："passerby"（其他人 null）
         }
         for p in _players.values()
     ]
@@ -2129,6 +2131,8 @@ def _run_buff_tick_all(delta: float) -> None:
         doors.on_tick(gts, _players)                    # §3.40：敲门超时 / 通行证失效
         from game import school
         school.on_tick(gts, _players)                   # v1.4.0：上课（开课 / 分段推送 / 提问 / 下课发笔记）
+        from game import passerby as _passerby
+        _passerby.on_tick(gts)                           # v1.4.14：路人顾客（只在主镇 / SANDBOX_PASSERSBY=1 自动出现）
         update_weather(gts)
         _kick_closed_objects()
         from game import state_log
