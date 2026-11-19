@@ -121,3 +121,18 @@ def test_midday_start_skips_past_slots_and_staggers(client, v12, fake_clock, mon
     nxt = min(i["at_gts"] for i in passerby._sched["items"] if not i["done"])
     fake_clock.t = nxt + 1; ticker.tick_once(checkpoint=False)
     assert len(passerby._active) == 1
+
+
+def test_grocery_picks_affordable(client, v12, fake_clock):
+    _at(fake_clock, 10)
+    grocer = _agent(client, "npc_grocer"); place(grocer, 24, 21, "down")
+    counter = world_state.get_object_by_id("counter")
+    counter["stock"] = {"gift": 3, "bread": 2}
+    p = _spawn("grocery", 28, 26); p["gold"] = 6                                   # 礼物 25 买不起、面包 5 买得起
+    assert _run(fake_clock, p["id"], lambda: passerby._active.get(p["id"], {}).get("phase") == "leaving")
+    e = shops.ledger_view("grocery")["entries"][-1]
+    assert e["kind"] == "sale" and e["item"] == "bread"
+    counter["stock"] = {"gift": 3}
+    q = _spawn("grocery", 28, 26); q["gold"] = 6
+    assert _run(fake_clock, q["id"], lambda: passerby._active.get(q["id"], {}).get("phase") == "leaving")
+    assert shops.ledger_view("grocery")["entries"][-1]["ref"]["reason"] == "too_expensive"

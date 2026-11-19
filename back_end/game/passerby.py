@@ -252,12 +252,15 @@ def _trade_grocery(p: dict, obj: dict, gts: float) -> None:
     r = _rng("want", p["id"])
     wants = list(pcfg()["grocery_wants"]); r.shuffle(wants)
     st = obj.get("stock") or {}
-    for item in wants:
+    in_stock = [i for i in wants if int(st.get(i, 0)) > 0 and int((inventory.item_def(i) or {}).get("price") or 0) > 0]
+    if not in_stock:
+        return _fail(p, "out_of_stock", "grocery", gts)
+    afford = [i for i in in_stock if int((inventory.item_def(i) or {}).get("price") or 0) <= int(p["gold"])]   # v1.4.16：在买得起的里挑
+    if not afford:
+        cheapest = min(in_stock, key=lambda i: int((inventory.item_def(i) or {}).get("price") or 0))
+        return _fail(p, "too_expensive", "grocery", gts, note=f"最便宜的{(inventory.item_def(cheapest) or {}).get('name', cheapest)}也超预算")
+    for item in afford:
         price = int((inventory.item_def(item) or {}).get("price") or 0)
-        if int(st.get(item, 0)) <= 0 or price <= 0:
-            continue
-        if price > int(p["gold"]):
-            return _fail(p, "too_expensive", "grocery", gts, note=f"{(inventory.item_def(item) or {}).get('name', item)} {price} 金币超预算")
         qty = 1 if price * 2 > int(p["gold"]) or int(st[item]) < 2 else (1 + (r.random() < 0.4))
         st[item] = int(st[item]) - qty
         world_state.refresh_shop_views()

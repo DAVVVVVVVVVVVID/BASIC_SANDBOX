@@ -192,7 +192,7 @@
     ]
   },
   "passersby": {
-    "_doc": "第三期：路人顾客（脚本角色）。只在 SANDBOX_TOWN=main 或 env SANDBOX_PASSERSBY=1 时自动出现（bench 门禁不受干扰）；scenario op spawn_passerby 可手动放一个。命名 / 形象见 api-spec §12.32。",
+    "_doc": "第三期：路人顾客（脚本角色）。只在 SANDBOX_TOWN=main 或 env SANDBOX_PASSERSBY=1 时自动出现（bench 门禁不受干扰）；scenario op spawn_passerby 可手动放一个。命名 / 形象见 api-spec §12.32。（v1.4.16：第一段改 09:00 起——杂货店 09:00 开门）",
     "gate": {
       "x": 25,
       "y": 36
@@ -200,7 +200,7 @@
     "max_concurrent": 7,
     "slots": [
       {
-        "from": "08:00",
+        "from": "09:00",
         "to": "11:00",
         "purposes": [
           "grocery"
