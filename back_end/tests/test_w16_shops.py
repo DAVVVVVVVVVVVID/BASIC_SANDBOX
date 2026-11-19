@@ -165,10 +165,33 @@ def test_stock_report_not_an_order_and_cancel_v1418(client, v12, fake_clock):
     grocer = _agent(client, "npc_grocer")
     _qq(client, grocer, "周叔，我这边的情况跟您说一下：这次就订小礼物×5（¥85，已确认），明早 07:30 送到杂货店。目前库存：面包 15/40、食材 18/40、甜食 7/40、鱼饵 10/40、小礼物 2/40（到货后会补上）。面包和食材够用，暂时不进。")
     assert "没看懂" in _last_from_zhou(client, grocer)["text"] and not shops.orders_view()
-    _qq(client, grocer, "面包 10，甜食还有 5 个先不要")
+    _qq(client, grocer, "面包 10，甜食还有 5 个先不要")                            # v1.4.19：带否定的消息一律不出单（保守）
+    assert not [o for o in shops.orders_view() if o["status"] == "quoted"]
+    _qq(client, grocer, "面包 10")
     o = _last_from_zhou(client, grocer)["meta"]["order"]
     assert [(i["item"], i["qty"]) for i in o["items"]] == [("bread", 10)]
     _qq(client, grocer, "今天这单先不确认了")
     assert shops.orders_view()[0]["status"] == "cancelled" and "不算了" in _last_from_zhou(client, grocer)["text"]
     _qq(client, grocer, "确认")
     assert "没有等你确认" in _last_from_zhou(client, grocer)["text"]
+
+
+REAL_1120 = [
+    "周叔，这单不确认，不要下。小礼物 12 个、面包、甜食、食材、鱼饵，前面两单已经全部下过了，明早 11-21 07:30 送到，不用再重复下。麻烦您了。",
+    "周叔，这单先不下了。之前已经下的那单（小礼物×7、面包×15、甜食×7、食材×18、鱼饵×10，11-21 07:30 送到）已经够用，再加就囤多了。",
+    "周叔，这单（小礼物×12、面包×15、甜食×7、食材×18、鱼饵×10）和我们已经下的 11-21 07:30 那两单重复了，这次不要，不用下单，谢谢您。",
+    "周叔，这两单（小礼物×7 那单，还有小礼物×12 那单）和我们已经下的订单有重复，先都不要，不用确认，谢谢您。",
+    "周叔，这张小礼物×19（¥295）先不确认。小礼物在途已经有 24 件，11-21 07:30 一起送到，库存够用，不用再补了。",
+]
+
+
+def test_real_1120_messages_never_create_orders_v1419(client, v12, fake_clock):
+    """11-19 bench 午市：这些「不要 / 重复了」的消息在 8f86d4b 上每句都生成一张新报价。"""
+    _at(fake_clock, 20, 11)
+    grocer = _agent(client, "npc_grocer")
+    for t in REAL_1120:
+        assert shops.parse_order(t) == [] or shops._is_cancel(t), t
+        _qq(client, grocer, t)
+    assert all(o["status"] != "quoted" for o in shops.orders_view()) and not [o for o in shops.orders_view() if o["status"] == "confirmed"]
+    _qq(client, grocer, "面包 10、食材 12")                                      # 正常下单照旧
+    assert _last_from_zhou(client, grocer)["meta"]["order"]["status"] == "quoted"

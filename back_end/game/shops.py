@@ -179,8 +179,10 @@ def _num(tok: str) -> int | None:
     return None
 
 
-_SKIP_CLAUSE = ("库存", "目前", "现在有", "现有", "还有", "剩", "还够", "够用", "不进", "不用进", "暂时不", "已确认", "已经订", "上限", "卖了", "卖掉", "卖出")
-_CANCEL = ("不确认", "先不", "取消", "算了", "不要了", "不订了", "别送", "先别")
+_SKIP_CLAUSE = ("库存", "目前", "现在有", "现有", "还有", "剩", "还够", "够用", "不进", "不用进", "暂时不", "已确认", "已经订", "上限", "卖了", "卖掉", "卖出",
+                "已经下", "下过", "已下", "在途", "重复", "那单", "这单", "那张", "这张", "之前")
+_CANCEL = ("不确认", "先不", "取消", "算了", "不要了", "不订了", "别送", "先别", "别确认", "不要下", "不用下", "不下", "不用再", "别再", "别重复",
+           "不要", "不用确认", "重复了")
 
 
 def _order_text(text: str) -> str:
@@ -254,7 +256,7 @@ def on_supplier_message(player: dict, msg: dict) -> None:
         _reply(me, "我只跟杂货店做生意。", None); return
     gts = _gts()
     _expire(gts)
-    if _is_cancel(text) and not _is_confirm(text) and not parse_order(text):   # v1.4.18：读不出货、又说「先不确认了 / 取消 / 算了」→ 作废本人最近一张 quoted
+    if _is_cancel(text) and not _is_confirm(text):                 # v1.4.18 / v1.4.19：带否定 / 撤销字样的消息一律不出新单——作废本人最近一张 quoted
         q = sorted([o for o in _orders.values() if o["ordered_by"] == me and o["status"] == "quoted"], key=lambda o: o["quoted_at_gts"])
         if q:
             q[-1]["status"] = "cancelled"; q[-1]["cancelled_at"] = _iso(gts)
