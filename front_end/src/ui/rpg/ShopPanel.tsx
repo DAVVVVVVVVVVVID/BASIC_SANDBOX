@@ -5,20 +5,14 @@ import { sendAction } from '../../api/world'
 import { normalizeInventory } from '../../game/items'
 import { goodsRows, sellRows, distanceTo, NEAR_ENOUGH, shopFailText, type MetaChip } from '../../game/shop'
 import { C } from './theme'
+import { Chip } from './MetaChips'
 
 /**
  * 商店面板（主播 11-19：点一下鱼摊 / 杂货店柜台 / 餐厅吧台直接弹出，不用先走过去再开背包）。
  * 上：这家在卖的（名称 / 价格 / 库存；逐条鱼显示品种 / 重量 / 品级 / 新鲜度）+「买」；下：我背包里这家收的 +「卖」。
  * 离太远只提示「走近一点」+「走过去」；打烊照后端 open / opensAt 显示营业时间。动作走 POST /action buy / sell，成败以回包为准。
  */
-const TONE: Record<string, { bg: string; fg: string }> = {
-  common: { bg: '#EDE3D2', fg: '#7A6A5A' }, rare: { bg: '#DDEBFF', fg: '#2F5E8A' }, legendary: { bg: '#FFE7B3', fg: '#8A5A00' },
-  fresh: { bg: '#DDF3EE', fg: '#1F7A6F' }, stale: { bg: '#FBEBC9', fg: '#8A6116' }, spoiled: { bg: '#FBDAD6', fg: '#B23B2E' },
-}
-const chip = (c: MetaChip, i: number) => {
-  const t = TONE[c.tone ?? ''] ?? { bg: '#F1EBE0', fg: C.inkSoft }
-  return <span key={i} title={c.label} style={{ fontSize: 11, padding: '1px 6px', borderRadius: 8, background: t.bg, color: t.fg, whiteSpace: 'nowrap' }}>{c.value}</span>
-}
+const chip = (c: MetaChip, i: number) => <Chip key={i} c={c} />
 
 export default function ShopPanel({ objectId }: { objectId: string }) {
   const obj = useGameStore((s) => s.objects.find(o => o.id === objectId))

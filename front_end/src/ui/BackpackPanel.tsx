@@ -5,6 +5,7 @@ import { sendAction } from '../api/world'
 import { itemMeta, normalizeInventory, itemDisplayName, isPhysicalWork, isFreeSlot, type InventoryItem } from '../game/items'
 import { hasItemDetail } from '../game/school'
 import ItemDetail from './rpg/ItemDetail'
+import MetaChips from './rpg/MetaChips'
 import { gameNowMs, fridgeRows, fridgeTitle, supplyText, canEatHere, busyText, fmtMin, parseGameTime } from '../game/v11'
 import type { GameObject } from '../types'
 
@@ -69,7 +70,7 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
             const m = itemMeta(it.type, it.name); const key = `${it.id ?? it.type}-${idx}`
             return (
               <div key={key} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <span style={{ flex: 1 }}>{m.icon} {itemDisplayName(it)}{it.count > 1 ? ` ×${it.count}` : ''}</span>
+                <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>{m.icon} {itemDisplayName(it)}{it.count > 1 ? ` ×${it.count}` : ''}<MetaChips meta={it.meta} /></span>
                 {hasItemDetail(it) && <button data-testid={`bag-view-${it.type}`} onClick={() => setDetail(it)} style={sb()}>看</button>}
                 {(m.kind === 'food' || /^(ingredients?|fish)$/.test(it.type)) && (table && canEatHere(table, it.type) ? <button disabled={!!busy} onClick={() => act(`吃 ${m.label}`, 'eat', { item: it.type, item_id: it.id, object_id: table.id })} style={sb()}>吃</button> : <span title={table ? '这儿只能吃简餐' : 'world-v1.1：只能在餐桌 / 长椅旁吃'} style={{ fontSize: 10, color: c('#718096') }}>{table ? '这儿不能吃' : '到餐桌吃'}</span>)}
                 {fridge && (m.kind === 'food' || m.kind === 'material') && <button disabled={!!busy} onClick={() => act(`放 ${m.label}`, 'store', { item: it.type, qty: 1, object_id: fridge.id })} style={sb()}>放冰箱</button>}

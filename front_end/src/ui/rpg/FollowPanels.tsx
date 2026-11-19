@@ -7,6 +7,7 @@ import { normalizeInventory, itemMeta, itemDisplayName, isFreeSlot, type Invento
 import { hasItemDetail } from '../../game/school'
 import { groupFollowRooms } from '../../game/followChat'
 import ItemDetail from './ItemDetail'
+import MetaChips from './MetaChips'
 import { rentText } from '../../game/v11'
 import type { Player, WsChatEvent } from '../../types'
 import { C, avatarUrl } from './theme'
@@ -55,7 +56,7 @@ export function FollowBag({ player, name }: { player: Player | null; name: strin
           </div>
         ) })}
       </div>
-      {inv.length > 0 && <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>{inv.map((it, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1 }}>{itemMeta(it.type, it.name).icon} {itemDisplayName(it)}{it.count > 1 ? ` ×${it.count}` : ''}</span>{hasItemDetail(it) && <button className="k" data-testid={`follow-bag-view-${it.type}`} onClick={() => setDetail(it)} style={{ fontSize: 12, padding: '1px 10px' }}>看</button>}</div>)}</div>}
+      {inv.length > 0 && <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>{inv.map((it, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>{itemMeta(it.type, it.name).icon} {itemDisplayName(it)}{it.count > 1 ? ` ×${it.count}` : ''}<MetaChips meta={it.meta} /></span>{hasItemDetail(it) && <button className="k" data-testid={`follow-bag-view-${it.type}`} onClick={() => setDetail(it)} style={{ fontSize: 12, padding: '1px 10px' }}>看</button>}</div>)}</div>}
       {rent && <div style={{ marginTop: 8, color: rent.overdue ? '#D9534F' : C.inkSoft, fontSize: 12 }}>🏠 {rent.text.replace(/^🏠 /, '')}</div>}
       {player.usingObjectId && <div style={{ marginTop: 4, color: C.inkSoft, fontSize: 12 }}>正在用：{player.usingObjectId}</div>}
       {detail && <ItemDetail item={detail} holder={player.agent_id} onClose={() => setDetail(null)} />}
