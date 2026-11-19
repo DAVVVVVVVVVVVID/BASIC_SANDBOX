@@ -181,3 +181,16 @@ def test_use_stall_shows_listings(client, v12, fake_clock):
     assert r["success"] and r["result"]["listings"][0]["listing_id"] == m["fish_id"] and "白条 1.10 kg" in r["result"]["message"]
     pv = client.get("/agent/perceive", params={"entity_id": whale}).json()
     assert pv["fishing"]["record"]["best"]["name"] == "鲫鱼" and pv["fishing"]["casts_today"] == 0
+
+
+def test_scenario_set_fishing_record(client, v12, fake_clock, monkeypatch):
+    monkeypatch.setenv("SANDBOX_SCENARIO", "1")
+    _at(fake_clock, 10)
+    fisher = _agent(client, "npc_fisher")
+    r = client.post("/admin/scenario", json={"steps": [{"op": "set_fishing_record", "player": fisher, "weight": 1.0}]}).json()
+    assert r["ok"] and r["steps"][0]["detail"]["record"]["best"]["weight"] == 1.0 and r["steps"][0]["detail"]["record"]["best"]["name"] == "金鳞鲤"
+    _force(monkeypatch, "npc_fisher", fish=1.0)
+    monkeypatch.setattr(fishing, "_weight", lambda r: 1.3)
+    assert fishing.cast(world_state._players[fisher], "fishing_spot_1", 1, world_state.game_now_ts())["record_break"] is True
+    r = client.post("/admin/scenario", json={"steps": [{"op": "set_fishing_record", "player": fisher, "clear": True}]}).json()
+    assert r["steps"][0]["detail"]["record"]["best"]["weight"] == 2.2

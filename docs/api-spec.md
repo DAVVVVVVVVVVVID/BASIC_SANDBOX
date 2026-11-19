@@ -1757,6 +1757,7 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - **鱼摊**（不再每日刷鱼）：老渔夫在自家 `fish_stall` `sell {item: "fish", fish_id?}` = **上货**（不带 fish_id = 背包里全部不变质的鱼；不付钱），回执 `listed[]`；他人卖给鱼摊按挂单价 × 2/3 收、进挂单；其它收鱼的店（餐厅吧台）照旧按 10 金币 / 条（不新鲜 ×0.5）。变质的都不收（`spoiled`）。货架：`GET /world objects[fish_stall].listings` 与 `use fish_stall` 的 `result.listings` = `[{listing_id（= fish_id）, species, name, tier, weight, freshness, age_days, price}]`，price = 底价/kg × 重量 × 新鲜度系数（新鲜 1 / 不新鲜 0.5）。`buy {item: "fish", listing_id?}`（不带 = 最便宜那条；老渔夫取回自家货不花钱）。挂单不清空，变质自动下架退回老渔夫背包（pendingMessage、ws `{type: "stall_spoiled"}`、external `action=stall_spoiled`）。
 - **兑换**：杂货店柜台 `exchange {item: "fish"（变质的）| junk_*, fish_id?}` → 1 个鱼饵；新鲜的鱼回 `not_spoiled`。
 - 底价/kg 与星斑鳇效果为初值（规格未给），见 fishing.json `_doc`。
+- 冒烟用 scenario op（v1.4.9，仅 `SANDBOX_SCENARIO=1`）：`set_fishing_record {player, species?, weight, clear?}` 摆个人总纪录（`clear: true` 回初始表）。
 
 ### 12.7 地图 v1
 
