@@ -96,6 +96,7 @@ function readOnlyDir(prefix: string, root: string): Plugin {
 //   VITE_PORT          开发端口，默认 5173（运行台）；自测用 `npm run dev -- --port 5174`
 //   VITE_OBSERVE_BASE  思考字幕请求前缀，默认 `/observe`（E8）
 //   VITE_OBSERVE_TARGET C 的只读观察面板，默认 http://127.0.0.1:8002（路径不改写：/observe/latest 原样转发）
+//   VITE_GAME_TARGET   直播游戏信息层 /gameapi → D 的游戏服务（默认 127.0.0.1:8120，只读 GET /game/state）
 //   VITE_EXTRA_TOWNS   额外镇 "名=端口,…"（默认 bench_v1=8091），towns.yaml 同名优先
 //   VITE_TOWNS_YAML    多镇表（E14），默认 /home/shan-dw/Project/run/towns.yaml：/t/<town>/api → 127.0.0.1:(sandbox_port，或 8000+10k)
 //   VITE_DATASET_DIR   A 的每日导出目录（E13 回放页只读），默认 /home/shan-dw/Project/whale-self/data/dataset → /dataset/
@@ -134,6 +135,7 @@ export default defineConfig(({ mode }) => {
           rewrite: (p: string) => p.replace(new RegExp(`^${apiBase}`), '') || '/',
         },
         ...(observeBase.startsWith('/') ? { [observeBase]: { target: observeTarget, changeOrigin: true } } : {}),
+        '/gameapi': { target: env.VITE_GAME_TARGET || 'http://127.0.0.1:8120', changeOrigin: true, rewrite: (p: string) => p.replace(/^\/gameapi/, '') || '/' },   // 直播游戏模式信息层：D 的 GET /game/state（只读）
         ...townProxy,
       }
     : undefined

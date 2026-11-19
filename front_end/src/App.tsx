@@ -27,6 +27,8 @@ import BrainApp from './brain/BrainApp'
 import FlatApp from './flat/FlatApp'
 import AssetsReviewApp from './review/AssetsReviewApp'
 import { isSpectateRoute } from './spectate/params'
+import GameOverlayApp from './gameOverlay/GameOverlayApp'
+import { isGameOverlayRoute } from './gameOverlay/view'
 import type { Player } from './types'
 import { setZoneNames } from './game/map/zones'
 import { loadAiManifest } from './game/aiAssets'
@@ -112,6 +114,7 @@ function PlayApp() {
 }
 
 export default function App() {
+  if (isGameOverlayRoute(window.location.search)) return <GameOverlayApp />   // 直播游戏模式信息层（G 的 iframe 显示块）
   if (isSpectateRoute()) return <SpectateApp />
   if (/^\/replay\/?$/.test(window.location.pathname)) return <ReplayApp />
   if (/^\/brain\/?$/.test(window.location.pathname)) return <BrainApp />
