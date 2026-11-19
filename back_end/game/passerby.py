@@ -69,6 +69,9 @@ def _plan_day(gts: float) -> None:
         for k in range(n):
             items.append({"at_gts": a + (b - a) * (k + r.random()) / max(1, n), "purpose": r.choice(s["purposes"]), "slot": si, "done": False})
     items.sort(key=lambda x: x["at_gts"])
+    for it in items:                                                             # 当天中途才排出来（上线 / 新开镇）：已过的到达点跳过，不一下子全放进来
+        if it["at_gts"] <= gts:
+            it["done"] = True; it["skipped"] = True
     _sched["day"] = day; _sched["items"] = items
 
 
@@ -311,11 +314,13 @@ def on_tick(gts: float) -> None:
     from game import world_state, food
     if enabled():
         _plan_day(gts)
-        for it in _sched["items"]:
+        for it in _sched["items"]:                                               # 每 tick 最多放 1 个（重启补算也不扎堆）
             if not it["done"] and gts >= it["at_gts"]:
                 it["done"] = True
                 if gts - it["at_gts"] < 1800:                                       # 停机补算时不补放半小时前的
                     spawn(it["purpose"], gts)
+                    break
+                it["skipped"] = True
     for pid, a in list(_active.items()):
         p = world_state._players.get(pid)
         if p is None:

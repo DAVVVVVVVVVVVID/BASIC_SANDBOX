@@ -1812,7 +1812,7 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 ### 12.35 商店第三期：路人顾客（tag `world-v1.4.14`；whale `shops-system.md` §5 + 主播 11-19；配置 `shops.json` passersby；命名 / 形象 §12.32）
 
 - **开关**：自动出现只在主镇（进程显式 `SANDBOX_TOWN=main`）或 env `SANDBOX_PASSERSBY=1`；`SANDBOX_PASSERSBY=0` 强制关。bench / 测试镇默认不出现（门禁不受干扰）。scenario op `spawn_passerby {purpose: grocery|fish_stall|restaurant, x?, y?}` 手动放一个（不看开关），回 `{id, name, sprite, purpose, gold}`。
-- **时段**（每游戏日按种子排好，`GET /admin/passersby` 可看 `{enabled, day, scheduled[{at, purpose, done}], active}`）：08–11 杂货 2–4 人；11–14 餐厅 3–6；13–17 鱼摊 / 杂货 2–4；17–21 餐厅 4–7；场上同时最多 7 人。
+- **时段**（每游戏日按种子排好，`GET /admin/passersby` 可看 `{enabled, day, scheduled[{at, purpose, done}], active}`）：08–11 杂货 2–4 人；11–14 餐厅 3–6；13–17 鱼摊 / 杂货 2–4；17–21 餐厅 4–7；场上同时最多 7 人。当天中途才排出日程（上线 / 新开镇）时，已过的到达点跳过；每 tick 最多放 1 人（重启补算也不扎堆，半小时前的不补）。（v1.4.15）
 - **流程**：从南门 (25,36) 走到店 → 到店说一句（模板，`speech` 气泡）→ 一笔交易 → 说一句 → 走回南门消失。预算：杂货 8–30、鱼 15–70、餐厅 15–45（`gold` 字段即预算）。
   - 杂货：随机挑一样有货的（面包 / 甜食 / 食材 / 小礼物 / 鱼饵）买 1–2 个；店主不在杂货店里时 50% 直接走（`unattended`）。
   - 鱼摊：预算内挑最贵的一条挂单买走。

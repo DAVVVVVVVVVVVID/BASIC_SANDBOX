@@ -107,3 +107,17 @@ def test_schedule_only_when_enabled(client, v12, fake_clock, monkeypatch):
     assert _run(fake_clock, None, lambda: bool(passerby._active), limit=400, step=30)
     v = client.get("/admin/passersby").json()
     assert v["enabled"] and len(v["scheduled"]) >= 11 and v["active"]
+
+
+def test_midday_start_skips_past_slots_and_staggers(client, v12, fake_clock, monkeypatch):
+    """总控 11-19：主镇中途上线时，今天已过时段的路人不一下子全放进来。"""
+    monkeypatch.setenv("SANDBOX_PASSERSBY", "1")
+    _at(fake_clock, 15, 30)
+    _tick(fake_clock, 1); _tick(fake_clock, 1)
+    v = passerby.view()
+    past = [i for i in passerby._sched["items"] if i["at_gts"] <= world_state.game_now_ts() - 2]
+    assert past and all(i["done"] and i.get("skipped") for i in past) and len(passerby._active) == 0
+    # 之后到点的照常一个一个来
+    nxt = min(i["at_gts"] for i in passerby._sched["items"] if not i["done"])
+    fake_clock.t = nxt + 1; ticker.tick_once(checkpoint=False)
+    assert len(passerby._active) == 1
