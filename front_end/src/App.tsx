@@ -17,6 +17,7 @@ import DirectorPanel from './ui/DirectorPanel'
 import RpgShell from './ui/rpg/RpgShell'
 import JoinScreenRpg from './ui/rpg/JoinScreenRpg'
 import MobileShell from './ui/rpg/MobileShell'
+import ErrorBoundary from './ui/ErrorBoundary'
 import { useMobile } from './ui/rpg/mobile'
 import BackpackPanel from './ui/BackpackPanel'
 import KnockPanel from './ui/KnockPanel'
@@ -84,7 +85,7 @@ function PlayApp() {
     return (
       <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', background: '#0f1020' }}>
         <div id="game-container" style={{ position: 'absolute', inset: 0 }} />
-        {mob.mobile && mob.portrait ? <MobileShell playerId={myPlayerId} kb={mob.kb} /> : <RpgShell playerId={myPlayerId} />}
+        <ErrorBoundary name="外壳" variant="overlay" resetKey={mob.mobile && mob.portrait}>{mob.mobile && mob.portrait ? <MobileShell playerId={myPlayerId} kb={mob.kb} /> : <RpgShell playerId={myPlayerId} />}</ErrorBoundary>
         {mob.mobile && !mob.portrait && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,30,0.85)', color: '#FFF8EC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, zIndex: 999, fontFamily: '"Fusion Pixel 12px", system-ui, sans-serif' }}>📱 请竖屏使用</div>
         )}

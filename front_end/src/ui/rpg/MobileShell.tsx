@@ -7,6 +7,7 @@ import type { DirectorCmd } from '../../game/scenes/GameScene'
 import PeoplePanel from './PeoplePanel'
 import SchoolCard from './SchoolCard'
 import ObjectHint from './ObjectHint'
+import ErrorBoundary from '../ErrorBoundary'
 import SettingsPanel from './SettingsPanel'
 import BackpackPanel from '../BackpackPanel'
 import ActionLog from '../ActionLog'
@@ -142,10 +143,10 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
       <div style={{ pointerEvents: 'auto' }}>
         {open === 'chat' && !followOther
           ? sheet('聊天', <ChatPanel embedded frame="plain" visible onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} />)
-          : <ChatPanel embedded frame="plain" visible={false} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} />}
+          : <ErrorBoundary name="聊天"><ChatPanel embedded frame="plain" visible={false} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} /></ErrorBoundary>}
       </div>
       {/* QQ 全屏（去壳） */}
-      <div style={{ pointerEvents: 'auto' }}><QQPanel playerId={playerId} readOnly={false} compact phone fullscreen forceOpen={open === 'qq'} onClosed={() => setOpen(null)} style={{ display: 'none' }} kb={kb} /></div>
+      <div style={{ pointerEvents: 'auto' }}><ErrorBoundary name="QQ"><QQPanel playerId={playerId} readOnly={false} compact phone fullscreen forceOpen={open === 'qq'} onClosed={() => setOpen(null)} style={{ display: 'none' }} kb={kb} /></ErrorBoundary></div>
       {/* 底部 Tab */}
       <div data-testid="m-tabs" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingBottom: SAFE_BOTTOM, background: 'rgba(255,248,236,0.96)', borderTop: `2px solid ${C.sky}`, display: 'flex', pointerEvents: 'auto' }}>
         {tabs.map(t => {
@@ -178,7 +179,7 @@ function BottomSheet({ title, tall, onTall, onClose, kb, children }: { title: st
           <b style={{ fontSize: 17, marginTop: 6, flex: 1 }}>{title}</b>
           <button className="closex" onClick={e => { e.stopPropagation(); onClose() }} title="关闭" style={{ marginTop: 6 }}>✕</button>
         </div>
-        <div className="embed" style={{ flex: 1, overflowY: 'auto', padding: 10, minHeight: 0, color: C.ink, WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>{children}</div>
+        <div className="embed" style={{ flex: 1, overflowY: 'auto', padding: 10, minHeight: 0, color: C.ink, WebkitOverflowScrolling: 'touch' } as React.CSSProperties}><ErrorBoundary name={title} resetKey={title}>{children}</ErrorBoundary></div>
       </div>
     </>
   )

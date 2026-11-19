@@ -9,6 +9,7 @@ import PanelFrame from './PanelFrame'
 import PeoplePanel from './PeoplePanel'
 import SchoolCard from './SchoolCard'
 import ObjectHint from './ObjectHint'
+import ErrorBoundary from '../ErrorBoundary'
 import SettingsPanel from './SettingsPanel'
 import HUD from '../HUD'
 import BackpackPanel from '../BackpackPanel'
@@ -94,9 +95,9 @@ export default function RpgShell({ playerId }: { playerId: string }) {
         </PanelFrame>
       )}
       {/* 聊天：始终挂载（轮询 / 聊天室状态不丢），按 5 显示；来邀请 / 进聊天室自动打开 */}
-      <div style={{ pointerEvents: 'auto' }}><ChatPanel embedded visible={open === 'chat' && !followOther} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} /></div>
+      <div style={{ pointerEvents: 'auto' }}><ErrorBoundary name="聊天"><ChatPanel embedded visible={open === 'chat' && !followOther} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} /></ErrorBoundary></div>
       {/* 左下 QQ 手机图标 → 居中手机 */}
-      <div style={{ pointerEvents: 'auto' }}><QQPanel playerId={playerId} readOnly={false} compact phone style={{ bottom: 16, left: 16, top: 'auto', right: 'auto' }} /></div>
+      <div style={{ pointerEvents: 'auto' }}><ErrorBoundary name="QQ"><QQPanel playerId={playerId} readOnly={false} compact phone style={{ bottom: 16, left: 16, top: 'auto', right: 'auto' }} /></ErrorBoundary></div>
       {/* 右下常态小地图 */}
       <div className="mm9" style={{ position: 'absolute', right: 12, bottom: 12, pointerEvents: 'auto', background: 'none' }}><Minimap inline /></div>
       <BottomBar open={open} onToggle={toggle} />

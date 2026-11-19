@@ -5,6 +5,7 @@ import { fetchPlayer } from '../../api/world'
 import { getChatHistory, type ChatHistoryRow } from '../../api/chat'
 import { normalizeInventory, itemMeta, itemDisplayName, isFreeSlot, type InventoryItem } from '../../game/items'
 import { hasItemDetail } from '../../game/school'
+import { groupFollowRooms } from '../../game/followChat'
 import ItemDetail from './ItemDetail'
 import { rentText } from '../../game/v11'
 import type { Player, WsChatEvent } from '../../types'
@@ -90,20 +91,16 @@ export function FollowChat({ id, name, avatarKey, player }: { id: string; name: 
     return () => { stop = true; window.clearInterval(t); EventBus.off('chat-row', onRow) }
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
   const activeRoom = (player as { chat_room_id?: string | null } | null)?.chat_room_id ?? null
-  const rooms = useMemo(() => {
-    const m = new Map<string, ChatHistoryRow[]>()
-    for (const r of rows) { const a = m.get(r.room_id) ?? []; a.push(r); m.set(r.room_id, a) }
-    const closed = new Set(rows.filter(r => r.kind === 'event' && r.event === 'room_close').map(r => r.room_id))
-    return [...m.entries()].map(([room, rs]) => ({ room, rs, active: room === activeRoom || (!closed.has(room) && rs.some(r => r.kind === 'message') && room === rows[rows.length - 1]?.room_id) })).sort((a, b) => Number(b.active) - Number(a.active) || (b.rs[b.rs.length - 1].ts.localeCompare(a.rs[a.rs.length - 1].ts)))
-  }, [rows, activeRoom])
+  // room_id 为 null 的邀请事件（过期 / 被拒）单列，不进房间分组（总控 11-18 黑屏根因）
+  const { rooms, invites } = useMemo(() => groupFollowRooms(rows, activeRoom), [rows, activeRoom])
   const nameOf = (eid?: string, fallback?: string) => fallback ?? players.find(p => p.id === eid)?.name ?? eid ?? ''
   return (
     <div>
       <FollowBanner name={name} what="对话 · 今天" />
-      {rooms.length === 0 && <div style={{ color: C.inkSoft, textAlign: 'center', padding: 16 }}>今天还没有对话</div>}
+      {rooms.length === 0 && invites.length === 0 && <div style={{ color: C.inkSoft, textAlign: 'center', padding: 16 }}>今天还没有对话</div>}
       {rooms.map(({ room, rs, active }) => (
         <div key={room} style={{ marginBottom: 10, border: `1px solid ${active ? '#C9B6F2' : '#E6DCCB'}`, borderRadius: 8, padding: '6px 8px', background: active ? '#F6F1FF' : 'rgba(255,255,255,0.5)' }}>
-          <div style={{ fontSize: 11, color: C.inkSoft, marginBottom: 4, display: 'flex', gap: 6 }}>{active && <span style={{ color: '#5B4A8A', fontWeight: 700 }}>● 进行中</span>}<span>房间 {room.slice(0, 8)}</span><span>· {rs[0]?.ts.slice(11, 16)}</span><span style={{ marginLeft: 'auto' }}>{[...new Set(rs.flatMap(r => r.participants ?? (r.from ? [r.from] : [])))].map(e => nameOf(e)).join('、')}</span></div>
+          <div style={{ fontSize: 11, color: C.inkSoft, marginBottom: 4, display: 'flex', gap: 6 }}>{active && <span style={{ color: '#5B4A8A', fontWeight: 700 }}>● 进行中</span>}<span>房间 {String(room ?? '').slice(0, 8)}</span><span>· {String(rs[0]?.ts ?? '').slice(11, 16)}</span><span style={{ marginLeft: 'auto' }}>{[...new Set(rs.flatMap(r => r.participants ?? (r.from ? [r.from] : [])))].map(e => nameOf(e)).join('、')}</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
             {rs.map((r, i) => r.kind === 'event'
               ? <div key={i} style={{ textAlign: 'center', fontSize: 11, color: C.inkSoft }}>— {r.event === 'room_open' ? '开始对话' : r.event === 'room_close' ? '对话结束' : r.event === 'player_exit' ? `${nameOf(r.entity)} 离开` : r.event} —</div>
@@ -111,7 +108,7 @@ export function FollowChat({ id, name, avatarKey, player }: { id: string; name: 
                 <div key={i} style={{ display: 'flex', gap: 6, flexDirection: self ? 'row-reverse' : 'row', alignItems: 'flex-start' }}>
                   {self && <img className="px" src={avatarUrl(avatarKey, 80)} width={24} height={24} alt="" style={{ borderRadius: 6 }} />}
                   <div style={{ maxWidth: '78%' }}>
-                    <div style={{ fontSize: 10, color: C.inkSoft, textAlign: self ? 'right' : 'left' }}>{nameOf(r.from, r.from_name)} · {r.ts.slice(11, 16)}</div>
+                    <div style={{ fontSize: 10, color: C.inkSoft, textAlign: self ? 'right' : 'left' }}>{nameOf(r.from, r.from_name)} · {String(r.ts ?? '').slice(11, 16)}</div>
                     <div style={{ background: self ? '#C9B6F2' : '#fff', color: C.ink, border: `1px solid ${self ? '#B39DE6' : '#E6DCCB'}`, borderRadius: 8, padding: '4px 8px', fontSize: 13, wordBreak: 'break-word' }}>{r.text}</div>
                   </div>
                 </div>
@@ -120,6 +117,14 @@ export function FollowChat({ id, name, avatarKey, player }: { id: string; name: 
           </div>
         </div>
       ))}
+      {invites.length > 0 && (
+        <div data-testid="follow-chat-invites" style={{ border: '1px dashed #E6DCCB', borderRadius: 8, padding: '6px 8px', fontSize: 12, color: C.inkSoft }}>
+          <div style={{ marginBottom: 2 }}>邀请未成</div>
+          {invites.map((v, i) => (
+            <div key={i}>{v.ts.slice(11, 16)} · {v.participants.map(e => nameOf(e)).join(' → ') || '—'} · {v.label}</div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { C, panel } from './theme'
+import ErrorBoundary from '../ErrorBoundary'
 
 /** 从底栏上方弹出的面板（mockC2）：居中偏下、不盖四角；title 条 + ✕；dark = 内容区用暗色（嵌旧面板时可读） */
 export default function PanelFrame({ title, onClose, width = 560, dark = false, children }: { title: string; onClose: () => void; width?: number; dark?: boolean; children: ReactNode }) {
@@ -11,7 +12,7 @@ export default function PanelFrame({ title, onClose, width = 560, dark = false, 
         <button className="closex" onClick={onClose} title="关闭（Esc）" data-testid="rpg-close">✕</button>
       </div>
       <div className={dark ? '' : 'embed'} style={{ overflowY: 'auto', overflowX: 'hidden', padding: 10, background: dark ? '#1f2135' : 'transparent', color: dark ? '#e2e8f0' : C.ink, flex: 1, minHeight: 0 }}>
-        {children}
+        <ErrorBoundary name={title} resetKey={title}>{children}</ErrorBoundary>
       </div>
     </div>
   )
