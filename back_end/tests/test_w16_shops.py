@@ -60,21 +60,25 @@ def test_quote_confirm_deliver_cap_refund_and_ledger(client, v12, fake_clock):
     counter = world_state.get_object_by_id("counter")
     wh = next(x for x in client.get("/world").json()["objects"] if x["id"] == "counter")["warehouse"]
     assert wh["capacity"] == 40 and wh["incoming"][0]["order_id"] == o["order_id"] and wh["incoming"][0]["eta"].startswith("2026-11-21T07:30")
-    # 再下一单面包 40 → 送达时超上限退款
-    _qq(client, grocer, "面包 40"); _qq(client, grocer, "好")
-    assert pg["gold"] == g0 - 106 - (40 * 3 + 10)
+    # v1.4.21：再下一单面包 40 → 报价时就按「库存 + 在途 ≤ 40」削到剩余空间
     bread0 = int(counter["stock"].get("bread", 0)); ing0 = int(counter["stock"].get("ingredients", 0))
+    room = 40 - bread0 - 10
+    _qq(client, grocer, "面包 40")
+    assert f"只报 {room}" in _last_from_zhou(client, grocer)["text"]
+    _qq(client, grocer, "好")
+    assert pg["gold"] == g0 - 106 - (room * 3 + 10)
     _at(fake_clock, 21, 7, 29); _tick(fake_clock, 1); _tick(fake_clock, 1)
     assert int(counter["stock"].get("bread", 0)) == bread0                                   # 07:30 前没到
+    # 送达前库房被别处补满（模拟）→ 送达时仍按上限退款
+    counter["stock"]["bread"] = bread0 + 5
     _at(fake_clock, 21, 7, 31); _tick(fake_clock, 1); _tick(fake_clock, 1)
     assert counter["stock"]["bread"] == 40 and counter["stock"]["ingredients"] == min(40, ing0 + 12)
-    over = bread0 + 10 + 40 - 40
-    assert pg["gold"] == g0 - 106 - 130 + over * 3                                            # 超出部分退款
+    assert pg["gold"] == g0 - 106 - (room * 3 + 10) + 5 * 3                                    # 超出的 5 个退款
     assert "货到了" in _last_from_zhou(client, cl)["text"]
     led = client.get("/shops/counter/ledger", params={"days": 2}).json()
     kinds = [e["kind"] for e in led["entries"]]
     assert kinds.count("purchase") == 4 and kinds.count("freight") == 2 and "refund" in kinds and led["name"] == "杂货店"
-    assert led["days"][0]["cost"] == 106 + 130 and led["days"][-1]["revenue"] == over * 3
+    assert led["days"][0]["cost"] == 106 + room * 3 + 10 and led["days"][-1]["revenue"] == 5 * 3
 
 
 def test_cutoff_2200_goes_day_after_tomorrow_and_expiry(client, v12, fake_clock):
@@ -202,10 +206,24 @@ def test_one_open_quote_per_shop_and_big_total_first_v1420(client, v12, fake_clo
     grocer, cl = _agent(client, "npc_grocer"), _agent(client, "claudine")
     _qq(client, grocer, "面包 10")
     first = _last_from_zhou(client, grocer)["meta"]["order"]
-    _qq(client, cl, "食材 40")                                                 # 小克报一张大单 → 杂货店老板那张作废
+    _qq(client, cl, "小礼物 10")                                               # 小克报一张大单（160）→ 杂货店老板那张作废
     m = _last_from_zhou(client, cl)
-    assert m["text"].startswith("【¥170】") and "上一张 ¥40 的报价已作废" in m["text"]
+    assert m["text"].startswith("【¥160】") and "上一张 ¥40 的报价已作废" in m["text"]
     st = {o["order_id"]: o["status"] for o in shops.orders_view()}
     assert st[first["order_id"]] == "cancelled" and list(st.values()).count("quoted") == 1
     _qq(client, grocer, "确认")                                                # 她自己那张已作废 → 不扣
     assert "没有等你确认" in _last_from_zhou(client, grocer)["text"]
+
+
+def test_recap_and_storeroom_cap_v1421(client, v12, fake_clock):
+    _at(fake_clock, 20, 11)
+    grocer = _agent(client, "npc_grocer")
+    world_state.get_object_by_id("counter")["stock"]["gift"] = 30
+    _qq(client, grocer, "周叔，我这边再对一下：明天 07:30 在杂货店收货，两单都按报价走。1）小礼物×5，¥85（已确认）。2）小礼物×7、面包×15、甜食×7")
+    assert "只写货单" in _last_from_zhou(client, grocer)["text"] and not shops.orders_view()
+    _qq(client, grocer, "小礼物 55、面包 5")                                    # 礼物只剩 10 的空间 → 削到 10
+    o = _last_from_zhou(client, grocer)["meta"]["order"]
+    assert {i["item"]: i["qty"] for i in o["items"]} == {"gift": 10, "bread": 5} and "只报 10" in _last_from_zhou(client, grocer)["text"]
+    world_state.get_object_by_id("counter")["stock"]["gift"] = 40
+    _qq(client, grocer, "小礼物 5")
+    assert "放不下" in _last_from_zhou(client, grocer)["text"]

@@ -202,6 +202,14 @@ def _order_text(text: str) -> str:
     return "，".join(keep)
 
 
+_RECAP = ("报价", "对一下", "核对", "对账", "单都", "几单", "两单", "三单", "那几张", "这几张", "按报价")
+
+
+def _is_recap(text: str) -> bool:
+    """v1.4.21：对账 / 复述订单的消息不当新单（bench：「我这边再对一下…1）…2）小礼物×7、面包×15…」）。"""
+    return any(w in (text or "") for w in _RECAP)
+
+
 def _is_cancel(text: str) -> bool:
     return any(w in (text or "") for w in _CANCEL)
 
@@ -220,6 +228,29 @@ def parse_order(text: str) -> list[dict]:
                 got[item] = got.get(item, 0) + n
                 t = t[:m.start()] + " " * (m.end() - m.start()) + t[m.end():]
     return [{"item": k, "qty": v} for k, v in got.items() if k in sup()["costs"]]
+
+
+def _cap_to_room(items: list[dict]) -> tuple[list[dict], list[dict]]:
+    """每种：库房现有 + 已确认在途 + 本单 ≤ storeroom_cap；超出削掉。返回 (留下的, 被削的说明)。"""
+    from game import world_state
+    cap = int(sup()["storeroom_cap"])
+    counter = next((o for o in world_state._OBJECTS if o.get("type") == sup()["object_type"]), None)
+    stock = (counter or {}).get("stock") or {}
+    incoming: dict[str, int] = {}
+    for o in _orders.values():
+        if o["status"] == "confirmed":
+            for l in o["items"]:
+                incoming[l["item"]] = incoming.get(l["item"], 0) + int(l["qty"])
+    keep, trimmed = [], []
+    for it in items:
+        have = int(stock.get(it["item"], 0)) + incoming.get(it["item"], 0)
+        room = max(0, cap - have)
+        q = min(int(it["qty"]), room)
+        if q < int(it["qty"]):
+            trimmed.append({"item": it["item"], "want": int(it["qty"]), "qty": q, "have": have, "cap": cap})
+        if q > 0:
+            keep.append({"item": it["item"], "qty": q})
+    return keep, trimmed
 
 
 def _is_confirm(text: str) -> bool:
@@ -269,12 +300,18 @@ def on_supplier_message(player: dict, msg: dict) -> None:
         if not q:
             _reply(me, "没有等你确认的单子。要什么直接写，比如「面包 10、食材 12」。", None); return
         confirm(q[-1], player, gts); return
+    if _is_recap(text):
+        _reply(me, "好，我记着。要订货就只写货单，比如「面包 10、食材 12」；确认就回「确认」，不要了就回「取消」。", None); return
     items = parse_order(text)
+    items, trimmed = _cap_to_room(items)                           # v1.4.21：库存 + 在途 + 本单 ≤ 每种上限
+    if trimmed and not items:
+        _reply(me, "库房放不下了：" + "、".join(f"{_item_name(t['item'])}（库存 + 在途已有 {t['have']}，上限 {t['cap']}）" for t in trimmed) + "。这单不报了。", None); return
     if not items:
         _reply(me, "没看懂要什么，按「面包 10、食材 12」这样写一下？", None); return
     costs = sup()["costs"]
     lines = [{"item": i["item"], "name": _item_name(i["item"]), "qty": int(i["qty"]), "unit_cost": costs[i["item"]]} for i in items]
     goods = sum(l["qty"] * l["unit_cost"] for l in lines); freight = int(sup()["freight"])
+    trim_note = "".join(f"（{_item_name(t['item'])}库存 + 在途已有 {t['have']}，上限 {t['cap']}，只报 {t['qty']}。）" for t in trimmed if t["qty"] > 0)
     oid = f"po-{_dt(gts).strftime('%Y%m%d')}-{uuid.uuid4().hex[:4]}"
     o = {"order_id": oid, "status": "quoted", "shop": sup()["shop"], "items": lines, "goods": goods, "freight": freight, "total": goods + freight,
          "ordered_by": me, "payer": sup()["payer"], "quoted_at": _iso(gts), "quoted_at_gts": gts,
@@ -290,7 +327,7 @@ def on_supplier_message(player: dict, msg: dict) -> None:
     body = "、".join(f"{l['name']} ×{l['qty']}" for l in lines)
     head = f"【¥{o['total']}】" if o["total"] > int(sup().get("big_order", 150)) else ""
     tail = "".join(f"（上一张 ¥{v['total']} 的报价已作废。）" for v in voided)
-    _reply(me, f"{head}收到：{body}，货款 ¥{goods} + 运费 ¥{freight} = ¥{o['total']}，{when} {sup()['deliver_at']} 前送到。回复「确认」就下单（30 分钟内有效）。{tail}", o)
+    _reply(me, f"{head}收到：{body}，货款 ¥{goods} + 运费 ¥{freight} = ¥{o['total']}，{when} {sup()['deliver_at']} 前送到。回复「确认」就下单（30 分钟内有效）。{trim_note}{tail}", o)
     _log_order(o, "quoted")
 
 

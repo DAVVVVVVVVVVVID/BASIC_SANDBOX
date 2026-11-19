@@ -45,6 +45,11 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5by. world-v1.4.21：周叔不收对账类消息 + 报价按库房上限封顶（bench 下午：报价滚到小礼物 ×55 / ×110，小克确认 835）—— 完成
+
+- 走查当天 66 条发给周叔的真实消息回放：v1.4.20 仍漏 1 条（编号对账），v1.4.21 0 条。bench 当天幽灵单累计扣 263 + 338 + 295 + 835 = 1731（agent 仍是旧提示）。
+- 测试 +1、改 2，**426 passed**；api-spec §12.33。
+
 ## 5bx. world-v1.4.20：同店只留一张待确认报价 + 大单金额写在最前（总控 11-19 加的保险）—— 完成
 
 - 新报价作废该店其它 quoted 并在回复里写明；> 150 的报价以「【¥总额】」开头。测试 +1，**425 passed**；api-spec §12.33。
