@@ -709,17 +709,22 @@ def _ensure_player_fields(player: dict) -> None:
 
 # ── 玩家生命周期 ──────────────────────────────────────────────────────────────
 
-def create_player(name: str, controller: str = "human", profile: dict | None = None, dnd: bool | None = None) -> dict:
+def create_player(name: str, controller: str = "human", profile: dict | None = None, dnd: bool | None = None,
+                  player_id: str | None = None) -> dict:
     """创建新玩家，生成唯一 ID，返回玩家数据的深拷贝。
 
     controller: "human" | "agent"（B6）；profile: {E, N, agent_id?}。
     agent 玩家会先从自我层 GET /self/state 种入七变量（不可达则用 §2.5 初值）。
     """
-    safe = name[:12].lower().replace(" ", "_")
-    suffix = f"{_id_rng.getrandbits(24):06x}" if _id_rng is not None else uuid.uuid4().hex[:6]
-    player_id = f"{safe}_{suffix}"
-    while player_id in _players:
-        player_id = f"{safe}_{uuid.uuid4().hex[:6]}"
+    if player_id is not None:                                   # v1.4.7：全镇重置后按原 id 重建（/admin/player/restore）
+        if player_id in _players:
+            raise ValueError(f"player exists: {player_id}")
+    else:
+        safe = name[:12].lower().replace(" ", "_")
+        suffix = f"{_id_rng.getrandbits(24):06x}" if _id_rng is not None else uuid.uuid4().hex[:6]
+        player_id = f"{safe}_{suffix}"
+        while player_id in _players:
+            player_id = f"{safe}_{uuid.uuid4().hex[:6]}"
     player = _make_player(player_id, name, controller, profile)
     if dnd is not None:
         player["dnd"] = bool(dnd)

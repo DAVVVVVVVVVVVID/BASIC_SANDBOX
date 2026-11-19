@@ -1,5 +1,6 @@
 """W10 ④ 金币与背包：初始金币、/world shop[]、buy/sell/eat/give、insufficient_funds、营业时间、/admin/income、日薪时薪、
 餐厅吃饭扣款、state 行 gold、经济 JSONL 与导出、检查点。数值全来自 economy.json / items.json。"""
+from game.buff_tick import get_closeness, closeness_key  # v1.4.7
 import json
 import pytest
 from datetime import date, datetime
@@ -118,7 +119,7 @@ def test_give_gift_and_inventory_limit(client, monkeypatch):
     r = action(client, whale, "give", {"target": "achan", "item": "gift"})
     assert r["success"] and r["result"]["target"] == achan and r["result"]["target_name"] == "阿蝉"
     assert r["result"]["target_effects"] == {"closeness": 8.0, "mood": 65.0}
-    assert world_state._players[achan]["closeness"][whale] == 8.0
+    assert get_closeness(world_state._players[achan], whale) == 8.0
     assert inventory.count(world_state._players[achan], "gift") == 1 and inventory.count(world_state._players[whale], "gift") == 1
     place(achan, 20, 10, "left")
     assert action(client, whale, "give", {"target": achan, "item": "gift"})["reason"] == "target_too_far"

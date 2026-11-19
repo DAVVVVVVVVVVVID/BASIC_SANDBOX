@@ -89,8 +89,33 @@ def add_var(player: dict, key: str, delta: float, *, track: bool = True) -> floa
     return set_var(player, var, player.get(var, 0.0) + delta, track=track)
 
 
+def closeness_key(target: str) -> str:
+    """v1.4.7：closeness 一律按 agent id 记（与自我层 / A 的 closeness-init.json 同键）。
+    target 是某玩家的 player id 且该玩家有 agent_id → 换成 agent_id；已是 agent id、观众账号等 → 原样。"""
+    try:
+        from game.world_state import _players
+        p = _players.get(target)
+    except Exception:
+        p = None
+    return (p.get("agent_id") or target) if p else target
+
+
+def normalize_closeness(cl: dict | None) -> dict:
+    """旧数据归一：player id 键并进对应 agent id 键（同一人两套键相加，再按上下限截断）。"""
+    out: dict[str, float] = {}
+    for k, v in (cl or {}).items():
+        kk = closeness_key(k)
+        out[kk] = out.get(kk, 0.0) + float(v)
+    return {k: min(VAR_MAX, max(VAR_MIN, v)) for k, v in out.items()}
+
+
+def get_closeness(player: dict, target: str) -> float:
+    return float((player.get("closeness") or {}).get(closeness_key(target), 0.0))
+
+
 def add_closeness(player: dict, target: str, delta: float) -> float:
     cl = player.setdefault("closeness", {})
+    target = closeness_key(target)                                   # v1.4.7：键统一 agent id
     old = float(cl.get(target, 0.0))
     new = min(VAR_MAX, max(VAR_MIN, old + float(delta)))
     cl[target] = new

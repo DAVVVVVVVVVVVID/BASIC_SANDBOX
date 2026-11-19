@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 from game.world_state import (
     create_player, remove_player, get_player, touch_player, rejoin_player,
@@ -19,6 +19,15 @@ class JoinRequest(BaseModel):
 
 class DndRequest(BaseModel):
     on: bool
+
+
+class RestorePlayerRequest(BaseModel):
+    player_id: str
+    name: str
+    controller: str = "agent"
+    profile: Optional[dict] = None
+    dnd: Optional[bool] = None
+    online: bool = False
 
 
 class ThoughtRequest(BaseModel):
@@ -449,3 +458,39 @@ def admin_self_sync():
     """自我层同步状态：发送 / 失败计数、最近 drift、待发 delta（联调用）。"""
     from game.self_sync import snapshot_stats
     return snapshot_stats()
+
+
+@router.post("/admin/player/restore")
+def restore_player(body: RestorePlayerRequest, authorization: Optional[str] = Header(default=None)):
+    """v1.4.7 全镇重置：新世界里按**原 player id** 重建角色（初始位置 / 钥匙 / 账户与正常 join 相同；agent 照常从自我层播种）。
+    之后 agent 用原 id rejoin 即可续接。已存在 → 409。鉴权同 /school/term_start（SANDBOX_ADMIN_TOKEN 或 SELF_TOKEN）。"""
+    import os
+    toks = [t for t in (os.environ.get("SANDBOX_ADMIN_TOKEN"), os.environ.get("SELF_TOKEN")) if t]
+    if toks and (authorization or "") not in {f"Bearer {t}" for t in toks}:
+        raise HTTPException(status_code=401, detail="bad token")
+    if body.controller not in ("human", "agent"):
+        raise HTTPException(status_code=400, detail="controller must be 'human' or 'agent'")
+    from game.world_state import create_player, view_tags, STATE_LOCK as _L, _players as _ps
+    try:
+        player = create_player(body.name, controller=body.controller, profile=body.profile, dnd=body.dnd, player_id=body.player_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    from game.world_state import _park_dnd_locked
+    with _L:
+        p = _ps[player["id"]]
+        p["online"] = bool(body.online)
+        if p.get("dnd_auto") and p.get("controller") == "human" and not body.online:
+            _park_dnd_locked(p, "restore")                         # 主播的阿蝉：离线常驻 = dnd + 回自家待机（同 leave）
+        p["tags"] = view_tags(p)
+        out = dict(p)
+    from game import interventions
+    global _RESET_NOTED
+    if not _RESET_NOTED:                                            # 总控 11-17：closeness 统一 agent id 在 interventions 记一笔（随全镇重置生效）
+        _RESET_NOTED = True
+        interventions.log("config_change", "system", ["*"], "world-v1.4.7：closeness 键统一为 agent id（以前沙盒增量记 player id、播种记 agent id，perceive 看不见播种值）；全镇重置按原 player id 重建角色",
+                          payload={"version": "world-v1.4.7", "closeness_key": "agent_id"})
+    interventions.log("restore_player", "system", [player["id"]], f"重置后按原 id 重建 {body.name}", payload={"controller": body.controller, "agent_id": (body.profile or {}).get("agent_id")})
+    return {"playerId": player["id"], "player": out}
+
+
+_RESET_NOTED = False

@@ -1739,6 +1739,12 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - `POST /chat/message` 成功回执加 `my_count`、`my_limit`（b9 / ait / nolimit 下 `my_limit` 为 null）。b9 下 `/chat/join` 也可用，关房仍按房间总数 16。
 - `/chat/exit` 形状不变。
 
+### 12.30 closeness 键统一 agent id + 全镇重置按原 id 重建（tag `world-v1.4.7`；总控 11-17 / 主播 11-19 定，11-20 12:00 全镇重置用）
+
+- **closeness 一律按 agent id 记**（与自我层、whale `docs/systems/closeness-init.json` 同键）：`player.closeness` / `GET /player/{id}/state.closeness` / 自我层增量里，对有 agent_id 的玩家键是 agent id（`whale`、`claudine`、`achan`、`npc_*`），观众账号等照旧。送礼、QQ 回复、委托交付、`closeness_delta`（target 传 player id 或 agent id 都行）都写 agent id 键；perceive `needs.closeness` 仍按在场玩家的 **player id** 给 `{name, tier}`，但分档读的是对方 agent id 那格（修：自我层播种的亲密度以前 perceive 看不见）。旧数据（检查点 / 自我层里的 player id 键）载入时并进 agent id 键（相加后按上下限截断）。
+- **`POST /admin/player/restore {player_id, name, controller, profile?: {agent_id}, dnd?, online?: false}`**（鉴权：`SANDBOX_ADMIN_TOKEN` 或 `SELF_TOKEN`，同 /school/term_start）：在新世界里按**原 player id** 建角色，初始位置 / 钥匙 / 金币与正常 join 相同，agent 照常从自我层播种；主播的阿蝉（human + dnd_auto）建好即停靠回自家（dnd、离线）。已存在 → 409。之后 agent 用原 id `POST /player/rejoin` 续接。第一次调用时 interventions 记一条 `config_change`（closeness 键统一 + 按原 id 重建）。
+- 脚本 `back_end/scripts/town_reset.py roster | archive | restore | verify`（见文件头）。
+
 ### 12.7 地图 v1
 
 NPC 家（渔夫 / 克劳蒂娜 / 店主们）各加 `stove_*` + `table_*`（dining_table），餐厅后厨加 `stove_rest`；克劳蒂娜家餐桌在她房间（厨房只 2 格宽）。共 68 个物品，mapVersion 变。

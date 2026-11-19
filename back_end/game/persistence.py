@@ -223,6 +223,10 @@ def load_checkpoint(path: Path | None = None) -> dict | None:
         if cr["rooms_closed"] or cr["requests_expired"]:
             log.info("restart closed chat rooms %s, expired requests %s", cr["rooms_closed"], cr["requests_expired"])
         chat_state.reconcile_chat_buffs(world_state._players)     # Q0：chat_active 与房间状态一致（兜底）
+        from game.buff_tick import normalize_closeness              # v1.4.7：旧检查点里 player id 键的 closeness 并进 agent id
+        for _p in world_state._players.values():
+            if _p.get("closeness"):
+                _p["closeness"] = normalize_closeness(_p["closeness"])
 
     last_tick_ts = float(meta["last_tick_ts"])
     downtime = max(0.0, time_state.now_real() - last_tick_ts)

@@ -242,8 +242,9 @@ def _player_of(account: str) -> dict | None:
 
 
 def _closeness_key(account: str) -> str:
+    """v1.4.7：键统一 agent id（有 agent_id 的玩家用 agent_id；观众等照旧账号）。"""
     p = _player_of(account)
-    return p["id"] if p else account
+    return (p.get("agent_id") or p["id"]) if p else account
 
 
 def _bump_closeness(holder_acc: str, toward_acc: str, delta: float) -> bool:

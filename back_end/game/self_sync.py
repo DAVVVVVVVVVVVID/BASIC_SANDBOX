@@ -142,7 +142,8 @@ def seed_player(player: dict, game_ts: float) -> bool:
         if v in vars_:
             set_var(player, v, float(vars_[v]), track=False)
     if isinstance(doc.get("closeness"), dict):
-        player["closeness"] = {k: float(x) for k, x in doc["closeness"].items()}
+        from game.buff_tick import normalize_closeness
+        player["closeness"] = normalize_closeness(doc["closeness"])      # v1.4.7：自我层里旧的 player id 键并进 agent id
     ocean = doc.get("ocean") or {}
     if ocean:
         player["mood_base"] = mood_baseline(ocean.get("E", 50), ocean.get("N", 50))

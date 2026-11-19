@@ -1,4 +1,5 @@
 """W11 ①②③④⑤：产出链（钓位 / 灶台 / compose / make_video）、委托交付、直播 synthetic 收入、QQ 亲密度、库存与补货、冰箱、SANDBOX_MAP。"""
+from game.buff_tick import get_closeness, closeness_key  # v1.4.7
 import json
 import os
 from datetime import date, datetime
@@ -146,7 +147,7 @@ def test_compose_requires_pc_music_and_time_then_deliver_commission(client, v12,
     gold0 = p["gold"]
     r = action(client, whale, "give", {"target": owner, "item": "cd"})
     assert r["success"] and r["result"]["commission"]["status"] == "delivered" and r["result"]["gold_delta"] == 200
-    assert p["gold"] == gold0 + 200 and world_state._players[owner]["closeness"][whale] == 15.0
+    assert p["gold"] == gold0 + 200 and get_closeness(world_state._players[owner], whale) == 15.0
     assert inventory.count(world_state._players[owner], "cd") == 1 and inventory.count(p, "cd") == 1      # 还剩刻的那张
     assert client.get("/commissions").json()["count"] == 0 and client.get("/commissions", params={"status": "all"}).json()["count"] == 1
     assert [x for x in _ledger() if x.get("source") == "song_fee"][0]["delta"] == 200
@@ -209,23 +210,23 @@ def test_qq_unread_penalty_and_read_reply_bonus(client, fake_clock, monkeypatch)
     monkeypatch.setattr(buff_tick, "CLOSENESS_PER_DAY", 0.0)                             # 关掉自然衰减，只看 QQ 的加减
     _at(fake_clock, 9, 0)
     whale = _agent(client, "whale"); achan = _agent(client, "achan")
-    world_state._players[achan]["closeness"][whale] = 50.0
+    world_state._players[achan]["closeness"][closeness_key(whale)] = 50.0
     client.post("/qq/send", json={"entity_id": achan, "to": "whale", "text": "在吗"})
     fake_clock.advance(2 * 3600 - 60); _tick(fake_clock, 1)
-    assert world_state._players[achan]["closeness"][whale] == 50.0                       # 2 小时内不扣
+    assert get_closeness(world_state._players[achan], whale) == 50.0                       # 2 小时内不扣
     fake_clock.advance(2 * 3600); _tick(fake_clock, 1)                                   # 约 3h59m 未读 → 已过 2h 阈值 1 小时 → −1
-    assert world_state._players[achan]["closeness"][whale] == 49.0
+    assert get_closeness(world_state._players[achan], whale) == 49.0
     fake_clock.advance(10 * 3600); _tick(fake_clock, 1)                                  # 再过 10 小时：日上限 −5
-    assert world_state._players[achan]["closeness"][whale] == 45.0
+    assert get_closeness(world_state._players[achan], whale) == 45.0
     # 读 → 阿蝉对鲸仔 +1；回 → 再 +1
     client.post("/qq/read", json={"entity_id": whale})
-    assert world_state._players[achan]["closeness"][whale] == 46.0
+    assert get_closeness(world_state._players[achan], whale) == 46.0
     client.post("/qq/send", json={"entity_id": whale, "to": "achan", "text": "在"})
-    assert world_state._players[achan]["closeness"][whale] == 47.0
+    assert get_closeness(world_state._players[achan], whale) == 47.0
     # 群消息不计；已读不再扣
     client.post("/qq/send", json={"entity_id": achan, "group": "g_live", "text": "群里说"})
     fake_clock.advance(6 * 3600); _tick(fake_clock, 1)
-    assert world_state._players[achan]["closeness"][whale] == 47.0
+    assert get_closeness(world_state._players[achan], whale) == 47.0
 
 
 # ── ④ 库存与补货、冰箱 ──

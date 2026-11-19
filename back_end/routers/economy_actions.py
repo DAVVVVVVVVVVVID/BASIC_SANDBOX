@@ -10,7 +10,7 @@ from game import inventory, economy
 from game.world_state import (
     STATE_LOCK, _players, get_object_at, get_object_by_id, open_state, mark_input, refresh_shop_views,
 )
-from game.buff_tick import add_var, add_closeness
+from game.buff_tick import add_var, add_closeness, get_closeness
 
 _DIR = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
 
@@ -319,7 +319,7 @@ def handle_give(entity_id: str, payload: dict) -> ActionResponse:
         if d.get("give"):                                          # 小礼物：对方亲密度 +8、心情 +5（items.json）
             for k, v in d["give"].items():
                 if k == "closeness":
-                    add_closeness(t, entity_id, float(v) * qty); effects["closeness"] = round(float(t["closeness"].get(entity_id, 0.0)), 3)
+                    add_closeness(t, entity_id, float(v) * qty); effects["closeness"] = round(get_closeness(t, entity_id), 3)
                 else:
                     add_var(t, k, float(v) * qty); effects[k] = round(float(t.get(k, 0.0)), 3)
         mark_input(entity_id)

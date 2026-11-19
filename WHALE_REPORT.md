@@ -45,6 +45,14 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bk. world-v1.4.7：closeness 键统一 agent id + 全镇重置脚本（主播 11-19 定 11-20 12:00 重置）—— 完成，8091 演练过
+
+- closeness：所有写入经 `add_closeness` 统一换成对方 agent id；perceive 分档 / 送礼回执按 agent id 读；自我层播种与检查点载入时把旧 player id 键并进 agent id。
+- `POST /admin/player/restore`：按原 player id 重建（C 用原 id rejoin 即可）；阿蝉停靠回家。
+- `scripts/town_reset.py`：roster（读检查点名单）→ archive（沙盒停后：数据目录 / school 试跑四个日志 / interventions 打包 + sha256 + MANIFEST，原目录改名封存不删）→ restore（原 id 重建，阿蝉 closeness 按表）→ verify。
+- 8091 演练（主镇检查点拷贝，town reset_rehearsal，不接自我层）：roster 6 人 → archive 1.4 s → 新世界 1 s → restore 0.1 s → verify：mapVersion / 72 件 / 6 人原 id / term_start 2026-11-23（config）/ school 清 / QQ 空 / 阿蝉 closeness = 表 全过；agent closeness 0（演练无自我层，正式时由 A 的 8100 播种）。演练中修 2 处：roster 同路径复制、阿蝉重建后未停靠回家；另确认停沙盒须等进程退出（端口先关、退出时还会落检查点）。
+- 测试 +4，**396 passed**；api-spec §12.30。
+
 ## 5bj. world-v1.4.6：多人聊天 v1.1——中途加入 + 每人 15 条（主播 11-18；总控 whale-0d 派，目标 11-20 聚会前上主镇）—— 完成
 
 - `POST /chat/join`：不需同意；条件按 group-chat.md（active / 2 格 / 不在别房 / 不直播睡觉勿扰上课 / < 6 人 / 冷却人类免），总控补定 dnd 只挡 agent、只看申请人；广播 `player_join`、greeting 计条数。perceive `needs.nearby_rooms` 与 `/chat/nearby.rooms`（≤ 4 格，can_join 与 join 同判定）。

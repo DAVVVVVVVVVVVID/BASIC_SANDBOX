@@ -14,6 +14,7 @@ from game.world_state import (
     _players,
 )
 from game.needs import needs_text, closeness_tier
+from game.buff_tick import get_closeness
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -157,7 +158,7 @@ def perceive(
             players_in_view.append({"id": pid, "name": other.get("name", pid),
                                     "position": {"x": ox, "y": oy}, "state": other["state"]})
             closeness_view[pid] = {"name": other.get("name", pid),
-                                   "tier": closeness_tier(float(player.get("closeness", {}).get(pid, 0.0)))}
+                                   "tier": closeness_tier(get_closeness(player, pid))}   # v1.4.7：按对方 agent id 读
     needs["closeness"] = closeness_view
     from game import chat_state as _cs
     needs["nearby_rooms"] = _cs.nearby_rooms(entity_id, _players)        # v1.4.6 多人聊天 v1.1
