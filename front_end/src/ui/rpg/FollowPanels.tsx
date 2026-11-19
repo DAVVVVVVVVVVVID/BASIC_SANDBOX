@@ -103,7 +103,7 @@ export function FollowChat({ id, name, avatarKey, player }: { id: string; name: 
           <div style={{ fontSize: 11, color: C.inkSoft, marginBottom: 4, display: 'flex', gap: 6 }}>{active && <span style={{ color: '#5B4A8A', fontWeight: 700 }}>● 进行中</span>}<span>房间 {String(room ?? '').slice(0, 8)}</span><span>· {String(rs[0]?.ts ?? '').slice(11, 16)}</span><span style={{ marginLeft: 'auto' }}>{[...new Set(rs.flatMap(r => r.participants ?? (r.from ? [r.from] : [])))].map(e => nameOf(e)).join('、')}</span></div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
             {rs.map((r, i) => r.kind === 'event'
-              ? <div key={i} style={{ textAlign: 'center', fontSize: 11, color: C.inkSoft }}>— {r.event === 'room_open' ? '开始对话' : r.event === 'room_close' ? '对话结束' : r.event === 'player_exit' ? `${nameOf(r.entity)} 离开` : r.event} —</div>
+              ? <div key={i} style={{ textAlign: 'center', fontSize: 11, color: C.inkSoft }}>— {r.event === 'room_open' ? '开始对话' : r.event === 'room_close' ? '对话结束' : r.event === 'player_exit' ? `${nameOf(r.entity)} 离开` : r.event === 'player_join' ? `${nameOf(r.entity)} 加入了聊天` : r.event} —</div>
               : (() => { const self = r.from === id; return (
                 <div key={i} style={{ display: 'flex', gap: 6, flexDirection: self ? 'row-reverse' : 'row', alignItems: 'flex-start' }}>
                   {self && <img className="px" src={avatarUrl(avatarKey, 80)} width={24} height={24} alt="" style={{ borderRadius: 6 }} />}

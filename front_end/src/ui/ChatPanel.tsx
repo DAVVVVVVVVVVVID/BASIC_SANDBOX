@@ -5,7 +5,7 @@ import { useGameStore } from '../store/gameStore'
 import * as chatApi from '../api/chat'
 import { EventBus } from '../game/EventBus'
 import { moveToArea } from '../api/world'
-import type { ChatMessage, ChatRoomEvent, NearbyPlayer, PendingRequest } from '../api/chat'
+import type { ChatMessage, ChatRoomEvent, NearbyPlayer, NearbyRoom, PendingRequest } from '../api/chat'
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
 
@@ -96,6 +96,7 @@ export default function ChatPanel({ embedded = false, visible = true, onClose, o
 
   const [mode, setMode]             = useState<Mode>('idle')
   const [nearby, setNearby]         = useState<NearbyPlayer[]>([])
+  const [nearbyRooms, setNearbyRooms] = useState<NearbyRoom[]>([])   // world-v1.4.6：附近正在聊的房间（可中途加入）
   const [selected, setSelected]     = useState<Set<string>>(new Set())
   const [greeting, setGreeting]     = useState('')
   const [pendingReq, setPendingReq] = useState<PendingRequest | null>(null)
@@ -155,6 +156,7 @@ export default function ChatPanel({ embedded = false, visible = true, onClose, o
       try {
         const d = await chatApi.getNearby(myId)
         setNearby(d.players)
+        setNearbyRooms(Array.isArray(d.rooms) ? d.rooms : [])
       } catch { /* ignore */ }
     }
     fetch()
@@ -317,10 +319,31 @@ export default function ChatPanel({ embedded = false, visible = true, onClose, o
     setRoomEvents([])
   }
 
+  /** world-v1.4.6：加入他们的聊天——不需房内同意；能不能加入以后端为准，失败 message 原样显示 */
+  async function handleJoin(room: NearbyRoom) {
+    if (sending) return
+    setSending(true)
+    try {
+      const r = await chatApi.joinRoom(myId, room.chat_room_id, greeting.trim() || undefined)
+      if (r.success && r.chat_room_id) {
+        enterRoom(r.chat_room_id)
+        const ms = Array.isArray(r.messages) ? r.messages : []
+        setMessages(ms)
+        sinceRef.current = Math.max(r.last_seq ?? 0, ...ms.map(m => m.seq))
+        setRoomEvents([{ seq: sinceRef.current, type: 'player_join', entity_id: myId, name: myName }])   // 自己的加入事件 seq ≤ last_seq，轮询拿不到，本地补一条
+      } else {
+        setToast(r.message || `加入失败（${r.reason ?? '未知原因'}）`)
+      }
+    } catch {
+      setToast('加入失败')
+    } finally { setSending(false) }
+  }
+
   async function handleSend(content: string) {
     if (!roomId || !content.trim()) return
     try {
-      await chatApi.sendMessage(myId, roomId, content.trim())
+      const r = await chatApi.sendMessage(myId, roomId, content.trim()) as { success?: boolean; reason?: string; message?: string }
+      if (r && r.success === false) setToast(r.message || `没发出去（${r.reason ?? '未知原因'}）`)   // b10：speaker_limit「你这次聊天已经说了 15 句了」
     } catch {
       setToast('发送失败')
     }
@@ -368,7 +391,22 @@ export default function ChatPanel({ embedded = false, visible = true, onClose, o
             </div>
             {nearbyOthers.length === 0 && <div style={{ color: c('#718096'), textAlign: 'center', padding: '8px 0' }}>附近没有其他玩家<br /><span style={{ fontSize: 11 }}>要先走到和对方同一个区域</span></div>}
             {nearbyOthers.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{nearbyOthers.map(p => <span key={p.entity_id} style={{ padding: '2px 8px', borderRadius: 9, background: c('#2d3748'), fontSize: 12 }}>{p.name}</span>)}</div>}
-            <input value={greeting} onChange={e => setGreeting(e.target.value)} placeholder="开场白（可空：鲸仔，有空聊两句吗？）" style={{ ...inp, marginTop: 8 }} />
+            {nearbyRooms.length > 0 && (
+              <div data-testid="chat-nearby-rooms" style={{ marginTop: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}><b>附近正在聊的</b><span style={{ color: c('#718096'), fontSize: 11 }}>走到他们旁边就能插话</span></div>
+                {nearbyRooms.map(r => (
+                  <div key={r.chat_room_id} data-testid={`chat-room-${r.chat_room_id}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: c('#2d3748'), marginBottom: 6 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.participants.map(p => p.name).join('、')} <span style={{ color: c('#718096'), fontSize: 11, fontWeight: 400 }}>{r.count} 人</span></div>
+                      {r.last_message_preview && <div style={{ fontSize: 12, color: c('#a0aec0'), overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>「{r.last_message_preview}」</div>}
+                      {!r.can_join && r.message && <div style={{ fontSize: 11, color: c('#fbd38d') }}>{r.message}</div>}
+                    </div>
+                    <button className="k teal" data-testid="chat-join" onClick={() => handleJoin(r)} disabled={!r.can_join || sending} title={r.can_join ? '直接加入，不用他们同意' : (r.message ?? r.reason ?? '')} style={{ flexShrink: 0, minHeight: 36 }}>加入他们的聊天</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input value={greeting} onChange={e => setGreeting(e.target.value)} placeholder="开场白（可空：鲸仔，有空聊两句吗？加入别人的聊天时就是你的第一句）" style={{ ...inp, marginTop: 8 }} />
           </>
         )}
         {(mode === 'selecting' || mode === 'waiting') && (
@@ -680,6 +718,7 @@ function RoomView({
           if (item.kind === 'evt') {
             const label =
               item.data.type === 'player_exit' ? `${item.data.name || item.data.entity_id} 退出了对话` :
+              item.data.type === 'player_join' ? `${item.data.name || item.data.entity_id} 加入了聊天` :
               item.data.type === 'room_closed'  ? '聊天室已关闭' :
               item.data.type
             return (
