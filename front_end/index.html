@@ -12,6 +12,10 @@
         touch-action: manipulation;
         -webkit-tap-highlight-color: transparent;
       }
+      /* 11-19：游戏画布自己处理单指 / 双指（双指缩放），不让浏览器拿去平移 / 缩放整页 */
+      #game-container, #game-container canvas {
+        touch-action: none;
+      }
     </style>
   </head>
   <body>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { VisualBox } from './mobile'
 import './rpg.css'
 import { useGameStore } from '../../store/gameStore'
 import { EventBus } from '../../game/EventBus'
@@ -32,7 +33,7 @@ type Tab = 'people' | 'map' | 'bag' | 'chat' | 'qq' | 'more' | 'log' | 'settings
 const PERIOD: Record<string, string> = { morning: '早晨', day: '白天', dusk: '黄昏', night: '夜晚' }
 const SAFE_TOP = 'env(safe-area-inset-top, 0px)', SAFE_BOTTOM = 'env(safe-area-inset-bottom, 0px)'
 
-export default function MobileShell({ playerId, kb }: { playerId: string; kb: number }) {
+export default function MobileShell({ playerId, kb, vv }: { playerId: string; kb: number; vv?: VisualBox }) {
   const [open, setOpen] = useState<Tab | null>(null)
   const [tall, setTall] = useState(false)
   const [chipOpen, setChipOpen] = useState(false)
@@ -59,6 +60,7 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
   const followed = useFollowedPlayer(followOther ? followOther.id : null)
   const shown = followOther ? (followed ?? null) : player
   const myKey = player ? godotCharKeyFor(player.profile?.name ?? player.id, 'human', identity ?? player.agent_id ?? null) : 'achan'
+  const chatOpen = open === 'chat' && !followOther
   const toggle = (t: Tab) => { setShopId(null); setOpen(o => (o === t ? null : t)); setTall(false) }
   // 主播 11-19：点商店物件 → 商店抽屉（与其他抽屉互斥）
   const [shopId, setShopId] = useState<string | null>(null)
@@ -87,7 +89,7 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
     <BottomSheet title={title} tall={tall} onTall={setTall} onClose={() => setOpen(null)} kb={kb}>{body}</BottomSheet>
   )
   return (
-    <div className="rpg mobile" style={{ position: 'fixed', inset: 0, pointerEvents: 'none', overflow: 'hidden', fontSize: 14 }}>
+    <div className="rpg mobile" style={{ position: 'fixed', left: 0, right: 0, top: vv ? vv.top : 0, height: vv ? vv.h : '100%', pointerEvents: 'none', overflow: 'hidden', fontSize: 14 }}>   {/* 贴可见区域：iOS 弹键盘上推页面时外壳跟着走，不再另按 kb 抬 */}
       {/* 顶条 */}
       <div style={{ position: 'absolute', left: 0, right: 0, top: 0, paddingTop: SAFE_TOP, pointerEvents: 'auto' }}>
         <div onClick={() => setChipOpen(o => !o)} data-testid="m-topbar" style={{ height: 44, background: 'rgba(255,248,236,0.92)', borderBottom: `2px solid ${C.sky}`, display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px' }}>
@@ -150,15 +152,16 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
       ))}
       {open === 'chat' && followOther && sheet(sheetTitle.chat, <FollowChat id={followOther.id} name={followName} avatarKey={followKey} player={followed} />)}
       {/* 聊天（阿蝉自己的）：始终挂载；手机上以抽屉显示 */}
-      <div style={{ pointerEvents: 'auto' }}>
-        {open === 'chat' && !followOther
-          ? sheet('聊天', <ChatPanel embedded frame="plain" visible onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} />)
-          : <ErrorBoundary name="聊天"><ChatPanel embedded frame="plain" visible={false} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} /></ErrorBoundary>}
+      {/* 11-19 主播：当面聊天进房后抽屉里看不到聊天室——原来开 / 关抽屉时会换一个新的 ChatPanel，进房状态丢了。现在始终同一个实例，只切显示 */}
+      <div style={{ display: chatOpen ? 'block' : 'none' }}>
+        <BottomSheet title="聊天" tall={tall} onTall={setTall} onClose={() => setOpen(null)} kb={kb}>
+          <ErrorBoundary name="聊天"><ChatPanel embedded frame="plain" visible={chatOpen} onClose={() => setOpen(null)} onRequestOpen={() => setOpen('chat')} /></ErrorBoundary>
+        </BottomSheet>
       </div>
       {/* QQ 全屏（去壳） */}
       <div style={{ pointerEvents: 'auto' }}><ErrorBoundary name="QQ" resetKey={followOther?.id ?? 'me'}>{followOther
-        ? <QQPanel key={`view-${followOther.id}`} viewOf={{ name: followName, key: followKey }} playerId={followOther.id} readOnly compact phone fullscreen forceOpen={open === 'qq'} onClosed={() => setOpen(null)} style={{ display: 'none' }} kb={kb} />
-        : <QQPanel key="me" playerId={playerId} readOnly={false} compact phone fullscreen forceOpen={open === 'qq'} onClosed={() => setOpen(null)} style={{ display: 'none' }} kb={kb} />}</ErrorBoundary></div>
+        ? <QQPanel key={`view-${followOther.id}`} viewOf={{ name: followName, key: followKey }} playerId={followOther.id} readOnly compact phone fullscreen forceOpen={open === 'qq'} onClosed={() => setOpen(null)} style={{ display: 'none' }} kb={kb} vv={vv} />
+        : <QQPanel key="me" playerId={playerId} readOnly={false} compact phone fullscreen forceOpen={open === 'qq'} onClosed={() => setOpen(null)} style={{ display: 'none' }} kb={kb} vv={vv} />}</ErrorBoundary></div>
       {/* 底部 Tab */}
       <div data-testid="m-tabs" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingBottom: SAFE_BOTTOM, background: 'rgba(255,248,236,0.96)', borderTop: `2px solid ${C.sky}`, display: 'flex', pointerEvents: 'auto' }}>
         {tabs.map(t => {
@@ -177,14 +180,15 @@ export default function MobileShell({ playerId, kb }: { playerId: string; kb: nu
 }
 
 /** 底部抽屉：60% ↔ 90%（拖柄上滑 / 点切换），下滑或点遮罩关；软键盘弹起时抬高 */
-function BottomSheet({ title, tall, onTall, onClose, kb, children }: { title: string; tall: boolean; onTall: (t: boolean) => void; onClose: () => void; kb: number; children: ReactNode }) {
+/** kb 不再用于抬高：外壳已贴 visualViewport（11-19），保留参数兼容调用方 */
+function BottomSheet({ title, tall, onTall, onClose, children }: { title: string; tall: boolean; onTall: (t: boolean) => void; onClose: () => void; kb?: number; children: ReactNode }) {
   const startY = useRef<number | null>(null)
   const onStart = (y: number) => { startY.current = y }
   const onEnd = (y: number) => { if (startY.current === null) return; const dy = y - startY.current; startY.current = null; if (dy < -40) onTall(true); else if (dy > 60) { if (tall) onTall(false); else onClose() } }
   return (
     <>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)', pointerEvents: 'auto', zIndex: 6 }} />
-      <div data-testid="m-sheet" style={{ position: 'absolute', left: 0, right: 0, bottom: kb, zIndex: 6, height: tall ? '90%' : '60%', background: '#FFF8EC', borderTop: `3px solid ${C.sky}`, borderRadius: '16px 16px 0 0', display: 'flex', flexDirection: 'column', pointerEvents: 'auto', boxShadow: '0 -6px 20px rgba(0,0,0,0.18)', transition: 'height 160ms ease-out' }}>
+      <div data-testid="m-sheet" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 6, height: tall ? '90%' : '60%', background: '#FFF8EC', borderTop: `3px solid ${C.sky}`, borderRadius: '16px 16px 0 0', display: 'flex', flexDirection: 'column', pointerEvents: 'auto', boxShadow: '0 -6px 20px rgba(0,0,0,0.18)', transition: 'height 160ms ease-out' }}>
         <div onTouchStart={e => onStart(e.touches[0].clientY)} onTouchEnd={e => onEnd(e.changedTouches[0].clientY)} onMouseDown={e => onStart(e.clientY)} onMouseUp={e => onEnd(e.clientY)} onClick={() => onTall(!tall)}
           style={{ padding: '8px 14px 6px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'grab', borderBottom: `1px solid #E6DCCB`, touchAction: 'none' }}>
           <span style={{ position: 'absolute', left: '50%', top: 4, transform: 'translateX(-50%)', width: 44, height: 5, borderRadius: 3, background: '#CFC2AE' }} />

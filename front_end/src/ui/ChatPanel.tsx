@@ -3,6 +3,7 @@ import { c } from './uiPalette'
 import PanelFrame from './rpg/PanelFrame'
 import { useGameStore } from '../store/gameStore'
 import * as chatApi from '../api/chat'
+import { autoFocusOk } from './rpg/mobile'
 import { EventBus } from '../game/EventBus'
 import { moveToArea } from '../api/world'
 import type { ChatMessage, ChatRoomEvent, NearbyPlayer, NearbyRoom, PendingRequest } from '../api/chat'
@@ -763,7 +764,7 @@ function RoomView({
           onKeyDown={e => e.key === 'Enter' && send()}
           placeholder="输入消息…"
           style={{ ...INPUT, flex: 1 }}
-          autoFocus
+          autoFocus={autoFocusOk()}
         />
         <button onClick={send} disabled={!text.trim()} style={btn('#2b6cb0')}>
           发送

@@ -14,12 +14,12 @@ import { itemMeta } from '../game/items'   // 老消息里的 kind:file 条目�
  *   旁观页：只读，看跟随目标（鲸仔）的会话；`layout=live` 收成右上角图标 + 未读角标，点开看最近 5 条。
  * 数据：ws `qq` 事件即时推；每 4 s 轮询 /qq/inbox 兜底；后端还没有 /qq/*（404）时面板显示「后端未开通」而不是报错。
  */
-interface Props { /** 导播跟随（主播 11-18）：只读看这个人的 QQ——数据存组件本地不碰全局 store；强制只读、永不调 POST /qq/read；顶部提示 */ viewOf?: { name: string; key: string } | null; playerId: string; readOnly: boolean; compact?: boolean; style?: React.CSSProperties; /** 主播 11-15：手机样式（屏幕居中弹出，联系人 → 会话页），收起回角标 */ phone?: boolean; /** 手机适配：全屏去壳、由外壳控制开合、软键盘高度 */ fullscreen?: boolean; forceOpen?: boolean; onClosed?: () => void; kb?: number }
+interface Props { /** 导播跟随（主播 11-18）：只读看这个人的 QQ——数据存组件本地不碰全局 store；强制只读、永不调 POST /qq/read；顶部提示 */ viewOf?: { name: string; key: string } | null; playerId: string; readOnly: boolean; compact?: boolean; style?: React.CSSProperties; /** 主播 11-15：手机样式（屏幕居中弹出，联系人 → 会话页），收起回角标 */ phone?: boolean; /** 手机适配：全屏去壳、由外壳控制开合、软键盘高度 */ fullscreen?: boolean; forceOpen?: boolean; onClosed?: () => void; kb?: number; vv?: { top: number; h: number } }
 
 const POLL_MS = 4000
 const wallClockMs = () => Date.now()   // 节流用（事件 / effect 里调，不在渲染里）
 
-export default function QQPanel({ viewOf = null, playerId, readOnly: readOnlyProp, compact = false, style, phone = false, fullscreen = false, forceOpen, onClosed, kb = 0 }: Props) {
+export default function QQPanel({ viewOf = null, playerId, readOnly: readOnlyProp, compact = false, style, phone = false, fullscreen = false, forceOpen, onClosed, kb = 0, vv }: Props) {
   const readOnly = readOnlyProp || !!viewOf
   const storeQQ = useGameStore((s) => s.qq)
   const [localQQ, setLocalQQ] = useState<QQState>({ contacts: [], messages: [], available: null })
@@ -174,7 +174,7 @@ export default function QQPanel({ viewOf = null, playerId, readOnly: readOnlyPro
     return (
       <QQMobile myKey={myKey} contacts={sorted} peer={peer} setPeer={setPeer} threadOf={threadOf} isMine={isMine} nameOf={nameOf} keyOf={qqKeyOf} nickOf={qqNick}
         totalUnread={totalUnread} text={text} setText={setText} doSend={doSend} doRead={() => doRead(true)} err={err} readOnly={readOnly} listRef={listRef}
-        gameDate={useGameStore.getState().worldState?.date} available={qq.available} onClose={close} fullscreen={fullscreen} kb={kb} banner={viewOf ? `🔒 正在看 ${viewOf.name} 的 QQ · 只读` : null} />
+        gameDate={useGameStore.getState().worldState?.date} available={qq.available} onClose={close} fullscreen={fullscreen} kb={kb} vv={vv} banner={viewOf ? `🔒 正在看 ${viewOf.name} 的 QQ · 只读` : null} />
     )
   }
 
