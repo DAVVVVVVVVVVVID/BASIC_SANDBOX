@@ -6,6 +6,9 @@ import { normalizeInventory } from '../../game/items'
 import { goodsRows, sellRows, distanceTo, NEAR_ENOUGH, shopFailText, type MetaChip } from '../../game/shop'
 import { C } from './theme'
 import { Chip } from './MetaChips'
+import LedgerView, { SHOP_DEMO } from './LedgerView'
+import { normalizeWarehouse, demoWarehouse, etaText } from '../../game/ledger'
+import { itemMeta } from '../../game/items'
 
 /**
  * 商店面板（主播 11-19：点一下鱼摊 / 杂货店柜台 / 餐厅吧台直接弹出，不用先走过去再开背包）。
@@ -19,6 +22,8 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
   const player = useGameStore((s) => s.player)
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
+  const [tab, setTab] = useState<'goods' | 'ledger'>('goods')
+  const today = useGameStore((s) => s.worldState?.date)
   const inv = useMemo(() => normalizeInventory(player?.inventory), [player?.inventory])
   if (!obj || !player) return <div style={{ color: C.inkSoft, padding: 12 }}>找不到这家店</div>
   const goods = goodsRows(obj), selling = sellRows(obj, inv)
@@ -38,10 +43,18 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
     } catch (e) { setMsg({ ok: false, text: `${label}没成 · ${(e as Error).message}` }) }
     finally { setBusy(null) }
   }
+  // 商店第一期：库房库存 + 明早到货（字段待 B 定；?shopdemo=1 用样例）
+  const wh = normalizeWarehouse(obj as unknown as Record<string, unknown>) ?? (SHOP_DEMO && obj.type === 'shop_counter' ? demoWarehouse(today ?? new Date().toISOString().slice(0, 10)) : null)
+  const label = (k: string) => itemMeta(k, k).label
   const walk = () => { const t = (obj.tiles && obj.tiles.length ? obj.tiles : [obj.position])[0]; EventBus.emit('walk-to', { x: t.x, y: t.y }) }
 
   return (
     <div data-testid="shop-panel" style={{ display: 'flex', flexDirection: 'column', gap: 10, color: C.ink, fontSize: 14 }}>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {(['goods', 'ledger'] as const).map(t => <button key={t} data-testid={`shop-tab-${t}`} className={`k${tab === t ? ' teal' : ''}`} onClick={() => setTab(t)} style={{ minHeight: 32, fontSize: 13 }}>{t === 'goods' ? '🛒 货架' : '📒 账本'}</button>)}
+      </div>
+      {tab === 'ledger' && <LedgerView shopId={obj.id} />}
+      {tab === 'goods' && <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: closed ? '#B23B2E' : C.inkSoft }} data-testid="shop-hours">
           {closed ? `已打烊${obj.opensAt ? ` · ${obj.opensAt} 开门` : ''}` : '营业中'}{hours ? ` · 营业时间 ${hours}` : ''}
@@ -74,6 +87,20 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
           })}
         </div>
       </section>
+      {wh && (
+        <section data-testid="shop-warehouse" style={{ background: 'rgba(255,255,255,0.5)', border: '1px dashed #E6DCCB', borderRadius: 8, padding: '6px 10px' }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>库房{wh.cap ? <span style={{ fontWeight: 400, fontSize: 12, color: C.inkSoft }}> · 每种上限 {wh.cap}</span> : null}</div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 13 }}>
+            {Object.entries(wh.stock).map(([k, v]) => <span key={k}>{itemMeta(k, k).icon} {label(k)} <b>{v}</b>{wh.cap ? <span style={{ color: C.inkSoft }}>/{wh.cap}</span> : null}</span>)}
+          </div>
+          {wh.incoming.length > 0 && (
+            <div data-testid="shop-incoming" style={{ marginTop: 6, fontSize: 13 }}>
+              <span style={{ color: C.inkSoft }}>🚚 待到货：</span>
+              {wh.incoming.map((i, n) => <span key={n} style={{ marginRight: 10 }}>{label(i.item)} ×{i.qty}<span style={{ color: C.inkSoft }}>（{etaText(i.eta, today) || '待送达'}）</span></span>)}
+            </div>
+          )}
+        </section>
+      )}
       <section>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>我能卖给这家的</div>
         {selling.length === 0 && <div style={{ color: C.inkSoft, fontSize: 13 }}>{(obj.shop ?? []).some(s => typeof s.sell === 'number') ? '背包里没有这家收的东西' : '这家不收东西'}</div>}
@@ -92,6 +119,7 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
         </div>
       </section>
       {msg && <div data-testid="shop-msg" style={{ fontSize: 13, color: msg.ok ? '#1F7A6F' : '#B23B2E' }}>{msg.ok ? '✓ ' : '✗ '}{msg.text}</div>}
+      </>}
     </div>
   )
 }
