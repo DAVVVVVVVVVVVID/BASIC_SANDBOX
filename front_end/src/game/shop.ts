@@ -33,12 +33,18 @@ export function metaChips(meta: Record<string, unknown> | null | undefined): Met
   return out
 }
 
-export interface GoodsRow { key: string; item: string; itemId?: string; name: string; icon: string; price: number | null; stock: number | null; chips: MetaChip[] }
+export interface GoodsRow { key: string; item: string; itemId?: string; listingId?: string; name: string; icon: string; price: number | null; stock: number | null; chips: MetaChip[] }
 /** 这家店在卖的（price 非空）；逐条货（有 id / meta）各占一行 */
-export function goodsRows(obj: Pick<GameObject, 'shop' | 'stock' | 'daily_supply'>): GoodsRow[] {
+export function goodsRows(obj: Pick<GameObject, 'shop' | 'stock' | 'daily_supply' | 'listings'>): GoodsRow[] {
   const rows: GoodsRow[] = []
+  // 钓鱼 v1（§12.31）：鱼摊有 listings 时鱼按挂单逐条列（不再用 shop[] 里笼统的「鱼」），下单带 listing_id
+  const listed = Array.isArray(obj.listings)
+  if (listed) for (const l of obj.listings ?? []) {
+    rows.push({ key: `listing-${l.listing_id}`, item: 'fish', listingId: l.listing_id, name: l.name ?? '鱼', icon: itemMeta('fish').icon, price: l.price, stock: null, chips: metaChips({ tier: l.tier, weight: l.weight, freshness: l.freshness }) })
+  }
   ;(obj.shop ?? []).forEach((s: ShopEntry, i) => {
     if (s.price === null || s.price === undefined) return
+    if (listed && String(s.type ?? s.item) === 'fish') return
     const item = String(s.type ?? s.item ?? s.name ?? `item${i}`)
     const m = itemMeta(item, s.name)
     const stock = typeof s.stock === 'number' ? s.stock : (obj.stock && typeof obj.stock[item] === 'number' ? obj.stock[item] : null)
@@ -48,16 +54,18 @@ export function goodsRows(obj: Pick<GameObject, 'shop' | 'stock' | 'daily_supply
   return rows
 }
 
-export interface SellRow { key: string; item: string; itemId?: string; name: string; icon: string; count: number; sell: number; chips: MetaChip[] }
+export interface SellRow { key: string; item: string; itemId?: string; fishId?: string; name: string; icon: string; count: number; sell: number | null; chips: MetaChip[] }
 /** 自己背包里这家店收的（shop[].sell 非空、类型对上） */
-export function sellRows(obj: Pick<GameObject, 'shop'>, inv: InventoryItem[]): SellRow[] {
-  const buys = new Map<string, number>()
+export function sellRows(obj: Pick<GameObject, 'shop' | 'listings'>, inv: InventoryItem[]): SellRow[] {
+  const buys = new Map<string, number | null>()
   for (const s of obj.shop ?? []) if (typeof s.sell === 'number') buys.set(String(s.type ?? s.item ?? ''), s.sell)
+  if (Array.isArray(obj.listings)) buys.set('fish', null)   // 鱼摊按挂单价 × 2/3 收（后端算），这里不写死价
   return inv.flatMap((it, i) => {
     const sell = buys.get(it.type)
     if (sell === undefined) return []
     const m = itemMeta(it.type, it.name)
-    return [{ key: `${it.id ?? it.type}-${i}`, item: it.type, itemId: it.id, name: (typeof it.meta?.name === 'string' && it.meta.name) || it.name || m.label, icon: m.icon, count: it.count, sell, chips: metaChips(it.meta) }]
+    const fishId = typeof it.meta?.fish_id === 'string' ? it.meta.fish_id : undefined
+    return [{ key: `${it.id ?? fishId ?? it.type}-${i}`, item: it.type, itemId: it.id, fishId, name: (typeof it.meta?.name === 'string' && it.meta.name) || it.name || m.label, icon: m.icon, count: it.count, sell, chips: metaChips(it.meta) }]
   })
 }
 

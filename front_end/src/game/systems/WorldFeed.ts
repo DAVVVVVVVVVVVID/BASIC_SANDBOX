@@ -1,4 +1,5 @@
 import { API_BASE } from '../../api/client'
+import { fishingBubbleText } from '../fishing'
 import { fetchWorld, fetchWorldLive } from '../../api/world'
 import { useGameStore, mapSignature } from '../../store/gameStore'
 import { EventBus } from '../EventBus'
@@ -196,6 +197,15 @@ export function startWorldFeed(opts: { preferWs?: boolean } = {}): WorldFeedHand
           EventBus.emit('lesson-event', m)
           break
         }
+        case 'fishing': {   // §12.31：钓到鱼 / 垃圾头顶冒一句（空竿不冒）
+          const t = fishingBubbleText(msg.cast)
+          if (t && typeof msg.entity === 'string') useGameStore.getState().pushBubble(msg.entity, t, 6000)
+          EventBus.emit('fishing-event', msg)
+          break
+        }
+        case 'stall_spoiled':
+          EventBus.emit('stall_spoiled-event', msg)
+          break
         case 'produce':
           EventBus.emit('produce-event', msg)
           break

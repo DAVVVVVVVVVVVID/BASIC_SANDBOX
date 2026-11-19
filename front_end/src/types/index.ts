@@ -49,6 +49,8 @@ export interface GameObject {
   open?: boolean
   opensAt?: string | null
   openHours?: string[][] | null
+  /** 钓鱼 v1（§12.31）：鱼摊逐条挂单 */
+  listings?: FishListing[] | null
   /** world-v1.1-a（B 11-13）：冰箱存储内容与容量；柜台 / 鱼摊每日供应与补货时刻（stock = 今日剩余）；餐桌 dining / 允许物品；灶台在做的饭 */
   contents?: { item: string; count: number; expires_at?: string | null; expires_in_days?: number | null; spoiled?: boolean }[] | null
   storage?: { capacity: number; used: number } | null
@@ -65,6 +67,7 @@ export interface GameObject {
   hint?: string | null
 }
 /** 商店货品条目；钓鱼系统（主播 11-19）起鱼会逐条上架：id + meta {species, weight, grade, freshness, …}，前端照 meta 显示 */
+export interface FishListing { listing_id: string; species?: string; name?: string; tier?: string; weight?: number; freshness?: string; age_days?: number; price: number }
 export interface ShopEntry { type?: string; item?: string; name?: string; price?: number | null; sell?: number | null; stock?: number | null; id?: string; item_id?: string; meta?: Record<string, unknown> | null }
 /** world-v1.1：进食 / 下厨 / 烧着的持续动作（players[] / GET /player / state 一致都有）；不忙 null */
 export interface BusyState { kind: 'eating' | 'cooking' | 'burning' | string; item?: string; started_at?: string; ends_at?: string; remaining_s?: number; progress?: number; gain?: Record<string, number> | null }
@@ -130,6 +133,7 @@ export interface SchoolLesson { lesson_id: string; course: string; course_name: 
 export interface SchoolHomework { week: number; due: string | null; count: number; submitted: { receipt_id: string; request_id: string; title?: string | null; late: boolean; audio: 'none' | 'pending' | 'final' | string; at?: string }[] }
 /** GET /school/today?player= */
 export interface SchoolToday { date: string; week: number | null; week_genre: string | null; lessons: SchoolLesson[]; homework: SchoolHomework | null }
+export interface WsFishing { type: 'fishing' | 'stall_spoiled'; entity?: string; cast?: import('../game/fishing').FishingCast; [k: string]: unknown }
 export interface WsLesson { type: 'lesson'; event: 'start' | 'segment' | 'question' | 'doze' | 'end' | 'grade' | string; lesson_id?: string; entity?: string; segment?: number; [k: string]: unknown }
 
 export interface TiledTilesetInfo {
@@ -344,7 +348,7 @@ export interface WsRent { type: 'rent'; event: 'due_soon' | 'paid' | 'overdue' |
 export interface WsCookCancelled { type: 'cook_cancelled'; entity?: string; object?: string; item?: string; portions?: number }
 /** B v1.3.19：想法事件（导播视角 💭）；字段名以 B 落地为准，前端按 entity / player_id / id 兼容 */
 export interface WsThought { type: 'thought'; entity?: string; player_id?: string; id?: string; text?: string; kind?: string; game_time?: string; thought?: PlayerThought }
-export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ | WsProduce | WsCommission | WsKnock | WsDoor | WsEatDone | WsSpoiled | WsDailyLimit | WsRent | WsCookCancelled | WsThought | WsLesson
+export type WsMessage = WsSnapshot | WsPatch | WsAction | WsHeartbeat | WsQQ | WsProduce | WsCommission | WsKnock | WsDoor | WsEatDone | WsSpoiled | WsDailyLimit | WsRent | WsCookCancelled | WsThought | WsLesson | WsFishing
 /** 屋内人视角的待回应敲门（GET /player.pending_knocks[]） */
 export interface PendingKnock { id: string; visitor?: string; visitor_name?: string; home?: string; home_name?: string; door?: DoorRef | null; status?: string; expires_at?: string }
 /** GET /world.map.doors[]：带 owner 的家门（x,y = 外侧格） */

@@ -69,7 +69,7 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
       )}
       <section>
         <div style={{ fontWeight: 700, marginBottom: 4 }}>在卖的</div>
-        {goods.length === 0 && <div style={{ color: C.inkSoft, fontSize: 13 }}>这家现在不卖东西</div>}
+        {goods.length === 0 && <div style={{ color: C.inkSoft, fontSize: 13 }}>{Array.isArray(obj.listings) ? '摊上还没有鱼（老渔夫上货后才有）' : '这家现在不卖东西'}</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {goods.map(g => {
             const soldOut = g.stock === 0
@@ -81,7 +81,7 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
                   <div style={{ fontSize: 12, color: C.inkSoft }}>{g.stock === null ? '' : soldOut ? '卖完了' : `余 ${g.stock}`}</div>
                 </div>
                 <span style={{ fontWeight: 700, color: '#8A6116', whiteSpace: 'nowrap' }}>{g.price} 金币</span>
-                <button className="k teal" data-testid={`shop-buy-${g.item}`} disabled={!!busy || soldOut} onClick={() => act(g.key, `买 ${g.name}`, 'buy', { item: g.item, ...(g.itemId ? { item_id: g.itemId } : {}) })} style={{ minWidth: 56, minHeight: 36 }}>{busy === g.key ? '…' : '买'}</button>
+                <button className="k teal" data-testid={`shop-buy-${g.item}`} disabled={!!busy || soldOut} onClick={() => act(g.key, `买 ${g.name}`, 'buy', { item: g.item, ...(g.listingId ? { listing_id: g.listingId } : {}), ...(g.itemId ? { item_id: g.itemId } : {}) })} style={{ minWidth: 56, minHeight: 36 }}>{busy === g.key ? '…' : '买'}</button>
               </div>
             )
           })}
@@ -112,8 +112,8 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
                 <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}><b>{s.name}</b>{s.chips.map(chip)}</div>
                 <div style={{ fontSize: 12, color: C.inkSoft }}>背包里 {s.count}</div>
               </div>
-              <span style={{ fontWeight: 700, color: '#1F7A6F', whiteSpace: 'nowrap' }}>收 {s.sell}</span>
-              <button className="k" data-testid={`shop-sell-${s.item}`} disabled={!!busy} onClick={() => act(s.key, `卖 ${s.name}`, 'sell', { item: s.item, ...(s.itemId ? { item_id: s.itemId } : {}) })} style={{ minWidth: 56, minHeight: 36 }}>{busy === s.key ? '…' : '卖'}</button>
+              <span style={{ fontWeight: 700, color: '#1F7A6F', whiteSpace: 'nowrap', fontSize: s.sell === null ? 12 : undefined }}>{s.sell === null ? '按挂单价收' : `收 ${s.sell}`}</span>
+              <button className="k" data-testid={`shop-sell-${s.item}`} disabled={!!busy} onClick={() => act(s.key, `卖 ${s.name}`, 'sell', { item: s.item, ...(s.fishId ? { fish_id: s.fishId } : {}), ...(s.itemId ? { item_id: s.itemId } : {}) })} style={{ minWidth: 56, minHeight: 36 }}>{busy === s.key ? '…' : '卖'}</button>
             </div>
           ))}
         </div>

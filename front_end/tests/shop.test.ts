@@ -34,3 +34,18 @@ test('meta 中英文都认；距离取最近一格；失败文案', () => {
   assert.equal(shopFailText('shop_closed', { opens_at: '09:00' }), '已经打烊了，09:00 开门')
   assert.equal(shopFailText('insufficient_funds', { message: '钱不够，还差 3' }), '钱不够，还差 3')
 })
+
+test('§12.31 鱼摊 listings 逐条、卖鱼带 fish_id、钓鱼提示', async () => {
+  const { fishingBubbleText } = await import('../src/game/fishing')
+  const stall2 = { shop: [{ type: 'fish', name: '鱼', price: 15, sell: 10, stock: 6 }], stock: null, daily_supply: null, listings: [{ listing_id: 'f-1', species: 'golden_carp', name: '金鳞鲤', tier: 'rare', weight: 1.6, freshness: 'fresh', price: 38 }] }
+  const g = goodsRows(stall2)
+  assert.deepEqual(g.map(r => [r.name, r.price, r.listingId]), [['金鳞鲤', 38, 'f-1']])
+  assert.deepEqual(g[0].chips.map(c => c.value), ['1.6 kg', '稀有', '新鲜'])
+  assert.equal(goodsRows({ ...stall2, listings: [] }).length, 0)   // 摊上没鱼就是没鱼
+  const s = sellRows(stall2, [{ type: 'fish', count: 1, meta: { fish_id: 'f-9', name: '鲫鱼', tier: 'common', weight: 1.1, freshness: 'fresh' } }])
+  assert.equal(s[0].fishId, 'f-9'); assert.equal(s[0].sell, null)
+  assert.equal(fishingBubbleText({ result: 'fish', fish: { name: '月光鲶', tier: 'legend', weight: 2.4 }, tier_name: '传说' }), '🌟 传说！钓到月光鲶 2.4 kg（传说）')
+  assert.equal(fishingBubbleText({ result: 'fish', fish: { name: '鲫鱼', tier: 'common', weight: 1.0 }, record_break: true }), '🏆 破纪录！钓到鲫鱼 1.0 kg')
+  assert.equal(fishingBubbleText({ result: 'junk', item_name: '旧靴子' }), '🎣 钓上来一个旧靴子……')
+  assert.equal(fishingBubbleText({ result: 'empty' }), null)
+})

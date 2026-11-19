@@ -72,11 +72,11 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
               <div key={key} style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                 <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>{m.icon} {itemDisplayName(it)}{it.count > 1 ? ` ×${it.count}` : ''}<MetaChips meta={it.meta} /></span>
                 {hasItemDetail(it) && <button data-testid={`bag-view-${it.type}`} onClick={() => setDetail(it)} style={sb()}>看</button>}
-                {(m.kind === 'food' || /^(ingredients?|fish)$/.test(it.type)) && (table && canEatHere(table, it.type) ? <button disabled={!!busy} onClick={() => act(`吃 ${m.label}`, 'eat', { item: it.type, item_id: it.id, object_id: table.id })} style={sb()}>吃</button> : <span title={table ? '这儿只能吃简餐' : 'world-v1.1：只能在餐桌 / 长椅旁吃'} style={{ fontSize: 10, color: c('#718096') }}>{table ? '这儿不能吃' : '到餐桌吃'}</span>)}
-                {fridge && (m.kind === 'food' || m.kind === 'material') && <button disabled={!!busy} onClick={() => act(`放 ${m.label}`, 'store', { item: it.type, qty: 1, object_id: fridge.id })} style={sb()}>放冰箱</button>}
-                {stove && !stove.cooking && (it.type === 'ingredients' || it.type === 'ingredient' || it.type === 'fish') && <button disabled={!!busy} onClick={() => act(`做 ${m.label}`, 'use', { objectId: stove.id, item: it.type, qty: 1 })} style={sb()}>下厨</button>}
+                {(m.kind === 'food' || /^(ingredients?|fish)$/.test(it.type)) && (table && canEatHere(table, it.type) ? <button disabled={!!busy} onClick={() => act(`吃 ${m.label}`, 'eat', { item: it.type, item_id: it.id, object_id: table.id, ...pick(it.meta, ['fish_id', 'dish_id']) })} style={sb()}>吃</button> : <span title={table ? '这儿只能吃简餐' : 'world-v1.1：只能在餐桌 / 长椅旁吃'} style={{ fontSize: 10, color: c('#718096') }}>{table ? '这儿不能吃' : '到餐桌吃'}</span>)}
+                {fridge && (m.kind === 'food' || m.kind === 'material') && <button disabled={!!busy} onClick={() => act(`放 ${m.label}`, 'store', { item: it.type, qty: 1, object_id: fridge.id, ...pick(it.meta, ['fish_id']) })} style={sb()}>放冰箱</button>}
+                {stove && !stove.cooking && (it.type === 'ingredients' || it.type === 'ingredient' || it.type === 'fish') && <button disabled={!!busy} onClick={() => act(`做 ${m.label}`, 'use', { objectId: stove.id, item: it.type, qty: 1, ...pick(it.meta, ['fish_id']) })} style={sb()}>下厨</button>}
                 {neighbours.map(n => <button key={n.id} disabled={!!busy} onClick={() => act(`送 ${itemDisplayName(it)} 给 ${n.name}`, 'give', { item: it.type, item_id: it.id, target: n.id, target_id: n.id, ...(typeof it.meta?.commission_id === 'string' ? { commission_id: it.meta.commission_id } : {}), ...(typeof it.meta?.door_id === 'string' ? { door_id: it.meta.door_id } : {}), ...pick(it.meta, ['lesson_id', 'receipt_id', 'request_id']) })} style={sb()}>送{n.name.slice(0, 2)}</button>)}
-                {shop && <button disabled={!!busy} onClick={() => act(`卖 ${m.label}`, 'sell', { item: it.type, item_id: it.id, object_id: shop.id })} style={sb()}>卖</button>}
+                {shop && <button disabled={!!busy} onClick={() => act(`卖 ${m.label}`, 'sell', { item: it.type, item_id: it.id, object_id: shop.id, ...pick(it.meta, ['fish_id']) })} style={sb()}>卖</button>}
               </div>
             )
           })}
@@ -92,7 +92,7 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, color: r.spoiled ? c('#718096') : c('#e2e8f0') }}>
                 <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', ...(r.spoiled ? { filter: 'grayscale(1)' } : {}) }}>{r.icon} {r.name} ×{r.count}<MetaChips meta={r.meta} /></span>
                 <span style={{ fontSize: 11, color: r.spoiled ? c('#fc8181') : r.days !== null && r.days <= 1 ? c('#f6ad55') : c('#718096') }}>{r.spoiled ? '坏了' : r.days !== null ? `剩 ${r.days} 天` : ''}</span>
-                <button disabled={!!busy} onClick={() => act(`取 ${r.name}`, 'take', { item: r.item, qty: 1, object_id: fridge.id })} style={sb()}>取</button>
+                <button disabled={!!busy} onClick={() => act(`取 ${r.name}`, 'take', { item: r.item, qty: 1, object_id: fridge.id, ...pick(r.meta ?? undefined, ['fish_id']) })} style={sb()}>取</button>
               </div>
             ))}
           </div>
