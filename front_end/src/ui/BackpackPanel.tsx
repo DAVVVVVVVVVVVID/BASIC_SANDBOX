@@ -90,7 +90,7 @@ export default function BackpackPanel({ embedded = false }: { embedded?: boolean
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 110, overflowY: 'auto' }}>
             {fridgeRows(fridge, nowMs).map((r, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, color: r.spoiled ? c('#718096') : c('#e2e8f0') }}>
-                <span style={{ flex: 1, ...(r.spoiled ? { filter: 'grayscale(1)' } : {}) }}>{r.icon} {r.name} ×{r.count}</span>
+                <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', ...(r.spoiled ? { filter: 'grayscale(1)' } : {}) }}>{r.icon} {r.name} ×{r.count}<MetaChips meta={r.meta} /></span>
                 <span style={{ fontSize: 11, color: r.spoiled ? c('#fc8181') : r.days !== null && r.days <= 1 ? c('#f6ad55') : c('#718096') }}>{r.spoiled ? '坏了' : r.days !== null ? `剩 ${r.days} 天` : ''}</span>
                 <button disabled={!!busy} onClick={() => act(`取 ${r.name}`, 'take', { item: r.item, qty: 1, object_id: fridge.id })} style={sb()}>取</button>
               </div>

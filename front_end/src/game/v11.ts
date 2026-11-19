@@ -47,7 +47,7 @@ export function busyText(b: BusyState | null | undefined, nowMs: number | null):
 }
 
 /** 冰箱一行：「🍲 家常菜 ×4 · 剩 2 天」/ 坏了 */
-export interface FridgeRow { item: string; name: string; count: number; days: number | null; spoiled: boolean; icon: string }
+export interface FridgeRow { item: string; name: string; count: number; days: number | null; spoiled: boolean; icon: string; meta?: Record<string, unknown> | null }
 export function fridgeRows(o: Pick<GameObject, 'contents'> | null | undefined, nowMs: number | null): FridgeRow[] {
   const list = o?.contents ?? []
   return list.map(c => {
@@ -55,7 +55,8 @@ export function fridgeRows(o: Pick<GameObject, 'contents'> | null | undefined, n
     let days: number | null = typeof c.expires_in_days === 'number' ? c.expires_in_days : null
     const ex = parseGameTime(c.expires_at)
     if (ex !== null && nowMs !== null) days = Math.max(0, Math.ceil((ex - nowMs) / 86_400_000 * 10) / 10)
-    return { item: c.item, name: (c as { name?: string }).name ?? m.label, count: c.count, days, spoiled: !!c.spoiled || m.spoiled === true, icon: m.icon }
+    const meta = (c as { meta?: Record<string, unknown> | null }).meta ?? null   // B 11-19：冰箱里的鱼带与背包同一套 meta
+    return { item: c.item, name: (typeof meta?.name === 'string' && meta.name) || (c as { name?: string }).name || m.label, count: c.count, days, spoiled: !!c.spoiled || m.spoiled === true, icon: m.icon, meta }
   })
 }
 export const fridgeTitle = (o: Pick<GameObject, 'name' | 'storage'>) => `🧊 ${o.name}${o.storage ? ` ${o.storage.used}/${o.storage.capacity}` : ''}`

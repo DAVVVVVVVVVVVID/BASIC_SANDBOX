@@ -2,7 +2,7 @@
  * 商店账本 / 库房（商店系统第一期，whale docs/systems/shops-system.md §1 §4，主播 11-19 开工）——纯函数（单测 tests/ledger.test.ts）。
  * B 的 read_ledger 形状还没定：这里宽容解析（字段名几种写法都认），接口到了对一下即可；没有接口时页面显示「还没开通」，`?shopdemo=1` 才用样例。
  */
-export type LedgerKind = 'sale' | 'purchase' | 'freight' | 'recycle' | 'lost' | 'price' | 'other'
+export type LedgerKind = 'sale' | 'purchase' | 'freight' | 'refund' | 'recycle' | 'list' | 'spoiled' | 'lost' | 'other'
 export interface LedgerEntry { ts: string; kind: LedgerKind; who: string; item: string; qty: number; unit: number | null; amount: number; note: string }
 export interface LedgerDay { date: string; revenue: number; cost: number; gross: number; stock: Record<string, number> }
 export interface Ledger { shop: string; days: LedgerDay[]; entries: LedgerEntry[] }
@@ -13,13 +13,16 @@ const KIND_ALIAS: Record<string, LedgerKind> = {
   sale: 'sale', sell: 'sale', sold: 'sale', 卖出: 'sale',
   purchase: 'purchase', restock: 'purchase', order: 'purchase', 进货: 'purchase',
   freight: 'freight', shipping: 'freight', 运费: 'freight',
-  recycle: 'recycle', trade_in: 'recycle', 回收: 'recycle',
+  refund: 'refund', 退款: 'refund',
+  recycle: 'recycle', exchange: 'recycle', trade_in: 'recycle', 回收: 'recycle', 换鱼饵: 'recycle',
+  list: 'list', listing: 'list', 上货: 'list',
+  spoiled: 'spoiled', spoil: 'spoiled', 变质: 'spoiled',
   lost: 'lost', lost_customer: 'lost', fail: 'lost', 流失: 'lost',
-  price: 'price', set_price: 'price', 改价: 'price',
 }
 export const KIND_ZH: Record<LedgerKind, { label: string; icon: string }> = {
   sale: { label: '卖出', icon: '💰' }, purchase: { label: '进货', icon: '📦' }, freight: { label: '运费', icon: '🚚' },
-  recycle: { label: '回收', icon: '♻️' }, lost: { label: '流失', icon: '🚶' }, price: { label: '改价', icon: '🏷' }, other: { label: '其他', icon: '·' },
+  refund: { label: '退款', icon: '↩️' }, recycle: { label: '换鱼饵', icon: '♻️' }, list: { label: '上货', icon: '🐟' }, spoiled: { label: '变质下架', icon: '🗑' },
+  lost: { label: '流失', icon: '🚶' }, other: { label: '其他', icon: '·' },
 }
 const num = (x: unknown, d = 0) => (typeof x === 'number' && isFinite(x) ? x : typeof x === 'string' && x.trim() && isFinite(Number(x)) ? Number(x) : d)
 const str = (x: unknown) => (typeof x === 'string' ? x : x === null || x === undefined ? '' : String(x))
@@ -100,15 +103,14 @@ export function demoLedger(shop: string, today: string): Ledger {
   const t = (hm: string) => `${today}T${hm}:00`
   const entries: LedgerEntry[] = [
     { ts: t('19:42'), kind: 'sale', who: '路人 · 老王', item: '面包', qty: 2, unit: 5, amount: 10, note: '' },
-    { ts: t('18:10'), kind: 'lost', who: '路人 · 李阿姨', item: '甜食', qty: 1, unit: 6, amount: 0, note: '卖完了' },
     { ts: t('16:05'), kind: 'sale', who: '鲸仔', item: '甜食', qty: 1, unit: 6, amount: 6, note: '' },
-    { ts: t('14:30'), kind: 'recycle', who: '老渔夫', item: '变质的鱼 → 鱼饵', qty: 2, unit: null, amount: 0, note: '' },
-    { ts: t('12:00'), kind: 'price', who: '杂货店老板', item: '面包', qty: 1, unit: 6, amount: 0, note: '5 → 6' },
+    { ts: t('14:30'), kind: 'recycle', who: '老渔夫', item: '变质的鱼 → 鱼饵', qty: 2, unit: 1, amount: 2, note: '' },
+    { ts: t('07:31'), kind: 'refund', who: '镇外批发 · 周叔', item: '鱼饵', qty: 2, unit: 1, amount: 2, note: '库房满 40，退款' },
     { ts: t('09:20'), kind: 'sale', who: '克劳蒂娜', item: '食材', qty: 3, unit: 8, amount: 24, note: '' },
     { ts: t('07:30'), kind: 'purchase', who: '镇外批发 · 周叔', item: '面包', qty: 10, unit: 3, amount: -30, note: '到货' },
     { ts: t('07:30'), kind: 'freight', who: '镇外批发 · 周叔', item: '运费', qty: 1, unit: 10, amount: -10, note: '' },
   ]
-  return { shop, days, entries }
+  return { shop, days, entries: entries.sort((a, b) => b.ts.localeCompare(a.ts)) }
 }
 export function demoWarehouse(today: string): Warehouse {
   const tomorrow = new Date(Date.parse(today + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10)

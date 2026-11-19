@@ -22,6 +22,14 @@ test('账本：几种字段写法都认，按时间倒序', () => {
   assert.equal(normalizeLedger({ foo: 1 }), null)
 })
 
+test('B 草案 f007d7c 的 kind：refund / recycle（exchange 别名）/ list / spoiled', async () => {
+  const { KIND_ZH } = await import('../src/game/ledger')
+  const l = normalizeLedger({ shop: 'counter', name: '杂货店', entries: [{ ts: '2026-11-20T08:00:00', kind: 'exchange', item_name: '鱼饵', qty: 1, unit_price: 1, amount: 1 }, { ts: '2026-11-20T07:31:00', kind: 'refund', item: 'bait', amount: 2 }, { ts: '2026-11-20T06:00:00', kind: 'list', item_name: '金鳞鲤' }, { ts: '2026-11-20T05:00:00', kind: 'spoiled', item_name: '小鲈鱼' }], days: [{ date: '2026-11-20', revenue: 3, cost: 0, gross: 3 }] })!
+  assert.deepEqual(l.entries.map(e => e.kind), ['recycle', 'refund', 'list', 'spoiled'])
+  assert.equal(KIND_ZH.recycle.label, '换鱼饵')
+  assert.equal(summarize(l, 'today').lost, 0)
+})
+
 test('库房与明早到货', () => {
   const w = normalizeWarehouse({ warehouse: { stock: { bread: 22 }, capacity: 40, incoming: [{ items: [{ item: 'bread', qty: 10 }, { item: 'ingredients', qty: 12 }], eta: '2026-11-20T07:30:00+08:00' }] } })!
   assert.equal(w.stock.bread, 22); assert.equal(w.cap, 40)

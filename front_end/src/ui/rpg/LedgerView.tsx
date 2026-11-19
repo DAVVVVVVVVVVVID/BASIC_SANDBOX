@@ -7,10 +7,10 @@ import { C } from './theme'
 
 /**
  * 商店账本（商店系统第一期，shops-system.md §4）：导播视角（操控页）能看三家店；顶部切店、今天 / 近 7 天。
- * 数据：GET /shops/{id}/ledger?days=（**接口名待 B 的 read_ledger 草案**，404 = 还没开通）；`?shopdemo=1` 用样例看版式。只读。
+ * 数据：GET /shops/{id}/ledger?days=7（B 草案 f007d7c：shop_id = 物件 id counter / bar / fish_stall，导播只读；12:00 重置后实现，404 = 还没开通）；`?shopdemo=1` 用样例看版式。只读。
  */
 export const SHOP_DEMO = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('shopdemo') === '1'
-const FILTERS: (LedgerKind | 'all')[] = ['all', 'sale', 'purchase', 'recycle', 'lost', 'price']
+const KIND_ORDER: LedgerKind[] = ['sale', 'purchase', 'freight', 'refund', 'recycle', 'list', 'spoiled', 'lost', 'other']
 
 export default function LedgerView({ shopId: initial }: { shopId: string }) {
   const objects = useGameStore((s) => s.objects)
@@ -36,6 +36,9 @@ export default function LedgerView({ shopId: initial }: { shopId: string }) {
   }, [shopId, today])
   const sum = ledger ? summarize(ledger, range) : null
   const rows = ledger ? entriesIn(ledger, range, kind) : []
+  // 筛选只列这本账里出现过的类型（杂货店 / 鱼摊不一样）；改价已取消（主播 11-19 定店主不能改价）
+  const present = new Set(ledger ? entriesIn(ledger, range, 'all').map(e => e.kind) : [])
+  const filters: (LedgerKind | 'all')[] = ['all', ...KIND_ORDER.filter(k => present.has(k))]
   const tab = (on: boolean) => ({ fontSize: 12, padding: '2px 10px', borderRadius: 10, border: `1px solid ${on ? C.teal : '#E6DCCB'}`, background: on ? '#DDF3EE' : '#fff', color: on ? '#1F7A6F' : C.inkSoft, cursor: 'pointer' }) as const
   const money = (n: number) => `${n < 0 ? '−' : ''}¥${Math.abs(Math.round(n))}`
   return (
@@ -52,8 +55,8 @@ export default function LedgerView({ shopId: initial }: { shopId: string }) {
       {state === 'missing' && <div data-testid="ledger-missing" style={{ color: C.inkSoft, padding: 8 }}>账本接口还没开通（等沙盒的 read_ledger）</div>}
       {state === 'ok' && sum && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 6 }}>
-            {([['收入', sum.revenue, '#1F7A6F'], ['成本', sum.cost, '#8A6116'], ['毛利', sum.gross, sum.gross >= 0 ? '#1F7A6F' : '#B23B2E'], ['流失', sum.lost, '#B23B2E']] as [string, number, string][]).map(([k, v, col]) => (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${sum.lost > 0 ? 4 : 3}, minmax(0, 1fr))`, gap: 6 }}>
+            {([['收入', sum.revenue, '#1F7A6F'], ['成本', sum.cost, '#8A6116'], ['毛利', sum.gross, sum.gross >= 0 ? '#1F7A6F' : '#B23B2E'], ...(sum.lost > 0 ? [['流失', sum.lost, '#B23B2E']] : [])] as [string, number, string][]).map(([k, v, col]) => (
               <div key={k} style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid #E6DCCB', borderRadius: 8, padding: '6px 8px', textAlign: 'center' }}>
                 <div style={{ fontSize: 11, color: C.inkSoft }}>{k}</div>
                 <div style={{ fontSize: 17, fontWeight: 700, color: col }}>{k === '流失' ? `${v} 位` : money(v)}</div>
@@ -67,7 +70,7 @@ export default function LedgerView({ shopId: initial }: { shopId: string }) {
             </div>
           )}
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {FILTERS.map(f => <button key={f} onClick={() => setKind(f)} style={tab(kind === f)}>{f === 'all' ? '全部' : KIND_ZH[f].label}</button>)}
+            {filters.map(f => <button key={f} onClick={() => setKind(f)} style={tab(kind === f)}>{f === 'all' ? '全部' : KIND_ZH[f].label}</button>)}
           </div>
           <div data-testid="ledger-rows" style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 260, overflowY: 'auto' }}>
             {rows.length === 0 && <div style={{ color: C.inkSoft }}>这段时间没有记录</div>}
@@ -76,7 +79,7 @@ export default function LedgerView({ shopId: initial }: { shopId: string }) {
                 <span style={{ fontSize: 11, color: C.inkSoft, width: range === 'week' ? 72 : 38, flexShrink: 0 }}>{range === 'week' ? `${e.ts.slice(5, 10)} ${e.ts.slice(11, 16)}` : e.ts.slice(11, 16)}</span>
                 <span style={{ flexShrink: 0 }}>{KIND_ZH[e.kind].icon}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
-                  <b>{KIND_ZH[e.kind].label}</b> {e.item}{e.qty > 1 ? ` ×${e.qty}` : ''}{e.unit !== null && e.kind !== 'price' ? ` @${e.unit}` : ''}
+                  <b>{KIND_ZH[e.kind].label}</b> {e.item}{e.qty > 1 ? ` ×${e.qty}` : ''}{e.unit !== null ? ` @${e.unit}` : ''}
                   {e.who && <span style={{ color: C.inkSoft }}> · {e.who}</span>}
                   {e.note && <span style={{ color: e.kind === 'lost' ? '#B23B2E' : C.inkSoft }}> · {e.note}</span>}
                 </span>
