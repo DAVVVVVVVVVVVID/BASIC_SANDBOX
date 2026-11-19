@@ -194,3 +194,18 @@ def test_scenario_set_fishing_record(client, v12, fake_clock, monkeypatch):
     assert fishing.cast(world_state._players[fisher], "fishing_spot_1", 1, world_state.game_now_ts())["record_break"] is True
     r = client.post("/admin/scenario", json={"steps": [{"op": "set_fishing_record", "player": fisher, "clear": True}]}).json()
     assert r["steps"][0]["detail"]["record"]["best"]["weight"] == 2.2
+
+
+def test_occupy_spot_still_casts_v1410(client, v12, fake_clock, monkeypatch):
+    """C 11-19：scenario occupy 坐上钓位不走 on_enter，以前一竿都不出；现在 tick 补登记。"""
+    monkeypatch.setenv("SANDBOX_SCENARIO", "1")
+    _at(fake_clock, 7)
+    fisher = _agent(client, "npc_fisher")
+    _force(monkeypatch, "npc_fisher", fish=1.0)
+    r = client.post("/admin/scenario", json={"steps": [{"op": "occupy", "player": fisher, "object": "fishing_spot_1"}]}).json()
+    assert r["ok"]
+    _tick(fake_clock, 1); _tick(fake_clock, 1)                  # ticker 第一下只立锚点；第二下 production.on_tick 补登记
+    _tick(fake_clock, 20 * 60)
+    _tick(fake_clock, 20 * 60)
+    v = client.get("/agent/perceive", params={"entity_id": fisher}).json()["fishing"]
+    assert v["casts_today"] == 2 and v["spot"] == "fishing_spot_1" and len(_fish_entries(world_state._players[fisher])) == 2

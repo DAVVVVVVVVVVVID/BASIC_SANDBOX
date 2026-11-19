@@ -45,6 +45,10 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bn. world-v1.4.10：坐在钓位上没登记每竿计时就补登记（C bench 冒烟：scenario occupy 摆上钓位一竿不出）—— 完成
+
+- 原因：`occupy` 只 `enter_object`，不走 `production.on_enter`，`_fish` 里没有这个人；每日时长照涨（另一套按「在物件上」累计），竿数为 0。改在 `production.on_tick` 里兜底：坐在 fishing_spot 上却不在 `_fish` 的，从此刻补登记。正常 `use` 路径不受影响。测试 +1，**404 passed**。
+
 ## 5bm. world-v1.4.9：scenario op `set_fishing_record`（C 冒烟破纪录用；主镇无差别）—— 完成
 
 - 老渔夫初始 2.2 kg 每条只约 0.6% 破，冒烟半天看不到破纪录 → bench 上摆低纪录（总控同意，结果注明测试参数）。测试 +1，**403 passed**。

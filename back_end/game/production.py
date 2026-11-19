@@ -176,6 +176,13 @@ def on_tick(gts: float, players: dict) -> None:
     from game import inventory
     pc = cfg()
     from game import fishing
+    from game.world_state import get_object_by_id as _gobj
+    for pid, p in players.items():                                       # v1.4.10：坐在钓位上却没登记每竿计时（scenario occupy / 其它不走 on_enter 的路径）→ 从此刻补登记
+        oid = p.get("usingObjectId")
+        if oid and pid not in _fish:
+            o = _gobj(oid)
+            if o is not None and o["type"] == "fishing_spot":
+                _fish[pid] = {"last_roll_gts": gts, "rolls": 0, "object": oid}
     for pid, st in list(_fish.items()):                                   # v1.4.8：每 interval_min 一竿（空竿 / 垃圾 / 鱼，见 game/fishing.py）
         p = players.get(pid)
         if p is None or p.get("usingObjectId") != st["object"]:
