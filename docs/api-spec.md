@@ -1790,6 +1790,7 @@ join / spawn 从自我层 `GET /self/state` 种入七变量时，**不再采用�
 - **换鱼饵**（覆盖 v1.4.8 `exchange`）：杂货店柜台 `exchange {item, fish_id?, mode?: "pay" | "donate"}`；收 变质的鱼 / `spoiled_food` / `junk_*`，每件凭空产出 1 个鱼饵（永久保质，不动店里库存）。`pay`（默认）：付 1 金币进店主账户、鱼饵进自己背包（店主本人换不付钱）；`donate`：不付钱、鱼饵进 `counter.stock.bait`。都记 `grocery` 账本 `recycle`。失败 `not_exchangeable` / `not_spoiled` / `no_item` / `insufficient_funds` / `bad_mode`。
 - **变质物 ~2 游戏日消失**：`spoiled_food` 变质时带 `expires_at = 变质时刻 + 2 日`，到期从背包 / 冰箱移除（背包的推 pendingMessage「坏掉的食物放太久，扔掉了。」）；鱼常温日龄满 8 日（冰箱半速）移除。external `kind=spoil action=discard_auto`。
 - 旧检查点里鱼摊的计数库存（v1.4.8 以前的 `{"fish": N}`）读进来时清掉。
+- **管理口**（v1.4.12）`POST /admin/shop/stock {object?: "counter", item, qty, reason?}`：库存直写（主镇的数据修正；scenario 在主镇 403）。鉴权同 `/school/term_start`（SANDBOX_ADMIN_TOKEN 或 SELF_TOKEN）；记 interventions `data_edit`（reversible）与该店账本 `kind: adjust`；回 `{ok, object, item, before, after, stock}`。
 
 ### 12.7 地图 v1
 

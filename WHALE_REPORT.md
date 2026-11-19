@@ -45,6 +45,10 @@ Q3（m1c 真实负载巡检）等 C 起镇；Q4（freeform 使用统计）、Q5�
 - **最短路**：`GET /admin/path?from=x,y&to=x,y|to_object=|to_arena=[&ignore_locks][&mover=]`（所有实例、只读、按当前游戏时刻门禁）+ 离线 `scripts/path_table.py`（任意点 / 物品 / arena 两两矩阵，md / csv / json）。
 - 4 例单测（`tests/test_w11_x1_fixtures.py`）：挪位 / 撤掉 / 非法目标 / 恢复 + 指纹复原；挪动请离使用者 + reset 还原；`/admin/path` 到 arena / 物品 / 同格 0 步 / 22:30 餐厅不可达 / ignore_locks / 400 / 404 / 小千家门禁按 mover。294 passed。8091 已重起带上；**bench 8090 要切到本提交才有这三个 op 与 `/admin/path`**。
 
+## 5bp. world-v1.4.12：`POST /admin/shop/stock`（主镇补料用；总控 11-19 要 17:30 窗后把杂货店食材补到 12）—— 完成
+
+- 鉴权同 term_start；interventions data_edit + 账本 adjust。测试 +1，**411 passed**；api-spec §12.33 补一行。
+
 ## 5bo. world-v1.4.11：商店第一期——周叔进货 / 三本账本 / 换鱼饵 pay·donate / 变质物 2 日消失（主播 11-19；今天上主镇测试）—— 完成
 
 - `game/shops.py` + `shops.json`：系统 QQ 账号 supplier_zhou（规则读单；Haiku 兜底关——venv 无 Bedrock 客户端）、报价 / 确认扣店主 / 30 分钟过期 / 22:00 截单 / 07:30 送达库房上限 40 超出退款；账本挂在 `_credit_account`（所有进出店主账户的买卖）+ 进货 / 运费 / 退款 / 换鱼饵 / 上货 / 变质下架；`read_ledger` 动作、`GET /shops/{id}/ledger`、`GET /shop/orders`、counter `warehouse`、perceive `orders_pending`。

@@ -135,3 +135,14 @@ def test_checkpoint_roundtrip_and_legacy_stall_stock_cleared(client, v12, fake_c
     shops.import_state(None)
     persistence.load_checkpoint(db)
     assert len(shops.orders_view()) == 1 and world_state.get_object_by_id("fish_stall")["stock"].get("fish") is None
+
+
+def test_admin_shop_stock_edit(client, v12, fake_clock, monkeypatch):
+    monkeypatch.setenv("SANDBOX_ADMIN_TOKEN", "t0k")
+    _at(fake_clock, 20, 10)
+    body = {"object": "counter", "item": "ingredients", "qty": 12, "reason": "测试补料"}
+    assert client.post("/admin/shop/stock", json=body).status_code == 401
+    world_state.get_object_by_id("counter")["stock"]["ingredients"] = 0
+    r = client.post("/admin/shop/stock", json=body, headers={"Authorization": "Bearer t0k"}).json()
+    assert r["before"] == 0 and r["after"] == 12 and world_state.get_object_by_id("counter")["stock"]["ingredients"] == 12
+    assert shops.ledger_view("grocery")["entries"][-1]["kind"] == "adjust"
