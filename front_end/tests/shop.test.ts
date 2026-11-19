@@ -49,3 +49,17 @@ test('§12.31 鱼摊 listings 逐条、卖鱼带 fish_id、钓鱼提示', async 
   assert.equal(fishingBubbleText({ result: 'junk', item_name: '旧靴子' }), '🎣 钓上来一个旧靴子……')
   assert.equal(fishingBubbleText({ result: 'empty' }), null)
 })
+
+test('跟随看钓鱼纪录：GET /player.fishing', async () => {
+  const { fishingView } = await import('../src/game/fishing')
+  const v = fishingView({ spot: 'fishing_spot_1', casts_today: 5, minutes_today: 100, limit_min: 180,
+    recent_casts: [{ at: '2026-11-20T09:00:00', result: 'empty' }, { at: '2026-11-20T09:20:00', result: 'fish', fish: { species: 'golden_carp', name: '金鳞鲤', tier: 'rare', weight: 1.8 }, record_break: true }, { at: '2026-11-20T09:40:00', result: 'junk', item_name: '旧靴子' }],
+    record: { best: { species: 'golden_carp', name: '金鳞鲤', weight: 1.8, at: '2026-11-20T09:20:00' }, by_species: { crucian: 1.5, golden_carp: 1.8, moon_catfish: 2.1 } } })!
+  assert.equal(v.best?.name, '金鳞鲤')
+  assert.deepEqual(v.bySpecies.map(s => s.name), ['月光鲶', '金鳞鲤', '鲫鱼'])
+  assert.deepEqual(v.recent.map(r => r.text), ['旧靴子', '金鳞鲤 1.8 kg', '空竿'])
+  assert.equal(v.recent[1].recordBreak, true)
+  assert.deepEqual(v.today, { casts: 5, minutes: 100, limit: 180 })
+  assert.equal(fishingView(null), null)
+  assert.equal(fishingView({ record: { best: null, by_species: {} }, recent_casts: [] }), null)
+})

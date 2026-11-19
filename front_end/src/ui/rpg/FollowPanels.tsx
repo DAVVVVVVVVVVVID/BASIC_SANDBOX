@@ -7,7 +7,8 @@ import { normalizeInventory, itemMeta, itemDisplayName, isFreeSlot, type Invento
 import { hasItemDetail } from '../../game/school'
 import { groupFollowRooms } from '../../game/followChat'
 import ItemDetail from './ItemDetail'
-import MetaChips from './MetaChips'
+import MetaChips, { Chip } from './MetaChips'
+import { fishingView } from '../../game/fishing'
 import { rentText } from '../../game/v11'
 import type { Player, WsChatEvent } from '../../types'
 import { C, avatarUrl } from './theme'
@@ -59,6 +60,7 @@ export function FollowBag({ player, name }: { player: Player | null; name: strin
       {inv.length > 0 && <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>{inv.map((it, i) => <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>{itemMeta(it.type, it.name).icon} {itemDisplayName(it)}{it.count > 1 ? ` ×${it.count}` : ''}<MetaChips meta={it.meta} /></span>{hasItemDetail(it) && <button className="k" data-testid={`follow-bag-view-${it.type}`} onClick={() => setDetail(it)} style={{ fontSize: 12, padding: '1px 10px' }}>看</button>}</div>)}</div>}
       {rent && <div style={{ marginTop: 8, color: rent.overdue ? '#D9534F' : C.inkSoft, fontSize: 12 }}>🏠 {rent.text.replace(/^🏠 /, '')}</div>}
       {player.usingObjectId && <div style={{ marginTop: 4, color: C.inkSoft, fontSize: 12 }}>正在用：{player.usingObjectId}</div>}
+      <FishingRecord fishing={(player as { fishing?: unknown }).fishing} name={name} />
       {detail && <ItemDetail item={detail} holder={player.agent_id} onClose={() => setDetail(null)} />}
     </div>
   )
@@ -123,6 +125,42 @@ export function FollowChat({ id, name, avatarKey, player }: { id: string; name: 
           <div style={{ marginBottom: 2 }}>邀请未成</div>
           {invites.map((v, i) => (
             <div key={i}>{v.ts.slice(11, 16)} · {v.participants.map(e => nameOf(e)).join(' → ') || '—'} · {v.label}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 跟随看他的钓鱼纪录 / 最近几竿（钓鱼 v1 §12.31：GET /player/{id}.fishing，随 useFollowedPlayer 2 s 一读；没有就不显示） */
+const TIER_TONE: Record<string, 'common' | 'rare' | 'legendary'> = { common: 'common', rare: 'rare', legend: 'legendary', legendary: 'legendary' }
+const TIER_ZH: Record<string, string> = { common: '普通', rare: '稀有', legend: '传说', legendary: '传说' }
+function FishingRecord({ fishing, name }: { fishing: unknown; name: string }) {
+  const v = fishingView(fishing)
+  if (!v) return null
+  return (
+    <div data-testid="follow-fishing" style={{ marginTop: 10, borderTop: '1px dashed #E6DCCB', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <b>🎣 {name} 的钓鱼纪录</b>
+      <div style={{ fontSize: 13 }}>
+        最好：{v.best ? <><b>{v.best.name} {v.best.weight.toFixed(2)} kg</b>{v.best.at ? <span style={{ color: C.inkSoft }}> · {v.best.initial ? '初始纪录' : v.best.at.slice(5, 16).replace('T', ' ')}</span> : null}</> : <span style={{ color: C.inkSoft }}>还没有</span>}
+        {v.today && <span style={{ color: C.inkSoft, marginLeft: 10 }}>今天 {v.today.casts} 竿 · {v.today.minutes}{v.today.limit ? `/${v.today.limit}` : ''} 分钟</span>}
+      </div>
+      {v.bySpecies.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 12 }}>
+          {v.bySpecies.map(s => <span key={s.id} style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}><Chip c={{ label: '品级', value: TIER_ZH[s.tier] ?? s.tier, tone: TIER_TONE[s.tier] }} />{s.name} {s.weight.toFixed(1)} kg</span>)}
+        </div>
+      )}
+      {v.recent.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 12 }}>
+          <span style={{ color: C.inkSoft }}>最近几竿</span>
+          {v.recent.slice(0, 10).map((c, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', color: c.result === 'empty' ? C.inkSoft : C.ink }}>
+              <span style={{ width: 38, color: C.inkSoft }}>{c.at.slice(11, 16)}</span>
+              <span>{c.result === 'fish' ? '🐟' : c.result === 'junk' ? '🥾' : '·'}</span>
+              <span>{c.text}</span>
+              {c.tier && c.tier !== 'common' && <Chip c={{ label: '品级', value: TIER_ZH[c.tier] ?? c.tier, tone: TIER_TONE[c.tier] }} />}
+              {c.recordBreak && <span style={{ color: '#8A5A00', fontWeight: 700 }}>🏆 破纪录</span>}
+            </div>
           ))}
         </div>
       )}
