@@ -968,6 +968,8 @@ export default class GameScene extends Phaser.Scene {
       this.centerClamped(this.camX, this.camY)
     })
     this.on('spectate-cmd', (c: FreeCmd) => this.freeCmd(c))
+    // 小镇导播（town-director-plan §2）：跟随时主角放在屏幕右半 x≈1250 → 镜头中心向左让 offsetX 屏幕像素
+    this.on('spectate-offset', ({ x }: { x: number }) => { this.followOffsetX = x })
   }
 
   /** 切到自由镜头：保留当前镜头中心与 zoom */
@@ -1163,10 +1165,14 @@ export default class GameScene extends Phaser.Scene {
       else if (want !== this.focusZoom && !this.transitioning) { this.focusZoom = want; cam.zoomTo(want, ZOOM_MS, 'Sine.easeInOut', true) }
       if (fr.indoor !== this.lastFocusIndoor) { this.lastFocusIndoor = fr.indoor; EventBus.emit('focus-changed', { indoor: fr.indoor, label: fr.label }) }
     }
+    // 导播偏移：屋外直接把目标往右放；屋里先按房间居中取景（clampCenter），再整体左移，让房间落在左侧面板右边
+    const off = this.camMode === 'follow' && this.followOffsetX ? this.followOffsetX / cam.zoom : 0
+    if (!fr.indoor) tx -= off
     const k = 1 - Math.exp(-dt / CAMERA_LERP_MS)
     this.camX += (tx - this.camX) * k
     this.camY += (ty - this.camY) * k
     const c = fr.indoor ? this.focus.clampCenter(this.camX, this.camY, cam.zoom) : { x: this.camX, y: this.camY }
+    if (fr.indoor && off) c.x -= off
     this.centerClamped(c.x, c.y)
     void playerVars
     const now = performance.now()
@@ -1269,6 +1275,7 @@ export default class GameScene extends Phaser.Scene {
     }
   }
   private hadBubbles = false
+  private followOffsetX = 0
 }
 
 export { tileCenter }

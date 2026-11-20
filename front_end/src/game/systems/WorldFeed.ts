@@ -5,7 +5,7 @@ import { useGameStore, mapSignature } from '../../store/gameStore'
 import { EventBus } from '../EventBus'
 import { setZoneNames } from '../map/zones'
 import { startPoller, PollerHandle } from './Poller'
-import type { WorldData, WsMessage, WsPatch } from '../../types'
+import type { WorldData, WsMessage, WsPatch, PlayerNow } from '../../types'
 
 /** 轮询节奏（ms）：ws 不可用时的退路 */
 export const POLL_WORLD_MS = 500
@@ -46,6 +46,16 @@ export function applyWorldSnapshot(world: WorldData) {
   s.setConnection('online')
 }
 
+/** {entity, text, activity, dest?, game_time, ts} → players[].now */
+function applyNow(m: Record<string, unknown>) {
+  const id = typeof m.entity === 'string' ? m.entity : null
+  if (!id) return
+  const s = useGameStore.getState()
+  const cur = s.players.find(p => p.id === id)
+  if (cur) s.patchPlayers([{ ...cur, now: { text: m.text as string | undefined, activity: m.activity as string | undefined, dest: (m.dest ?? null) as PlayerNow['dest'], game_time: m.game_time as string | undefined, ts: m.ts as string | undefined } }], undefined)
+  EventBus.emit('now-event', m)
+}
+
 function applyPatch(p: WsPatch) {
   const s = useGameStore.getState()
   if (p.worldState) {
@@ -58,6 +68,11 @@ function applyPatch(p: WsPatch) {
   }
   if (p.players) s.patchPlayers(p.players.upsert, p.players.remove)
   if (p.objects) s.patchObjects(p.objects)
+  // 小镇导播：B 的公开事件 / C 的「现在在干嘛」走 patch.items
+  for (const it of p.items ?? []) {
+    if (it.kind === 'public_event') EventBus.emit('public-event', it)
+    else if (it.kind === 'now') applyNow(it as Record<string, unknown>)
+  }
   if (p.chat) {
     for (const c of p.chat) {
       EventBus.emit('chat-row', c)   // 导播跟随：只读对话面板实时追加（含 event 行）
@@ -206,6 +221,9 @@ export function startWorldFeed(opts: { preferWs?: boolean } = {}): WorldFeedHand
         case 'order':   // 商店第二期：{type:"order", event:"ready", entity, order_id, dish}——上菜冒一句（自己的另有 pendingMessage）
           if ((msg as { event?: string }).event === 'ready' && typeof msg.entity === 'string') useGameStore.getState().pushBubble(msg.entity, '🍽 上菜了', 4000)
           EventBus.emit('order-event', msg)
+          break
+        case 'now':   // C：{type:"now", entity, text, activity, dest?}
+          applyNow(msg as unknown as Record<string, unknown>)
           break
         case 'stall_spoiled':
           EventBus.emit('stall_spoiled-event', msg)

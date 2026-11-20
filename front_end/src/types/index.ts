@@ -67,6 +67,7 @@ export interface GameObject {
   hint?: string | null
 }
 /** 商店货品条目；钓鱼系统（主播 11-19）起鱼会逐条上架：id + meta {species, weight, grade, freshness, …}，前端照 meta 显示 */
+export interface PlayerNow { text?: string; activity?: string; dest?: { name?: string; x?: number; y?: number; purpose?: string } | null; game_time?: string; ts?: string }
 export interface FishListing { listing_id: string; species?: string; name?: string; tier?: string; weight?: number; freshness?: string; age_days?: number; price: number }
 export interface ShopEntry { type?: string; item?: string; name?: string; price?: number | null; sell?: number | null; stock?: number | null; id?: string; item_id?: string; meta?: Record<string, unknown> | null }
 /** world-v1.1：进食 / 下厨 / 烧着的持续动作（players[] / GET /player / state 一致都有）；不忙 null */
@@ -123,6 +124,8 @@ export interface OtherPlayer {
   dnd?: boolean
   /** world-v1.4.0：在课桌上上课时的精简版；不在课 null */
   lesson?: LessonBrief | null
+  /** C（town-director-plan）：现在在干嘛 {text ≤20 字, activity, dest?, game_time, ts} */
+  now?: PlayerNow | null
   /** 路人顾客（B §12.32）：sprite passer01…06（主角 / 常驻 NPC 为 null）、role passerby、controller script */
   sprite?: string | null
   role?: string | null
@@ -136,7 +139,7 @@ export interface SchoolLesson { lesson_id: string; course: string; course_name: 
 export interface SchoolHomework { week: number; due: string | null; count: number; submitted: { receipt_id: string; request_id: string; title?: string | null; late: boolean; audio: 'none' | 'pending' | 'final' | string; at?: string }[] }
 /** GET /school/today?player= */
 export interface SchoolToday { date: string; week: number | null; week_genre: string | null; lessons: SchoolLesson[]; homework: SchoolHomework | null }
-export interface WsFishing { type: 'fishing' | 'stall_spoiled' | 'order'; entity?: string; cast?: import('../game/fishing').FishingCast; [k: string]: unknown }
+export interface WsFishing { type: 'fishing' | 'stall_spoiled' | 'order' | 'now'; entity?: string; cast?: import('../game/fishing').FishingCast; [k: string]: unknown }
 export interface WsLesson { type: 'lesson'; event: 'start' | 'segment' | 'question' | 'doze' | 'end' | 'grade' | string; lesson_id?: string; entity?: string; segment?: number; [k: string]: unknown }
 
 export interface TiledTilesetInfo {
@@ -319,6 +322,8 @@ export interface WsPatch {
   players?: { upsert?: OtherPlayer[]; remove?: string[] }
   objects?: Partial<GameObject>[]
   chat?: WsChatEvent[]
+  /** B（town-director-plan）：统一公开事件 {kind:'public_event', seq, verb, who, text, …} / C 的 {kind:'now', …} */
+  items?: { kind?: string; [k: string]: unknown }[]
 }
 export interface WsChatEvent {
   chat_room_id: string

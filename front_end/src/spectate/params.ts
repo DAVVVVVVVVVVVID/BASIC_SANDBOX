@@ -30,6 +30,9 @@ export interface SpectateParams {
   mode: 'free' | 'follow' | 'world'
   /** W9 0c（总控 11-07 晚）：`&debug=walls` 把引擎的墙格 / 门与楼梯格 / arena 边界 / 格线半透明叠在底图上，核对底图与引擎的错位 */
   debug: 'walls' | null
+  /** 小镇直播自动导播（town-director-plan，主播 11-20）：`&director=1` 或 `mode=director`——全屏、自己选人、左 40% 情境面板；`&console=0` 藏导播台（OBS 用） */
+  director: boolean
+  console: boolean
 }
 
 export function parseSpectateParams(search = window.location.search): SpectateParams {
@@ -60,14 +63,16 @@ export function parseSpectateParams(search = window.location.search): SpectatePa
     bars:   bars === 'all' || bars === 'none' ? bars : 'target',
     safe:   safe === 'br' || safe === 'bl' || safe === 'tr' || safe === 'tl' ? safe : null,
     thought: flag('thought', true),
-    panel:  flag('panel', true),
-    qq:     flag('qq', true),
+    panel:  flag('panel', !(flag('director', false) || q.get('mode') === 'director')),   // 导播模式自带面板，画布内基础面板默认关
+    qq:     flag('qq', !(flag('director', false) || q.get('mode') === 'director')),
     art:    q.get('art') === 'v2' ? 'v2' : 'v1',
     layout,
     town,
     scene:  q.get('scene') === 'world' ? 'world' : 'follow',
     focus:  (() => { const f = q.get('focus'); if (!f) return null; const [sector, fl] = f.split(':'); return /^[\w-]+$/.test(sector) ? { sector, floor: Number(fl) || 1 } : null })(),
     debug:  q.get('debug') === 'walls' ? 'walls' : null,
+    director: flag('director', false) || q.get('mode') === 'director',
+    console: flag('console', true),
     mode:   (() => { const m = q.get('mode'); if (m === 'free' || m === 'follow' || m === 'world') return m; return q.get('follow') ? 'follow' : 'world' })(),
   }
 }

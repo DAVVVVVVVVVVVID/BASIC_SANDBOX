@@ -15,6 +15,7 @@ import QQPanel from '../ui/QQPanel'
 import SpectateControls from './SpectateControls'
 import { EventBus } from '../game/EventBus'
 import { resolveFollowTarget } from '../game/systems/TickSystem'
+import DirectorApp from '../director/DirectorApp'
 
 /** 旁观页的 QQ：跟随目标（鲸仔）的手机，只读；右上角时钟下方 */
 function SpectateQQ({ follow, compact }: { follow: string | null; compact: boolean }) {
@@ -107,14 +108,15 @@ export default function SpectateApp() {
           正在连接后端…{attempt > 0 ? `（第 ${attempt} 次重试）` : ''}
         </div>
       )}
-      {params.hud && phase === 'running' && (
+      {params.director && phase === 'running' && <DirectorApp showConsole={params.console} />}
+      {!params.director && params.hud && phase === 'running' && (
         <>
           <WorldInfoPanel />
           <SpectateHud follow={liveFollow} />
         </>
       )}
-      {params.qq && liveFollow && phase === 'running' && <SpectateQQ follow={liveFollow} compact={params.layout === 'live' || !params.hud} />}
-      {params.hud && params.layout !== 'live' && phase === 'running' && <SpectateControls initialMode={params.mode} initialFollow={params.follow} />}
+      {!params.director && params.qq && liveFollow && phase === 'running' && <SpectateQQ follow={liveFollow} compact={params.layout === 'live' || !params.hud} />}
+      {!params.director && params.hud && params.layout !== 'live' && phase === 'running' && <SpectateControls initialMode={params.mode} initialFollow={params.follow} />}
     </div>
   )
 }
