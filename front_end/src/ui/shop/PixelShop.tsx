@@ -4,7 +4,7 @@ import { KIND_SKIN, SHOP_ASSET, rowsOf, type PixelCard, type ShopKind } from './
 /**
  * 像素商店（主播 11-20 认可 v2：店招 → 柜体九宫格里 3 列等大卡片 → 底部一条 → 右下店主头像；三家只换材质）。
  * 直播导播页与操控页共用：scale 控整体大小（导播 ≈ 1，手机 ≈ 0.62）；onPick 给了才可点（操控页选货），导播页只读。
- * selectedKey 套金框，stampKey 盖「成交」章（短暂），soldOut 贴售罄条、价签显示「—」。
+ * selectedKey 套金框，stampKey 盖「成交」章（短暂），soldOut 在图标上斜贴售罄条、价签显示「售罄」。
  */
 const FONT = '"Fusion Pixel 12px", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif'
 const INK = '#3B2F2F'
@@ -60,16 +60,17 @@ function Card({ c, card, u, nine, selected, stamped, onPick }: { c: PixelCard; c
         {c.icon ? <img src={c.icon} alt="" width={u(68)} height={u(68)} style={{ imageRendering: 'pixelated' }} /> : <span style={{ fontSize: u(46) }}>{c.emoji ?? '📦'}</span>}
         {c.tier === 'rare' && <span style={{ position: 'absolute', right: u(-6), top: u(-4), fontSize: u(16) }}>✨</span>}
         {c.tier === 'legend' && <span style={{ position: 'absolute', right: u(-6), top: u(-4), fontSize: u(16) }}>🌟</span>}
+        {/* 售罄贴条只斜贴在图标上，不盖名字和价签（总控 11-20） */}
+        {c.soldOut && <img data-testid="pixel-soldout" src={SHOP_ASSET('sold_out_strip')} alt="售罄" style={{ position: 'absolute', left: '50%', top: '50%', width: u(104), transform: 'translate(-50%, -50%) rotate(-14deg)', imageRendering: 'pixelated', pointerEvents: 'none' }} />}
       </div>
-      <div style={{ fontSize: u(15), fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{c.name}</div>
+      <div style={{ fontSize: u(18), fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{c.name}</div>
       <div style={{ display: 'flex', gap: u(4), width: '100%', alignItems: 'stretch' }}>
         <div style={{ ...nine('stock_box', 14, u(8)), flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: u(3), fontSize: u(17), fontWeight: 700, padding: `${u(1)}px 0`, minWidth: 0 }}>
           {!c.soldOut && c.price !== null && <img src={SHOP_ASSET('coin')} alt="" width={u(16)} height={u(16)} style={{ imageRendering: 'pixelated' }} />}
-          <span style={{ whiteSpace: 'nowrap' }}>{c.soldOut ? '—' : c.priceText ?? (c.price ?? '—')}</span>
+          <span style={{ whiteSpace: 'nowrap', color: c.soldOut ? '#B23B2E' : undefined }}>{c.soldOut ? '售罄' : c.priceText ?? (c.price ?? '—')}</span>
         </div>
         {c.sub !== null && <div style={{ ...nine('stock_box', 14, u(8)), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: u(13), fontWeight: 700, minWidth: u(34), padding: `0 ${u(1)}px`, whiteSpace: 'nowrap' }}>{c.soldOut && /^\d+$/.test(c.sub) ? '0' : c.sub}</div>}
       </div>
-      {c.soldOut && <img src={SHOP_ASSET('sold_out_strip')} alt="售罄" style={{ position: 'absolute', left: '6%', top: '22%', width: '88%', transform: 'rotate(-12deg)', imageRendering: 'pixelated', pointerEvents: 'none' }} />}
       {selected && <div style={{ position: 'absolute', inset: u(-6), ...nine('select_frame', 24, u(10)), pointerEvents: 'none', animation: 'psGlow 1.2s ease-in-out infinite alternate' }} />}
       {stamped && <img src={SHOP_ASSET('stamp_deal')} alt="成交" style={{ position: 'absolute', left: '18%', top: '10%', width: '64%', imageRendering: 'pixelated', pointerEvents: 'none', animation: 'psStamp 420ms ease-out' }} />}
       <style>{`@keyframes psGlow { from { opacity: 0.65 } to { opacity: 1 } } @keyframes psStamp { from { transform: scale(1.8) rotate(-20deg); opacity: 0 } to { transform: none; opacity: 1 } }`}</style>
