@@ -727,7 +727,14 @@ export default class GameScene extends Phaser.Scene {
     // 全景 zoom：整张图放进画面，吸附到 1/6 的整数倍
     const fit = Math.min(cam.width / this.mapPx.w, cam.height / this.mapPx.h)
     this.panZoom = this.params?.panzoom ? snapZoom(this.params.panzoom) : Math.max(MIN_ZOOM, snapZoom(fit, 'floor'))
+    if (this.panFit) this.panZoom = this.panFitZoom(this.panFit)
     if (this.mode === 'spectate' && this.camMode === 'pan') cam.setZoom(this.panZoom)
+  }
+
+  /** 导播全景（总控 11-20）：整张地图等比放大到刚好放进给定区域（contain，看得到全镇），不吸附 1/6 */
+  private panFit: { w: number; h: number } | null = null
+  private panFitZoom(r: { w: number; h: number }) {
+    return Phaser.Math.Clamp(Math.min(r.w / this.mapPx.w, r.h / this.mapPx.h), MIN_ZOOM, MAX_ZOOM)
   }
 
   // ── 自己 ─────────────────────────────────────────────────────────────────────
@@ -970,6 +977,11 @@ export default class GameScene extends Phaser.Scene {
     this.on('spectate-cmd', (c: FreeCmd) => this.freeCmd(c))
     // 小镇导播（town-director-plan §2）：跟随时主角放在屏幕右半 x≈1250 → 镜头中心向左让 offsetX 屏幕像素
     this.on('spectate-offset', ({ x }: { x: number }) => { this.followOffsetX = x })
+    this.on('spectate-panfit', (r: { w: number; h: number } | null) => {
+      if (r && this.panFit && r.w === this.panFit.w && r.h === this.panFit.h) return
+      this.panFit = r
+      if (r && this.mapPx.w) { this.panZoom = this.panFitZoom(r); if (this.camMode === 'pan') { this.focusZoom = null; this.cameras.main.zoomTo(this.panZoom, 600, 'Sine.easeInOut', true) } }
+    })
   }
 
   /** 切到自由镜头：保留当前镜头中心与 zoom */

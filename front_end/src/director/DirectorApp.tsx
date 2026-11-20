@@ -103,9 +103,11 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
     const r = tick(buildCandidates(ps, rooms, lastLine, evRef.current, now), dEvents, mem.current, now)
     setRes(r)
     if (r.follow !== sceneFollow.current) EventBus.emit('spectate-cmd', r.follow ? { cmd: 'follow', id: r.follow } : { cmd: 'world' })
-    EventBus.emit('spectate-offset', { x: r.follow ? (FOLLOW_X - W / 2) : PANEL_W / 2 })   // 全景：地图中心移到面板右侧区域中间
+    EventBus.emit('spectate-offset', { x: r.follow ? (FOLLOW_X - W / 2) : PANEL_W / 2 })
+    EventBus.emit('spectate-panfit', { w: W - PANEL_W - 24, h: H - 24 })   // 全景铺满右侧 60%；每 tick 发（场景就绪前的会丢，场景按值去重）   // 全景：地图中心移到面板右侧区域中间
   }
   useEffect(() => { runTick(); const t = window.setInterval(runTick, TICK_MS); return () => window.clearInterval(t) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const lock = (id: string | null) => { lockOn(mem.current, id, lockMin, Date.now()); runTick() }
 
   const target = res?.follow ? players.find(p => p.id === res.follow) ?? null : null
