@@ -103,7 +103,7 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
     const r = tick(buildCandidates(ps, rooms, lastLine, evRef.current, now), dEvents, mem.current, now)
     setRes(r)
     if (r.follow !== sceneFollow.current) EventBus.emit('spectate-cmd', r.follow ? { cmd: 'follow', id: r.follow } : { cmd: 'world' })
-    EventBus.emit('spectate-offset', { x: r.follow ? (FOLLOW_X - W / 2) : 0 })
+    EventBus.emit('spectate-offset', { x: r.follow ? (FOLLOW_X - W / 2) : PANEL_W / 2 })   // 全景：地图中心移到面板右侧区域中间
   }
   useEffect(() => { runTick(); const t = window.setInterval(runTick, TICK_MS); return () => window.clearInterval(t) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const lock = (id: string | null) => { lockOn(mem.current, id, lockMin, Date.now()); runTick() }
@@ -112,7 +112,7 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
   const sit: Situation = res?.situation ?? 'panorama'
   const tileAt = useMemo(() => new Map(tiles.map(t => [`${t.x},${t.y}`, t] as const)), [tiles])
   const zoneOf = (p: OtherPlayer) => zoneLabel(tileAt.get(`${p.position.x},${p.position.y}`)) || '小镇'
-  const doingOf = (p: OtherPlayer) => p.now?.text || (deriveStateLabel(p, objects) ?? '').replace(/^[^一-龥A-Za-z]+/, '') || SIT_ZH[sit]
+  const doingOf = (p: OtherPlayer) => p.now?.text || (deriveStateLabel(p, objects) ?? '').replace(/^[^一-龥A-Za-z]+/, '') || (p.state === 'walking' ? '走路中' : '发呆')
 
   // 事件提示：镜头内中下大提示 2.5 s；镜头外右侧小卡 ≤3 张 6 s
   const [nowMs, setNowMs] = useState(0)
@@ -123,7 +123,7 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
   return (
     <div data-testid="director" style={{ position: 'fixed', left: '50%', top: '50%', width: W, height: H, transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center', pointerEvents: 'none', fontFamily: FONT, color: C.ink }}>
       {/* 左 40% 情境面板（滑入） */}
-      <SlidePanel k={`${sit}-${target?.id ?? 'pan'}`} tall={sit === 'chat'}>
+      <SlidePanel k={`${sit}-${target?.id ?? 'pan'}`} tall={false}>
         {sit === 'panorama' && <PanoramaPanel players={players.filter(p => !isPasserby(p))} zoneOf={zoneOf} doingOf={doingOf} />}
         {sit === 'chat' && target && <ChatLog target={target} rooms={rooms} players={players} now={nowMs} />}
         {sit === 'walk' && target && <WalkPanel target={target} zone={zoneOf(target)} />}
@@ -191,10 +191,23 @@ function ChatLog({ target, rooms, players, now }: { target: OtherPlayer; rooms: 
   const room = [...rooms.values()].filter(r => r.participants.includes(target.id)).sort((a, b) => b.at - a.at)[0]
   const lines = room?.lines.slice(-8) ?? []
   const names = (room?.participants ?? [target.id]).map(id => players.find(p => p.id === id)?.name.replace(/_[0-9a-f]{6}$/i, '') ?? id)
+  const people = (room?.participants ?? [target.id]).map(id => players.find(p => p.id === id)).filter((p): p is OtherPlayer => !!p)
   return (
     <>
       <div style={{ fontSize: 22, fontWeight: 700 }}>💬 {names.join(' · ')}</div>
-      <div data-testid="director-chat" style={{ display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', justifyContent: 'flex-end', flex: 1 }}>
+      {/* 对话双方头像卡（总控 11-20：别让面板上半截空着） */}
+      <div data-testid="director-chat-people" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {people.map(p => (
+          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: `1px solid ${C.sky}`, borderRadius: 10, padding: '6px 10px', maxWidth: 330 }}>
+            <img src={avatar(keyOf(p), 56)} width={44} height={44} alt="" style={{ borderRadius: 8, imageRendering: 'pixelated' }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{p.name.replace(/_[0-9a-f]{6}$/i, '')}</div>
+              {p.now?.text && <div style={{ fontSize: 14, color: C.soft, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 250 }}>{p.now.text}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div data-testid="director-chat" style={{ display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden', minHeight: 4 * 78 }}>
         {lines.length === 0 && <div style={{ color: C.soft, fontSize: 20 }}>正在聊……</div>}
         {lines.map((l, i) => {
           const p = players.find(x => x.id === l.from)

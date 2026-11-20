@@ -1166,14 +1166,16 @@ export default class GameScene extends Phaser.Scene {
       if (fr.indoor !== this.lastFocusIndoor) { this.lastFocusIndoor = fr.indoor; EventBus.emit('focus-changed', { indoor: fr.indoor, label: fr.label }) }
     }
     // 导播偏移：屋外直接把目标往右放；屋里先按房间居中取景（clampCenter），再整体左移，让房间落在左侧面板右边
-    const off = this.camMode === 'follow' && this.followOffsetX ? this.followOffsetX / cam.zoom : 0
+    const off = (this.camMode === 'follow' || this.camMode === 'pan') && this.followOffsetX ? this.followOffsetX / cam.zoom : 0   // 全景也右移，让出左侧面板
     if (!fr.indoor) tx -= off
     const k = 1 - Math.exp(-dt / CAMERA_LERP_MS)
     this.camX += (tx - this.camX) * k
     this.camY += (ty - this.camY) * k
     const c = fr.indoor ? this.focus.clampCenter(this.camX, this.camY, cam.zoom) : { x: this.camX, y: this.camY }
     if (fr.indoor && off) c.x -= off
-    this.centerClamped(c.x, c.y)
+    // 导播：主角靠地图边时允许镜头越界（露出画布深色底），保证主角仍在右半中心（总控 11-20）
+    if (off) this.centerClamped(c.x, c.y, (Math.abs(this.followOffsetX) + 360) / cam.zoom, 240 / cam.zoom)
+    else this.centerClamped(c.x, c.y)
     void playerVars
     const now = performance.now()
     if (now - this.lastCamEmit > 120) {
@@ -1184,12 +1186,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /** 居中到 (x, y)，但视野比地图小时不露出地图外的黑边；比地图大时居中整张图 */
-  private centerClamped(x: number, y: number) {
+  private centerClamped(x: number, y: number, slackX = 0, slackY = 0) {
     const cam = this.cameras.main
     const vw = cam.width / cam.zoom
     const vh = cam.height / cam.zoom
-    const cx = vw >= this.mapPx.w ? this.mapPx.w / 2 : Phaser.Math.Clamp(x, vw / 2, this.mapPx.w - vw / 2)
-    const cy = vh >= this.mapPx.h ? this.mapPx.h / 2 : Phaser.Math.Clamp(y, vh / 2, this.mapPx.h - vh / 2)
+    const cx = vw >= this.mapPx.w && !slackX ? this.mapPx.w / 2 : Phaser.Math.Clamp(x, Math.min(vw / 2, this.mapPx.w / 2) - slackX, Math.max(this.mapPx.w - vw / 2, this.mapPx.w / 2) + slackX)
+    const cy = vh >= this.mapPx.h && !slackY ? this.mapPx.h / 2 : Phaser.Math.Clamp(y, Math.min(vh / 2, this.mapPx.h / 2) - slackY, Math.max(this.mapPx.h - vh / 2, this.mapPx.h / 2) + slackY)
     cam.centerOn(cx, cy)
   }
 
