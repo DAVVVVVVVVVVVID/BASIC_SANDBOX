@@ -8,6 +8,9 @@ import { C } from './theme'
 import { Chip } from './MetaChips'
 import LedgerView, { SHOP_DEMO } from './LedgerView'
 import { GroceryExtras, RestaurantMenu } from './ShopExtras'
+import PixelShop from '../shop/PixelShop'
+import { goodsCards } from '../shop/cards'
+import { kindOfObject } from '../shop/shopSkin'
 import { useObjectRefresh, refreshObjects } from '../../game/objectRefresh'
 import { normalizeWarehouse, demoWarehouse, etaText } from '../../game/ledger'
 import { itemMeta } from '../../game/items'
@@ -25,6 +28,8 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
   const [busy, setBusy] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [tabSel, setTab] = useState<'menu' | 'goods' | 'ledger' | null>(null)
+  const [selKey, setSelKey] = useState<string | null>(null)
+  const [stampKey, setStampKey] = useState<string | null>(null)
   const today = useGameStore((s) => s.worldState?.date)
   const inv = useMemo(() => normalizeInventory(player?.inventory), [player?.inventory])
   useObjectRefresh(4000)   // 库存 / 挂单 / 菜单 / 后厨 ws 不推，面板开着时补拉
@@ -45,6 +50,7 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
     try {
       const r = await sendAction(player.id, type, { ...payload, object_id: obj.id, objectId: obj.id, qty: 1 }, { logLabel: label }) as unknown as { success?: boolean; reason?: string; result?: Record<string, unknown> }
       const res = r.result ?? {}
+      if (r.success) { setStampKey(key); window.setTimeout(() => setStampKey(k => (k === key ? null : k)), 1400) }
       if (r.success) setMsg({ ok: true, text: `${label}${typeof res.gold === 'number' ? ` · 余额 ${res.gold}` : ''}${typeof res.message === 'string' && res.message ? ` · ${res.message}` : ''}` })
       else setMsg({ ok: false, text: `${label}没成 · ${shopFailText(r.reason, res)}` })
     } catch (e) { setMsg({ ok: false, text: `${label}没成 · ${(e as Error).message}` }) }
@@ -78,26 +84,22 @@ export default function ShopPanel({ objectId }: { objectId: string }) {
           <button className="k" onClick={walk} data-testid="shop-walk" style={{ minHeight: 34 }}>走过去</button>
         </div>
       )}
-      <section>
-        <div style={{ fontWeight: 700, marginBottom: 4 }}>在卖的</div>
-        {goods.length === 0 && <div style={{ color: C.inkSoft, fontSize: 13 }}>{Array.isArray(obj.listings) ? '摊上还没有鱼（老渔夫上货后才有）' : '这家现在不卖东西'}</div>}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {goods.map(g => {
-            const soldOut = g.stock === 0
-            return (
-              <div key={g.key} data-testid={`shop-goods-${g.item}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.6)', border: '1px solid #E6DCCB', opacity: soldOut ? 0.6 : 1 }}>
-                <span style={{ fontSize: 20 }}>{g.icon}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'baseline', flexWrap: 'wrap' }}><b>{g.name}</b>{g.chips.map(chip)}</div>
-                  <div style={{ fontSize: 12, color: C.inkSoft }}>{g.stock === null ? '' : soldOut ? (obj.type === 'shop_counter' ? '卖完了，等进货' : '卖完了') : `余 ${g.stock}`}</div>
-                </div>
-                <span style={{ fontWeight: 700, color: '#8A6116', whiteSpace: 'nowrap' }}>{g.price} 金币</span>
-                <button className="k teal" data-testid={`shop-buy-${g.item}`} disabled={!!busy || soldOut} onClick={() => act(g.key, `买 ${g.name}`, 'buy', { item: g.item, ...(g.listingId ? { listing_id: g.listingId } : {}), ...(g.itemId ? { item_id: g.itemId } : {}) })} style={{ minWidth: 56, minHeight: 36 }}>{busy === g.key ? '…' : '买'}</button>
-              </div>
-            )
-          })}
-        </div>
-      </section>
+      {/* 像素货架（主播 11-20 v2：三家同一组件，直播导播页共用） */}
+      {(() => {
+        const kind = kindOfObject(obj) ?? 'grocery'
+        const sel = goods.find(g => g.key === selKey) ?? null
+        const footer = sel
+          ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 14 }}>已选：<b>{sel.name}</b> · {sel.price} 金币</span>
+              <button className="k teal" data-testid={`shop-buy-${sel.item}`} disabled={!!busy || sel.stock === 0} onClick={() => act(sel.key, `买 ${sel.name}`, 'buy', { item: sel.item, ...(sel.listingId ? { listing_id: sel.listingId } : {}), ...(sel.itemId ? { item_id: sel.itemId } : {}) })} style={{ minWidth: 64, minHeight: 36 }}>{busy === sel.key ? '…' : '买'}</button>
+            </div>
+          : <span style={{ fontSize: 13, color: C.inkSoft }}>点一件货选中，再按「买」</span>
+        return (
+          <PixelShop kind={kind} title={obj.name} cards={goodsCards(obj)} selectedKey={selKey} stampKey={stampKey} gold={gold} scale={0.7}
+            onPick={c => setSelKey(k => (k === c.key ? null : c.key))} footer={footer}
+            emptyText={Array.isArray(obj.listings) ? '摊上还没有鱼（老渔夫上货后才有）' : '这家现在不卖东西'} />
+        )
+      })()}
       {wh && (
         <section data-testid="shop-warehouse" style={{ background: 'rgba(255,255,255,0.5)', border: '1px dashed #E6DCCB', borderRadius: 8, padding: '6px 10px' }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>库房{wh.cap ? <span style={{ fontWeight: 400, fontSize: 12, color: C.inkSoft }}> · 每种上限 {wh.cap}</span> : null}</div>

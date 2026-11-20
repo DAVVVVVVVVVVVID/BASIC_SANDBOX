@@ -8,6 +8,9 @@ import { normalizeInventory } from '../../game/items'
 import type { GameObject } from '../../types'
 import { Chip } from './MetaChips'
 import { C } from './theme'
+import PixelShop from '../shop/PixelShop'
+import { menuCards } from '../shop/cards'
+import { SHOP_ASSET } from '../shop/shopSkin'
 
 /**
  * 商店面板里两家店特有的部分（主播 11-19：钓鱼 / 杂货店 / 餐厅今天上主镇）。
@@ -70,6 +73,7 @@ export function RestaurantMenu({ obj, busy, act }: { obj: GameObject; busy: stri
   const ws = useGameStore((s) => s.worldState)
   const players = useGameStore((s) => s.players)
   const [, tick] = useState(0)
+  const [selKey, setSelKey] = useState<string | null>(null)
   useEffect(() => { const t = window.setInterval(() => tick(x => x + 1), 1000); return () => window.clearInterval(t) }, [])
   const rows = menuRows((obj as unknown as { menu?: unknown }).menu)
   const nowMs = gameNowMs(ws)
@@ -79,21 +83,29 @@ export function RestaurantMenu({ obj, busy, act }: { obj: GameObject; busy: stri
   return (
     <div data-testid="shop-menu" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ fontSize: 12, color: C.inkSoft }}>先坐到餐厅的餐桌上（点餐桌或面朝它按 E），再点菜；现点现做，约 1 分钟上菜，上菜后自动开吃。</div>
-      {wait && <div data-testid="shop-waiting" style={{ background: '#FBEBC9', border: '1px solid #F2B84B', borderRadius: 8, padding: '6px 10px', fontWeight: 700 }}>{wait}</div>}
       {player?.busy?.kind === 'eating' && <div style={{ background: '#DDF3EE', border: '1px solid #8FD3C7', borderRadius: 8, padding: '6px 10px' }}>🍽 正在吃{(player.busy as { name?: string; item?: string }).name ?? ''}</div>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {rows.map(r => (
-          <div key={r.dish} data-testid={`shop-dish-${r.dish}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.6)', border: '1px solid #E6DCCB', opacity: r.available ? 1 : 0.65 }}>
-            <span style={{ fontSize: 20 }}>🍲</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <b>{r.name}</b>
-              <div style={{ fontSize: 12, color: r.available ? C.inkSoft : '#B23B2E' }}>{r.available ? (r.uses ? `用料：${r.uses}` : '') : (r.why || '现在点不了')}</div>
+      {/* 像素黑板菜单（主播 11-20 v2，与直播导播页共用） */}
+      {(() => {
+        const sel = rows.find(r => `dish-${r.dish}` === selKey) ?? null
+        const prog = typeof (player?.busy as { progress?: number } | null)?.progress === 'number' ? (player!.busy as { progress: number }).progress : null
+        const footer = wait
+          ? <div data-testid="shop-waiting" style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', color: '#F3EAD8' }}>
+              <span style={{ width: 48, height: 48, flexShrink: 0, backgroundImage: `url(${SHOP_ASSET('pot_cooking_strip')})`, backgroundSize: '192px 48px', imageRendering: 'pixelated', animation: 'potCook 0.8s steps(4) infinite' }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{wait}</div>
+                <div style={{ height: 8, background: 'rgba(255,255,255,0.25)', borderRadius: 4, overflow: 'hidden', marginTop: 4 }}><div style={{ width: `${Math.round((prog ?? 0.3) * 100)}%`, height: '100%', background: '#F2A14B' }} /></div>
+              </div>
+              <style>{'@keyframes potCook { from { background-position: 0 0 } to { background-position: -192px 0 } }'}</style>
             </div>
-            <span style={{ fontWeight: 700, color: '#8A6116', whiteSpace: 'nowrap' }}>{r.price !== null ? `${r.price}${r.priceNote ? ' 起' : ''} 金币` : '—'}{r.priceNote ? <span style={{ fontWeight: 400, fontSize: 11, color: C.inkSoft }}>（{r.priceNote}）</span> : null}</span>
-            <button className="k teal" data-testid={`shop-order-${r.dish}`} disabled={!!busy || !!wait || !r.available} onClick={() => act(`order-${r.dish}`, `点 ${r.name}`, 'order', { dish: r.dish })} style={{ minWidth: 56, minHeight: 36 }}>{busy === `order-${r.dish}` ? '…' : '点'}</button>
-          </div>
-        ))}
-      </div>
+          : sel
+            ? <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', flexWrap: 'wrap', color: '#F3EAD8' }}>
+                <span style={{ fontSize: 14 }}>点：<b>{sel.name}</b>{sel.price !== null ? ` · ${sel.price}${sel.priceNote ? ' 起' : ''} 金币` : ''}</span>
+                <button className="k teal" data-testid={`shop-order-${sel.dish}`} disabled={!!busy || !sel.available} onClick={() => act(`order-${sel.dish}`, `点 ${sel.name}`, 'order', { dish: sel.dish })} style={{ minWidth: 64, minHeight: 36 }}>{busy === `order-${sel.dish}` ? '…' : '点'}</button>
+              </div>
+            : <span style={{ fontSize: 13, color: '#F3EAD8' }}>点一道菜选中，再按「点」</span>
+        return <PixelShop kind="restaurant" title={obj.name} cards={menuCards((obj as unknown as { menu?: unknown }).menu)} selectedKey={selKey} gold={typeof player?.gold === 'number' ? player.gold : null} scale={0.7}
+          onPick={c => setSelKey(k => (k === c.key ? null : c.key))} footer={footer} />
+      })()}
       {kitchen.length > 0 && (
         <div data-testid="shop-kitchen" style={{ fontSize: 12, color: C.inkSoft }}>
           后厨在做：{kitchen.map(k => { const end = parseGameTime(k.ready_at); const left = end !== null && nowMs !== null ? Math.max(0, Math.round((end - nowMs) / 1000)) : null; return `${k.by_name ?? players.find(p => p.id === k.by)?.name ?? k.by ?? ''} · ${k.name ?? k.dish}${left !== null ? `（${left} 秒）` : ''}` }).join('；')}

@@ -3,7 +3,7 @@
  * 来源优先 B 的公开事件（public_event）；它上线前从现有 ws 的 action / produce / fishing 事件拼（纯函数；单测 tests/director.test.ts）。
  */
 export type EventCategory = 'trade' | 'produce' | 'fishing' | 'school' | 'social' | 'live'
-export interface TownEvent { key: string; who: string; whoName: string; category: EventCategory; icon: string; text: string; gold: number | null; at: number; count: number }
+export interface TownEvent { key: string; who: string; whoName: string; category: EventCategory; icon: string; text: string; gold: number | null; at: number; count: number; item?: string | null; itemName?: string | null; place?: string | null }
 
 export const CATEGORY_COLOR: Record<EventCategory, { bg: string; fg: string }> = {
   trade: { bg: '#FFF1CF', fg: '#8A6116' }, produce: { bg: '#EFE7FF', fg: '#5B4A8A' }, fishing: { bg: '#DDEFFB', fg: '#2F5E8A' },
@@ -27,7 +27,8 @@ export function fromPublicEvent(e: Record<string, unknown>, at: number): TownEve
   const verb = String(e.verb ?? '')
   const category = (VERB_CAT[verb] ?? (e.category as EventCategory) ?? 'social') as EventCategory
   const gold = typeof e.gold_delta === 'number' ? e.gold_delta : null
-  return { key: `pe-${e.seq ?? at}`, who: who.id, whoName: who.name ?? who.id, category, icon: VERB_ICON[verb] ?? '✨', text: String(e.text ?? ''), gold, at, count: 1 }
+  const obj = (e.object ?? {}) as { id?: string; item?: string; item_name?: string }
+  return { key: `pe-${e.seq ?? at}`, who: who.id, whoName: who.name ?? who.id, category, icon: VERB_ICON[verb] ?? '✨', text: String(e.text ?? ''), gold, at, count: 1, item: obj.item ?? null, itemName: obj.item_name ?? null, place: obj.id ?? null }
 }
 
 /** 现有 ws 事件 → TownEvent（公开事件上线前的兜底） */
@@ -38,11 +39,12 @@ export function fromLegacy(type: 'action' | 'produce' | 'fishing', m: Record<str
   if (type === 'action') {
     if (!m.success) return null
     const act = String(m.action ?? ''), item = String(m.item_name ?? m.item ?? '')
+    const extra = { item: typeof m.item === 'string' ? m.item : null, itemName: typeof m.item_name === 'string' ? m.item_name : null, place: typeof m.object === 'string' ? m.object : null }
     const gold = typeof m.gold_delta === 'number' ? m.gold_delta : null
-    if (act === 'buy') return { key: `a-${at}-${who}`, who, whoName: name, category: 'trade', icon: '🛒', text: `${name} 买了 ${item}${money(gold)}`, gold, at, count: 1 }
-    if (act === 'sell') return { key: `a-${at}-${who}`, who, whoName: name, category: 'trade', icon: '💰', text: `${name} 卖出 ${item}${money(gold)}`, gold, at, count: 1 }
+    if (act === 'buy') return { key: `a-${at}-${who}`, who, whoName: name, category: 'trade', icon: '🛒', text: `${name} 买了 ${item}${money(gold)}`, gold, at, count: 1, ...extra }
+    if (act === 'sell') return { key: `a-${at}-${who}`, who, whoName: name, category: 'trade', icon: '💰', text: `${name} 卖出 ${item}${money(gold)}`, gold, at, count: 1, ...extra }
     if (act === 'give') return { key: `a-${at}-${who}`, who, whoName: name, category: 'social', icon: '🎁', text: `${name} 把 ${item} 送给了 ${String(m.target_name ?? '')}`, gold: null, at, count: 1 }
-    if (act === 'order') return { key: `a-${at}-${who}`, who, whoName: name, category: 'trade', icon: '🍲', text: `${name} 点了 ${item || '菜'}${money(gold)}`, gold, at, count: 1 }
+    if (act === 'order') return { key: `a-${at}-${who}`, who, whoName: name, category: 'trade', icon: '🍲', text: `${name} 点了 ${item || '菜'}${money(gold)}`, gold, at, count: 1, ...extra }
     return null
   }
   if (type === 'produce') {

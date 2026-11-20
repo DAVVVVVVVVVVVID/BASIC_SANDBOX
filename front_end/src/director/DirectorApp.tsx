@@ -9,6 +9,7 @@ import { zoneLabel } from '../game/map/zones'
 import Minimap from '../ui/Minimap'
 import type { OtherPlayer, WsChatEvent } from '../types'
 import '../ui/rpg/rpg.css'
+import { TradePanel, FishingPanel } from './ShopPanels'
 
 /**
  * 小镇直播自动导播（whale docs/systems/town-director-plan.md，主播 11-20 拍板）：`/spectate?director=1`。
@@ -130,7 +131,9 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
         {sit === 'chat' && target && <ChatLog target={target} rooms={rooms} players={players} now={nowMs} />}
         {sit === 'walk' && target && <WalkPanel target={target} zone={zoneOf(target)} />}
         {sit === 'sleep' && target && <SleepPanel target={target} />}
-        {!['panorama', 'chat', 'walk', 'sleep'].includes(sit) && target && <StateCard target={target} sit={sit} doing={doingOf(target)} zone={zoneOf(target)} />}
+        {sit === 'trade' && target && <TradePanel target={target} events={events} now={nowMs} />}
+        {sit === 'fishing' && target && <FishingPanel target={target} />}
+        {!['panorama', 'chat', 'walk', 'sleep', 'trade', 'fishing'].includes(sit) && target && <StateCard target={target} sit={sit} doing={doingOf(target)} zone={zoneOf(target)} />}
       </SlidePanel>
       {sit === 'sleep' && <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,14,40,0.35)' }} />}
       {/* 左上「现在在看」名牌 */}
