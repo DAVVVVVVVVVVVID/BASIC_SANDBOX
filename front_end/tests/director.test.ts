@@ -73,3 +73,56 @@ test('事件提示：公开事件 / 旧事件兜底 / 同人同类 10 s 合并',
   l = mergeEvent(l, { ...e1, key: 'y', at: 30_000 })
   assert.equal(l.length, 2)
 })
+
+// ── 三期（phase3.ts）──
+import { activityFromWorld, createKind, createProgress, latestWork, todaySummaryRows } from '../src/director/phase3'
+import { fromLegacy } from '../src/director/events'
+
+test('三期：物件类型 / tags 推 activity（now 上线前兜底）', () => {
+  assert.equal(activityFromWorld('pc_music', []), 'create')
+  assert.equal(activityFromWorld('pc_desk', []), 'create')
+  assert.equal(activityFromWorld('phone', []), 'qq')
+  assert.equal(activityFromWorld(null, ['reading']), 'qq')
+  assert.equal(activityFromWorld('bed_21', []), 'sleep')
+  assert.equal(activityFromWorld('pc', ['streaming']), 'live')
+  assert.equal(activityFromWorld('shelf', []), null)
+  assert.equal(activityFromWorld(null, null), null)
+})
+
+test('三期：坐满进度按 daily_use 增量，换物件 / 回退重置基线', () => {
+  assert.deepEqual(createKind('pc_music')?.needMin, 30)
+  assert.deepEqual(createKind('stream_desk')?.kind, 'script')
+  assert.equal(createKind('bed'), null)
+  let r = createProgress(undefined, 'pc_music', 40, 30)
+  assert.equal(r.progress, 0); assert.equal(r.sat, 0)
+  r = createProgress(r.base, 'pc_music', 55, 30)
+  assert.equal(r.sat, 15); assert.equal(r.progress, 0.5)
+  r = createProgress(r.base, 'pc_music', 80, 30)
+  assert.equal(r.progress, 1)
+  r = createProgress(r.base, 'pc', 80, 60)
+  assert.equal(r.sat, 0)
+  r = createProgress(r.base, 'pc', 2, 60)   // 04:00 重置
+  assert.equal(r.base.base, 2)
+  assert.equal(createProgress(undefined, 'x', null, 30).progress, null)
+})
+
+test('三期：最新 CD 标题 + 歌词去段标', () => {
+  const inv = [{ type: 'key', meta: {} }, { type: 'cd', meta: { title: '楼下有水声', text: '[Verse 1]\n新家的钥匙还有点凉\n\n窗外有风' } }, { type: 'cd', meta: { title: '慢慢变成家', text: '[Verse]\n搬进来的第一周' } }, { type: 'script', meta: { title: '稿' } }]
+  assert.deepEqual(latestWork(inv, 'song'), { title: '慢慢变成家', lines: ['搬进来的第一周'] })
+  assert.equal(latestWork(inv, 'script')?.title, '稿')
+  assert.equal(latestWork(null, 'song'), null)
+})
+
+test('三期：今天的她只列非零项', () => {
+  const rows = todaySummaryRows({ daily_use: { pc_music: { used_min: 64.6 }, compose: { used_count: 2 }, phone: { used_min: 3.5 }, pc: { used_min: 0 } }, fishing: { casts_today: 3, recent_casts: [{ result: 'fish', fish: { name: '鲫鱼' } }, { result: 'junk' }] }, today_sales: { count: 0 } }, ['阿蝉', '小克'], ['🎵 写完了'])
+  assert.deepEqual(rows.map(r => r.label), ['写歌', '看手机', '钓鱼', '聊过', ''])
+  assert.equal(rows[0].value, '65 分钟 · 写好 2 首')
+  assert.equal(rows[2].value, '3 竿 · 钓到 鲫鱼')
+  assert.deepEqual(todaySummaryRows(null, [], []), [])
+})
+
+test('三期：answer → 上课事件；compose → 写完新歌', () => {
+  const n = (id: string) => (id === 'w' ? '鲸仔' : id)
+  assert.equal(fromLegacy('action', { entity: 'w', action: 'answer', success: true }, n, 1)?.category, 'school')
+  assert.equal(fromLegacy('produce', { entity: 'w', via: 'compose', item: 'cd' }, n, 1)?.text, '鲸仔 写完了一首新歌')
+})

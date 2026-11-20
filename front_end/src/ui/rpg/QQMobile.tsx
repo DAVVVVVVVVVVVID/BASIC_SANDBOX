@@ -40,7 +40,7 @@ const I = {
 }
 const Icon = ({ d, color = '#333', size = 22 }: { d: ReactNode; color?: string; size?: number }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">{d}</svg>
 
-export default function QQMobile(p: QQDesktopProps & { fullscreen?: boolean; kb?: number; vv?: { top: number; h: number }; banner?: string | null }) {
+export default function QQMobile(p: QQDesktopProps & { fullscreen?: boolean; kb?: number; vv?: { top: number; h: number }; banner?: string | null; embedded?: boolean }) {
   const [tab, setTab] = useState<'msg' | 'contacts'>('msg')
   const [menu, setMenu] = useState(false)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
@@ -82,7 +82,7 @@ export default function QQMobile(p: QQDesktopProps & { fullscreen?: boolean; kb?
     )
   }
   return (
-    <div onClick={p.fullscreen ? undefined : p.onClose} onKeyDown={e => { if (e.key === 'Escape') p.onClose() }} style={{ position: 'fixed', inset: 0, ...(p.fullscreen && p.vv ? { top: p.vv.top, height: p.vv.h, bottom: 'auto' } : {}), background: p.fullscreen ? '#F5F6F7' : 'rgba(0,0,0,0.35)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', ...F }}>
+    <div onClick={p.fullscreen ? undefined : p.onClose} onKeyDown={e => { if (e.key === 'Escape') p.onClose() }} style={{ position: 'fixed', inset: 0, ...(p.fullscreen && p.vv ? { top: p.vv.top, height: p.vv.h, bottom: 'auto' } : {}), background: p.fullscreen ? '#F5F6F7' : p.embedded ? 'transparent' : 'rgba(0,0,0,0.35)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', ...F }}>
       <div onClick={e => e.stopPropagation()} data-testid="qq-phone" style={p.fullscreen ? { position: 'absolute', inset: 0, color: '#000', fontSize: 15, userSelect: 'none' } : { width: 374, height: 'min(720px, 92vh)', position: 'relative', color: '#000', fontSize: 14, userSelect: 'none' }}>
         {!p.fullscreen && <div style={{ position: 'absolute', inset: 0, borderWidth: 28, borderStyle: 'solid', borderColor: 'transparent', borderImage: 'url(assets/ui/kit/phone_shell.png) 60 fill / 28px stretch', imageRendering: 'pixelated', pointerEvents: 'none' }} />}
         <div style={p.fullscreen ? { position: 'absolute', inset: 0, paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: p.vv ? 'env(safe-area-inset-bottom, 0px)' : `calc(env(safe-area-inset-bottom, 0px) + ${p.kb ?? 0}px)`, background: '#F5F6F7', overflow: 'hidden', display: 'flex', flexDirection: 'column' } : { position: 'absolute', left: 14, right: 14, top: 18, bottom: 22, background: '#F5F6F7', borderRadius: 18, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

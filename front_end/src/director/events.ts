@@ -44,6 +44,7 @@ export function fromLegacy(type: 'action' | 'produce' | 'fishing', m: Record<str
     if (act === 'buy') return { key: `a-${at}-${who}`, who, whoName: name, category: 'trade', icon: '🛒', text: `${name} 买了 ${item}${money(gold)}`, gold, at, count: 1, ...extra }
     if (act === 'sell') return { key: `a-${at}-${who}`, who, whoName: name, category: 'trade', icon: '💰', text: `${name} 卖出 ${item}${money(gold)}`, gold, at, count: 1, ...extra }
     if (act === 'give') return { key: `a-${at}-${who}`, who, whoName: name, category: 'social', icon: '🎁', text: `${name} 把 ${item} 送给了 ${String(m.target_name ?? '')}`, gold: null, at, count: 1 }
+    if (act === 'answer') return { key: `a-${at}-${who}`, who, whoName: name, category: 'school', icon: '✏️', text: `${name} 回答了课上的提问`, gold: null, at, count: 1 }
     if (act === 'order') return { key: `a-${at}-${who}`, who, whoName: name, category: 'trade', icon: '🍲', text: `${name} 点了 ${item || '菜'}${money(gold)}`, gold, at, count: 1, ...extra }
     return null
   }
@@ -51,7 +52,8 @@ export function fromLegacy(type: 'action' | 'produce' | 'fishing', m: Record<str
     const via = String(m.via ?? ''), item = String(m.item_name ?? m.item ?? '')
     if (via === 'fishing') return null   // 钓鱼走 fishing 事件
     const icon = via === 'compose' ? '💿' : via === 'make_video' ? '📄' : via === 'stove' ? '🍳' : '✨'
-    return { key: `p-${at}-${who}`, who, whoName: name, category: 'produce', icon, text: `${name} 做好了 ${item}`, gold: null, at, count: 1 }
+    const text = via === 'compose' ? `${name} 写完了一首新歌` : via === 'make_video' ? `${name} 做完了一份稿子` : `${name} 做好了 ${item}`
+    return { key: `p-${at}-${who}`, who, whoName: name, category: 'produce', icon, text, gold: null, at, count: 1 }
   }
   const cast = (m.cast ?? {}) as { result?: string; fish?: { name?: string; weight?: number; tier?: string }; record_break?: boolean }
   if (cast.result !== 'fish' || !cast.fish) return null

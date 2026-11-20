@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useGameStore } from '../store/gameStore'
 import { EventBus } from '../game/EventBus'
-import { tick, newMemory, lockOn, type Candidate, type DirectorEvent, type Situation, type TickResult } from './scorer'
+import { tick, newMemory, lockOn, situationOf, type Candidate, type DirectorEvent, type Situation, type TickResult } from './scorer'
 import { fromPublicEvent, fromLegacy, mergeEvent, CATEGORY_COLOR, type TownEvent } from './events'
 import { godotCharKeyFor, isPasserby } from '../game/godotChars'
 import { deriveStateLabel } from '../game/stateLabel'
@@ -10,11 +10,14 @@ import Minimap from '../ui/Minimap'
 import type { OtherPlayer, WsChatEvent } from '../types'
 import '../ui/rpg/rpg.css'
 import { TradePanel, FishingPanel } from './ShopPanels'
+import { ClassPanel, CreatePanel, QQBigPanel, TodaySummary, WorkPopCard, type AnswerRow, type WorkPop } from './Phase3Panels'
+import { activityFromWorld } from './phase3'
+import type { GameObject } from '../types'
 
 /**
  * 小镇直播自动导播（whale docs/systems/town-director-plan.md，主播 11-20 拍板）：`/spectate?director=1`。
  * 一期：打分选人（scorer.ts）+ 导播台锁人 + 情境布局框架（主角右半 x≈1250、左 40% 面板、名牌 / 跑马灯 / 时钟）
- *       + 面板：对话记录 / 走路小地图 / 全景居民卡 / 睡觉；其余情境先用状态卡占位（二期商店 / 钓鱼，三期上课 / 写歌 / QQ）。
+ *       + 面板：对话记录 / 走路小地图 / 全景居民卡 / 睡觉；二期商店 / 钓鱼（ShopPanels）；三期上课黑板 / 写歌做稿进度 + 产出弹卡 / QQ 手机 / 睡觉「今天的她」（Phase3Panels）。
  * 只读：只读 store（ws / 轮询已在）+ EventBus；镜头通过 spectate-cmd / spectate-offset 交给 GameScene。
  */
 const W = 1920, H = 1080, PANEL_W = 768, TICK_MS = 2000, FOLLOW_X = 1250
@@ -33,6 +36,8 @@ function useDirectorFeed() {
   const lastLine = useRef(new Map<string, number>())
   const [events, setEvents] = useState<TownEvent[]>([])
   const havePublic = useRef(false)
+  const [answers, setAnswers] = useState<AnswerRow[]>([])
+  const [pop, setPop] = useState<WorkPop | null>(null)
   const [, bump] = useState(0)
   useEffect(() => {
     const nameOf = (id: string) => useGameStore.getState().players.find(p => p.id === id)?.name ?? id
@@ -51,15 +56,27 @@ function useDirectorFeed() {
     }
     const onPublic = (e: Record<string, unknown>) => { havePublic.current = true; add(fromPublicEvent(e, Date.now())) }
     const legacy = (t: 'action' | 'produce' | 'fishing') => (m: Record<string, unknown>) => { if (!havePublic.current) add(fromLegacy(t, m, nameOf, Date.now())) }
-    const onA = legacy('action'), onP = legacy('produce'), onF = legacy('fishing')
+    const onA0 = legacy('action'), onP0 = legacy('produce'), onF = legacy('fishing')
+    const onA = (m: Record<string, unknown>) => {
+      onA0(m)
+      if (m.action === 'answer' && m.success && typeof m.entity === 'string') {
+        const who = m.entity
+        setAnswers(l => [...l, { who, name: nameOf(who), text: String(m.message ?? '已作答'), at: Date.now() }].slice(-20))
+      }
+    }
+    // 写歌 / 做稿产出 → 弹卡 6 s（公开事件上线后也照样走 produce）
+    const onP = (m: Record<string, unknown>) => {
+      onP0(m)
+      if ((m.via === 'compose' || m.via === 'make_video') && typeof m.entity === 'string') setPop({ who: m.entity, name: nameOf(m.entity), kind: m.via === 'compose' ? 'song' : 'script', at: Date.now() })
+    }
     EventBus.on('chat-row', onRow); EventBus.on('public-event', onPublic)
     EventBus.on('action-event', onA); EventBus.on('produce-event', onP); EventBus.on('fishing-event', onF)
     return () => { EventBus.off('chat-row', onRow); EventBus.off('public-event', onPublic); EventBus.off('action-event', onA); EventBus.off('produce-event', onP); EventBus.off('fishing-event', onF) }
   }, [])
-  return { rooms: rooms.current, lastLine: lastLine.current, events }
+  return { rooms: rooms.current, lastLine: lastLine.current, events, answers, pop }
 }
 
-function buildCandidates(players: OtherPlayer[], rooms: Map<string, Room>, lastLine: Map<string, number>, events: TownEvent[], now: number): Candidate[] {
+function buildCandidates(players: OtherPlayer[], objects: GameObject[], rooms: Map<string, Room>, lastLine: Map<string, number>, events: TownEvent[], now: number): Candidate[] {
   const achan = players.find(p => p.agent_id === 'achan')
   return players.map(p => {
     const room = [...rooms.values()].filter(r => r.participants.includes(p.id) && now - r.at < 90_000).sort((a, b) => b.at - a.at)[0]
@@ -68,7 +85,7 @@ function buildCandidates(players: OtherPlayer[], rooms: Map<string, Room>, lastL
     const label = p.stateLabel ?? ''
     return {
       id: p.id, name: p.name, agentId: p.agent_id, controller: p.controller, role: p.role,
-      activity: p.now?.activity ?? null, state: p.state, stateLabel: label,
+      activity: p.now?.activity ?? activityFromWorld(p.usingObjectId ? objects.find(o => o.id === p.usingObjectId)?.type : null, p.tags), state: p.state, stateLabel: label,
       inChat: talking, lastLineAt: lastLine.get(p.id) ?? null,
       trading: /买|卖|点餐|点菜|结账|收银/.test(label) || events.some(e => e.who === p.id && e.category === 'trade' && now - e.at < 20_000),
       inClass: !!p.lesson, classHot: events.some(e => e.who === p.id && e.category === 'school' && now - e.at < 15_000),
@@ -84,9 +101,10 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
   const objects = useGameStore((s) => s.objects)
   const tiles = useGameStore((s) => s.tiles)
   const ws = useGameStore((s) => s.worldState)
-  const { rooms, lastLine, events } = useDirectorFeed()
+  const { rooms, lastLine, events, answers, pop } = useDirectorFeed()
   const mem = useRef(newMemory(0))
   const [res, setRes] = useState<TickResult | null>(null)
+  const [tickAt, setTickAt] = useState(0)
   const [consoleOpen, setConsoleOpen] = useState(showConsole)
   const [lockMin, setLockMin] = useState(3)
   const [scale, setScale] = useState(() => Math.min(window.innerWidth / W, window.innerHeight / H))
@@ -101,8 +119,8 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
     const now = Date.now()
     const ps = useGameStore.getState().players
     const dEvents: DirectorEvent[] = evRef.current.filter(e => e.category !== 'trade').map(e => ({ who: e.who, at: e.at, label: e.text }))
-    const r = tick(buildCandidates(ps, rooms, lastLine, evRef.current, now), dEvents, mem.current, now)
-    setRes(r)
+    const r = tick(buildCandidates(ps, useGameStore.getState().objects, rooms, lastLine, evRef.current, now), dEvents, mem.current, now)
+    setRes(r); setTickAt(now)
     if (r.follow !== sceneFollow.current) EventBus.emit('spectate-cmd', r.follow ? { cmd: 'follow', id: r.follow } : { cmd: 'world' })
     EventBus.emit('spectate-offset', { x: r.follow ? (FOLLOW_X - W / 2) : PANEL_W / 2 })
     EventBus.emit('spectate-panfit', { w: W - PANEL_W - 24, h: H - 24 })   // 全景铺满右侧 60%；每 tick 发（场景就绪前的会丢，场景按值去重）   // 全景：地图中心移到面板右侧区域中间
@@ -112,7 +130,10 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
   const lock = (id: string | null) => { lockOn(mem.current, id, lockMin, Date.now()); runTick() }
 
   const target = res?.follow ? players.find(p => p.id === res.follow) ?? null : null
-  const sit: Situation = res?.situation ?? 'panorama'
+  const sit0: Situation = res?.situation ?? 'panorama'
+  // 「刚刚」插播：左侧面板沿用她本来的情境（钓到鱼 → 钓鱼面板、写完歌 → 工作面板），名牌照样写「刚刚」
+  const sit: Situation = sit0 === 'event' && target ? (situationOf(buildCandidates([target], objects, rooms, lastLine, [], tickAt)[0]) as Situation) : sit0
+  const sitLabel: Situation = sit0
   const tileAt = useMemo(() => new Map(tiles.map(t => [`${t.x},${t.y}`, t] as const)), [tiles])
   const zoneOf = (p: OtherPlayer) => zoneLabel(tileAt.get(`${p.position.x},${p.position.y}`)) || '小镇'
   const doingOf = (p: OtherPlayer) => p.now?.text || (deriveStateLabel(p, objects) ?? '').replace(/^[^一-龥A-Za-z]+/, '') || (p.state === 'walking' ? '走路中' : '发呆')
@@ -120,27 +141,33 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
   // 事件提示：镜头内中下大提示 2.5 s；镜头外右侧小卡 ≤3 张 6 s
   const [nowMs, setNowMs] = useState(0)
   useEffect(() => { const t = window.setInterval(() => setNowMs(Date.now()), 500); return () => window.clearInterval(t) }, [])
-  const big = events.filter(e => target && e.who === target.id && nowMs - e.at < 2500).slice(-1)[0]
+  const popOn = pop && nowMs - pop.at < 6000 ? pop : null
+  const chattedWith = (t: OtherPlayer) => [...new Set([...rooms.values()].filter(r => r.participants.includes(t.id)).flatMap(r => r.participants).filter(id => id !== t.id).map(id => players.find(p => p.id === id)?.name.replace(/_[0-9a-f]{6}$/i, '') ?? ''))].filter(Boolean)
+  const big = popOn ? undefined : events.filter(e => target && e.who === target.id && nowMs - e.at < 2500).slice(-1)[0]
   const cards = events.filter(e => (!target || e.who !== target.id) && nowMs - e.at < 6000).slice(-3)
 
   return (
     <div data-testid="director" style={{ position: 'fixed', left: '50%', top: '50%', width: W, height: H, transform: `translate(-50%, -50%) scale(${scale})`, transformOrigin: 'center', pointerEvents: 'none', fontFamily: FONT, color: C.ink }}>
+      {/* 睡觉：夜景压暗（在面板下面，不压「今天的她」） */}
+      {sit === 'sleep' && <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,14,40,0.35)' }} />}
       {/* 左 40% 情境面板（滑入） */}
       <SlidePanel k={`${sit}-${target?.id ?? 'pan'}`} tall={false}>
         {sit === 'panorama' && <PanoramaPanel players={players.filter(p => !isPasserby(p))} zoneOf={zoneOf} doingOf={doingOf} />}
         {sit === 'chat' && target && <ChatLog target={target} rooms={rooms} players={players} now={nowMs} />}
         {sit === 'walk' && target && <WalkPanel target={target} zone={zoneOf(target)} />}
-        {sit === 'sleep' && target && <SleepPanel target={target} />}
+        {sit === 'sleep' && target && <TodaySummary target={target} chattedWith={chattedWith(target)} eventTexts={events.filter(e => e.who === target.id).map(e => `${e.icon} ${e.text}`)} />}
+        {sit === 'class' && target && <ClassPanel target={target} players={players} answers={answers} />}
+        {sit === 'create' && target && <CreatePanel target={target} />}
+        {sit === 'qq' && target && <QQBigPanel target={target} />}
         {sit === 'trade' && target && <TradePanel target={target} events={events} now={nowMs} />}
         {sit === 'fishing' && target && <FishingPanel target={target} />}
-        {!['panorama', 'chat', 'walk', 'sleep', 'trade', 'fishing'].includes(sit) && target && <StateCard target={target} sit={sit} doing={doingOf(target)} zone={zoneOf(target)} />}
+        {!['panorama', 'chat', 'walk', 'sleep', 'trade', 'fishing', 'class', 'create', 'qq'].includes(sit) && target && <StateCard target={target} sit={sit} doing={doingOf(target)} zone={zoneOf(target)} />}
       </SlidePanel>
-      {sit === 'sleep' && <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,14,40,0.35)' }} />}
       {/* 左上「现在在看」名牌 */}
       <div data-testid="director-nameplate" style={{ ...box, position: 'absolute', left: 24, top: 24, display: 'flex', alignItems: 'center', gap: 14, padding: '10px 18px 10px 10px', minWidth: 360, maxWidth: 720 }}>
         {target ? <img src={avatar(keyOf(target), 80)} width={64} height={64} alt="" style={{ borderRadius: 10, border: `2px solid ${C.sky}`, background: '#fff', imageRendering: 'pixelated' }} /> : <span style={{ fontSize: 44 }}>🗺</span>}
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 14, color: C.soft }}>现在在看 · {SIT_ZH[sit]}</div>
+          <div style={{ fontSize: 14, color: C.soft }}>现在在看 · {SIT_ZH[sitLabel]}</div>
           <div style={{ fontSize: 30, fontWeight: 700, whiteSpace: 'nowrap' }}>{target ? target.name.replace(/_[0-9a-f]{6}$/i, '') : '小镇此刻'}</div>
           {target && <div style={{ fontSize: 18, color: C.soft, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 600 }}>{doingOf(target)}</div>}
         </div>
@@ -151,6 +178,8 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
       </div>
       {/* 镜头内大提示 */}
       {big && <div data-testid="director-big" style={{ position: 'absolute', left: PANEL_W, right: 0, bottom: 330, display: 'flex', justifyContent: 'center' }}><div style={{ ...box, padding: '14px 28px', fontSize: 34, fontWeight: 700, background: CATEGORY_COLOR[big.category].bg, color: CATEGORY_COLOR[big.category].fg, animation: 'dirPop 250ms ease-out' }}>{big.icon} {big.text}</div></div>}
+      {/* 写歌 / 做稿产出弹卡 */}
+      {popOn && <div style={{ position: 'absolute', left: PANEL_W, right: 0, top: 150, display: 'flex', justifyContent: 'center' }}><WorkPopCard key={popOn.at} pop={popOn} /></div>}
       {/* 镜头外右侧小卡 */}
       <div style={{ position: 'absolute', right: 24, top: 110, display: 'flex', flexDirection: 'column', gap: 10, width: 420 }}>
         {cards.map(e => <div key={e.key} data-testid="director-card" style={{ ...box, padding: '10px 14px', fontSize: 20, background: CATEGORY_COLOR[e.category].bg, color: CATEGORY_COLOR[e.category].fg, animation: 'dirSlide 300ms ease-out' }}>{e.icon} {e.text}</div>)}
@@ -178,7 +207,7 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
           <div style={{ color: '#718096', fontSize: 12, marginTop: 4 }}>点名字锁定 {lockMin} 分钟 · 阿蝉 / 路人不参与 · D 键开关</div>
         </div>
       )}
-      <style>{`@keyframes dirSlide { from { transform: translateX(-40px); opacity: 0 } to { transform: none; opacity: 1 } } @keyframes dirPop { from { transform: scale(0.8); opacity: 0 } to { transform: none; opacity: 1 } } @keyframes dirTicker { from { transform: translateX(100%) } to { transform: translateX(-100%) } }`}</style>
+      <style>{`@keyframes dirSlide { from { transform: translateX(-40px); opacity: 0 } to { transform: none; opacity: 1 } } @keyframes dirPop { from { transform: scale(0.8); opacity: 0 } to { transform: none; opacity: 1 } } @keyframes dirSpin { from { transform: rotate(0) } to { transform: rotate(360deg) } } @keyframes dirTicker { from { transform: translateX(100%) } to { transform: translateX(-100%) } }`}</style>
     </div>
   )
 }
@@ -239,15 +268,6 @@ function WalkPanel({ target, zone }: { target: OtherPlayer; zone: string }) {
       <div style={{ fontSize: 22, fontWeight: 700 }}>🚶 {d?.name ? `→ ${d.name}` : '走路中'}{d?.purpose ? <span style={{ fontWeight: 400, color: C.soft }}>（{d.purpose}）</span> : null}</div>
       <div style={{ fontSize: 16, color: C.soft }}>现在在 {zone}</div>
       <div style={{ display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}><Minimap inline large followId={target.id} /></div>
-    </>
-  )
-}
-
-function SleepPanel({ target }: { target: OtherPlayer }) {
-  return (
-    <>
-      <div style={{ fontSize: 26, fontWeight: 700 }}>🌙 {target.name.replace(/_[0-9a-f]{6}$/i, '')} 睡着了</div>
-      <div style={{ fontSize: 60, textAlign: 'center', marginTop: 40, animation: 'dirPop 1.6s ease-in-out infinite alternate' }}>💤 Zzz</div>
     </>
   )
 }
