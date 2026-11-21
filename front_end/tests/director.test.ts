@@ -156,5 +156,6 @@ test('BGM：按游戏时间分组、睡觉压低、轮播不重复、署名', ()
   assert.notEqual(nx.id, 'c')   // 新一轮第一首不和上一首重复
   assert.equal(creditText(ts[0]), '♪ a — Kevin MacLeod · CC BY 4.0')
   assert.equal(creditText({ ...mk('晴天', 'night', 'instrumental'), author: '周杰伦' }), '♪ 晴天（伴奏）· 周杰伦')
+  assert.equal(creditText({ ...mk('虫儿飞', 'night', 'instrumental'), author: '' }), '♪ 虫儿飞（伴奏）')
   assert.equal(pickNext([], new Set(), null), null)
 })

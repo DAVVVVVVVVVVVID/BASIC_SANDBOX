@@ -27,7 +27,9 @@ export function pickNext(pool: BgmTrack[], played: Set<string>, lastId: string |
   return t
 }
 export function creditText(t: BgmTrack): string {
-  return t.kind === 'instrumental' ? `♪ ${t.title}（伴奏）· ${t.author}` : `♪ ${t.title} — ${t.author.replace(/\s*\(.*?\)\s*/g, ' ').trim()} · ${t.license}`
+  const by = t.author.replace(/\s*\(.*?\)\s*/g, ' ').trim()
+  if (t.kind === 'instrumental') return `♪ ${t.title}（伴奏）${by ? `· ${by}` : ''}`
+  return `♪ ${t.title}${by ? ` — ${by}` : ''}${t.license ? ` · ${t.license}` : ''}`
 }
 
 const FADE_MS = 3000
