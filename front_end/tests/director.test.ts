@@ -140,3 +140,21 @@ test('分镜：单人特写、对话框人、上课带同学、全景', () => {
   assert.deepEqual(classmates({ ...t, lesson: null }, ps, 2), ['b', 'c'])
   assert.equal(clampClose(9), 3); assert.equal(clampClose(1.6), 1.5); assert.equal(clampClose(0.2), 1)
 })
+
+import { groupFor, poolFor, pickNext, creditText, type BgmTrack } from '../src/director/bgm'
+test('BGM：按游戏时间分组、睡觉压低、轮播不重复、署名', () => {
+  assert.equal(groupFor('06:00:00', false), 'day'); assert.equal(groupFor('16:59', false), 'day')
+  assert.equal(groupFor('17:00', false), 'night'); assert.equal(groupFor('02:10', false), 'night')
+  assert.equal(groupFor('12:00', true), 'sleep'); assert.equal(groupFor(null, false), 'night')
+  const mk = (id: string, group: BgmTrack['group'], kind: BgmTrack['kind'] = 'cc'): BgmTrack => ({ id, src: `bgm/${id}.mp3`, title: id, author: 'Kevin MacLeod (incompetech.com)', license: 'CC BY 4.0', group, kind })
+  const ts = [mk('a', 'day'), mk('b', 'day'), mk('c', 'day'), mk('n', 'night')]
+  assert.deepEqual(poolFor(ts, 'sleep').map(t => t.id), ['n'])
+  const played = new Set<string>(); const seq: string[] = []
+  for (let i = 0; i < 3; i++) seq.push(pickNext(poolFor(ts, 'day'), played, seq[seq.length - 1] ?? null, () => 0)!.id)
+  assert.deepEqual([...seq].sort(), ['a', 'b', 'c'])
+  const nx = pickNext(poolFor(ts, 'day'), played, 'c', () => 0.99)!
+  assert.notEqual(nx.id, 'c')   // 新一轮第一首不和上一首重复
+  assert.equal(creditText(ts[0]), '♪ a — Kevin MacLeod · CC BY 4.0')
+  assert.equal(creditText({ ...mk('晴天', 'night', 'instrumental'), author: '周杰伦' }), '♪ 晴天（伴奏）· 周杰伦')
+  assert.equal(pickNext([], new Set(), null), null)
+})

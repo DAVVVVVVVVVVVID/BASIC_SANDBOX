@@ -13,6 +13,7 @@ import { TradePanel, FishingPanel } from './ShopPanels'
 import { ClassPanel, CreatePanel, QQBigPanel, TodaySummary, WorkPopCard, type AnswerRow, type WorkPop } from './Phase3Panels'
 import { activityFromWorld, frameFor, classmates, clampClose, CAM } from './phase3'
 import type { GameObject } from '../types'
+import { BgmPlayer, groupFor, creditText, type BgmTrack } from './bgm'
 
 /**
  * 小镇直播自动导播（whale docs/systems/town-director-plan.md，主播 11-20 拍板）：`/spectate?director=1`。
@@ -96,6 +97,32 @@ function buildCandidates(players: OtherPlayer[], objects: GameObject[], rooms: M
   })
 }
 
+/** 导播 BGM（whale-ec 11-21）：&bgm=0 关；音量存 localStorage；自动播放被拦时导播台出「开声音」 */
+function useBgm(sleeping: boolean, time: string | null | undefined) {
+  const enabled = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('bgm') !== '0'
+  const player = useRef<BgmPlayer | null>(null)
+  const [, bump] = useState(0)
+  const [vol, setVolState] = useState(() => { try { const v = window.localStorage.getItem('whale.director.bgmVol'); if (v !== null && Number.isFinite(Number(v))) return Number(v) } catch { /* ignore */ } return 0.35 })
+  useEffect(() => {
+    if (!enabled) return
+    const pl = new BgmPlayer(); player.current = pl
+    ;(window as unknown as { __whaleBgm?: BgmPlayer }).__whaleBgm = pl   // 联调 / 截图核对用（只读看状态）
+    pl.onChange = () => bump(x => x + 1)
+    let dead = false
+    fetch('bgm/manifest.json').then(r => (r.ok ? r.json() : null)).then((m: { tracks?: BgmTrack[] } | null) => {
+      if (dead || !m?.tracks?.length) return
+      pl.setTracks(m.tracks); pl.start()
+    }).catch(() => {})
+    return () => { dead = true; pl.stop(); player.current = null }
+  }, [enabled])
+  const group = groupFor(time, sleeping)
+  useEffect(() => { player.current?.setContext(group) }, [group])
+  useEffect(() => { player.current?.setMaster(vol) }, [vol])
+  const setVol = (v: number) => { setVolState(v); try { window.localStorage.setItem('whale.director.bgmVol', String(v)) } catch { /* ignore */ } }
+  const pl = player.current
+  return { enabled, track: pl?.current ?? null, blocked: !!pl?.blocked, vol, setVol, group, unlock: () => pl?.start(), skip: () => pl?.next() }
+}
+
 export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
   const players = useGameStore((s) => s.players)
   const objects = useGameStore((s) => s.objects)
@@ -151,6 +178,7 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
   // 「刚刚」插播：左侧面板沿用她本来的情境（钓到鱼 → 钓鱼面板、写完歌 → 工作面板），名牌照样写「刚刚」
   const sit: Situation = sit0 === 'event' && target ? (situationOf(buildCandidates([target], objects, rooms, lastLine, [], tickAt)[0]) as Situation) : sit0
   const sitLabel: Situation = sit0
+  const bgm = useBgm(sit === 'sleep', ws?.time)
   const tileAt = useMemo(() => new Map(tiles.map(t => [`${t.x},${t.y}`, t] as const)), [tiles])
   const zoneOf = (p: OtherPlayer) => zoneLabel(tileAt.get(`${p.position.x},${p.position.y}`)) || '小镇'
   const doingOf = (p: OtherPlayer) => p.now?.text || (deriveStateLabel(p, objects) ?? '').replace(/^[^一-龥A-Za-z]+/, '') || (p.state === 'walking' ? '走路中' : '发呆')
@@ -201,6 +229,8 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
       <div style={{ position: 'absolute', right: 24, top: 110, display: 'flex', flexDirection: 'column', gap: 10, width: 420 }}>
         {cards.map(e => <div key={e.key} data-testid="director-card" style={{ ...box, padding: '10px 14px', fontSize: 20, background: CATEGORY_COLOR[e.category].bg, color: CATEGORY_COLOR[e.category].fg, animation: 'dirSlide 300ms ease-out' }}>{e.icon} {e.text}</div>)}
       </div>
+      {/* BGM 署名胶囊（CC BY 必须署名） */}
+      {bgm.track && !bgm.blocked && <div data-testid="director-bgm-credit" style={{ position: 'absolute', right: consoleOpen ? 24 + 420 + 12 : 24, bottom: 68, padding: '4px 14px', borderRadius: 999, background: 'rgba(59,47,47,0.72)', color: '#FFF8EC', fontSize: 16, maxWidth: 720, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{creditText(bgm.track)}</div>}
       {/* 底部跑马灯 */}
       <Ticker events={events} />
       {/* 导播台 */}
@@ -221,6 +251,14 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
               <span style={{ width: 50, textAlign: 'right' }}>{s.score}</span>
             </div>
           ))}
+          {bgm.enabled && (
+            <div data-testid="director-bgm" style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '6px 0 2px', fontSize: 13 }}>
+              BGM
+              {bgm.blocked || !bgm.track ? <button onClick={bgm.unlock} data-testid="director-bgm-unlock" style={{ ...cbtn, background: '#c05621' }}>🔊 开声音</button> : <button onClick={bgm.skip} style={cbtn} title="下一首">⏭</button>}
+              <input type="range" min={0} max={1} step={0.05} value={bgm.vol} onChange={e => bgm.setVol(Number(e.target.value))} style={{ flex: 1 }} />
+              <span style={{ width: 92, textAlign: 'right', color: '#a0aec0' }}>{Math.round(bgm.vol * 100)}% · {bgm.group === 'day' ? '白天' : bgm.group === 'night' ? '夜里' : '睡觉'}</span>
+            </div>
+          )}
           <div data-testid="director-zoom" style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '6px 0 2px', fontSize: 13 }}>
             镜头远近
             <button onClick={() => setClose(closeZ - 0.25)} style={cbtn} title="拉远">－</button>
