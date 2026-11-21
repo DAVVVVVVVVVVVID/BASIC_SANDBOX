@@ -106,6 +106,7 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
   const [res, setRes] = useState<TickResult | null>(null)
   const [tickAt, setTickAt] = useState(0)
   const [consoleOpen, setConsoleOpen] = useState(showConsole)
+  const consoleRef = useRef(showConsole); consoleRef.current = consoleOpen
   const [lockMin, setLockMin] = useState(3)
   // 镜头远近（特写倍率）：导播台旋钮现场调；存本机 localStorage（推流机记住），URL &close= 优先
   const [closeZ, setCloseZ] = useState(() => {
@@ -133,11 +134,12 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
     if (r.follow !== sceneFollow.current) EventBus.emit('spectate-cmd', r.follow ? { cmd: 'follow', id: r.follow } : { cmd: 'world' })
     EventBus.emit('spectate-offset', { x: r.follow ? (FOLLOW_X - W / 2) : PANEL_W / 2 })
     // 分镜：对话框住参与者、上课带同学、其余特写
+    // 可见区域 = 左侧面板右边、跑马灯上面；导播台开着时不算它盖住的下半截
     const tgt = r.follow ? ps.find(p => p.id === r.follow) : undefined
     const room = tgt ? [...rooms.values()].filter(x => x.participants.includes(tgt.id) && now - x.at < 90_000).sort((a, b) => b.at - a.at)[0] : undefined
     const group = !tgt ? [] : r.situation === 'chat' ? (room?.participants ?? []) : r.situation === 'class' ? classmates(tgt, ps) : []
     const fk = frameFor(r.situation, tgt?.id ?? null, group)
-    EventBus.emit('spectate-frame', { ...fk, close: closeRef.current, mid: closeRef.current * CAM.midRatio, cap: r.situation === 'class' ? closeRef.current * 0.7 : closeRef.current, fx: FOLLOW_X, fy: 520, ax: PANEL_W, ay: 110, aw: W - PANEL_W - 24, ah: H - 110 - 70, margin: CAM.margin })
+    EventBus.emit('spectate-frame', { ...fk, close: closeRef.current, mid: closeRef.current * CAM.midRatio, cap: r.situation === 'class' ? closeRef.current * 0.7 : closeRef.current, fx: FOLLOW_X, fy: 520, ax: PANEL_W, ay: 110, aw: W - PANEL_W - 24, ah: (consoleRef.current ? H - 360 : H - 70) - 110, margin: CAM.margin })
     EventBus.emit('spectate-panfit', { w: W - PANEL_W - 24, h: H - 24 })   // 全景铺满右侧 60%；每 tick 发（场景就绪前的会丢，场景按值去重）   // 全景：地图中心移到面板右侧区域中间
   }
   useEffect(() => { runTick(); const t = window.setInterval(runTick, TICK_MS); return () => window.clearInterval(t) }, []) // eslint-disable-line react-hooks/exhaustive-deps

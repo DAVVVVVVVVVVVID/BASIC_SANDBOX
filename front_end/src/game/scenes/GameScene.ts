@@ -1221,7 +1221,7 @@ export default class GameScene extends Phaser.Scene {
         const x0 = Math.min(...pts.map(p => p.x)) - TILE_SIZE * 0.8, x1 = Math.max(...pts.map(p => p.x)) + TILE_SIZE * 0.8
         const y0 = Math.min(...pts.map(p => p.y)) - TILE_SIZE * 2.2, y1 = Math.max(...pts.map(p => p.y)) + TILE_SIZE * 0.5
         const zfit = Math.min(f.aw * (1 - 2 * f.margin) * s / (x1 - x0), f.ah * (1 - 2 * f.margin) * s / (y1 - y0))
-        want = Phaser.Math.Clamp(zfit, f.mid * s, (f.cap ?? f.close) * s)
+        want = Math.max(MIN_ZOOM, Math.min(zfit, (f.cap ?? f.close) * s, Math.max(zfit, f.mid * s)))   // 装不下所有人时允许拉过中景上限（总控 11-21）
         cx = (x0 + x1) / 2; cy = (y0 + y1) / 2
         ax = f.ax + f.aw / 2; ay = f.ay + f.ah / 2
       }
