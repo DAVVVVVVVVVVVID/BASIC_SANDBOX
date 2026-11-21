@@ -78,3 +78,23 @@ export function todaySummaryRows(p: Record<string, unknown> | null, chattedWith:
   for (const t of eventTexts.slice(-3)) rows.push({ icon: '✨', label: '', value: t })
   return rows
 }
+
+/**
+ * 导播分镜（主播 11-21：视角太高，离人物近一点；只有多人入镜等必要时才拉远）。
+ * 单人情境 → 特写；对话 → 框住所有参与者；上课 → 中景（主角 + 附近两三个同学）；全景 → 整图。
+ */
+export const CAM = { closeDefault: 2.0, closeMin: 1.0, closeMax: 3.0, midRatio: 0.6, margin: 0.15 }
+export type FrameKind = 'close' | 'group' | 'pan'
+export function frameFor(situation: string, targetId: string | null, groupIds: string[]): { kind: FrameKind; ids: string[] } {
+  if (!targetId || situation === 'panorama') return { kind: 'pan', ids: [] }
+  const ids = [targetId, ...groupIds.filter(id => id !== targetId)]
+  if ((situation === 'chat' || situation === 'class') && ids.length > 1) return { kind: 'group', ids }
+  return { kind: 'close', ids: [targetId] }
+}
+/** 上课的同框同学：同一节课、离主角最近的 3 个（没有课号时取 4 格内的人） */
+export function classmates(target: { id: string; position: { x: number; y: number }; lesson?: { lesson_id?: string } | null }, players: { id: string; position: { x: number; y: number }; lesson?: { lesson_id?: string } | null; online?: boolean }[], n = 3): string[] {
+  const lid = target.lesson?.lesson_id
+  const d = (p: { position: { x: number; y: number } }) => Math.abs(p.position.x - target.position.x) + Math.abs(p.position.y - target.position.y)
+  return players.filter(p => p.id !== target.id && p.online !== false && (lid ? p.lesson?.lesson_id === lid : d(p) <= 4)).sort((a, b) => d(a) - d(b)).slice(0, n).map(p => p.id)
+}
+export const clampClose = (z: number) => Math.min(CAM.closeMax, Math.max(CAM.closeMin, Math.round(z * 4) / 4))

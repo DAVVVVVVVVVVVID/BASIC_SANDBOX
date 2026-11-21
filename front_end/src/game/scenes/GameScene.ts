@@ -51,6 +51,9 @@ const TARGET_LOSS_MS = 500
 const CAMERA_LERP_MS = 140
 
 /** 把 zoom 吸附到 1/6 的整数倍（源像素整数缩放）。用户参数取最近值（0.3333 → 2/6），自适应全景向下取整（保证整图放得下） */
+/** 导播分镜（DirectorApp 每 tick 发 spectate-frame）：坐标都是 1920×1080 舞台坐标；close / mid 为舞台下的 zoom */
+export interface DirFrame { kind: 'close' | 'group' | 'pan'; ids: string[]; close: number; mid: number; fx: number; fy: number; ax: number; ay: number; aw: number; ah: number; margin: number; /** 多人取景时最近只推到这（上课 = 中景） */ cap?: number }
+
 function snapZoom(z: number, mode: 'round' | 'floor' = 'round'): number {
   const steps = TILE_SIZE / SOURCE_TILE
   const k = Math.max(1, mode === 'floor' ? Math.floor(z * steps + 1e-6) : Math.round(z * steps))
@@ -977,6 +980,7 @@ export default class GameScene extends Phaser.Scene {
     this.on('spectate-cmd', (c: FreeCmd) => this.freeCmd(c))
     // 小镇导播（town-director-plan §2）：跟随时主角放在屏幕右半 x≈1250 → 镜头中心向左让 offsetX 屏幕像素
     this.on('spectate-offset', ({ x }: { x: number }) => { this.followOffsetX = x })
+    this.on('spectate-frame', (f: DirFrame | null) => { this.dirFrame = f })
     this.on('spectate-panfit', (r: { w: number; h: number } | null) => {
       if (r && this.panFit && r.w === this.panFit.w && r.h === this.panFit.h) return
       this.panFit = r
@@ -1171,6 +1175,12 @@ export default class GameScene extends Phaser.Scene {
       this.centerClamped(c0.x, c0.y)
       return
     }
+    // 导播分镜（主播 11-21）：特写 / 多人自动取景，屋里也跟人特写，不再整间房塞进右侧
+    if (this.camMode === 'follow' && this.dirFrame && this.dirFrame.kind !== 'pan') {
+      if (fr.indoor !== this.lastFocusIndoor) { this.lastFocusIndoor = fr.indoor; EventBus.emit('focus-changed', { indoor: fr.indoor, label: fr.label }) }
+      this.updateDirFrame(dt, fr.transition ? { kind: fr.transition, label: fr.label } : null, tx, ty)
+      return
+    }
     if (this.camMode === 'follow') {
       const want = fr.indoor && fr.zoom ? fr.zoom : this.followZoom
       if (fr.transition) this.doorTransition(fr.transition, want, fr.label)
@@ -1193,6 +1203,42 @@ export default class GameScene extends Phaser.Scene {
     if (now - this.lastCamEmit > 120) {
       this.lastCamEmit = now
       const vw = cam.width / cam.zoom / TILE_SIZE, vh = cam.height / cam.zoom / TILE_SIZE
+      EventBus.emit('spectate-camera', { x0: cam.midPoint.x / TILE_SIZE - vw / 2, y0: cam.midPoint.y / TILE_SIZE - vh / 2, x1: cam.midPoint.x / TILE_SIZE + vw / 2, y1: cam.midPoint.y / TILE_SIZE + vh / 2 })
+    }
+  }
+
+  /** 导播分镜：frame 里的取景要求 → 目标 zoom 与镜头中心，指数平滑推拉（切换约 0.8 s 到位，人在动时平滑跟） */
+  private dirFrame: DirFrame | null = null
+  private updateDirFrame(dt: number, transition: { kind: 'enter' | 'exit' | 'floor' | 'move'; label: string } | null, tx: number, ty: number) {
+    const f = this.dirFrame!
+    const cam = this.cameras.main
+    const s = Math.min(cam.width / 1920, cam.height / 1080)   // 导播舞台 1920×1080 → 实际画布
+    let want = f.close * s, cx = tx, cy = ty - TILE_SIZE * 0.6   // 人物脚底在格子中心，镜头对准上半身
+    let ax = f.fx, ay = f.fy
+    if (f.kind === 'group') {
+      const pts = f.ids.map(id => this.others.get(id)?.getPixelPosition()).filter((p): p is { x: number; y: number } => !!p && Math.hypot(p.x - tx, p.y - ty) < TILE_SIZE * 14)
+      if (pts.length > 1) {
+        const x0 = Math.min(...pts.map(p => p.x)) - TILE_SIZE * 0.8, x1 = Math.max(...pts.map(p => p.x)) + TILE_SIZE * 0.8
+        const y0 = Math.min(...pts.map(p => p.y)) - TILE_SIZE * 2.2, y1 = Math.max(...pts.map(p => p.y)) + TILE_SIZE * 0.5
+        const zfit = Math.min(f.aw * (1 - 2 * f.margin) * s / (x1 - x0), f.ah * (1 - 2 * f.margin) * s / (y1 - y0))
+        want = Phaser.Math.Clamp(zfit, f.mid * s, (f.cap ?? f.close) * s)
+        cx = (x0 + x1) / 2; cy = (y0 + y1) / 2
+        ax = f.ax + f.aw / 2; ay = f.ay + f.ah / 2
+      }
+    }
+    if (cam.zoomEffect.isRunning) cam.zoomEffect.reset()
+    if (transition) this.doorTransition(transition.kind, want, transition.label)
+    if (!this.transitioning) cam.setZoom(cam.zoom + (want - cam.zoom) * (1 - Math.exp(-dt / 280)))
+    const z = cam.zoom
+    const offX = ax * s - cam.width / 2, offY = ay * s - cam.height / 2
+    const gx = cx - offX / z, gy = cy - offY / z
+    const k = transition ? 1 : 1 - Math.exp(-dt / 220)   // 进出门黑场里直接跳到位
+    this.camX += (gx - this.camX) * k; this.camY += (gy - this.camY) * k
+    this.centerClamped(this.camX, this.camY, (Math.abs(offX) + 360) / z, (Math.abs(offY) + 240) / z)
+    const now = performance.now()
+    if (now - this.lastCamEmit > 120) {
+      this.lastCamEmit = now
+      const vw = cam.width / z / TILE_SIZE, vh = cam.height / z / TILE_SIZE
       EventBus.emit('spectate-camera', { x0: cam.midPoint.x / TILE_SIZE - vw / 2, y0: cam.midPoint.y / TILE_SIZE - vh / 2, x1: cam.midPoint.x / TILE_SIZE + vw / 2, y1: cam.midPoint.y / TILE_SIZE + vh / 2 })
     }
   }

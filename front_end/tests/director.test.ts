@@ -126,3 +126,17 @@ test('三期：answer → 上课事件；compose → 写完新歌', () => {
   assert.equal(fromLegacy('action', { entity: 'w', action: 'answer', success: true }, n, 1)?.category, 'school')
   assert.equal(fromLegacy('produce', { entity: 'w', via: 'compose', item: 'cd' }, n, 1)?.text, '鲸仔 写完了一首新歌')
 })
+
+import { frameFor, classmates, clampClose } from '../src/director/phase3'
+test('分镜：单人特写、对话框人、上课带同学、全景', () => {
+  assert.deepEqual(frameFor('walk', 'w', []), { kind: 'close', ids: ['w'] })
+  assert.deepEqual(frameFor('chat', 'w', ['c', 'w']), { kind: 'group', ids: ['w', 'c'] })
+  assert.deepEqual(frameFor('chat', 'w', []), { kind: 'close', ids: ['w'] })
+  assert.deepEqual(frameFor('panorama', null, []), { kind: 'pan', ids: [] })
+  assert.deepEqual(frameFor('sleep', 'w', ['c']), { kind: 'close', ids: ['w'] })
+  const t = { id: 'w', position: { x: 5, y: 5 }, lesson: { lesson_id: 'L' } }
+  const ps = [t, { id: 'a', position: { x: 9, y: 5 }, lesson: { lesson_id: 'L' } }, { id: 'b', position: { x: 6, y: 5 }, lesson: { lesson_id: 'L' } }, { id: 'c', position: { x: 5, y: 6 }, lesson: null }, { id: 'd', position: { x: 5, y: 7 }, lesson: { lesson_id: 'L' } }, { id: 'e', position: { x: 20, y: 5 }, lesson: { lesson_id: 'L' } }]
+  assert.deepEqual(classmates(t, ps), ['b', 'd', 'a'])
+  assert.deepEqual(classmates({ ...t, lesson: null }, ps, 2), ['b', 'c'])
+  assert.equal(clampClose(9), 3); assert.equal(clampClose(1.6), 1.5); assert.equal(clampClose(0.2), 1)
+})

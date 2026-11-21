@@ -11,7 +11,7 @@ import type { OtherPlayer, WsChatEvent } from '../types'
 import '../ui/rpg/rpg.css'
 import { TradePanel, FishingPanel } from './ShopPanels'
 import { ClassPanel, CreatePanel, QQBigPanel, TodaySummary, WorkPopCard, type AnswerRow, type WorkPop } from './Phase3Panels'
-import { activityFromWorld } from './phase3'
+import { activityFromWorld, frameFor, classmates, clampClose, CAM } from './phase3'
 import type { GameObject } from '../types'
 
 /**
@@ -107,6 +107,15 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
   const [tickAt, setTickAt] = useState(0)
   const [consoleOpen, setConsoleOpen] = useState(showConsole)
   const [lockMin, setLockMin] = useState(3)
+  // 镜头远近（特写倍率）：导播台旋钮现场调；存本机 localStorage（推流机记住），URL &close= 优先
+  const [closeZ, setCloseZ] = useState(() => {
+    const q = Number(new URLSearchParams(window.location.search).get('close'))
+    if (q) return clampClose(q)
+    try { const v = Number(window.localStorage.getItem('whale.director.close')); if (v) return clampClose(v) } catch { /* 无痕 / 禁存储 */ }
+    return CAM.closeDefault
+  })
+  const closeRef = useRef(closeZ); closeRef.current = closeZ
+  const setClose = (z: number) => { const v = clampClose(z); setCloseZ(v); closeRef.current = v; try { window.localStorage.setItem('whale.director.close', String(v)) } catch { /* ignore */ } ; runTick() }
   const [scale, setScale] = useState(() => Math.min(window.innerWidth / W, window.innerHeight / H))
   useEffect(() => { const on = () => setScale(Math.min(window.innerWidth / W, window.innerHeight / H)); window.addEventListener('resize', on); return () => window.removeEventListener('resize', on) }, [])
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'd' || e.key === 'D') setConsoleOpen(o => !o) }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [])
@@ -123,6 +132,12 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
     setRes(r); setTickAt(now)
     if (r.follow !== sceneFollow.current) EventBus.emit('spectate-cmd', r.follow ? { cmd: 'follow', id: r.follow } : { cmd: 'world' })
     EventBus.emit('spectate-offset', { x: r.follow ? (FOLLOW_X - W / 2) : PANEL_W / 2 })
+    // 分镜：对话框住参与者、上课带同学、其余特写
+    const tgt = r.follow ? ps.find(p => p.id === r.follow) : undefined
+    const room = tgt ? [...rooms.values()].filter(x => x.participants.includes(tgt.id) && now - x.at < 90_000).sort((a, b) => b.at - a.at)[0] : undefined
+    const group = !tgt ? [] : r.situation === 'chat' ? (room?.participants ?? []) : r.situation === 'class' ? classmates(tgt, ps) : []
+    const fk = frameFor(r.situation, tgt?.id ?? null, group)
+    EventBus.emit('spectate-frame', { ...fk, close: closeRef.current, mid: closeRef.current * CAM.midRatio, cap: r.situation === 'class' ? closeRef.current * 0.7 : closeRef.current, fx: FOLLOW_X, fy: 520, ax: PANEL_W, ay: 110, aw: W - PANEL_W - 24, ah: H - 110 - 70, margin: CAM.margin })
     EventBus.emit('spectate-panfit', { w: W - PANEL_W - 24, h: H - 24 })   // 全景铺满右侧 60%；每 tick 发（场景就绪前的会丢，场景按值去重）   // 全景：地图中心移到面板右侧区域中间
   }
   useEffect(() => { runTick(); const t = window.setInterval(runTick, TICK_MS); return () => window.clearInterval(t) }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -204,6 +219,13 @@ export default function DirectorApp({ showConsole }: { showConsole: boolean }) {
               <span style={{ width: 50, textAlign: 'right' }}>{s.score}</span>
             </div>
           ))}
+          <div data-testid="director-zoom" style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '6px 0 2px', fontSize: 13 }}>
+            镜头远近
+            <button onClick={() => setClose(closeZ - 0.25)} style={cbtn} title="拉远">－</button>
+            <input type="range" min={CAM.closeMin} max={CAM.closeMax} step={0.25} value={closeZ} onChange={e => setClose(Number(e.target.value))} style={{ flex: 1 }} />
+            <button onClick={() => setClose(closeZ + 0.25)} style={cbtn} title="推近">＋</button>
+            <span style={{ width: 44, textAlign: 'right' }}>×{closeZ.toFixed(2)}</span>
+          </div>
           <div style={{ color: '#718096', fontSize: 12, marginTop: 4 }}>点名字锁定 {lockMin} 分钟 · 阿蝉 / 路人不参与 · D 键开关</div>
         </div>
       )}
