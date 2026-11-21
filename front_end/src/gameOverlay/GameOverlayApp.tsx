@@ -1,16 +1,20 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { deriveGameView, parseOverlayParams, type GameState } from './view'
+import StageOverlay from './StageOverlay'
 
 /**
  * 直播「游戏」模式信息层：5173/?view=game（总控 11-19；G 的积木图画面面板用 iframe 嵌成显示块，可拖）。
  * 背景透明、只读：每 1 s GET /gameapi/game/state（vite 代理到 D 的 8120）。弹幕列 / 回复板子 / 立绘仍是舞台页 G 的呈现块，这里不画。
+ * layout=stage：游戏舞台 · 档案风全屏视图（StageOverlay.tsx，主播 11-21 方案 e）。
  * 参数：blocks=visitor,checks,verdict,votes,score（默认全开）· layout=card（竖排，右侧一列）| bar（横条，游戏区底部）· theme=dark | cream · scale=1 · demo=1（没开游戏时用样例，给 G 摆位置）
  */
 const GAME_API = ((import.meta.env.VITE_GAME_API as string | undefined) ?? '/gameapi').replace(/\/$/, '')
 const POLL_MS = 1000
 
-const DEMO: GameState = {
-  status: 'running', game: 'tnmn', screen: 'id_card',
+const DEMO: GameState & Record<string, unknown> = {
+  status: 'running', game: 'tnmn', screen: 'id_card', day: 2, visitor_no: 3, run_no: 1,
+  today: { admit_right: 4, reject_right: 2, admit_wrong: 0, reject_wrong: 1, unknown: 2 },
+  anomalies: ['脸颊上长了一张带牙的小嘴'],
   visitor: { name: 'Otto Reyes', apartment: '5D', appearance: '灰色帽形头发，肤色浅橙，两眼对称，嘴里有六颗小方牙' },
   checks: [
     { item: '姓名、房号与自称是否一致', result: 'match', evidence: '证件和台词都是 Otto Reyes、5D' },
@@ -45,6 +49,7 @@ export default function GameOverlayApp() {
     return () => { stop = true; window.clearInterval(t) }
   }, [p.demo])
   const v = deriveGameView(state)
+  if (p.layout === 'stage') return <StageOverlay state={state} v={v} />   // 游戏舞台 · 档案风（全屏透明，没在玩只显示标题）
   if (!v.live) return <div data-testid="game-overlay-idle" style={{ display: 'none' }}>{down ? 'game api down' : 'idle'}</div>
   const T = p.theme === 'cream' ? CREAM : DARK
   const bar = p.layout === 'bar'                                   // 横条：游戏区底部一条，块并排、核对每项一行

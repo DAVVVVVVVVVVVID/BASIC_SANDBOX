@@ -74,15 +74,43 @@ export function deriveGameView(s: GameState | null | undefined): GameView {
   }
 }
 
+/**
+ * 游戏舞台 · 档案风（主播 11-21 选定方案 e；layout=stage 全屏透明，标题 + 底部四张卡）。
+ * 标题：「今晚当门卫 · 第 N 天 · 第 M 位访客」；没在玩只显示「今晚当门卫」。天数 / 访客序号照 D 的 /game/state 给的显示。
+ * 战绩四格：放对 / 拒对 / 放错 / 拒错 + 待定，取 D 的 today（白天多半是待定，结算后才揭晓）。
+ */
+export interface Quad { admitOk: number; rejectOk: number; admitBad: number; rejectBad: number; pending: number }
+export interface StageInfo { title: { day: number | null; visitor: number | null } | null; quad: Quad; anomaly: string | null }
+type StageState = GameState & { day?: unknown; visitor_no?: unknown; today?: Record<string, unknown> | null; anomalies?: unknown }
+const posInt = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x > 0 ? Math.floor(x) : null)
+const cnt = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x > 0 ? Math.floor(x) : 0)
+/** D 11-21：day / visitor_no（0 = 门口没人且今天没判过）/ today{admit_right, reject_right, admit_wrong, reject_wrong, unknown} / anomalies[] */
+export function stageInfo(s: StageState | null | undefined): StageInfo {
+  const quad: Quad = { admitOk: 0, rejectOk: 0, admitBad: 0, rejectBad: 0, pending: 0 }
+  const t = s?.today
+  if (t && typeof t === 'object') {
+    quad.admitOk = cnt(t.admit_right); quad.rejectOk = cnt(t.reject_right); quad.admitBad = cnt(t.admit_wrong); quad.rejectBad = cnt(t.reject_wrong); quad.pending = cnt(t.unknown)
+  }
+  const live = !!s && (s.status === 'running' || s.status === 'paused')
+  const an = Array.isArray(s?.anomalies) ? (s!.anomalies as unknown[]).map(String).filter(Boolean) : []
+  return { title: live ? { day: posInt(s!.day), visitor: posInt(s!.visitor_no) } : null, quad, anomaly: an[0] ?? null }
+}
+/** 核对行最多显示 n 条：对不上的先、她觉得怪的（anomalies，盖「!」）、还没查的其次、对上的最后（同类保持原顺序） */
+export interface StageRow { tone: 'ok' | 'bad' | 'unknown' | 'warn'; item: string; evidence: string }
+export function stageChecks(rows: StageRow[], n = 3): StageRow[] {
+  const rank = { bad: 0, warn: 1, unknown: 2, ok: 3 } as const
+  return rows.map((r, i) => ({ r, i })).sort((a, b) => rank[a.r.tone] - rank[b.r.tone] || a.i - b.i).slice(0, n).map(x => x.r)
+}
+
 /** URL：?view=game&blocks=checks,votes&layout=card|bar&theme=dark|cream&scale=1 */
-export function parseOverlayParams(search: string): { blocks: Set<Block>; layout: 'card' | 'bar'; theme: 'dark' | 'cream'; scale: number; demo: boolean } {
+export function parseOverlayParams(search: string): { blocks: Set<Block>; layout: 'card' | 'bar' | 'stage'; theme: 'dark' | 'cream'; scale: number; demo: boolean } {
   const q = new URLSearchParams(search)
   const raw = (q.get('blocks') ?? '').split(',').map(x => x.trim()).filter(Boolean)
   const blocks = new Set<Block>((raw.length ? raw : BLOCKS).filter((b): b is Block => (BLOCKS as readonly string[]).includes(b)))
   const scale = Number(q.get('scale') ?? '1')
   return {
     blocks,
-    layout: q.get('layout') === 'bar' ? 'bar' : 'card',
+    layout: q.get('layout') === 'bar' ? 'bar' : q.get('layout') === 'stage' ? 'stage' : 'card',
     theme: q.get('theme') === 'cream' ? 'cream' : 'dark',
     scale: isFinite(scale) && scale > 0.2 && scale < 4 ? scale : 1,
     demo: q.get('demo') === '1',

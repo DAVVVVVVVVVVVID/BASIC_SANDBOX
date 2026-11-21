@@ -47,3 +47,18 @@ test('URL 参数：选块 / 布局 / 主题 / 缩放', () => {
   assert.equal(isGameOverlayRoute('?view=game'), true)
   assert.equal(isGameOverlayRoute('?town=bench'), false)
 })
+
+test('游戏舞台 · 档案风：标题天数 / 访客序号、今天四格战绩、核对行排序', async () => {
+  const { stageInfo, stageChecks } = await import('../src/gameOverlay/view')
+  const st = { status: 'running', day: 2, visitor_no: 3, today: { admit_right: 4, reject_right: 2, admit_wrong: 0, reject_wrong: 1, unknown: 2 }, anomalies: ['带牙的小嘴'] }
+  const i = stageInfo(st)
+  assert.deepEqual(i.title, { day: 2, visitor: 3 })
+  assert.deepEqual(i.quad, { admitOk: 4, rejectOk: 2, admitBad: 0, rejectBad: 1, pending: 2 })
+  assert.equal(i.anomaly, '带牙的小嘴')
+  assert.deepEqual(stageInfo({ status: 'running', day: 1, visitor_no: 0 }).title, { day: 1, visitor: null })   // 门口没人：不显示访客序号
+  assert.equal(stageInfo({ status: 'idle' }).title, null)                                                       // 没在玩：只显示「今晚当门卫」
+  assert.equal(stageInfo(null).quad.pending, 0)
+  const rows = stageChecks([{ tone: 'ok', item: 'a', evidence: '' }, { tone: 'unknown', item: 'b', evidence: '' }, { tone: 'bad', item: 'c', evidence: '' }, { tone: 'warn', item: 'd', evidence: '' }], 3)
+  assert.deepEqual(rows.map(r => r.item), ['c', 'd', 'b'])
+  assert.equal(parseOverlayParams('?view=game&layout=stage').layout, 'stage')
+})
