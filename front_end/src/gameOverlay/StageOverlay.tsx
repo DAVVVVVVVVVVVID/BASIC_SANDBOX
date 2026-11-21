@@ -119,7 +119,7 @@ export default function StageOverlay({ state, v }: { state: GameState | null; v:
         <Card testid="stage-verdict" x={xs[1]} icon="icon_scale" title="她的判断" extra={v.statusNote ? <InkTag text={v.statusNote} /> : undefined}>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 66 }}>
             {stamp
-              ? <img key={stamp} data-testid="stage-stamp" src={`${ART}${stamp}.png`} alt={v.verdict.label} style={{ height: 92, marginTop: -14, animation: 'stageStamp 650ms cubic-bezier(.3,1.4,.5,1) both', transformOrigin: 'center' }} />
+              ? <img key={stamp} data-testid="stage-stamp" src={`${ART}${stamp}.png`} alt={v.verdict.label} style={{ height: 88, marginTop: -10, marginLeft: 70, animation: 'stageStamp 650ms cubic-bezier(.3,1.4,.5,1) both', transformOrigin: 'center' }} />
               : <span data-testid="stage-stamp" style={{ fontSize: 22, fontWeight: 800, color: INK_SOFT, border: `3px dashed ${INK_SOFT}`, borderRadius: '50%', padding: '6px 18px', transform: 'rotate(-8deg)' }}>{v.verdict.label}</span>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
