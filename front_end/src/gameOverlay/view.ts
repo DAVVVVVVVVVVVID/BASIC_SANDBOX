@@ -35,6 +35,17 @@ const VERDICT: Record<string, { label: string; tone: 'admit' | 'reject' | 'none'
 }
 const clamp01 = (x: unknown) => (typeof x === 'number' && isFinite(x) ? Math.max(0, Math.min(1, x)) : null)
 
+/**
+ * 卡片提示（总控 11-21：主播彩排时看到游戏窗口不在前台也显示「卡住了」，改为按原因显示）。
+ * D：blocked 是字符串，没卡住是 null；paused_by_api 时 paused 一定为 true。
+ */
+export function blockedNote(s: Pick<GameState, 'paused' | 'status' | 'blocked'>): string | null {
+  const b = typeof s.blocked === 'string' ? s.blocked : s.blocked ? String(s.blocked) : ''
+  if (s.paused || s.status === 'paused' || b === 'paused_by_api') return '暂停中'
+  if (b === 'game_not_foreground') return '等游戏窗口回来'
+  return b ? '卡住了' : null
+}
+
 export function deriveGameView(s: GameState | null | undefined): GameView {
   const empty: GameView = { live: false, statusNote: null, visitor: null, checks: [], verdict: { label: '还在看', tone: 'none' }, suspicion: null, lead: '', votes: null, score: null, summary: null }
   if (!s || (s.status !== 'running' && s.status !== 'paused')) return empty
@@ -50,7 +61,7 @@ export function deriveGameView(s: GameState | null | undefined): GameView {
   const inspecting = checks.length > 0 || !!v
   return {
     live: true,
-    statusNote: s.paused || s.status === 'paused' ? '暂停中' : s.blocked ? '卡住了，等人帮一下' : null,
+    statusNote: blockedNote(s),
     visitor: inspecting ? v : null,
     checks: inspecting ? checks : [],
     verdict: VERDICT[String(s.verdict ?? '')] ?? { label: '还在看', tone: 'none' },

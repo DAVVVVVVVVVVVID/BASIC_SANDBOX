@@ -29,6 +29,11 @@ test('没开局 / 已停 → 不显示；结算画面只给 summary', () => {
   assert.equal(end.suspicion, null)
   assert.equal(end.verdict.label, '还在看')
   assert.equal(deriveGameView({ status: 'running', paused: true }).statusNote, '暂停中')
+  assert.equal(deriveGameView({ status: 'running', paused: false, blocked: 'game_not_foreground' }).statusNote, '等游戏窗口回来')
+  assert.equal(deriveGameView({ status: 'running', paused: true, blocked: 'paused_by_api' }).statusNote, '暂停中')
+  assert.equal(deriveGameView({ status: 'running', paused: false, blocked: 'paused_by_api' }).statusNote, '暂停中')
+  assert.equal(deriveGameView({ status: 'running', paused: false, blocked: 'live_mode=闲聊' }).statusNote, '卡住了')
+  assert.equal(deriveGameView({ status: 'running', paused: false, blocked: null }).statusNote, null)
 })
 
 test('URL 参数：选块 / 布局 / 主题 / 缩放', () => {
