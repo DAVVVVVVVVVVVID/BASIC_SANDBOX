@@ -87,7 +87,7 @@ const TONE_BADGE = { ok: 'check', bad: 'x', unknown: 'q', warn: 'warn' } as cons
 export default function StageOverlay({ state, v }: { state: GameState | null; v: GameView }) {
   const s = useFitScale()
   const info = stageInfo(state)
-  const rows = stageChecks([...(info.anomaly ? [{ tone: 'warn' as const, item: '她觉得怪', evidence: info.anomaly }] : []), ...v.checks], 3)
+  const rows = stageChecks([...(info.anomaly ? [{ tone: 'warn' as const, item: '她觉得怪', evidence: info.anomaly }] : []), ...v.checks], 2)
   const day = info.title?.day
   const visitor = info.title?.visitor
   const q = info.quad
@@ -106,11 +106,11 @@ export default function StageOverlay({ state, v }: { state: GameState | null; v:
         {/* 她在核对 */}
         <Card testid="stage-checks" x={xs[0]} icon="icon_clipboard" title="她在核对">
           {rows.length ? rows.map((c, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, height: 31, borderBottom: i < rows.length - 1 ? `1px dashed ${INK_SOFT}88` : 'none' }}>
-              <Badge kind={TONE_BADGE[c.tone]} size={26} />
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, height: 46, borderBottom: i < rows.length - 1 ? `1px dashed ${INK_SOFT}88` : 'none' }}>
+              <Badge kind={TONE_BADGE[c.tone]} size={32} />
               <div style={{ minWidth: 0, lineHeight: 1.05 }}>
-                <div style={{ fontSize: 15.5, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.item}</div>
-                {c.evidence && <div style={{ fontSize: 11.5, color: INK_SOFT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.evidence}</div>}
+                <div style={{ fontSize: 22, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.item}</div>
+                {c.evidence && <div style={{ fontSize: 16, color: INK_SOFT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.evidence}</div>}
               </div>
             </div>
           )) : <div style={{ fontSize: 16, color: INK_SOFT, paddingTop: 8, lineHeight: 1.4 }}>{v.summary ?? '等下一位访客'}</div>}
