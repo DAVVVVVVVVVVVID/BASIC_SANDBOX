@@ -41,8 +41,9 @@ const clamp01 = (x: unknown) => (typeof x === 'number' && isFinite(x) ? Math.max
  */
 export function blockedNote(s: Pick<GameState, 'paused' | 'status' | 'blocked'>): string | null {
   const b = typeof s.blocked === 'string' ? s.blocked : s.blocked ? String(s.blocked) : ''
-  if (s.paused || s.status === 'paused' || b === 'paused_by_api') return '暂停中'
+  if (s.paused || s.status === 'paused' || b === 'paused_by_api' || b === 'bridge_paused') return '暂停中'   // bridge_paused：主播 F10
   if (b === 'game_not_foreground') return '等游戏窗口回来'
+  if (b.startsWith('live_mode=') || b === 'live_paused_or_achan') return '稍等一下'   // 不在游戏模式 / 直播暂停或阿蝉在说话
   return b ? '卡住了' : null
 }
 
